@@ -14,7 +14,8 @@
     "preact-router": "^4.1.0",
     "@forge-dev/ui": "*",
     "@forge-dev/sdk": "*",
-    "@forge-dev/mod-dev": "*"
+    "@forge-dev/mod-dev": "*",
+    "@forge-dev/mod-monitor": "*"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.9.0",

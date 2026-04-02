@@ -1,5 +1,6 @@
 import type { PanelConfig } from '@forge-dev/sdk'
 import { workspaces, sessions, sharedContext } from '@forge-dev/mod-dev/panels'
+import { health, activity, costs } from '@forge-dev/mod-monitor/panels'
 
 // Maps moduleId (directory name, e.g. "mod-dev") to a map of panelId -> PanelConfig
 const registry = new Map<string, Map<string, PanelConfig>>()
@@ -17,3 +18,4 @@ export function hasPanels(moduleId: string): boolean {
 }
 
 registerPanels('mod-dev', [workspaces, sessions, sharedContext])
+registerPanels('mod-monitor', [health, activity, costs])
