@@ -1,0 +1,24 @@
+{
+  "name": "@forge-dev/mod-planning",
+  "version": "0.1.0",
+  "displayName": "Planning",
+  "description": "Issues, docs, architecture diagrams, and decision records",
+  "icon": "kanban",
+  "color": "#3b82f6",
+  "panels": [
+    { "id": "board", "title": "Board", "component": "./panels/Board", "default": true },
+    { "id": "architecture", "title": "Architecture", "component": "./panels/Architecture" },
+    { "id": "docs", "title": "Docs", "component": "./panels/Docs" },
+    { "id": "adr", "title": "ADR", "component": "./panels/ADR" }
+  ],
+  "actions": [
+    { "id": "list-issues", "label": "List Issues", "icon": "list-checks", "command": "gh issue list --limit 20 --json number,title,state,labels 2>/dev/null || echo '[]'", "hidden": true, "tags": ["planning"] },
+    { "id": "list-diagrams", "label": "List Diagrams", "icon": "shapes", "command": "find docs -name '*.mmd' -o -name '*.d2' 2>/dev/null | head -20 || echo ''", "hidden": true, "tags": ["planning"] },
+    { "id": "list-adrs", "label": "List ADRs", "icon": "file-check", "command": "ls -1 docs/adr/*.md docs/decisions/*.md 2>/dev/null | head -20 || echo ''", "hidden": true, "tags": ["planning"] },
+    { "id": "create-adr", "label": "New ADR", "icon": "file-plus", "command": "echo 'Create an ADR by adding a markdown file to docs/adr/'", "tags": ["planning"] }
+  ],
+  "detectors": [
+    { "tool": "mermaid", "files": ["docs/diagrams", "docs/architecture"], "suggestion": "Diagram files found. View in Architecture panel." },
+    { "tool": "adr", "files": ["docs/adr", "docs/decisions"], "suggestion": "Decision records found. View in ADR panel." }
+  ]
+}
