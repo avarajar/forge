@@ -43,7 +43,7 @@ export function createForgeServer(options: ServerOptions) {
     const cwd = project?.path ?? process.cwd()
 
     const logId = db.logAction({
-      projectId: projectId ?? 'none',
+      projectId: projectId ?? null,
       moduleId: moduleName,
       actionId: actionId,
       command: action.command

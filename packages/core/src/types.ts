@@ -16,7 +16,7 @@ export interface InstalledModule {
 
 export interface ActionLog {
   id: string
-  projectId: string
+  projectId: string | null
   moduleId: string
   actionId: string
   command: string

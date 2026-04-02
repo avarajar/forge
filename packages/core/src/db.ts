@@ -20,7 +20,7 @@ interface RawProject {
 
 interface RawActionLog {
   id: string
-  project_id: string
+  project_id: string | null
   module_id: string
   action_id: string
   command: string
@@ -59,7 +59,7 @@ export class ForgeDB {
 
       CREATE TABLE IF NOT EXISTS action_logs (
         id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
+        project_id TEXT,
         module_id TEXT NOT NULL,
         action_id TEXT NOT NULL,
         command TEXT NOT NULL,
@@ -150,7 +150,7 @@ export class ForgeDB {
   }
 
   logAction(input: {
-    projectId: string
+    projectId: string | null
     moduleId: string
     actionId: string
     command: string
