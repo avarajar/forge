@@ -1,6 +1,7 @@
 import type { PanelConfig } from '@forge-dev/sdk'
 import { workspaces, sessions, sharedContext } from '@forge-dev/mod-dev/panels'
 import { health, activity, costs } from '@forge-dev/mod-monitor/panels'
+import { templates, wizard, recent } from '@forge-dev/mod-scaffold/panels'
 import { board, architecture, docs, adr } from '@forge-dev/mod-planning/panels'
 
 // Maps moduleId (directory name, e.g. "mod-dev") to a map of panelId -> PanelConfig
@@ -20,4 +21,5 @@ export function hasPanels(moduleId: string): boolean {
 
 registerPanels('mod-dev', [workspaces, sessions, sharedContext])
 registerPanels('mod-monitor', [health, activity, costs])
+registerPanels('mod-scaffold', [templates, wizard, recent])
 registerPanels('mod-planning', [board, architecture, docs, adr])

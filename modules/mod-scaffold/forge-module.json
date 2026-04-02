@@ -1,0 +1,21 @@
+{
+  "name": "@forge-dev/mod-scaffold",
+  "version": "0.1.0",
+  "displayName": "Scaffold",
+  "description": "Create new projects from templates with one click",
+  "icon": "hammer",
+  "color": "#f59e0b",
+  "panels": [
+    { "id": "templates", "title": "Templates", "component": "./panels/Templates", "default": true },
+    { "id": "wizard", "title": "New Project", "component": "./panels/Wizard" },
+    { "id": "recent", "title": "Recent", "component": "./panels/Recent" }
+  ],
+  "actions": [
+    { "id": "detect-stack", "label": "Detect Stack", "icon": "search", "command": "node -e \"const p=require('./package.json');console.log(JSON.stringify({name:p.name,deps:Object.keys(p.dependencies||{})}))\" 2>/dev/null || echo '{}'", "tags": ["scaffold"] },
+    { "id": "init-git", "label": "Init Git", "icon": "git-branch", "command": "git init && git add -A && git commit -m 'chore: initial commit'", "streaming": true, "tags": ["scaffold"] }
+  ],
+  "detectors": [
+    { "tool": "vite", "files": ["vite.config.ts", "vite.config.js"], "packages": ["vite"], "suggestion": "Vite project detected." },
+    { "tool": "npm-workspaces", "files": ["packages"], "suggestion": "Monorepo detected." }
+  ]
+}

@@ -16,7 +16,8 @@
     "@forge-dev/sdk": "*",
     "@forge-dev/mod-dev": "*",
     "@forge-dev/mod-monitor": "*",
-    "@forge-dev/mod-planning": "*"
+    "@forge-dev/mod-planning": "*",
+    "@forge-dev/mod-scaffold": "*"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.9.0",
