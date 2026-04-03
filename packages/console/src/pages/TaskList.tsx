@@ -188,8 +188,11 @@ const TaskCard: FunctionComponent<{
         <span class="text-xs text-forge-muted whitespace-nowrap">
           {timeAgo(session.last_opened)}
         </span>
-        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-forge-success/10 text-forge-success border border-forge-success/20 group-hover:bg-forge-success/20 transition-colors">
-          &#9654; Resume
+        <span
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+          style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', borderColor: 'rgba(16,185,129,0.2)' }}
+        >
+          ▶ Resume
         </span>
       </div>
     </div>
