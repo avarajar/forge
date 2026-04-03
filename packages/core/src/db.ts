@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import type { Project, InstalledModule, ActionLog } from './types.js'
+import type { IForgeDB } from './db-interface.js'
 
 interface RawInstalledModule {
   id: string
@@ -29,7 +30,7 @@ interface RawActionLog {
   finished_at: string | null
 }
 
-export class ForgeDB {
+export class ForgeDB implements IForgeDB {
   private db: Database.Database
 
   constructor(dbPath: string) {
