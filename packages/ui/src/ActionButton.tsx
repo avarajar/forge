@@ -40,8 +40,6 @@ export const ActionButton: FunctionComponent<ActionButtonProps> = ({
     >
       {loading ? (
         <span class="i-lucide-loader-2 animate-spin" />
-      ) : icon ? (
-        <span>{icon}</span>
       ) : null}
       <span>{label}</span>
     </button>

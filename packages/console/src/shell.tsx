@@ -36,7 +36,7 @@ export const Shell: FunctionComponent<ShellProps> = ({ modules, children }) => {
                   : 'text-forge-muted hover:text-forge-text hover:bg-forge-surface'}`}
               onClick={() => { currentModule.value = m.id }}
             >
-              <span>{m.icon}</span>
+              <span class="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
               <span>{m.name}</span>
             </button>
           ))}

@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { useState } from 'preact/hooks'
+import { useState, useEffect } from 'preact/hooks'
 import { Tabs, ActionButton, ForgeTerminal } from '@forge-dev/ui'
 import { apiPost } from '../hooks/useApi.js'
 import { getPanels } from '../panels/registry.js'
@@ -17,6 +17,13 @@ export const ModuleShell: FunctionComponent<ModuleShellProps> = ({
   const defaultPanel = manifest.panels.find(p => p.default)?.id ?? manifest.panels[0]?.id
   const [activeTab, setActiveTab] = useState(defaultPanel ?? '')
   const [terminalOutput, setTerminalOutput] = useState<string | null>(null)
+
+  // Reset state when module changes
+  useEffect(() => {
+    const def = manifest.panels.find(p => p.default)?.id ?? manifest.panels[0]?.id
+    setActiveTab(def ?? '')
+    setTerminalOutput(null)
+  }, [moduleId])
 
   const registeredPanels = getPanels(moduleId)
   const panelConfig = registeredPanels?.get(activeTab)
@@ -42,7 +49,7 @@ export const ModuleShell: FunctionComponent<ModuleShellProps> = ({
             class="w-10 h-10 rounded-lg flex items-center justify-center text-lg"
             style={{ backgroundColor: manifest.color + '20', color: manifest.color }}
           >
-            {manifest.icon}
+            {manifest.displayName.charAt(0)}
           </div>
           <div>
             <h2 class="text-xl font-bold">{manifest.displayName}</h2>
