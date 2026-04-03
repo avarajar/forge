@@ -1,75 +1,95 @@
 import { render } from 'preact'
-import { signal, effect } from '@preact/signals'
-import { Shell, currentModule } from './shell.js'
-import { Home } from './pages/Home.js'
-import { ModuleShell } from './pages/ModuleShell.js'
-import { useApi } from './hooks/useApi.js'
-import type { ModuleManifest } from '@forge-dev/sdk'
+import { useState, useEffect } from 'preact/hooks'
+import { Shell } from './shell.js'
+import { TaskList } from './pages/TaskList.js'
+import { EmptyState } from '@forge-dev/ui'
+import type { CWSession } from '@forge-dev/core'
 import './styles/theme.css'
 import 'virtual:uno.css'
 
-import './panels/registry.js'
-
-export const currentProject = signal<string | null>(null)
-
-interface ProjectEntry {
-  id: string
-  name: string
-  path: string
-}
+type View = 'list' | 'detail' | 'new-task'
 
 function App() {
-  const modules = useApi<ModuleManifest[]>('/api/modules/available')
-  const projects = useApi<ProjectEntry[]>('/api/projects')
+  const [spaces, setSpaces] = useState<CWSession[]>([])
+  const [projects, setProjects] = useState<Record<string, { path: string }>>({})
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<View>('list')
+  const [selectedSession, setSelectedSession] = useState<CWSession | null>(null)
+  const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
-  const projectList = projects.data.value ?? []
-
-  // Auto-select first project if none selected
-  if (currentProject.value === null && projectList.length > 0) {
-    currentProject.value = projectList[0].id
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      const [spacesRes, projectsRes] = await Promise.all([
+        fetch('/api/cw/spaces'),
+        fetch('/api/cw/projects')
+      ])
+      setSpaces(await spacesRes.json() as CWSession[])
+      setProjects(await projectsRes.json() as Record<string, { path: string }>)
+    } catch {
+      // server not ready
+    } finally {
+      setLoading(false)
+    }
   }
 
-  // If selected project was removed, reset
-  if (currentProject.value && projectList.length > 0 && !projectList.find(p => p.id === currentProject.value)) {
-    currentProject.value = projectList[0].id
+  useEffect(() => { fetchData() }, [])
+
+  const hasProjects = Object.keys(projects).length > 0
+
+  const handleNewTask = (type?: string) => {
+    setNewTaskType(type)
+    setView('new-task')
   }
 
-  const selectedProject = projectList.find(p => p.id === currentProject.value) ?? null
-
-  const sidebarModules = [
-    { id: 'home', name: 'Home', icon: 'home', color: '#6366f1' },
-    ...(modules.data.value ?? []).map(m => {
-      const dirName = m.name.replace('@forge-dev/', '')
-      return { id: dirName, name: m.displayName, icon: m.icon, color: m.color }
-    })
-  ]
-
-  const activeModuleId = currentModule.value
-  const activeManifest = (modules.data.value ?? []).find(
-    m => m.name.replace('@forge-dev/', '') === activeModuleId
-  )
+  const handleSelectTask = (session: CWSession) => {
+    setSelectedSession(session)
+    setView('detail')
+  }
 
   return (
-    <Shell
-      modules={sidebarModules}
-      projects={projectList}
-      selectedProject={selectedProject}
-      onSelectProject={(id) => { currentProject.value = id }}
-    >
-      {activeModuleId === null || activeModuleId === 'home' ? (
-        <Home
-          onProjectAdded={() => projects.refetch()}
-          onProjectRemoved={() => projects.refetch()}
+    <Shell>
+      {loading ? (
+        <div class="py-20 text-center text-forge-muted">Loading...</div>
+      ) : !hasProjects ? (
+        <EmptyState
+          icon="&#128296;"
+          title="Welcome to Forge"
+          description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
         />
-      ) : activeManifest ? (
-        <ModuleShell
-          moduleId={activeModuleId}
-          manifest={activeManifest}
-          projectId={currentProject.value}
+      ) : view === 'list' ? (
+        <TaskList
+          spaces={spaces}
+          loading={loading}
+          onNewTask={handleNewTask}
+          onSelectTask={handleSelectTask}
+          onRefresh={fetchData}
         />
-      ) : (
-        <div class="text-forge-muted py-8 text-center">Loading module...</div>
-      )}
+      ) : view === 'detail' && selectedSession ? (
+        <div>
+          <button
+            class="text-sm text-forge-muted hover:text-forge-text mb-4"
+            onClick={() => setView('list')}
+          >
+            ← Back to tasks
+          </button>
+          <div class="text-forge-muted py-8 text-center">
+            Task detail view (Task 5)
+          </div>
+        </div>
+      ) : view === 'new-task' ? (
+        <div>
+          <button
+            class="text-sm text-forge-muted hover:text-forge-text mb-4"
+            onClick={() => setView('list')}
+          >
+            ← Back to tasks
+          </button>
+          <div class="text-forge-muted py-8 text-center">
+            New task form (Task 6)
+          </div>
+        </div>
+      ) : null}
     </Shell>
   )
 }
