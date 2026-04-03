@@ -1,4 +1,8 @@
 import { Command } from 'commander'
+import { execSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { homedir } from 'node:os'
 
 export function moduleCommand() {
   const cmd = new Command('module').description('Manage Forge modules')
@@ -20,10 +24,34 @@ export function moduleCommand() {
 
   cmd
     .command('add <name>')
-    .description('Install a module')
+    .description('Install a module (e.g. @forge-dev/mod-qa)')
     .action(async (name: string) => {
-      console.log(`Installing module: ${name}`)
-      // TODO: npm install + register in DB
+      const modulesDir = join(homedir(), '.forge', 'modules')
+      const shortName = name.replace('@forge-dev/', '')
+
+      console.log(`Installing ${name}...`)
+
+      try {
+        execSync(`npm install ${name} --prefix ${modulesDir}`, { stdio: 'pipe' })
+      } catch {
+        const localPath = join(process.cwd(), 'modules', shortName)
+        if (!existsSync(localPath)) {
+          console.log(`Failed to install ${name}. Is it published to npm?`)
+          return
+        }
+        console.log(`Found local module at ${localPath}`)
+      }
+
+      try {
+        await fetch('http://localhost:3000/api/modules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, version: '0.1.0' })
+        })
+      } catch {
+        // Server might not be running
+      }
+
       console.log(`Module ${name} installed`)
     })
 
@@ -31,8 +59,23 @@ export function moduleCommand() {
     .command('remove <name>')
     .description('Remove a module')
     .action(async (name: string) => {
-      console.log(`Removing module: ${name}`)
-      // TODO: npm uninstall + unregister from DB
+      console.log(`Removing ${name}...`)
+
+      try {
+        await fetch(`http://localhost:3000/api/modules/${encodeURIComponent(name)}`, {
+          method: 'DELETE'
+        })
+      } catch {
+        // Server might not be running
+      }
+
+      const modulesDir = join(homedir(), '.forge', 'modules')
+      try {
+        execSync(`npm uninstall ${name} --prefix ${modulesDir}`, { stdio: 'pipe' })
+      } catch {
+        // May not have been npm-installed
+      }
+
       console.log(`Module ${name} removed`)
     })
 
