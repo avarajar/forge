@@ -37,3 +37,8 @@ export interface ModuleSetting {
   key: string
   value: string
 }
+
+export interface TeamConfig {
+  databaseUrl: string
+  authToken: string
+}

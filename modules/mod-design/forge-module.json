@@ -1,0 +1,27 @@
+{
+  "name": "@forge-dev/mod-design",
+  "version": "0.1.0",
+  "displayName": "Design & UI",
+  "description": "Figma integration, design tokens, wireframes, visual regression",
+  "icon": "palette",
+  "color": "#8b5cf6",
+  "panels": [
+    { "id": "designs", "title": "Designs", "component": "./panels/Designs", "default": true },
+    { "id": "tokens", "title": "Tokens", "component": "./panels/Tokens" },
+    { "id": "wireframes", "title": "Wireframes", "component": "./panels/Wireframes" },
+    { "id": "visual-diff", "title": "Visual Diff", "component": "./panels/VisualDiff" }
+  ],
+  "actions": [
+    { "id": "export-tokens", "label": "Export Tokens", "icon": "download", "command": "npx style-dictionary build 2>&1 || echo 'Style Dictionary not configured'", "streaming": true, "tags": ["design", "tokens"] },
+    { "id": "visual-regression", "label": "Visual Regression", "icon": "eye", "command": "npx lost-pixel 2>&1 || echo 'Lost Pixel not configured'", "streaming": true, "tags": ["design", "visual"] },
+    { "id": "list-tokens", "label": "List Tokens", "icon": "list", "command": "find tokens src/tokens -name '*.json' -o -name '*.ts' 2>/dev/null | head -20 || echo ''", "hidden": true },
+    { "id": "list-wireframes", "label": "List Wireframes", "icon": "pencil-ruler", "command": "find . -name '*.excalidraw' -o -name '*.excalidraw.json' 2>/dev/null | head -20 || echo ''", "hidden": true }
+  ],
+  "detectors": [
+    { "tool": "figma", "files": [".figma.json", "figma.config.ts"], "suggestion": "Figma configuration found. Import designs in the Design module." },
+    { "tool": "style-dictionary", "files": ["tokens", "style-dictionary.config.json"], "suggestion": "Design tokens found. Manage in the Tokens panel." },
+    { "tool": "excalidraw", "files": [".excalidraw.json", "wireframes"], "suggestion": "Excalidraw files found. View in Wireframes panel." },
+    { "tool": "lost-pixel", "files": ["lost-pixel.config.ts", "lost-pixel.config.js"], "packages": ["lost-pixel"], "suggestion": "Lost Pixel detected. Run visual regression from Design module." }
+  ],
+  "settings": { "schema": { "figmaToken": { "type": "string" }, "exportPath": { "type": "string", "default": "./src/design-tokens" }, "visualRegressionThreshold": { "type": "number", "default": 5 } } }
+}

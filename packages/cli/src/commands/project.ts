@@ -39,8 +39,19 @@ export function projectCommand() {
     .command('remove <name>')
     .description('Unregister a project')
     .action(async (name: string) => {
-      console.log(`Removing project: ${name}`)
-      // TODO: lookup by name, then DELETE
+      const listRes = await fetch('http://localhost:3000/api/projects')
+      const projects = await listRes.json() as { id: string; name: string }[]
+      const project = projects.find(p => p.name === name)
+
+      if (!project) {
+        console.log(`Project "${name}" not found`)
+        return
+      }
+
+      await fetch(`http://localhost:3000/api/projects/${project.id}`, {
+        method: 'DELETE'
+      })
+      console.log(`Project "${name}" removed`)
     })
 
   return cmd

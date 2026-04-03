@@ -94,4 +94,46 @@ describe('Forge Server', () => {
     const settings = await getRes.json()
     expect(settings).toEqual({ theme: 'dark', port: '8080' })
   })
+
+  it('GET /api/registry/search returns results', async () => {
+    const res = await server.fetch('/api/registry/search?q=forge')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { results: unknown[] }
+    expect(Array.isArray(body.results)).toBe(true)
+  })
+})
+
+describe('Forge Server with auth', () => {
+  let authServer: ReturnType<typeof createForgeServer>
+  const AUTH_DIR = join(import.meta.dirname, '../.test-server-auth')
+
+  beforeAll(() => {
+    mkdirSync(join(AUTH_DIR, 'modules'), { recursive: true })
+    authServer = createForgeServer({
+      dataDir: AUTH_DIR,
+      authToken: 'my-secret'
+    })
+  })
+
+  afterAll(() => {
+    authServer.close()
+    rmSync(AUTH_DIR, { recursive: true, force: true })
+  })
+
+  it('health endpoint works without token', async () => {
+    const res = await authServer.fetch('/api/health')
+    expect(res.status).toBe(200)
+  })
+
+  it('protected endpoint requires token', async () => {
+    const res = await authServer.fetch('/api/projects')
+    expect(res.status).toBe(401)
+  })
+
+  it('protected endpoint works with valid token', async () => {
+    const res = await authServer.fetch('/api/projects', {
+      headers: { Authorization: 'Bearer my-secret' }
+    })
+    expect(res.status).toBe(200)
+  })
 })

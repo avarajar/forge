@@ -1,0 +1,10 @@
+{
+  "name": "@forge-dev/mod-design",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Figma integration, design tokens, wireframes, visual regression",
+  "exports": { "./panels": "./panels/index.ts" },
+  "peerDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "*", "@forge-dev/ui": "*" },
+  "devDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "*", "@forge-dev/ui": "*", "typescript": "^5.8.0" }
+}

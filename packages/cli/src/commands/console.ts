@@ -9,6 +9,9 @@ export function consoleCommand() {
     .option('-p, --port <port>', 'Port number', '3000')
     .option('--no-open', 'Do not open browser')
     .option('--detach', 'Run in background')
+    .option('--team', 'Start in team mode (requires --db-url)')
+    .option('--db-url <url>', 'PostgreSQL connection URL for team mode')
+    .option('--auth-token <token>', 'Bearer token for API authentication')
     .action(async (opts) => {
       const forgeDir = join(homedir(), '.forge')
       if (!existsSync(forgeDir)) {
@@ -17,15 +20,40 @@ export function consoleCommand() {
       }
 
       const port = parseInt(opts.port, 10)
-      console.log(`Starting Forge Console on http://localhost:${port}`)
+      const isTeam = opts.team || !!opts.dbUrl
+      const dbUrl = opts.dbUrl || process.env.FORGE_DB_URL
+      const authToken = opts.authToken || process.env.FORGE_AUTH_TOKEN
 
-      const { createForgeServer } = await import('@forge-dev/core')
-      const server = createForgeServer({ dataDir: forgeDir, port })
+      if (isTeam && !dbUrl) {
+        console.log('Team mode requires --db-url or FORGE_DB_URL environment variable.')
+        process.exit(1)
+      }
+
+      console.log(`Starting Forge Console (${isTeam ? 'team' : 'local'} mode) on http://localhost:${port}`)
+
+      const { createForgeServer, createDatabase } = await import('@forge-dev/core')
+
+      const db = await createDatabase({
+        mode: isTeam ? 'team' : 'local',
+        dataDir: forgeDir,
+        databaseUrl: dbUrl
+      })
+
+      const server = createForgeServer({
+        dataDir: forgeDir,
+        port,
+        db,
+        authToken: isTeam ? authToken : undefined
+      })
 
       const { serve } = await import('@hono/node-server')
       serve({ fetch: server.app.fetch, port })
 
       console.log(`Forge Console running at http://localhost:${port}`)
+      if (isTeam) {
+        console.log(`  Mode: team (PostgreSQL)`)
+        if (authToken) console.log(`  Auth: bearer token required`)
+      }
 
       if (opts.open !== false) {
         try {

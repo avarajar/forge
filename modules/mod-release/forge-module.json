@@ -1,0 +1,33 @@
+{
+  "name": "@forge-dev/mod-release",
+  "version": "0.1.0",
+  "displayName": "Release & Deploy",
+  "description": "Deploy automation, feature flags, rollback, changelog",
+  "icon": "rocket",
+  "color": "#f59e0b",
+  "panels": [
+    { "id": "pipeline", "title": "Pipeline", "component": "./panels/Pipeline", "default": true },
+    { "id": "environments", "title": "Environments", "component": "./panels/Environments" },
+    { "id": "changelog", "title": "Changelog", "component": "./panels/Changelog" },
+    { "id": "feature-flags", "title": "Feature Flags", "component": "./panels/FeatureFlags" },
+    { "id": "rollback", "title": "Rollback", "component": "./panels/Rollback" }
+  ],
+  "actions": [
+    { "id": "detect-platform", "label": "Detect Platform", "icon": "search", "command": "[ -f vercel.json ] && echo 'vercel' || ([ -f fly.toml ] && echo 'fly' || ([ -f netlify.toml ] && echo 'netlify' || ([ -f railway.json ] && echo 'railway' || ([ -f Dockerfile ] && echo 'docker' || echo 'none'))))", "hidden": true },
+    { "id": "generate-changelog", "label": "Generate Changelog", "icon": "scroll-text", "command": "npx git-cliff -o CHANGELOG.md 2>&1 || (npx conventional-changelog -p angular -i CHANGELOG.md -s 2>&1 || echo 'No changelog tool found')", "streaming": true, "tags": ["release", "changelog"] },
+    { "id": "bump-version", "label": "Bump Version", "icon": "arrow-up-circle", "command": "npx changeset version 2>&1 || echo 'Changesets not configured'", "streaming": true, "tags": ["release", "version"] },
+    { "id": "create-release", "label": "Create Release", "icon": "tag", "command": "VERSION=$(node -p \"require('./package.json').version\" 2>/dev/null || echo 'unknown') && gh release create v$VERSION --generate-notes 2>&1 || echo 'GitHub CLI not available or not in a repo'", "streaming": true, "tags": ["release", "github"] },
+    { "id": "deploy", "label": "Deploy", "icon": "rocket", "command": "npx vercel --prod 2>&1 || (fly deploy 2>&1 || (npx netlify deploy --prod 2>&1 || echo 'No deploy platform detected'))", "streaming": true, "tags": ["release", "deploy"] },
+    { "id": "list-releases", "label": "List Releases", "icon": "list", "command": "gh release list --limit 10 2>&1 || git tag --sort=-version:refname | head -10 || echo ''", "hidden": true },
+    { "id": "read-changelog", "label": "Read Changelog", "icon": "file-text", "command": "cat CHANGELOG.md 2>/dev/null || echo '(No CHANGELOG.md found)'", "hidden": true }
+  ],
+  "detectors": [
+    { "tool": "vercel", "files": ["vercel.json", "vercel.ts", ".vercel"], "suggestion": "Vercel project detected. Deploy from Release module." },
+    { "tool": "fly", "files": ["fly.toml"], "suggestion": "Fly.io app detected. Deploy from Release module." },
+    { "tool": "netlify", "files": ["netlify.toml"], "suggestion": "Netlify site detected. Deploy from Release module." },
+    { "tool": "docker", "files": ["Dockerfile", "docker-compose.yml"], "suggestion": "Docker detected. Build and deploy containers from Release module." },
+    { "tool": "changesets", "files": [".changeset"], "packages": ["@changesets/cli"], "suggestion": "Changesets detected. Manage versions from Release module." },
+    { "tool": "git-cliff", "files": ["cliff.toml"], "suggestion": "git-cliff detected. Generate changelogs from Release module." }
+  ],
+  "settings": { "schema": { "deployPlatform": { "type": "string", "default": "auto" }, "changelogFormat": { "type": "string", "default": "conventional" }, "autoPublishNpm": { "type": "boolean", "default": false } } }
+}

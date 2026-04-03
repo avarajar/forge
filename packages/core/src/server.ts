@@ -6,18 +6,22 @@ import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
 import type { ActionDef } from '@forge-dev/sdk'
 import { join } from 'node:path'
+import type { IForgeDB } from './db-interface.js'
+import { bearerAuth } from './auth.js'
 
 interface ServerOptions {
   dataDir: string
   port?: number
+  db?: IForgeDB
+  authToken?: string
 }
 
 export function createForgeServer(options: ServerOptions) {
-  const { dataDir } = options
+  const { dataDir, db: externalDb, authToken } = options
   const dbPath = join(dataDir, 'forge.db')
   const modulesDir = join(dataDir, 'modules')
 
-  const db = new ForgeDB(dbPath)
+  const db: IForgeDB = externalDb ?? new ForgeDB(dbPath)
   const loader = new ModuleLoader(modulesDir)
   const runner = new ActionRunner()
 
@@ -25,6 +29,10 @@ export function createForgeServer(options: ServerOptions) {
 
   const app = new Hono()
   app.use('*', cors())
+
+  if (authToken) {
+    app.use('/api/*', bearerAuth(authToken))
+  }
 
   async function resolveAction(c: Context): Promise<
     | { action: ActionDef; cwd: string; logId: string }
@@ -160,6 +168,24 @@ export function createForgeServer(options: ServerOptions) {
       db.setModuleSetting(moduleId, key, String(value))
     }
     return c.json({ ok: true })
+  })
+
+  app.get('/api/registry/search', async (c) => {
+    const q = c.req.query('q') ?? 'forge-dev'
+    try {
+      const npmRes = await globalThis.fetch(
+        `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(q)}+keywords:forge-module&size=20`
+      )
+      const data = await npmRes.json() as { objects?: { package: { name: string; version: string; description: string } }[] }
+      const results = (data.objects ?? []).map(o => ({
+        name: o.package.name,
+        version: o.package.version,
+        description: o.package.description
+      }))
+      return c.json({ results })
+    } catch {
+      return c.json({ results: [] })
+    }
   })
 
   const fetch = (path: string, init?: RequestInit) => {
