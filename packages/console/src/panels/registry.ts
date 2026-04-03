@@ -23,3 +23,11 @@ registerPanels('mod-dev', [workspaces, sessions, sharedContext])
 registerPanels('mod-monitor', [health, activity, costs])
 registerPanels('mod-scaffold', [templates, wizard, recent])
 registerPanels('mod-planning', [board, architecture, docs, adr])
+
+import { overview, testRunner, coverage, reports } from '@forge-dev/mod-qa/panels'
+import { designs, tokens, wireframes, visualDiff } from '@forge-dev/mod-design/panels'
+import { pipeline, environments, changelog, featureFlags, rollback } from '@forge-dev/mod-release/panels'
+
+registerPanels('mod-qa', [overview, testRunner, coverage, reports])
+registerPanels('mod-design', [designs, tokens, wireframes, visualDiff])
+registerPanels('mod-release', [pipeline, environments, changelog, featureFlags, rollback])
