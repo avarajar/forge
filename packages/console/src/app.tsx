@@ -2,6 +2,8 @@ import { render } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { Shell } from './shell.js'
 import { TaskList } from './pages/TaskList.js'
+import { TaskDetail } from './pages/TaskDetail.js'
+import { NewTask } from './pages/NewTask.js'
 import { EmptyState } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import './styles/theme.css'
@@ -66,29 +68,18 @@ function App() {
           onRefresh={fetchData}
         />
       ) : view === 'detail' && selectedSession ? (
-        <div>
-          <button
-            class="text-sm text-forge-muted hover:text-forge-text mb-4"
-            onClick={() => setView('list')}
-          >
-            ← Back to tasks
-          </button>
-          <div class="text-forge-muted py-8 text-center">
-            Task detail view (Task 5)
-          </div>
-        </div>
+        <TaskDetail
+          session={selectedSession}
+          onBack={() => { setView('list'); fetchData() }}
+          onDone={() => { setView('list'); fetchData() }}
+        />
       ) : view === 'new-task' ? (
-        <div>
-          <button
-            class="text-sm text-forge-muted hover:text-forge-text mb-4"
-            onClick={() => setView('list')}
-          >
-            ← Back to tasks
-          </button>
-          <div class="text-forge-muted py-8 text-center">
-            New task form (Task 6)
-          </div>
-        </div>
+        <NewTask
+          projects={projects}
+          initialType={newTaskType}
+          onBack={() => setView('list')}
+          onCreated={() => { setView('list'); fetchData() }}
+        />
       ) : null}
     </Shell>
   )
