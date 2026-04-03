@@ -94,6 +94,13 @@ describe('Forge Server', () => {
     const settings = await getRes.json()
     expect(settings).toEqual({ theme: 'dark', port: '8080' })
   })
+
+  it('GET /api/registry/search returns results', async () => {
+    const res = await server.fetch('/api/registry/search?q=forge')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { results: unknown[] }
+    expect(Array.isArray(body.results)).toBe(true)
+  })
 })
 
 describe('Forge Server with auth', () => {

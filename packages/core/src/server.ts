@@ -170,6 +170,24 @@ export function createForgeServer(options: ServerOptions) {
     return c.json({ ok: true })
   })
 
+  app.get('/api/registry/search', async (c) => {
+    const q = c.req.query('q') ?? 'forge-dev'
+    try {
+      const npmRes = await globalThis.fetch(
+        `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(q)}+keywords:forge-module&size=20`
+      )
+      const data = await npmRes.json() as { objects?: { package: { name: string; version: string; description: string } }[] }
+      const results = (data.objects ?? []).map(o => ({
+        name: o.package.name,
+        version: o.package.version,
+        description: o.package.description
+      }))
+      return c.json({ results })
+    } catch {
+      return c.json({ results: [] })
+    }
+  })
+
   const fetch = (path: string, init?: RequestInit) => {
     return app.request(path, init)
   }
