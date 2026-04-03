@@ -81,6 +81,28 @@ export class CWReader {
       .map(e => e.name)
   }
 
+  getMCPs(): { global: Record<string, unknown>; cw: string[] } {
+    const result: { global: Record<string, unknown>; cw: string[] } = { global: {}, cw: [] }
+
+    // Global Claude MCPs
+    const claudeSettings = join(process.env.HOME ?? '', '.claude', 'settings.json')
+    if (existsSync(claudeSettings)) {
+      try {
+        const data = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
+        if (data.mcpServers) result.global = data.mcpServers
+      } catch {}
+    }
+
+    // CW managed MCPs
+    const mcpsDir = join(this.cwDir, 'mcps')
+    if (existsSync(mcpsDir)) {
+      const files = readdirSync(mcpsDir).filter(f => f.endsWith('.json'))
+      result.cw = files.map(f => f.replace('.json', ''))
+    }
+
+    return result
+  }
+
   detectStack(project: string): StackDetection {
     const projects = this.getProjects()
     const projPath = projects[project]?.path ?? ''

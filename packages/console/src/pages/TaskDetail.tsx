@@ -17,6 +17,8 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
   const [notes, setNotes] = useState<string>('')
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [runningTests, setRunningTests] = useState(false)
+  const [stack, setStack] = useState<Record<string, unknown> | null>(null)
+  const [mcps, setMcps] = useState<{ global: Record<string, unknown>; cw: string[] } | null>(null)
 
   const sessionDir = session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`
 
@@ -36,7 +38,18 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
     setNotes((await res.json() as { content: string }).content)
   }
 
-  useEffect(() => { fetchGit(); fetchNotes() }, [session])
+  const fetchTools = async () => {
+    try {
+      const [stackRes, mcpsRes] = await Promise.all([
+        fetch(`/api/cw/detect/${session.project}`),
+        fetch('/api/cw/mcps')
+      ])
+      setStack(await stackRes.json() as Record<string, unknown>)
+      setMcps(await mcpsRes.json() as { global: Record<string, unknown>; cw: string[] })
+    } catch {}
+  }
+
+  useEffect(() => { fetchGit(); fetchNotes(); fetchTools() }, [session])
 
   const resume = async () => {
     try {
@@ -81,6 +94,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
     { id: 'status', label: 'Status' },
     { id: 'diff', label: 'Diff' },
     { id: 'tests', label: 'Tests' },
+    { id: 'tools', label: 'Tools' },
     { id: 'notes', label: 'Notes' },
   ]
 
@@ -176,6 +190,96 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
           {testOutput && (
             <div class="mt-4">
               <ForgeTerminal content={testOutput} height={300} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tools tab */}
+      {activeTab === 'tools' && (
+        <div class="space-y-6">
+          {/* Stack Detection */}
+          {stack && (
+            <div>
+              <div class="text-xs text-forge-muted uppercase mb-3">Detected Stack</div>
+              <div class="flex flex-wrap gap-2">
+                {stack.framework && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: 'var(--forge-accent)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                    {String(stack.framework)}
+                  </span>
+                )}
+                {stack.testRunner && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                    {String(stack.testRunner)}
+                  </span>
+                )}
+                {stack.hasTailwind && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>
+                    Tailwind
+                  </span>
+                )}
+                {stack.hasShadcn && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: 'var(--forge-accent)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                    shadcn/ui
+                  </span>
+                )}
+                {stack.hasPlaywright && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                    Playwright
+                  </span>
+                )}
+                {stack.hasDockerfile && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                    Docker
+                  </span>
+                )}
+                {stack.hasTokens && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)' }}>
+                    Design Tokens
+                  </span>
+                )}
+                {stack.hasPackageJson && !stack.framework && (
+                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--forge-warning)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                    Node.js
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* MCPs */}
+          {mcps && (
+            <div>
+              <div class="text-xs text-forge-muted uppercase mb-3">MCP Servers</div>
+              <div class="space-y-2">
+                {Object.keys(mcps.global).length > 0 && (
+                  <div>
+                    <div class="text-xs text-forge-muted mb-2">Global (Claude Code)</div>
+                    <div class="flex flex-wrap gap-2">
+                      {Object.keys(mcps.global).map(name => (
+                        <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium bg-forge-surface border border-forge-border text-forge-text">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {mcps.cw.length > 0 && (
+                  <div class="mt-3">
+                    <div class="text-xs text-forge-muted mb-2">CW Managed</div>
+                    <div class="flex flex-wrap gap-2">
+                      {mcps.cw.map(name => (
+                        <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium bg-forge-surface border border-forge-border text-forge-text">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {Object.keys(mcps.global).length === 0 && mcps.cw.length === 0 && (
+                  <div class="text-sm text-forge-muted py-4 text-center">No MCP servers configured</div>
+                )}
+              </div>
             </div>
           )}
         </div>

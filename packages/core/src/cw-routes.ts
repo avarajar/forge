@@ -36,6 +36,10 @@ export function cwRoutes(reader: CWReader): Hono {
     return c.json(reader.detectStack(project))
   })
 
+  app.get('/mcps', (c) => {
+    return c.json(reader.getMCPs())
+  })
+
   app.get('/git/status/:project/:sessionDir', (c) => {
     const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
