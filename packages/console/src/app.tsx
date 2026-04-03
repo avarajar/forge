@@ -1,5 +1,5 @@
 import { render } from 'preact'
-import { useState, useEffect } from 'preact/hooks'
+import { useState, useEffect, useMemo } from 'preact/hooks'
 import { Shell } from './shell.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
@@ -18,6 +18,11 @@ function App() {
   const [view, setView] = useState<View>('list')
   const [selectedSession, setSelectedSession] = useState<CWSession | null>(null)
   const [newTaskType, setNewTaskType] = useState<string | undefined>()
+
+  // Filter state
+  const [filterProject, setFilterProject] = useState<string | null>(null)
+  const [filterType, setFilterType] = useState<string | null>(null)
+  const [showDone, setShowDone] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
@@ -38,6 +43,28 @@ function App() {
   useEffect(() => { fetchData() }, [])
 
   const hasProjects = Object.keys(projects).length > 0
+
+  // Derive unique project names from spaces
+  const projectNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const s of spaces) names.add(s.project)
+    return Array.from(names).sort()
+  }, [spaces])
+
+  // Filter spaces
+  const filteredSpaces = useMemo(() => {
+    return spaces.filter(s => {
+      if (filterProject && s.project !== filterProject) return false
+      if (filterType) {
+        if (filterType === 'dev' && s.type !== 'task') return false
+        if (filterType === 'review' && s.type !== 'review') return false
+        // design/plan: future types, skip for now if no match
+        if (filterType === 'design' || filterType === 'plan') return false
+      }
+      if (!showDone && s.status === 'done') return false
+      return true
+    })
+  }, [spaces, filterProject, filterType, showDone])
 
   const handleNewTask = (type?: string) => {
     setNewTaskType(type)
@@ -61,11 +88,19 @@ function App() {
         />
       ) : view === 'list' ? (
         <TaskList
-          spaces={spaces}
+          spaces={filteredSpaces}
+          allSpaces={spaces}
           loading={loading}
           onNewTask={handleNewTask}
           onSelectTask={handleSelectTask}
           onRefresh={fetchData}
+          projectNames={projectNames}
+          filterProject={filterProject}
+          onFilterProject={setFilterProject}
+          filterType={filterType}
+          onFilterType={setFilterType}
+          showDone={showDone}
+          onShowDone={setShowDone}
         />
       ) : view === 'detail' && selectedSession ? (
         <TaskDetail

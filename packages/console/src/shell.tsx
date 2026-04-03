@@ -16,17 +16,25 @@ interface ShellProps {
 export const Shell: FunctionComponent<ShellProps> = ({ children }) => {
   return (
     <div class="min-h-screen bg-forge-bg text-forge-text">
-      <header class="h-14 border-b border-forge-border flex items-center justify-between px-6">
-        <div class="flex items-center gap-3">
-          <h1 class="text-lg font-bold">Forge</h1>
+      <header class="h-14 border-b border-forge-border/60 flex items-center justify-between px-6 backdrop-blur-sm bg-forge-bg/80 sticky top-0 z-50">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl select-none" aria-hidden="true">&#128293;</span>
+          <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-forge-accent to-forge-warning bg-clip-text text-transparent">
+            Forge
+          </h1>
         </div>
         <div class="flex items-center gap-3">
-          <button class="text-xs text-forge-muted hover:text-forge-text" onClick={toggleTheme}>
-            {theme.value === 'dark' ? 'Light' : 'Dark'}
+          <button
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-forge-muted hover:text-forge-text hover:bg-forge-surface border border-transparent hover:border-forge-border/60 transition-all"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme.value === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            <span class="text-sm">{theme.value === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'}</span>
+            <span>{theme.value === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
         </div>
       </header>
-      <main class="max-w-4xl mx-auto p-6">
+      <main class="max-w-4xl mx-auto px-6 py-8">
         {children}
       </main>
       <ToastContainer />
