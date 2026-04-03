@@ -1,0 +1,36 @@
+{
+  "name": "@forge-dev/mod-qa",
+  "version": "0.1.0",
+  "displayName": "Quality Assurance",
+  "description": "E2E, unit, visual, security, and load testing",
+  "icon": "shield-check",
+  "color": "#10b981",
+  "panels": [
+    { "id": "overview", "title": "Overview", "component": "./panels/Overview", "default": true },
+    { "id": "test-runner", "title": "Test Runner", "component": "./panels/TestRunner" },
+    { "id": "coverage", "title": "Coverage", "component": "./panels/Coverage" },
+    { "id": "reports", "title": "Reports", "component": "./panels/Reports" }
+  ],
+  "actions": [
+    { "id": "detect-runner", "label": "Detect Test Runner", "icon": "search", "command": "[ -f vitest.config.ts ] && echo 'vitest' || ([ -f jest.config.js ] && echo 'jest' || ([ -f pytest.ini ] && echo 'pytest' || echo 'none'))", "hidden": true },
+    { "id": "run-unit", "label": "Run Unit Tests", "icon": "play", "command": "npx vitest run 2>&1 || pytest 2>&1 || echo 'No test runner found'", "streaming": true, "tags": ["qa", "unit"] },
+    { "id": "run-e2e", "label": "Run E2E", "icon": "monitor-check", "command": "npx playwright test 2>&1 || echo 'Playwright not installed'", "streaming": true, "tags": ["qa", "e2e"] },
+    { "id": "security-scan", "label": "Security Scan", "icon": "shield-alert", "command": "npx semgrep scan --config auto 2>&1 || echo 'Semgrep not installed'", "streaming": true, "tags": ["qa", "security"] },
+    { "id": "load-test", "label": "Load Test", "icon": "gauge", "command": "k6 run load-test.js 2>&1 || echo 'k6 not installed or no load-test.js found'", "streaming": true, "tags": ["qa", "load"] },
+    { "id": "visual-regression", "label": "Visual Regression", "icon": "eye", "command": "npx lost-pixel 2>&1 || echo 'Lost Pixel not installed'", "streaming": true, "tags": ["qa", "visual"] },
+    { "id": "full-suite", "label": "Full Suite", "icon": "list-checks", "command": "echo '=== Unit Tests ===' && (npx vitest run 2>&1 || echo 'skipped') && echo '=== E2E ===' && (npx playwright test 2>&1 || echo 'skipped') && echo '=== Security ===' && (npx semgrep scan --config auto 2>&1 || echo 'skipped')", "streaming": true, "tags": ["qa", "all"] },
+    { "id": "list-reports", "label": "List Reports", "icon": "file-text", "command": "ls -1t coverage/ test-results/ playwright-report/ 2>/dev/null | head -20 || echo ''", "hidden": true }
+  ],
+  "detectors": [
+    { "tool": "vitest", "files": ["vitest.config.ts", "vitest.config.js"], "packages": ["vitest"], "suggestion": "Vitest detected. Run unit tests from the QA module." },
+    { "tool": "playwright", "files": ["playwright.config.ts", "e2e"], "packages": ["@playwright/test"], "suggestion": "Playwright detected. Run E2E tests from QA." },
+    { "tool": "semgrep", "files": [".semgrep.yml", ".semgrep"], "suggestion": "Semgrep rules found. Run security scans from QA." },
+    { "tool": "k6", "files": ["k6", "*.k6.js"], "suggestion": "k6 scripts found. Run load tests from QA." }
+  ],
+  "settings": {
+    "schema": {
+      "coverageThreshold": { "type": "number", "default": 80 },
+      "runOnPush": { "type": "boolean", "default": false }
+    }
+  }
+}
