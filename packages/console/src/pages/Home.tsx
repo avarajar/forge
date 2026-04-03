@@ -1,6 +1,6 @@
 import { type FunctionComponent } from 'preact'
-import { useState } from 'preact/hooks'
-import { StatusCard, ActionButton, Modal, showToast } from '@forge-dev/ui'
+import { useState, useEffect } from 'preact/hooks'
+import { StatusCard, ActionButton, Modal, DataList, Badge, showToast, type DataListItem } from '@forge-dev/ui'
 import { useApi } from '../hooks/useApi.js'
 
 interface HealthResponse {
@@ -8,30 +8,92 @@ interface HealthResponse {
   modules: number
 }
 
-export const Home: FunctionComponent = () => {
-  const projects = useApi<unknown[]>('/api/projects')
-  const health = useApi<HealthResponse>('/api/health')
-  const [showModal, setShowModal] = useState(false)
-  const [projectName, setProjectName] = useState('')
-  const [projectPath, setProjectPath] = useState('')
+interface ProjectEntry {
+  id: string
+  name: string
+  path: string
+}
 
-  const createProject = async () => {
-    if (!projectName.trim() || !projectPath.trim()) return
+interface DirEntry {
+  name: string
+  path: string
+  hasPackageJson: boolean
+  hasGit: boolean
+}
+
+interface BrowseResponse {
+  current: string
+  name: string
+  parent: string
+  directories: DirEntry[]
+}
+
+export const Home: FunctionComponent = () => {
+  const projects = useApi<ProjectEntry[]>('/api/projects')
+  const health = useApi<HealthResponse>('/api/health')
+  const [showBrowser, setShowBrowser] = useState(false)
+  const [browsePath, setBrowsePath] = useState<string | null>(null)
+  const [browseData, setBrowseData] = useState<BrowseResponse | null>(null)
+  const [browseLoading, setBrowseLoading] = useState(false)
+
+  const browse = async (path?: string) => {
+    setBrowseLoading(true)
+    try {
+      const url = path ? `/api/filesystem/browse?path=${encodeURIComponent(path)}` : '/api/filesystem/browse'
+      const res = await fetch(url)
+      const data = await res.json() as BrowseResponse
+      setBrowseData(data)
+      setBrowsePath(data.current)
+    } catch {
+      showToast('Failed to browse directory', 'error')
+    } finally {
+      setBrowseLoading(false)
+    }
+  }
+
+  const openBrowser = () => {
+    setShowBrowser(true)
+    browse()
+  }
+
+  const registerDir = async (path: string, name: string) => {
     try {
       await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: projectName.trim(), path: projectPath.trim() })
+        body: JSON.stringify({ name, path })
       })
-      setShowModal(false)
-      setProjectName('')
-      setProjectPath('')
-      showToast(`Project "${projectName}" created`, 'success')
+      showToast(`Project "${name}" registered`, 'success')
+      setShowBrowser(false)
       projects.refetch()
     } catch {
-      showToast('Failed to create project', 'error')
+      showToast('Failed to register project', 'error')
     }
   }
+
+  const registerCurrent = async () => {
+    if (!browseData) return
+    await registerDir(browseData.current, browseData.name)
+  }
+
+  const removeProject = async (id: string) => {
+    try {
+      await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+      showToast('Project removed', 'info')
+      projects.refetch()
+    } catch {
+      showToast('Failed to remove project', 'error')
+    }
+  }
+
+  const projectItems: DataListItem[] = (projects.data.value ?? []).map(p => ({
+    id: p.id,
+    title: p.name,
+    subtitle: p.path,
+    trailing: (
+      <ActionButton label="Remove" variant="danger" onClick={() => removeProject(p.id)} />
+    )
+  }))
 
   return (
     <div>
@@ -58,37 +120,65 @@ export const Home: FunctionComponent = () => {
         />
       </div>
 
-      <div class="flex gap-3">
-        <ActionButton label="+ New Project" variant="primary" onClick={() => setShowModal(true)} />
+      <div class="flex gap-3 mb-6">
+        <ActionButton label="+ Add Project" variant="primary" onClick={openBrowser} />
       </div>
 
+      {/* Registered projects list */}
+      {projectItems.length > 0 && (
+        <div>
+          <h3 class="text-sm font-medium text-forge-muted mb-3">Registered Projects</h3>
+          <DataList items={projectItems} />
+        </div>
+      )}
+
+      {/* Directory Browser Modal */}
       <Modal
-        open={showModal}
-        title="New Project"
-        onClose={() => setShowModal(false)}
-        onConfirm={createProject}
-        confirmLabel="Create"
+        open={showBrowser}
+        title="Add Project"
+        onClose={() => setShowBrowser(false)}
+        onConfirm={registerCurrent}
+        confirmLabel={`Register "${browseData?.name ?? '...'}"`}
       >
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-1">Project Name</label>
-            <input
-              type="text"
-              value={projectName}
-              onInput={(e) => setProjectName((e.target as HTMLInputElement).value)}
-              placeholder="my-app"
-              class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-            />
+        <div>
+          {/* Current path */}
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-xs text-forge-muted truncate flex-1">{browsePath ?? 'Loading...'}</span>
+            {browseData && browseData.current !== browseData.parent && (
+              <ActionButton label=".." variant="secondary" onClick={() => browse(browseData.parent)} />
+            )}
           </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">Project Path</label>
-            <input
-              type="text"
-              value={projectPath}
-              onInput={(e) => setProjectPath((e.target as HTMLInputElement).value)}
-              placeholder="/Users/you/projects/my-app"
-              class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-            />
+
+          {/* Directory list */}
+          <div class="max-h-64 overflow-auto space-y-1">
+            {browseLoading ? (
+              <div class="py-8 text-center text-forge-muted text-sm">Loading...</div>
+            ) : (
+              (browseData?.directories ?? []).map(dir => (
+                <div
+                  key={dir.path}
+                  class="flex items-center justify-between p-2 rounded-lg hover:bg-forge-surface cursor-pointer border border-transparent hover:border-forge-border"
+                >
+                  <div
+                    class="flex-1 min-w-0"
+                    onClick={() => browse(dir.path)}
+                  >
+                    <div class="text-sm font-medium truncate">{dir.name}</div>
+                    <div class="flex gap-1 mt-0.5">
+                      {dir.hasGit && <Badge label="git" color="var(--forge-success)" variant="outline" />}
+                      {dir.hasPackageJson && <Badge label="npm" color="var(--forge-accent)" variant="outline" />}
+                    </div>
+                  </div>
+                  {(dir.hasPackageJson || dir.hasGit) && (
+                    <ActionButton
+                      label="Add"
+                      variant="secondary"
+                      onClick={() => registerDir(dir.path, dir.name)}
+                    />
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
       </Modal>

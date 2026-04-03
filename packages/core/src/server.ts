@@ -5,7 +5,8 @@ import { ForgeDB } from './db.js'
 import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
 import type { ActionDef } from '@forge-dev/sdk'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
+import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
 
@@ -185,6 +186,33 @@ export function createForgeServer(options: ServerOptions) {
       return c.json({ results })
     } catch {
       return c.json({ results: [] })
+    }
+  })
+
+  app.get('/api/filesystem/browse', (c) => {
+    const dir = c.req.query('path') ?? process.cwd()
+    if (!existsSync(dir)) {
+      return c.json({ error: 'Directory not found' }, 404)
+    }
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true })
+      const dirs = entries
+        .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+        .map(e => ({
+          name: e.name,
+          path: join(dir, e.name),
+          hasPackageJson: existsSync(join(dir, e.name, 'package.json')),
+          hasGit: existsSync(join(dir, e.name, '.git'))
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      return c.json({
+        current: dir,
+        name: basename(dir),
+        parent: join(dir, '..'),
+        directories: dirs
+      })
+    } catch {
+      return c.json({ error: 'Cannot read directory' }, 500)
     }
   })
 
