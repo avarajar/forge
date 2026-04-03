@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 async function main() {
-  const { ensureForgeDir } = await import('@forge-dev/core')
+  const { ensureForgeDir, createForgeServer, createDatabase } = await import('@forge-dev/core')
   const { forgeDir, created } = ensureForgeDir()
 
   if (created) {
@@ -12,9 +12,22 @@ async function main() {
   }
 
   const port = parseInt(process.env.FORGE_PORT ?? '3000', 10)
+  const dbUrl = process.env.FORGE_DB_URL
+  const authToken = process.env.FORGE_AUTH_TOKEN
+  const isTeam = !!dbUrl
 
-  const { createForgeServer } = await import('@forge-dev/core')
-  const server = createForgeServer({ dataDir: forgeDir, port })
+  const db = await createDatabase({
+    mode: isTeam ? 'team' : 'local',
+    dataDir: forgeDir,
+    databaseUrl: dbUrl
+  })
+
+  const server = createForgeServer({
+    dataDir: forgeDir,
+    port,
+    db,
+    authToken: isTeam ? authToken : undefined
+  })
 
   const { serveStatic } = await import('@hono/node-server/serve-static')
   const consoleDist = join(import.meta.dirname, '../../console/dist')
@@ -27,7 +40,8 @@ async function main() {
 
   console.log(`
   Forge Console running at http://localhost:${port}
-
+  Mode: ${isTeam ? 'team (PostgreSQL)' : 'local (SQLite)'}
+${authToken ? '  Auth: bearer token required\n' : ''}
      Dashboard:  http://localhost:${port}
      API:        http://localhost:${port}/api/health
 
