@@ -1,0 +1,20 @@
+{
+  "name": "@forge-dev/mod-monitor",
+  "version": "0.1.0",
+  "displayName": "Monitor",
+  "description": "System health, activity feed, and cost tracking",
+  "icon": "activity",
+  "color": "#10b981",
+  "panels": [
+    { "id": "health", "title": "Health", "component": "./panels/Health", "default": true },
+    { "id": "activity", "title": "Activity", "component": "./panels/Activity" },
+    { "id": "costs", "title": "Costs", "component": "./panels/Costs" }
+  ],
+  "actions": [
+    { "id": "check-health", "label": "Check Health", "icon": "heart-pulse", "command": "curl -s -o /dev/null -w '%{http_code} %{time_total}s' http://localhost:3000/api/health", "tags": ["monitor", "health"] },
+    { "id": "view-logs", "label": "View Logs", "icon": "scroll-text", "command": "tail -50 ~/.forge/logs/forge.log 2>/dev/null || echo '(No log file found)'", "streaming": true, "tags": ["monitor", "logs"] }
+  ],
+  "detectors": [
+    { "tool": "sentry", "files": [".sentryrc", "sentry.properties"], "packages": ["@sentry/node"], "suggestion": "Sentry detected. Enable error tracking in Monitor module." }
+  ]
+}

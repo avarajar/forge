@@ -1,0 +1,23 @@
+{
+  "name": "@forge-dev/platform",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "forge-platform": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@forge-dev/core": "*",
+    "@forge-dev/console": "*",
+    "@hono/node-server": "^1.14.0",
+    "open": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}

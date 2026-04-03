@@ -1,0 +1,31 @@
+:root {
+  --forge-bg: #0f0f1a;
+  --forge-surface: #1a1a2e;
+  --forge-border: #2a2a3e;
+  --forge-text: #e0e0f0;
+  --forge-muted: #6b7280;
+  --forge-accent: #6366f1;
+  --forge-success: #10b981;
+  --forge-warning: #f59e0b;
+  --forge-error: #ef4444;
+  --forge-radius: 8px;
+  --forge-font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --forge-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+[data-theme="light"] {
+  --forge-bg: #f8fafc;
+  --forge-surface: #ffffff;
+  --forge-border: #e2e8f0;
+  --forge-text: #1e293b;
+  --forge-muted: #94a3b8;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--forge-font);
+  background: var(--forge-bg);
+  color: var(--forge-text);
+  -webkit-font-smoothing: antialiased;
+}

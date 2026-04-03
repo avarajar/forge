@@ -6,3 +6,6 @@ dist/
 .env.local
 forge.db
 .test-*
+.claude/
+TASK_NOTES.md
+SHARED_CONTEXT.md

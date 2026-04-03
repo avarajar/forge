@@ -1,0 +1,21 @@
+{
+  "name": "@forge-dev/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "hono": "^4.7.0",
+    "preact": "^10.0.0"
+  },
+  "devDependencies": {
+    "hono": "^4.7.0",
+    "preact": "^10.0.0",
+    "typescript": "^5.8.0"
+  }
+}

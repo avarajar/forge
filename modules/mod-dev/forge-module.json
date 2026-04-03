@@ -1,0 +1,24 @@
+{
+  "name": "@forge-dev/mod-dev",
+  "version": "0.1.0",
+  "displayName": "Dev Sessions",
+  "description": "Manage git worktrees, Claude sessions, and shared project context",
+  "icon": "terminal",
+  "color": "#8b5cf6",
+  "panels": [
+    { "id": "workspaces", "title": "Workspaces", "component": "./panels/Workspaces", "default": true },
+    { "id": "sessions", "title": "Sessions", "component": "./panels/Sessions" },
+    { "id": "shared-context", "title": "Shared Context", "component": "./panels/SharedContext" }
+  ],
+  "actions": [
+    { "id": "list-worktrees", "label": "List Worktrees", "icon": "git-branch", "command": "git worktree list --porcelain", "hidden": true },
+    { "id": "read-context", "label": "Read Context", "icon": "file-text", "command": "cat CLAUDE.md 2>/dev/null || echo '(No CLAUDE.md found in this directory)'", "hidden": true },
+    { "id": "start-task", "label": "Start Task", "icon": "play", "command": "echo 'Usage: provide a task name via the dashboard'", "streaming": true, "tags": ["dev", "task"] },
+    { "id": "open-project", "label": "Open in Editor", "icon": "external-link", "command": "code . || open .", "tags": ["dev", "project"] },
+    { "id": "git-status", "label": "Git Status", "icon": "git-commit", "command": "git status --short && echo '---' && git log --oneline -5", "streaming": false, "tags": ["dev", "git"] }
+  ],
+  "detectors": [
+    { "tool": "git-worktrees", "files": [".git"], "suggestion": "Git repository detected. Use Workspaces panel to manage worktrees." },
+    { "tool": "claude-config", "files": ["CLAUDE.md", ".claude"], "suggestion": "Claude configuration found. View in Shared Context panel." }
+  ]
+}
