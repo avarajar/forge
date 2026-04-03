@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 
 export function cwRoutes(reader: CWReader): Hono {
   const app = new Hono()
@@ -86,13 +86,15 @@ export function cwRoutes(reader: CWReader): Hono {
       if (workflow) cmd += ` --workflow ${workflow}`
     }
 
-    try {
-      execSync(cmd, { encoding: 'utf-8', timeout: 30000, stdio: 'pipe' })
-      return c.json({ ok: true, command: cmd })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Unknown error'
-      return c.json({ ok: false, error: msg, command: cmd }, 500)
-    }
+    // CW commands are interactive (open terminal windows).
+    // Spawn detached so they don't block the server.
+    const child = spawn('sh', ['-c', cmd], {
+      detached: true,
+      stdio: 'ignore'
+    })
+    child.unref()
+
+    return c.json({ ok: true, command: cmd })
   })
 
   app.post('/done', async (c) => {
@@ -100,12 +102,14 @@ export function cwRoutes(reader: CWReader): Hono {
     const cmd = type === 'review'
       ? `cw review ${project} ${task} --done`
       : `cw work ${project} ${task} --done`
-    try {
-      execSync(cmd, { encoding: 'utf-8', timeout: 15000, stdio: 'pipe' })
-      return c.json({ ok: true })
-    } catch (e) {
-      return c.json({ ok: false, error: e instanceof Error ? e.message : 'Unknown error' }, 500)
-    }
+
+    const child = spawn('sh', ['-c', cmd], {
+      detached: true,
+      stdio: 'ignore'
+    })
+    child.unref()
+
+    return c.json({ ok: true })
   })
 
   return app
