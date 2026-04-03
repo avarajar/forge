@@ -9,6 +9,8 @@ import { join, basename } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
+import { CWReader } from './cw-reader.js'
+import { cwRoutes } from './cw-routes.js'
 
 interface ServerOptions {
   dataDir: string
@@ -34,6 +36,9 @@ export function createForgeServer(options: ServerOptions) {
   if (authToken) {
     app.use('/api/*', bearerAuth(authToken))
   }
+
+  const cwReader = new CWReader()
+  app.route('/api/cw', cwRoutes(cwReader))
 
   async function resolveAction(c: Context): Promise<
     | { action: ActionDef; cwd: string; logId: string }
