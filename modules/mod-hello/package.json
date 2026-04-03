@@ -1,0 +1,7 @@
+{
+  "name": "@forge-dev/mod-hello",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Example module to verify the Forge system works"
+}
