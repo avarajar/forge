@@ -412,32 +412,32 @@ forge module create
 ### Server Side
 
 ```typescript
-import { defineModule } from '@forge-dev/sdk'
-
-export default defineModule({
-  actions: {
-    'sync': async (ctx) => ctx.exec('npx mixpanel-cli pull', { stream: true }),
-    'report': async (ctx) => ctx.claude('Analyze this data', { skill: 'data-analyst' })
-  }
-})
+// Server-side actions are defined in forge-module.json as shell commands.
+// See docs/module-authoring.md for the full guide.
 ```
 
 ### UI Side
 
 ```tsx
-import { definePanel } from '@forge-dev/sdk/ui'
+import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import { StatusCard, ActionButton } from '@forge-dev/ui'
 
-export default definePanel({
-  render({ project, actions }) {
-    return (
-      <div>
-        <StatusCard icon="📊" label="DAU" value="1,234" status="good" />
-        <ActionButton action={actions['sync']} />
-      </div>
-    )
-  }
-})
+function AnalyticsPanel({ moduleId, projectId }: PanelProps) {
+  return (
+    <div>
+      <StatusCard icon="bar-chart" label="DAU" value="1,234" status="good" />
+      <ActionButton label="Sync Data" variant="primary" onClick={() => {
+        fetch(`/api/actions/${moduleId}/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId })
+        })
+      }} />
+    </div>
+  )
+}
+
+export default definePanel({ id: 'overview', title: 'Overview', component: AnalyticsPanel })
 ```
 
 <br />
@@ -446,12 +446,12 @@ export default definePanel({
 
 | Phase | Status | What |
 |-------|--------|------|
-| **0: Foundation** | 🔄 In Progress | Core server, dashboard shell, module system, CLI, UI kit |
-| **1: Core Modules** | ⏳ Planned | mod-dev (CW), mod-scaffold, mod-planning, mod-monitor |
-| **2: Full Ecosystem** | ⏳ Planned | mod-qa, mod-design, mod-release, team mode |
-| **3: Community** | ⏳ Planned | Module SDK docs, registry, template gallery |
+| **0: Foundation** | ✅ Complete | Core server, dashboard shell, module system, CLI, UI kit |
+| **1: Core Modules** | ✅ Complete | mod-dev, mod-scaffold, mod-planning, mod-monitor |
+| **2: Full Ecosystem** | ✅ Complete | mod-qa, mod-design, mod-release, team mode (PostgreSQL + auth) |
+| **3: Community** | ✅ Complete | Module SDK docs, CONTRIBUTING.md, registry API |
 
-See [Phase 0 Implementation Plan](docs/plans/2026-04-02-forge-phase0-implementation.md) for detailed tasks.
+See [implementation plans](docs/plans/) for detailed tasks per phase.
 
 <br />
 
@@ -467,7 +467,7 @@ Forge is open source from day one. We welcome contributions of all kinds:
 - **Bug reports** — Found something? Open an issue
 
 ```bash
-git clone https://github.com/forge-dev/forge.git
+git clone https://github.com/avarajar/forge.git
 cd forge
 npm install
 npx turbo dev
