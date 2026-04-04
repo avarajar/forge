@@ -117,11 +117,11 @@ function App() {
   return (
     <Shell>
       {loading ? (
-        <div class="max-w-4xl mx-auto px-6 py-8">
+        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
           <div class="py-20 text-center text-forge-muted">Loading...</div>
         </div>
       ) : !hasProjects ? (
-        <div class="max-w-4xl mx-auto px-6 py-8">
+        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
           <EmptyState
             icon="&#128296;"
             title="Welcome to Forge"
@@ -129,7 +129,7 @@ function App() {
           />
         </div>
       ) : view === 'list' ? (
-        <div class="max-w-4xl mx-auto px-6 py-8">
+        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
           <TaskList
             spaces={filteredSpaces}
             allSpaces={spaces}
@@ -163,7 +163,7 @@ function App() {
           onDone={() => { setView('list'); refreshAfterAction() }}
         />
       ) : view === 'new-task' ? (
-        <div class="max-w-4xl mx-auto px-6 py-8">
+        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
           <NewTask
             projects={projects}
             accounts={accountNames}

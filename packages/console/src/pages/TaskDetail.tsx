@@ -181,7 +181,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
       </div>
 
       {/* ---- Terminal (full width, fills remaining height) ---- */}
-      <div class="flex-1 min-h-0 relative">
+      <div class="relative" style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
         <ForgeTerminal
           wsUrl={wsUrl}
           onExit={() => setPtyExited(true)}

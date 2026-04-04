@@ -34,7 +34,7 @@ export const Shell: FunctionComponent<ShellProps> = ({ children }) => {
           </button>
         </div>
       </header>
-      <main class="flex-1 min-h-0 overflow-auto">
+      <main class="flex-1 min-h-0 overflow-hidden">
         {children}
       </main>
       <ToastContainer />
