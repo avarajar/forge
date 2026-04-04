@@ -128,7 +128,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Unregister from CW
     try {
-      execSync(`cw project remove ${project}`, { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+      execSync(`echo y | cw project remove ${project}`, { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
     } catch {
       // May not be registered, continue anyway
     }
