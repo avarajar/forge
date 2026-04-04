@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { useMemo } from 'preact/hooks'
+import { useMemo, useState, useEffect } from 'preact/hooks'
 import { ActionButton } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 
@@ -33,6 +33,8 @@ interface TypeStyle {
   text: string
   border: string
   dot: string
+  bgRgba: string
+  borderRgba: string
 }
 
 const TYPE_STYLES: Record<string, TypeStyle> = {
@@ -42,6 +44,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: 'text-amber-400',
     border: 'border-amber-500/20',
     dot: 'bg-amber-400',
+    bgRgba: 'rgba(245,158,11,0.1)',
+    borderRgba: 'rgba(245,158,11,0.2)',
   },
   review: {
     label: 'REVIEW',
@@ -49,6 +53,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: 'text-blue-400',
     border: 'border-blue-500/20',
     dot: 'bg-blue-400',
+    bgRgba: 'rgba(59,130,246,0.1)',
+    borderRgba: 'rgba(59,130,246,0.2)',
   },
   design: {
     label: 'DESIGN',
@@ -56,6 +62,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: 'text-purple-400',
     border: 'border-purple-500/20',
     dot: 'bg-purple-400',
+    bgRgba: 'rgba(168,85,247,0.1)',
+    borderRgba: 'rgba(168,85,247,0.2)',
   },
   plan: {
     label: 'PLAN',
@@ -63,6 +71,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: 'text-cyan-400',
     border: 'border-cyan-500/20',
     dot: 'bg-cyan-400',
+    bgRgba: 'rgba(6,182,212,0.1)',
+    borderRgba: 'rgba(6,182,212,0.2)',
   },
 }
 
@@ -111,7 +121,8 @@ const TypeBadge: FunctionComponent<{ type: string }> = ({ type }) => {
   const s = getTypeStyle(type)
   return (
     <span
-      class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${s.bg} ${s.text} ${s.border} border`}
+      class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${s.text} border`}
+      style={{ backgroundColor: s.bgRgba, borderColor: s.borderRgba }}
     >
       <span class={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
@@ -121,7 +132,10 @@ const TypeBadge: FunctionComponent<{ type: string }> = ({ type }) => {
 
 /** Project pill */
 const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
-  <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-forge-surface text-forge-muted border border-forge-border/60 truncate max-w-[160px]">
+  <span
+    class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-forge-surface text-forge-muted truncate max-w-[160px]"
+    style={{ border: '1px solid rgba(42,42,62,0.6)' }}
+  >
     {name}
   </span>
 )
@@ -136,7 +150,8 @@ const SourceLink: FunctionComponent<{ source?: string; url?: string }> = ({ sour
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        class="text-[11px] text-forge-accent/70 hover:text-forge-accent underline-offset-2 hover:underline transition-colors"
+        class="text-[11px] text-forge-accent hover:underline underline-offset-2 transition-colors"
+        style={{ opacity: 0.7 }}
         onClick={(e: Event) => e.stopPropagation()}
       >
         {label}
@@ -152,10 +167,17 @@ const TaskCard: FunctionComponent<{
   onSelect: () => void
 }> = ({ session, onSelect }) => {
   const style = getTypeStyle(session.type)
+  const [hovered, setHovered] = useState(false)
   return (
     <div
-      class={`group relative flex items-center gap-4 p-4 rounded-xl bg-forge-surface border border-forge-border/60 hover:border-${style.text.replace('text-', '')}/40 cursor-pointer transition-all hover:shadow-lg hover:shadow-forge-accent/5`}
+      class="group relative flex items-center gap-4 p-4 rounded-xl bg-forge-surface cursor-pointer transition-all"
+      style={{
+        border: `1px solid ${hovered ? style.borderRgba : 'rgba(42,42,62,0.6)'}`,
+        boxShadow: hovered ? '0 10px 15px -3px rgba(99,102,241,0.05)' : undefined,
+      }}
       onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       role="button"
       tabIndex={0}
       onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onSelect() }}
@@ -192,7 +214,7 @@ const TaskCard: FunctionComponent<{
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
           style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', borderColor: 'rgba(16,185,129,0.2)' }}
         >
-          ▶ Resume
+          &#9658; Resume
         </span>
       </div>
     </div>
@@ -203,31 +225,37 @@ const TaskCard: FunctionComponent<{
 const DoneTaskRow: FunctionComponent<{
   session: CWSession
   onSelect: () => void
-}> = ({ session, onSelect }) => (
-  <div
-    class="group flex items-center gap-4 px-4 py-3 rounded-lg hover:bg-forge-surface/60 cursor-pointer transition-all"
-    onClick={onSelect}
-    role="button"
-    tabIndex={0}
-    onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onSelect() }}
-  >
-    <div class="shrink-0 opacity-50">
-      <TypeBadge type={session.type} />
+}> = ({ session, onSelect }) => {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      class="group flex items-center gap-4 px-4 py-3 rounded-lg cursor-pointer transition-all"
+      style={{ backgroundColor: hovered ? 'rgba(30,30,50,0.6)' : undefined }}
+      onClick={onSelect}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onSelect() }}
+    >
+      <div class="shrink-0 opacity-50">
+        <TypeBadge type={session.type} />
+      </div>
+      <div class="flex-1 min-w-0 flex items-center gap-2.5">
+        <span class="text-sm text-forge-muted truncate">{taskName(session)}</span>
+        <ProjectPill name={session.project} />
+      </div>
+      <div class="shrink-0 flex items-center gap-3">
+        <span class="text-[11px] text-forge-muted">
+          {session.opens} session{session.opens !== 1 ? 's' : ''}
+        </span>
+        <span class="text-xs text-forge-muted">
+          {timeAgo(session.last_opened)}
+        </span>
+      </div>
     </div>
-    <div class="flex-1 min-w-0 flex items-center gap-2.5">
-      <span class="text-sm text-forge-muted truncate">{taskName(session)}</span>
-      <ProjectPill name={session.project} />
-    </div>
-    <div class="shrink-0 flex items-center gap-3">
-      <span class="text-[11px] text-forge-muted">
-        {session.opens} session{session.opens !== 1 ? 's' : ''}
-      </span>
-      <span class="text-xs text-forge-muted">
-        {timeAgo(session.last_opened)}
-      </span>
-    </div>
-  </div>
-)
+  )
+}
 
 /** Filter pill toggle */
 const FilterPill: FunctionComponent<{
@@ -239,7 +267,20 @@ const FilterPill: FunctionComponent<{
   if (active && style) {
     return (
       <button
-        class={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${style.bg} ${style.text} ${style.border}`}
+        class={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${style.text}`}
+        style={{ backgroundColor: style.bgRgba, borderColor: style.borderRgba }}
+        onClick={onClick}
+      >
+        {label}
+      </button>
+    )
+  }
+  if (active) {
+    // active but no type style (e.g. "All" pill): use forge-accent
+    return (
+      <button
+        class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all text-forge-accent"
+        style={{ backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }}
         onClick={onClick}
       >
         {label}
@@ -248,15 +289,81 @@ const FilterPill: FunctionComponent<{
   }
   return (
     <button
-      class={`px-3 py-1.5 text-xs rounded-lg border transition-all
-        ${active
-          ? 'bg-forge-accent/10 text-forge-accent border-forge-accent/30 font-semibold'
-          : 'bg-forge-surface/50 border-forge-border/60 text-forge-muted hover:text-forge-text hover:border-forge-border'
-        }`}
+      class="px-3 py-1.5 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:border-forge-border"
+      style={{ backgroundColor: 'rgba(30,30,50,0.5)', borderColor: 'rgba(42,42,62,0.6)' }}
       onClick={onClick}
     >
       {label}
     </button>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Project info banner (shown when a project is filtered)            */
+/* ------------------------------------------------------------------ */
+
+interface ProjectInfo {
+  stack: Record<string, unknown> | null
+  mcps: { global: Record<string, unknown>; cw: string[] } | null
+}
+
+const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
+  const [info, setInfo] = useState<ProjectInfo>({ stack: null, mcps: null })
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      fetch(`/api/cw/detect/${project}`).then(r => r.json()).catch(() => null),
+      fetch('/api/cw/mcps').then(r => r.json()).catch(() => null),
+    ]).then(([stack, mcps]) => {
+      if (!cancelled) setInfo({ stack, mcps })
+    })
+    return () => { cancelled = true }
+  }, [project])
+
+  const stackParts: string[] = []
+  if (info.stack) {
+    if (info.stack.framework) stackParts.push(String(info.stack.framework))
+    if (info.stack.testRunner) stackParts.push(String(info.stack.testRunner))
+    if (info.stack.hasTailwind) stackParts.push('Tailwind')
+    if (info.stack.hasShadcn) stackParts.push('shadcn')
+    if (info.stack.hasPlaywright) stackParts.push('Playwright')
+    if (info.stack.hasDockerfile) stackParts.push('Docker')
+  }
+
+  const globalMcps = info.mcps ? Object.keys(info.mcps.global) : []
+  const cwMcps = info.mcps?.cw ?? []
+  const allMcps = [...globalMcps, ...cwMcps.map(m => `${m} (CW)`)]
+
+  if (!info.stack && !info.mcps) return null
+
+  return (
+    <div
+      class="rounded-xl px-4 py-3 mb-5 text-sm"
+      style={{ backgroundColor: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}
+    >
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-xs font-bold text-forge-accent uppercase tracking-wider">Project:</span>
+        <span class="font-semibold text-forge-text">{project}</span>
+      </div>
+      {stackParts.length > 0 && (
+        <div class="flex items-center gap-1.5 text-xs text-forge-muted flex-wrap">
+          <span class="text-forge-muted opacity-70">Stack:</span>
+          {stackParts.map((s, i) => (
+            <span key={s}>
+              <span class="text-forge-text">{s}</span>
+              {i < stackParts.length - 1 && <span class="text-forge-muted">,</span>}
+            </span>
+          ))}
+        </div>
+      )}
+      {allMcps.length > 0 && (
+        <div class="flex items-center gap-1.5 text-xs text-forge-muted mt-0.5 flex-wrap">
+          <span class="text-forge-muted opacity-70">MCPs:</span>
+          <span class="text-forge-text">{allMcps.join(' | ')}</span>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -304,7 +411,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         </div>
         <div class="flex items-center gap-3">
           <button
-            class="px-3 py-2 text-xs rounded-lg text-forge-muted hover:text-forge-text hover:bg-forge-surface border border-forge-border/40 hover:border-forge-border transition-all"
+            class="px-3 py-2 text-xs rounded-lg text-forge-muted hover:text-forge-text hover:bg-forge-surface border border-forge-border hover:border-forge-border transition-all"
+            style={{ borderColor: 'rgba(42,42,62,0.4)' }}
             onClick={onRefresh}
           >
             Refresh
@@ -319,7 +427,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         {QUICK_TYPES.map(t => (
           <button
             key={t.key}
-            class={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${t.style.bg} ${t.style.text} ${t.style.border} hover:opacity-80`}
+            class={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${t.style.text} hover:opacity-80`}
+            style={{ backgroundColor: t.style.bgRgba, borderColor: t.style.borderRgba }}
             onClick={() => onNewTask(t.key)}
           >
             + {t.label}
@@ -328,10 +437,14 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       </div>
 
       {/* ---- Filter bar ---- */}
-      <div class="flex flex-wrap items-center gap-2.5 mb-6 pb-5 border-b border-forge-border/40">
+      <div
+        class="flex flex-wrap items-center gap-2.5 mb-6 pb-5"
+        style={{ borderBottom: '1px solid rgba(42,42,62,0.4)' }}
+      >
         {/* Project filter */}
         <select
-          class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border border-forge-border/60 text-forge-text appearance-none cursor-pointer min-w-[140px] hover:border-forge-border transition-colors"
+          class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border border-forge-border text-forge-text appearance-none cursor-pointer min-w-[140px] hover:border-forge-border transition-colors"
+          style={{ borderColor: 'rgba(42,42,62,0.6)' }}
           value={filterProject ?? ''}
           onChange={(e: Event) => {
             const val = (e.target as HTMLSelectElement).value
@@ -362,11 +475,11 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
 
         {/* Show done toggle */}
         <button
-          class={`px-3 py-1.5 text-xs rounded-lg border transition-all
-            ${showDone
-              ? 'bg-forge-accent/10 text-forge-accent border-forge-accent/30 font-semibold'
-              : 'bg-forge-surface/50 border-forge-border/60 text-forge-muted hover:text-forge-text hover:border-forge-border'
-            }`}
+          class={`px-3 py-1.5 text-xs rounded-lg border transition-all ${showDone ? 'text-forge-accent font-semibold' : 'text-forge-muted hover:text-forge-text hover:border-forge-border'}`}
+          style={showDone
+            ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }
+            : { backgroundColor: 'rgba(30,30,50,0.5)', borderColor: 'rgba(42,42,62,0.6)' }
+          }
           onClick={() => onShowDone(!showDone)}
         >
           {showDone ? 'Hide done' : 'Show done'}
@@ -382,6 +495,9 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           </button>
         )}
       </div>
+
+      {/* ---- Project info banner (when project is filtered) ---- */}
+      {filterProject && <ProjectBanner project={filterProject} />}
 
       {/* ---- Active tasks ---- */}
       {active.length > 0 && (

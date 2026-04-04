@@ -95,9 +95,13 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
               key={t.id}
               class={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 type === t.id
-                  ? 'border-forge-accent bg-forge-accent/10 text-forge-accent'
+                  ? 'text-forge-accent'
                   : 'border-forge-border bg-forge-surface text-forge-muted hover:text-forge-text'
               }`}
+              style={type === t.id
+                ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                : undefined
+              }
               onClick={() => setType(t.id)}
             >
               {t.label}
@@ -162,9 +166,13 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                   key={w}
                   class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                     workflow === w
-                      ? 'border-forge-accent bg-forge-accent/10 text-forge-accent'
+                      ? 'text-forge-accent'
                       : 'border-forge-border bg-forge-surface text-forge-muted'
                   }`}
+                  style={workflow === w
+                    ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                    : undefined
+                  }
                   onClick={() => setWorkflow(w)}
                 >
                   {w || 'Auto'}
