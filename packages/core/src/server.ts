@@ -11,6 +11,8 @@ import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
 import { CWReader } from './cw-reader.js'
 import { cwRoutes } from './cw-routes.js'
+import { PTYManager } from './pty-manager.js'
+import { ptyRoutes } from './pty-routes.js'
 
 interface ServerOptions {
   dataDir: string
@@ -39,6 +41,9 @@ export function createForgeServer(options: ServerOptions) {
 
   const cwReader = new CWReader()
   app.route('/api/cw', cwRoutes(cwReader))
+
+  const ptyManager = new PTYManager()
+  const { injectWebSocket } = ptyRoutes(app, ptyManager, cwReader)
 
   async function resolveAction(c: Context): Promise<
     | { action: ActionDef; cwd: string; logId: string }
@@ -228,6 +233,7 @@ export function createForgeServer(options: ServerOptions) {
   return {
     app,
     fetch,
-    close: () => db.close()
+    injectWebSocket,
+    close: () => { ptyManager.dispose(); db.close() }
   }
 }

@@ -47,7 +47,10 @@ export function consoleCommand() {
       })
 
       const { serve } = await import('@hono/node-server')
-      serve({ fetch: server.app.fetch, port })
+      const httpServer = serve({ fetch: server.app.fetch, port })
+      if (server.injectWebSocket) {
+        server.injectWebSocket(httpServer)
+      }
 
       console.log(`Forge Console running at http://localhost:${port}`)
       if (isTeam) {
