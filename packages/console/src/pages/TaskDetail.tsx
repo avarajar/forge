@@ -5,11 +5,11 @@ import type { CWSession } from '@forge-dev/core'
 
 interface TaskDetailProps {
   session: CWSession
-  onBack: () => void
+  onClose: () => void
   onDone: () => void
 }
 
-export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack, onDone }) => {
+export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClose, onDone }) => {
   const [gitLog, setGitLog] = useState<string>('')
   const [gitDiff, setGitDiff] = useState<string>('')
   const [gitStatus, setGitStatus] = useState<string>('')
@@ -72,15 +72,16 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
 
   return (
     <div class="flex flex-col h-full">
-      {/* ---- Header ---- */}
+      {/* Header */}
       <div class="flex items-center justify-between px-4 py-2.5 border-b shrink-0" style={{ borderColor: 'var(--forge-ghost-border)' }}>
         <div class="flex items-center gap-3">
           <button
             class="inline-flex items-center px-2 py-1 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
             style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-            onClick={onBack}
+            onClick={onClose}
+            title="Close tab"
           >
-            ←
+            ×
           </button>
           <Badge label={typeLabel} color={typeColor} />
           <span class="text-sm font-bold text-forge-text">{taskName}</span>
@@ -106,81 +107,42 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
         </div>
       </div>
 
-      {/* ---- Info bar (collapsible) ---- */}
+      {/* Info bar */}
       <div class="shrink-0 border-b" style={{ borderColor: 'var(--forge-ghost-border)' }}>
-        {/* Summary row — always visible */}
         <button
           class="flex items-center gap-4 w-full px-4 py-2 text-left hover:bg-forge-surface/50 transition-colors"
           onClick={() => setInfoExpanded(!infoExpanded)}
         >
-          <span class="text-[11px] text-forge-muted">
-            {filesChanged} file{filesChanged !== 1 ? 's' : ''} changed
-          </span>
-          <span class="text-[11px] text-forge-muted">
-            {commitCount} commit{commitCount !== 1 ? 's' : ''}
-          </span>
-          <span class="text-[11px] text-forge-muted">
-            {session.opens} session{session.opens !== 1 ? 's' : ''}
-          </span>
-          {notes && (
-            <span class="text-[11px] text-forge-accent">has notes</span>
-          )}
+          <span class="text-[11px] text-forge-muted">{filesChanged} file{filesChanged !== 1 ? 's' : ''} changed</span>
+          <span class="text-[11px] text-forge-muted">{commitCount} commit{commitCount !== 1 ? 's' : ''}</span>
+          <span class="text-[11px] text-forge-muted">{session.opens} session{session.opens !== 1 ? 's' : ''}</span>
+          {notes && <span class="text-[11px] text-forge-accent">has notes</span>}
           <span class="flex-1" />
-          <span
-            class="text-[10px] text-forge-muted transition-transform"
-            style={{ transform: infoExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-          >
-            ▼
-          </span>
+          <span class="text-[10px] text-forge-muted transition-transform" style={{ transform: infoExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
         </button>
-
-        {/* Expanded detail panels */}
         {infoExpanded && (
           <div class="px-4 pb-3 grid grid-cols-2 gap-3 max-h-[280px] overflow-auto" style={{ borderTop: '1px solid var(--forge-ghost-border)' }}>
-            {/* Status */}
             <div>
               <div class="text-[10px] text-forge-muted uppercase tracking-wider mb-1">Changed files</div>
-              {gitStatus ? (
-                <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all">{gitStatus}</pre>
-              ) : (
-                <span class="text-[11px] text-forge-muted">Clean</span>
-              )}
+              {gitStatus ? <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all">{gitStatus}</pre> : <span class="text-[11px] text-forge-muted">Clean</span>}
             </div>
-
-            {/* Commits */}
             <div>
               <div class="text-[10px] text-forge-muted uppercase tracking-wider mb-1">Commits</div>
-              {gitLog ? (
-                <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all">{gitLog}</pre>
-              ) : (
-                <span class="text-[11px] text-forge-muted">No commits</span>
-              )}
+              {gitLog ? <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all">{gitLog}</pre> : <span class="text-[11px] text-forge-muted">No commits</span>}
             </div>
-
-            {/* Diff */}
             <div>
               <div class="text-[10px] text-forge-muted uppercase tracking-wider mb-1">Diff</div>
-              {gitDiff ? (
-                <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all max-h-[180px] overflow-auto">{gitDiff}</pre>
-              ) : (
-                <span class="text-[11px] text-forge-muted">No diff</span>
-              )}
+              {gitDiff ? <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all max-h-[180px] overflow-auto">{gitDiff}</pre> : <span class="text-[11px] text-forge-muted">No diff</span>}
             </div>
-
-            {/* Notes */}
             <div>
               <div class="text-[10px] text-forge-muted uppercase tracking-wider mb-1">Notes</div>
-              {notes ? (
-                <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all max-h-[180px] overflow-auto">{notes}</pre>
-              ) : (
-                <span class="text-[11px] text-forge-muted">No notes</span>
-              )}
+              {notes ? <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all max-h-[180px] overflow-auto">{notes}</pre> : <span class="text-[11px] text-forge-muted">No notes</span>}
             </div>
           </div>
         )}
       </div>
 
-      {/* ---- Terminal (full width, fills remaining height) ---- */}
+      {/* Terminal */}
       <div class="relative" style={{ flex: '1 1 0', minHeight: 0 }}>
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <ForgeTerminal
