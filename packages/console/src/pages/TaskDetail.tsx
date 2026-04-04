@@ -181,12 +181,14 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
       </div>
 
       {/* ---- Terminal (full width, fills remaining height) ---- */}
-      <div class="relative" style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
-        <ForgeTerminal
-          wsUrl={wsUrl}
-          onExit={() => setPtyExited(true)}
-          onConnectionChange={(c) => setConnected(c)}
-        />
+      <div class="relative" style={{ flex: '1 1 0', minHeight: 0 }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <ForgeTerminal
+            wsUrl={wsUrl}
+            onExit={() => setPtyExited(true)}
+            onConnectionChange={(c) => setConnected(c)}
+          />
+        </div>
         {!connected && !ptyExited && (
           <div class="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
             <span class="text-sm text-white/70">Connecting...</span>

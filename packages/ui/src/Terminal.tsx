@@ -62,8 +62,11 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
       term.loadAddon(new WebLinksAddon())
 
       term.open(containerRef.current!)
-      fitAddon.fit()
-      if (isInteractive) term.focus()
+      // Delay fit so the container has final dimensions from layout
+      setTimeout(() => {
+        fitAddon.fit()
+        if (isInteractive) term.focus()
+      }, 50)
 
       // Static content mode
       if (content && !isInteractive) {
