@@ -41,30 +41,24 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     ? projectNames.filter(n => projects[n]?.account === selectedAccount)
     : projectNames
 
-  // Auto-select first account
+  // On mount: set initial account and project (runs once)
   useEffect(() => {
-    if (accountList.length > 0 && !selectedAccount) {
-      setSelectedAccount(accountList[0])
-    }
-  }, [accountList])
+    const acc = accountList.length > 0 ? accountList[0] : ''
+    setSelectedAccount(acc)
+    const projs = acc
+      ? projectNames.filter(n => projects[n]?.account === acc)
+      : projectNames
+    if (projs.length > 0) setProject(projs[0])
+  }, [])
 
-  // Auto-select first project when account changes or on mount
-  useEffect(() => {
-    if (filteredProjectNames.length > 0) {
-      if (!project || !filteredProjectNames.includes(project)) {
-        setProject(filteredProjectNames[0])
-      }
-    } else {
-      setProject('')
+  // When account changes (user interaction), update project list
+  const handleAccountChange = (acc: string) => {
+    setSelectedAccount(acc)
+    const projs = projectNames.filter(n => projects[n]?.account === acc)
+    if (projs.length > 0 && !projs.includes(project)) {
+      setProject(projs[0])
     }
-  }, [selectedAccount, filteredProjectNames.join(',')])
-
-  // Auto-fill account from selected project
-  useEffect(() => {
-    if (project && projects[project]?.account) {
-      setSelectedAccount(projects[project].account)
-    }
-  }, [project])
+  }
 
   useEffect(() => {
     if (project) {
@@ -109,7 +103,11 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
   return (
     <div>
-      <button class="text-sm text-forge-muted hover:text-forge-text mb-4" onClick={onBack}>
+      <button
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 mb-4 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+        style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
+        onClick={onBack}
+      >
         ← Back to tasks
       </button>
 
@@ -127,7 +125,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                   : 'border-forge-border bg-forge-surface text-forge-muted hover:text-forge-text'
               }`}
               style={type === t.id
-                ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' }
                 : undefined
               }
               onClick={() => setType(t.id)}
@@ -144,7 +142,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
             <select
               class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
               value={selectedAccount}
-              onChange={(e) => setSelectedAccount((e.target as HTMLSelectElement).value)}
+              onChange={(e) => handleAccountChange((e.target as HTMLSelectElement).value)}
             >
               {accountList.map(a => (
                 <option key={a} value={a}>{a}</option>
