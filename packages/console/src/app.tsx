@@ -115,55 +115,53 @@ function App() {
   }
 
   return (
-    <Shell>
-      {loading ? (
-        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
-          <div class="py-20 text-center text-forge-muted">Loading...</div>
-        </div>
-      ) : !hasProjects ? (
-        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
-          <EmptyState
-            icon="&#128296;"
-            title="Welcome to Forge"
-            description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
-          />
-        </div>
-      ) : view === 'list' ? (
-        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
-          <TaskList
-            spaces={filteredSpaces}
-            allSpaces={spaces}
-            loading={loading}
-            onNewTask={handleNewTask}
-            onCreateProject={() => setShowCreateProject(true)}
-            onSelectTask={handleSelectTask}
-            onRefresh={() => fetchData()}
-            accountNames={accountNames}
-            filterAccount={filterAccount}
-            onFilterAccount={handleFilterAccount}
-            projectNames={projectNames}
-            filterProject={filterProject}
-            onFilterProject={setFilterProject}
-            filterType={filterType}
-            onFilterType={setFilterType}
-            showDone={showDone}
-            onShowDone={setShowDone}
-          />
-          <CreateProjectModal
-            open={showCreateProject}
-            accounts={accountNames}
-            onClose={() => setShowCreateProject(false)}
-            onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
-          />
-        </div>
-      ) : view === 'detail' && selectedSession ? (
+    view === 'detail' && selectedSession ? (
+      <Shell fullHeight>
         <TaskDetail
           session={selectedSession}
           onBack={() => { setView('list'); fetchData() }}
           onDone={() => { setView('list'); refreshAfterAction() }}
         />
-      ) : view === 'new-task' ? (
-        <div class="max-w-4xl mx-auto px-6 py-8 h-full overflow-auto">
+      </Shell>
+    ) : (
+      <Shell>
+        {loading ? (
+          <div class="py-20 text-center text-forge-muted">Loading...</div>
+        ) : !hasProjects ? (
+          <EmptyState
+            icon="&#128296;"
+            title="Welcome to Forge"
+            description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
+          />
+        ) : view === 'list' ? (
+          <>
+            <TaskList
+              spaces={filteredSpaces}
+              allSpaces={spaces}
+              loading={loading}
+              onNewTask={handleNewTask}
+              onCreateProject={() => setShowCreateProject(true)}
+              onSelectTask={handleSelectTask}
+              onRefresh={() => fetchData()}
+              accountNames={accountNames}
+              filterAccount={filterAccount}
+              onFilterAccount={handleFilterAccount}
+              projectNames={projectNames}
+              filterProject={filterProject}
+              onFilterProject={setFilterProject}
+              filterType={filterType}
+              onFilterType={setFilterType}
+              showDone={showDone}
+              onShowDone={setShowDone}
+            />
+            <CreateProjectModal
+              open={showCreateProject}
+              accounts={accountNames}
+              onClose={() => setShowCreateProject(false)}
+              onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
+            />
+          </>
+        ) : view === 'new-task' ? (
           <NewTask
             projects={projects}
             accounts={accountNames}
@@ -171,9 +169,9 @@ function App() {
             onBack={() => setView('list')}
             onCreated={() => { setView('list'); refreshAfterAction() }}
           />
-        </div>
-      ) : null}
-    </Shell>
+        ) : null}
+      </Shell>
+    )
   )
 }
 
