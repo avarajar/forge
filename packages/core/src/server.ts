@@ -45,6 +45,13 @@ export function createForgeServer(options: ServerOptions) {
   const ptyManager = new PTYManager()
   const terminalWss = createTerminalWss(ptyManager, cwReader)
 
+  app.post('/api/cw/terminal/kill', async (c) => {
+    const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
+    const sessionId = `${project}::${sessionDir}`
+    ptyManager.kill(sessionId)
+    return c.json({ ok: true })
+  })
+
   async function resolveAction(c: Context): Promise<
     | { action: ActionDef; cwd: string; logId: string }
     | Response
