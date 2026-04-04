@@ -71,9 +71,25 @@ Filter by project to see detected stack, MCPs, and plugins. Manage or delete pro
 
 ### Prerequisites
 
-- Node.js >= 20
-- [CW](https://github.com/avarajar/cw) installed and configured (`cw init`)
-- At least one project registered (`cw open <project>`)
+| Requirement | Version | Install |
+|-------------|---------|---------|
+| **Node.js** | >= 20 | [nodejs.org](https://nodejs.org) |
+| **Python 3** | >= 3.9 | Required by CW for session management |
+| **Git** | any recent | Worktree support required |
+| **Claude Code** | latest | `npm i -g @anthropic-ai/claude-code` |
+| **[CW](https://github.com/avarajar/cw)** | latest | `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
+
+### CW Setup
+
+CW must be initialized before Forge can read your workspace:
+
+```bash
+cw init                          # Initialize ~/.cw/
+cw account add <name>            # Add a Claude Code account
+cw open <project>                # Register a project (or cw project register)
+```
+
+Once you have at least one project registered, Forge will show it in the dashboard.
 
 ### Run
 
