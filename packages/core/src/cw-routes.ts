@@ -1,6 +1,8 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import { execSync, spawn } from 'node:child_process'
+import { execSync, execFileSync, spawn } from 'node:child_process'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 export function cwRoutes(reader: CWReader): Hono {
   const app = new Hono()
@@ -41,6 +43,11 @@ export function cwRoutes(reader: CWReader): Hono {
     return c.json(reader.getMCPs(project))
   })
 
+  app.get('/tools', (c) => {
+    const project = c.req.query('project')
+    return c.json(reader.getTools(project))
+  })
+
   app.get('/git/status/:project/:sessionDir', (c) => {
     const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -79,44 +86,60 @@ export function cwRoutes(reader: CWReader): Hono {
       type: string; project: string; task: string; description?: string; workflow?: string; account?: string; directory?: string
     }>()
 
-    let cmd = ''
+    const args: string[] = []
     if (type === 'review') {
-      cmd = `cw review ${project} ${task}`
+      args.push('review', project, task)
     } else if (type === 'plan') {
-      cmd = `cw plan ${project} "${description ?? task}"`
+      args.push('plan', project, description ?? task)
     } else if (type === 'create') {
-      cmd = `cw create "${description ?? task}" --name ${project}`
-      if (account) cmd += ` --account ${account}`
-      if (directory) cmd += ` --dir ${directory}`
+      args.push('create', description ?? task, '--name', project)
+      if (account) args.push('--account', account)
+      if (directory) args.push('--dir', directory)
     } else {
-      cmd = `cw work ${project} ${task}`
-      if (workflow) cmd += ` --workflow ${workflow}`
+      args.push('work', project, task)
+      if (workflow) args.push('--workflow', workflow)
     }
 
     // CW commands are interactive (open terminal windows).
     // Spawn detached so they don't block the server.
-    const child = spawn('sh', ['-c', cmd], {
+    const child = spawn('cw', args, {
       detached: true,
       stdio: 'ignore'
     })
     child.unref()
 
-    return c.json({ ok: true, command: cmd })
+    return c.json({ ok: true, command: `cw ${args.join(' ')}` })
   })
 
   app.post('/done', async (c) => {
     const { project, task, type } = await c.req.json<{ project: string; task: string; type: string }>()
-    const cmd = type === 'review'
-      ? `cw review ${project} ${task} --done`
-      : `cw work ${project} ${task} --done`
 
-    const child = spawn('sh', ['-c', cmd], {
-      detached: true,
-      stdio: 'ignore'
-    })
-    child.unref()
+    // Directly update session.json for instant UI feedback
+    const cwHome = join(process.env.HOME ?? '', '.cw')
+    const sessionDirName = type === 'review' ? `review-pr-${task}` : `task-${task}`
+    const sessionFile = join(cwHome, 'sessions', project, sessionDirName, 'session.json')
 
-    return c.json({ ok: true })
+    let updated = false
+    if (existsSync(sessionFile)) {
+      try {
+        const meta = JSON.parse(readFileSync(sessionFile, 'utf-8'))
+        meta.status = 'done'
+        meta.closed = new Date().toISOString()
+        writeFileSync(sessionFile, JSON.stringify(meta, null, 2))
+        updated = true
+      } catch {}
+    }
+
+    // Also spawn cw --done in background for worktree cleanup
+    const args = type === 'review'
+      ? ['review', project, task, '--done']
+      : ['work', project, task, '--done']
+    try {
+      const child = spawn('cw', args, { detached: true, stdio: 'ignore' })
+      child.unref()
+    } catch {}
+
+    return c.json({ ok: true, updated })
   })
 
   app.post('/delete-project', async (c) => {
@@ -128,7 +151,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Unregister from CW
     try {
-      execSync(`echo y | cw project remove ${project}`, { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+      execFileSync('cw', ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
     } catch {
       // May not be registered, continue anyway
     }

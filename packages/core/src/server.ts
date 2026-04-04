@@ -5,7 +5,7 @@ import { ForgeDB } from './db.js'
 import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
 import type { ActionDef } from '@forge-dev/sdk'
-import { join, basename } from 'node:path'
+import { join, basename, resolve } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
@@ -207,7 +207,11 @@ export function createForgeServer(options: ServerOptions) {
   })
 
   app.get('/api/filesystem/browse', (c) => {
-    const dir = c.req.query('path') ?? process.cwd()
+    const home = process.env.HOME ?? '/tmp'
+    const dir = resolve(c.req.query('path') ?? process.cwd())
+    if (!dir.startsWith(home)) {
+      return c.json({ error: 'Access denied: path must be within home directory' }, 403)
+    }
     if (!existsSync(dir)) {
       return c.json({ error: 'Directory not found' }, 404)
     }

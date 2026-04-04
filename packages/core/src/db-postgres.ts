@@ -62,11 +62,11 @@ export class PostgresDB implements IForgeDB {
   }
 
   listProjects(): Project[] {
-    return []
+    throw new Error('PostgresDB.listProjects() not implemented — team mode is not yet supported')
   }
 
   getProject(_id: string): Project | undefined {
-    return undefined
+    throw new Error('PostgresDB.getProject() not implemented — team mode is not yet supported')
   }
 
   removeProject(id: string): void {
@@ -80,7 +80,7 @@ export class PostgresDB implements IForgeDB {
   }
 
   listModules(): InstalledModule[] {
-    return []
+    throw new Error('PostgresDB.listModules() not implemented — team mode is not yet supported')
   }
 
   removeModule(name: string): void {
@@ -94,7 +94,7 @@ export class PostgresDB implements IForgeDB {
   }
 
   getActionLog(_id: string): ActionLog | undefined {
-    return undefined
+    throw new Error('PostgresDB.getActionLog() not implemented — team mode is not yet supported')
   }
 
   completeAction(id: string, exitCode: number): void {
@@ -102,7 +102,7 @@ export class PostgresDB implements IForgeDB {
   }
 
   getModuleSettings(_moduleId: string): Record<string, string> {
-    return {}
+    throw new Error('PostgresDB.getModuleSettings() not implemented — team mode is not yet supported')
   }
 
   setModuleSetting(moduleId: string, key: string, value: string): void {
@@ -110,7 +110,7 @@ export class PostgresDB implements IForgeDB {
   }
 
   listActionLogs(_opts: { moduleId?: string; limit?: number }): ActionLog[] {
-    return []
+    throw new Error('PostgresDB.listActionLogs() not implemented — team mode is not yet supported')
   }
 
   close(): void {

@@ -82,63 +82,138 @@ export class CWReader {
   }
 
   getMCPs(project?: string): { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } {
-    const result: { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } = { global: {}, project: [], cw: [], plugins: [] }
-    const home = process.env.HOME ?? ''
+    const tools = this.getTools(project)
+    return {
+      global: Object.fromEntries(tools.mcps.filter(m => m.source === 'global').map(m => [m.name, {}])),
+      project: tools.mcps.filter(m => m.source === 'project').map(m => m.name),
+      cw: tools.mcps.filter(m => m.source === 'cw').map(m => m.name),
+      plugins: tools.plugins.map(p => p.name),
+    }
+  }
 
-    // Global Claude MCP servers from ~/.claude/settings.json
+  /** Rich tool/MCP/plugin info for the dashboard */
+  getTools(project?: string): {
+    mcps: Array<{ name: string; type: string; source: string; url?: string }>
+    plugins: Array<{ name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }>
+  } {
+    const home = process.env.HOME ?? ''
+    const mcps: Array<{ name: string; type: string; source: string; url?: string }> = []
+    const plugins: Array<{ name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }> = []
+
+    // --- Global MCPs from ~/.claude/settings.json ---
     const claudeSettings = join(home, '.claude', 'settings.json')
+    let enabledPlugins: Record<string, boolean> = {}
     if (existsSync(claudeSettings)) {
       try {
         const data = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
-        if (data.mcpServers) result.global = data.mcpServers
+        if (data.mcpServers) {
+          for (const [name, cfg] of Object.entries(data.mcpServers as Record<string, Record<string, unknown>>)) {
+            const type = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
+            mcps.push({ name, type, source: 'global', url: cfg.url as string | undefined })
+          }
+        }
+        if (data.enabledPlugins) enabledPlugins = data.enabledPlugins as Record<string, boolean>
       } catch {}
     }
 
-    // Project-level MCPs from .mcp.json in project root
+    // --- Per-project MCPs from global settings.json `projects` key ---
     if (project) {
       const projects = this.getProjects()
       const projPath = projects[project]?.path ?? ''
+
       if (projPath) {
-        // Check .mcp.json (standard Claude Code project MCP config)
-        const mcpJson = join(projPath, '.mcp.json')
-        if (existsSync(mcpJson)) {
+        // Check global settings.json projects.<path>.mcpServers
+        if (existsSync(claudeSettings)) {
           try {
-            const data = JSON.parse(readFileSync(mcpJson, 'utf-8'))
-            if (data.mcpServers) result.project = Object.keys(data.mcpServers)
-          } catch {}
-        }
-        // Check .claude/settings.json for project-level MCPs
-        const claudeProjSettings = join(projPath, '.claude', 'settings.json')
-        if (existsSync(claudeProjSettings)) {
-          try {
-            const data = JSON.parse(readFileSync(claudeProjSettings, 'utf-8'))
-            if (data.mcpServers) {
-              result.project = [...result.project, ...Object.keys(data.mcpServers)]
+            const globalData = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
+            const projSettings = globalData.projects?.[projPath]
+            if (projSettings?.mcpServers) {
+              for (const [name, cfg] of Object.entries(projSettings.mcpServers as Record<string, Record<string, unknown>>)) {
+                if (!mcps.some(m => m.name === name)) {
+                  const type = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
+                  mcps.push({ name, type, source: 'project', url: cfg.url as string | undefined })
+                }
+              }
             }
           } catch {}
+        }
+
+        // Check .mcp.json / .claude/settings.json inside the project directory
+        for (const configPath of [
+          join(projPath, '.mcp.json'),
+          join(projPath, '.claude', 'settings.json'),
+        ]) {
+          if (existsSync(configPath)) {
+            try {
+              const data = JSON.parse(readFileSync(configPath, 'utf-8'))
+              const servers = data.mcpServers ?? data
+              if (servers && typeof servers === 'object') {
+                for (const [name, cfg] of Object.entries(servers as Record<string, Record<string, unknown>>)) {
+                  if (name === 'mcpServers') continue // skip if still nested
+                  if (!mcps.some(m => m.name === name)) {
+                    const type = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
+                    mcps.push({ name, type, source: 'project', url: cfg.url as string | undefined })
+                  }
+                }
+              }
+            } catch {}
+          }
         }
       }
     }
 
-    // Claude plugins from ~/.claude/plugins/installed_plugins.json
+    // --- CW managed MCPs ---
+    const mcpsDir = join(this.cwDir, 'mcps')
+    if (existsSync(mcpsDir)) {
+      const files = readdirSync(mcpsDir).filter(f => f.endsWith('.json'))
+      for (const f of files) {
+        const name = f.replace('.json', '')
+        if (!mcps.some(m => m.name === name)) {
+          mcps.push({ name, type: 'cw', source: 'cw' })
+        }
+      }
+    }
+
+    // --- Plugins from installed_plugins.json ---
     const pluginsFile = join(home, '.claude', 'plugins', 'installed_plugins.json')
     if (existsSync(pluginsFile)) {
       try {
         const data = JSON.parse(readFileSync(pluginsFile, 'utf-8'))
         if (data.plugins) {
-          result.plugins = Object.keys(data.plugins).map(k => k.split('@')[0])
+          for (const key of Object.keys(data.plugins as Record<string, unknown>)) {
+            const name = key.split('@')[0]
+            const marketplace = key.includes('@') ? key.split('@').slice(1).join('@') : 'unknown'
+            const enabled = enabledPlugins[key] ?? false
+
+            // Check if plugin has its own MCP server (.mcp.json in plugin dir)
+            let hasMcp = false
+            let mcpName: string | undefined
+            let mcpType: string | undefined
+            const entries = (data.plugins as Record<string, Array<{ installPath: string }>>)[key]
+            if (entries?.[0]?.installPath) {
+              const pluginMcpFile = join(entries[0].installPath, '.mcp.json')
+              if (existsSync(pluginMcpFile)) {
+                try {
+                  const raw = JSON.parse(readFileSync(pluginMcpFile, 'utf-8')) as Record<string, Record<string, unknown>>
+                  const mcpData = raw.mcpServers ?? raw
+                  const mcpKeys = Object.keys(mcpData).filter(k => k !== 'mcpServers')
+                  if (mcpKeys.length > 0) {
+                    hasMcp = true
+                    mcpName = mcpKeys[0]
+                    const cfg = mcpData[mcpKeys[0]] as Record<string, unknown>
+                    mcpType = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
+                  }
+                } catch {}
+              }
+            }
+
+            plugins.push({ name, enabled, hasMcp, mcpName, mcpType, marketplace })
+          }
         }
       } catch {}
     }
 
-    // CW managed MCPs from ~/.cw/mcps/
-    const mcpsDir = join(this.cwDir, 'mcps')
-    if (existsSync(mcpsDir)) {
-      const files = readdirSync(mcpsDir).filter(f => f.endsWith('.json'))
-      result.cw = files.map(f => f.replace('.json', ''))
-    }
-
-    return result
+    return { mcps, plugins }
   }
 
   detectStack(project: string): StackDetection {
