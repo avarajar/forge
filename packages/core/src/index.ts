@@ -13,3 +13,5 @@ export type { Project, InstalledModule, ActionLog, ForgeConfig, TeamConfig } fro
 export { CWReader } from './cw-reader.js'
 export { cwRoutes } from './cw-routes.js'
 export type { CWProject, CWSession, CWConfig, StackDetection } from './cw-types.js'
+export { PTYManager } from './pty-manager.js'
+export type { PTYSession, PTYClient } from './pty-manager.js'
