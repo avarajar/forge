@@ -1,5 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useEffect, useRef } from 'preact/hooks'
+import '@xterm/xterm/css/xterm.css'
 
 interface TerminalProps {
   /** Static content to display (read-only) */
@@ -54,7 +55,8 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         convertEol: !isInteractive,
         disableStdin: !isInteractive,
-        cursorBlink: isInteractive
+        cursorBlink: isInteractive,
+        scrollback: 10000
       })
 
       const fitAddon = new FitAddon()
