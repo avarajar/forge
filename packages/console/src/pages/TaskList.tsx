@@ -49,8 +49,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: '',
     border: 'border-amber-500/20',
     dot: 'bg-amber-500',
-    bgRgba: 'rgba(245,158,11,0.12)',
-    borderRgba: 'rgba(245,158,11,0.25)',
+    bgRgba: 'var(--forge-tint-amber-bg)',
+    borderRgba: 'var(--forge-tint-amber-border)',
     textColor: '#d97706',
   },
   review: {
@@ -59,8 +59,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: '',
     border: 'border-blue-500/20',
     dot: 'bg-blue-500',
-    bgRgba: 'rgba(59,130,246,0.12)',
-    borderRgba: 'rgba(59,130,246,0.25)',
+    bgRgba: 'var(--forge-tint-blue-bg)',
+    borderRgba: 'var(--forge-tint-blue-border)',
     textColor: '#2563eb',
   },
   design: {
@@ -69,8 +69,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: '',
     border: 'border-purple-500/20',
     dot: 'bg-purple-500',
-    bgRgba: 'rgba(168,85,247,0.12)',
-    borderRgba: 'rgba(168,85,247,0.25)',
+    bgRgba: 'var(--forge-tint-purple-bg)',
+    borderRgba: 'var(--forge-tint-purple-border)',
     textColor: '#7c3aed',
   },
   plan: {
@@ -79,8 +79,8 @@ const TYPE_STYLES: Record<string, TypeStyle> = {
     text: '',
     border: 'border-cyan-500/20',
     dot: 'bg-cyan-500',
-    bgRgba: 'rgba(6,182,212,0.12)',
-    borderRgba: 'rgba(6,182,212,0.25)',
+    bgRgba: 'var(--forge-tint-cyan-bg)',
+    borderRgba: 'var(--forge-tint-cyan-border)',
     textColor: '#0891b2',
   },
 }
@@ -153,7 +153,7 @@ const AccountBadge: FunctionComponent<{ account: string }> = ({ account }) => (
 const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
   <span
     class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-forge-surface text-forge-muted truncate max-w-[160px]"
-    style={{ border: '1px solid rgba(42,42,62,0.6)' }}
+    style={{ border: '1px solid var(--forge-ghost-border)' }}
   >
     {name}
   </span>
@@ -192,7 +192,7 @@ const TaskCard: FunctionComponent<{
     <div
       class="group relative flex items-center gap-4 p-4 rounded-xl bg-forge-surface cursor-pointer transition-all"
       style={{
-        border: `1px solid ${hovered ? style.borderRgba : 'rgba(42,42,62,0.6)'}`,
+        border: `1px solid ${hovered ? style.borderRgba : 'var(--forge-ghost-border)'}`,
         boxShadow: hovered ? '0 10px 15px -3px rgba(99,102,241,0.05)' : undefined,
       }}
       onClick={onSelect}
@@ -254,7 +254,7 @@ const DoneTaskRow: FunctionComponent<{
   return (
     <div
       class="group flex items-center gap-4 px-4 py-3 rounded-lg cursor-pointer transition-all"
-      style={{ backgroundColor: hovered ? 'rgba(30,30,50,0.6)' : undefined }}
+      style={{ backgroundColor: hovered ? 'var(--forge-ghost-hover)' : undefined }}
       onClick={onSelect}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -307,7 +307,7 @@ const FilterPill: FunctionComponent<{
     return (
       <button
         class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all text-forge-accent"
-        style={{ backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }}
+        style={{ backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-tint-accent-border)' }}
         onClick={onClick}
       >
         {label}
@@ -317,7 +317,7 @@ const FilterPill: FunctionComponent<{
   return (
     <button
       class="px-3 py-1.5 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:border-forge-border"
-      style={{ backgroundColor: 'rgba(30,30,50,0.5)', borderColor: 'rgba(42,42,62,0.6)' }}
+      style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
       onClick={onClick}
     >
       {label}
@@ -445,7 +445,7 @@ const ProjectBanner: FunctionComponent<{ project: string; account?: string; onDe
             </button>
             <button
               class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
-              style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
+              style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
               onClick={() => { setShowDelete(false); setDeleteFiles(false) }}
             >
               Cancel
@@ -538,7 +538,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         <div class="flex items-center gap-3">
           <button
             class="px-3 py-2 text-xs rounded-lg text-forge-muted hover:text-forge-text hover:bg-forge-surface border border-forge-border hover:border-forge-border transition-all"
-            style={{ borderColor: 'rgba(42,42,62,0.4)' }}
+            style={{ borderColor: 'var(--forge-ghost-border)' }}
             onClick={onRefresh}
           >
             Refresh
@@ -546,7 +546,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           {/* Create Project — separate from task creation */}
           <button
             class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:bg-forge-surface"
-            style={{ borderColor: 'rgba(42,42,62,0.4)' }}
+            style={{ borderColor: 'var(--forge-ghost-border)' }}
             onClick={onCreateProject}
           >
             + Project
@@ -573,7 +573,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       {/* ---- Filter bar ---- */}
       <div
         class="flex flex-wrap items-center gap-2.5 mb-6 pb-5"
-        style={{ borderBottom: '1px solid rgba(42,42,62,0.4)' }}
+        style={{ borderBottom: '1px solid var(--forge-ghost-border)' }}
       >
         {/* Account filter — shown only when there are multiple accounts */}
         {accountNames.length > 1 && (
@@ -581,7 +581,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border text-forge-text appearance-none cursor-pointer min-w-[130px] hover:border-forge-border transition-colors"
             style={filterAccount
               ? { borderColor: 'rgba(99,102,241,0.4)', backgroundColor: 'rgba(99,102,241,0.06)' }
-              : { borderColor: 'rgba(42,42,62,0.6)' }
+              : { borderColor: 'var(--forge-ghost-border)' }
             }
             value={filterAccount ?? ''}
             onChange={(e: Event) => {
@@ -599,7 +599,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         {/* Project filter */}
         <select
           class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border border-forge-border text-forge-text appearance-none cursor-pointer min-w-[140px] hover:border-forge-border transition-colors"
-          style={{ borderColor: 'rgba(42,42,62,0.6)' }}
+          style={{ borderColor: 'var(--forge-ghost-border)' }}
           value={filterProject ?? ''}
           onChange={(e: Event) => {
             const val = (e.target as HTMLSelectElement).value
@@ -632,8 +632,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         <button
           class={`px-3 py-1.5 text-xs rounded-lg border transition-all ${showDone ? 'text-forge-accent font-semibold' : 'text-forge-muted hover:text-forge-text hover:border-forge-border'}`}
           style={showDone
-            ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'rgba(99,102,241,0.3)' }
-            : { backgroundColor: 'rgba(30,30,50,0.5)', borderColor: 'rgba(42,42,62,0.6)' }
+            ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-tint-accent-border)' }
+            : { backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }
           }
           onClick={() => onShowDone(!showDone)}
         >
@@ -644,7 +644,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         {hasActiveFilters && (
           <button
             class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
-            style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
+            style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
             onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
           >
             ✕ Clear filters
@@ -692,7 +692,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           {hasActiveFilters && (
             <button
               class="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
-              style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
+              style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
               onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
             >
               ✕ Clear filters

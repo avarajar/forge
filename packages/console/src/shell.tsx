@@ -16,7 +16,7 @@ interface ShellProps {
 export const Shell: FunctionComponent<ShellProps> = ({ children }) => {
   return (
     <div class="min-h-screen bg-forge-bg text-forge-text">
-      <header class="h-14 flex items-center justify-between px-6 backdrop-blur-sm sticky top-0 z-50" style={{ borderBottom: '1px solid rgba(42,42,62,0.6)', backgroundColor: 'rgba(10,10,20,0.8)' }}>
+      <header class="h-14 flex items-center justify-between px-6 backdrop-blur-sm sticky top-0 z-50" style={{ borderBottom: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}>
         <div class="flex items-center gap-2.5">
           <span class="text-xl select-none" aria-hidden="true">&#128293;</span>
           <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-forge-accent to-forge-warning bg-clip-text text-transparent">

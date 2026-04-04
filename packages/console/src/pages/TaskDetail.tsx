@@ -102,7 +102,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
     <div>
       <button
         class="inline-flex items-center gap-1.5 px-3 py-1.5 mb-4 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
-        style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
+        style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
         onClick={onBack}
       >
         ← Back to tasks

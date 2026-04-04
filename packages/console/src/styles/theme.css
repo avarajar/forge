@@ -11,6 +11,21 @@
   --forge-radius: 8px;
   --forge-font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --forge-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  /* Ghost button backgrounds */
+  --forge-ghost-bg: rgba(30,30,50,0.5);
+  --forge-ghost-border: rgba(42,42,62,0.6);
+  --forge-ghost-hover: rgba(40,40,70,0.7);
+  /* Type tint backgrounds */
+  --forge-tint-amber-bg: rgba(245,158,11,0.12);
+  --forge-tint-amber-border: rgba(245,158,11,0.25);
+  --forge-tint-blue-bg: rgba(59,130,246,0.12);
+  --forge-tint-blue-border: rgba(59,130,246,0.25);
+  --forge-tint-purple-bg: rgba(168,85,247,0.12);
+  --forge-tint-purple-border: rgba(168,85,247,0.25);
+  --forge-tint-cyan-bg: rgba(6,182,212,0.12);
+  --forge-tint-cyan-border: rgba(6,182,212,0.25);
+  --forge-tint-accent-bg: rgba(99,102,241,0.1);
+  --forge-tint-accent-border: rgba(99,102,241,0.3);
 }
 
 [data-theme="light"] {
@@ -18,7 +33,22 @@
   --forge-surface: #ffffff;
   --forge-border: #e2e8f0;
   --forge-text: #1e293b;
-  --forge-muted: #94a3b8;
+  --forge-muted: #64748b;
+  /* Ghost button backgrounds for light mode */
+  --forge-ghost-bg: rgba(241,245,249,0.8);
+  --forge-ghost-border: rgba(203,213,225,0.6);
+  --forge-ghost-hover: rgba(226,232,240,0.8);
+  /* Type tint backgrounds — stronger for light mode */
+  --forge-tint-amber-bg: rgba(245,158,11,0.15);
+  --forge-tint-amber-border: rgba(245,158,11,0.35);
+  --forge-tint-blue-bg: rgba(59,130,246,0.12);
+  --forge-tint-blue-border: rgba(59,130,246,0.3);
+  --forge-tint-purple-bg: rgba(168,85,247,0.12);
+  --forge-tint-purple-border: rgba(168,85,247,0.3);
+  --forge-tint-cyan-bg: rgba(6,182,212,0.12);
+  --forge-tint-cyan-border: rgba(6,182,212,0.3);
+  --forge-tint-accent-bg: rgba(99,102,241,0.1);
+  --forge-tint-accent-border: rgba(99,102,241,0.25);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
