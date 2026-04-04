@@ -30,8 +30,8 @@ function App() {
   // Create Project modal
   const [showCreateProject, setShowCreateProject] = useState(false)
 
-  const fetchData = async () => {
-    setLoading(true)
+  const fetchData = async (delay?: number) => {
+    if (delay) await new Promise(r => setTimeout(r, delay))
     try {
       const [spacesRes, projectsRes, accountsRes] = await Promise.all([
         fetch('/api/cw/spaces'),
@@ -46,6 +46,13 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Refetch after a CW action — delay to let CW write files, then retry
+  const refreshAfterAction = () => {
+    fetchData(500)
+    // Retry after 2s in case CW was slow
+    setTimeout(() => fetchData(), 2000)
   }
 
   useEffect(() => { fetchData() }, [])
@@ -126,7 +133,7 @@ function App() {
             onNewTask={handleNewTask}
             onCreateProject={() => setShowCreateProject(true)}
             onSelectTask={handleSelectTask}
-            onRefresh={fetchData}
+            onRefresh={() => fetchData()}
             accountNames={accountNames}
             filterAccount={filterAccount}
             onFilterAccount={handleFilterAccount}
@@ -142,14 +149,14 @@ function App() {
             open={showCreateProject}
             accounts={accountNames}
             onClose={() => setShowCreateProject(false)}
-            onCreated={() => { setShowCreateProject(false); fetchData() }}
+            onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
           />
         </>
       ) : view === 'detail' && selectedSession ? (
         <TaskDetail
           session={selectedSession}
           onBack={() => { setView('list'); fetchData() }}
-          onDone={() => { setView('list'); fetchData() }}
+          onDone={() => { setView('list'); refreshAfterAction() }}
         />
       ) : view === 'new-task' ? (
         <NewTask
@@ -157,7 +164,7 @@ function App() {
           accounts={accountNames}
           initialType={newTaskType}
           onBack={() => setView('list')}
-          onCreated={() => { setView('list'); fetchData() }}
+          onCreated={() => { setView('list'); refreshAfterAction() }}
         />
       ) : null}
     </Shell>
