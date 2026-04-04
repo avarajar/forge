@@ -133,10 +133,17 @@ export function cwRoutes(reader: CWReader): Hono {
       // May not be registered, continue anyway
     }
 
-    // Delete files if requested
+    // Always clean up session data for this project
+    const { rmSync, existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const sessionsDir = join(process.env.HOME ?? '', '.cw', 'sessions', project)
+    if (existsSync(sessionsDir)) {
+      try { rmSync(sessionsDir, { recursive: true, force: true }) } catch {}
+    }
+
+    // Delete project files if requested
     if (deleteFiles && projPath) {
       try {
-        const { rmSync } = await import('node:fs')
         rmSync(projPath, { recursive: true, force: true })
       } catch {
         return c.json({ ok: true, filesDeleted: false, reason: 'Failed to delete directory' })
