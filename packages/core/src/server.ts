@@ -12,7 +12,7 @@ import { bearerAuth } from './auth.js'
 import { CWReader } from './cw-reader.js'
 import { cwRoutes } from './cw-routes.js'
 import { PTYManager } from './pty-manager.js'
-import { ptyRoutes } from './pty-routes.js'
+import { createTerminalWss } from './pty-routes.js'
 
 interface ServerOptions {
   dataDir: string
@@ -43,7 +43,7 @@ export function createForgeServer(options: ServerOptions) {
   app.route('/api/cw', cwRoutes(cwReader))
 
   const ptyManager = new PTYManager()
-  const { injectWebSocket } = ptyRoutes(app, ptyManager, cwReader)
+  const terminalWss = createTerminalWss(ptyManager, cwReader)
 
   async function resolveAction(c: Context): Promise<
     | { action: ActionDef; cwd: string; logId: string }
@@ -233,7 +233,7 @@ export function createForgeServer(options: ServerOptions) {
   return {
     app,
     fetch,
-    injectWebSocket,
+    attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
     close: () => { ptyManager.dispose(); db.close() }
   }
 }

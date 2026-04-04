@@ -1,81 +1,71 @@
-import type { Hono } from 'hono'
-import { createNodeWebSocket } from '@hono/node-ws'
+import { WebSocketServer, WebSocket } from 'ws'
+import type { Server } from 'node:http'
 import type { PTYManager } from './pty-manager.js'
 import type { CWReader } from './cw-reader.js'
 
-export function ptyRoutes(
-  app: Hono,
-  manager: PTYManager,
-  reader: CWReader
-) {
-  const nodeWs = createNodeWebSocket({ app })
-  const { upgradeWebSocket } = nodeWs
+export function createTerminalWss(manager: PTYManager, reader: CWReader) {
+  const wss = new WebSocketServer({ noServer: true })
 
-  app.get(
-    '/ws/terminal/:project/:sessionDir',
-    upgradeWebSocket((c) => {
-      const project = c.req.param('project') as string
-      const sessionDir = c.req.param('sessionDir') as string
-      console.log(`[pty-routes] WebSocket upgrade for ${project}/${sessionDir}`)
+  wss.on('connection', (ws: WebSocket, project: string, sessionDir: string) => {
+    console.log(`[pty-ws] Connected: ${project}/${sessionDir}`)
 
-      return {
-        onOpen(_evt, ws) {
-          console.log(`[pty-routes] onOpen: ${project}/${sessionDir}`)
-          const session = reader.getSession(project, sessionDir)
-          if (!session) {
-            console.log(`[pty-routes] Session not found: ${project}/${sessionDir}`)
-            ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
-            ws.close()
-            return
-          }
+    const session = reader.getSession(project, sessionDir)
+    if (!session) {
+      console.log(`[pty-ws] Session not found: ${project}/${sessionDir}`)
+      ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
+      ws.close()
+      return
+    }
 
-          const sessionId = `${project}::${sessionDir}`
-          manager.getOrCreate(project, sessionDir, session)
+    const sessionId = `${project}::${sessionDir}`
+    manager.getOrCreate(project, sessionDir, session)
 
-          const client = {
-            send: (data: string) => { ws.send(data) },
-            close: () => { ws.close() }
-          }
+    const client = {
+      send: (data: string) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(data)
+      },
+      close: () => ws.close()
+    }
 
-          ;(ws as unknown as Record<string, unknown>).__ptyClient = client
-          ;(ws as unknown as Record<string, unknown>).__sessionId = sessionId
+    manager.attach(sessionId, client)
 
-          manager.attach(sessionId, client)
-        },
-
-        onMessage(evt, ws) {
-          const sessionId = (ws as unknown as Record<string, unknown>).__sessionId as string
-          if (!sessionId) return
-
-          try {
-            const msg = JSON.parse(typeof evt.data === 'string' ? evt.data : evt.data.toString())
-
-            if (msg.type === 'input') {
-              const ptySession = manager.get(sessionId)
-              if (ptySession) {
-                ptySession.pty.write(msg.data)
-              }
-            } else if (msg.type === 'resize') {
-              const ptySession = manager.get(sessionId)
-              if (ptySession && msg.cols && msg.rows) {
-                ptySession.pty.resize(msg.cols, msg.rows)
-              }
-            }
-          } catch {
-            // Ignore malformed messages
-          }
-        },
-
-        onClose(_evt, ws) {
-          const sessionId = (ws as unknown as Record<string, unknown>).__sessionId as string
-          const client = (ws as unknown as Record<string, unknown>).__ptyClient
-          if (sessionId && client) {
-            manager.detach(sessionId, client as { send: (data: string) => void; close: () => void })
+    ws.on('message', (raw: Buffer | string) => {
+      try {
+        const msg = JSON.parse(raw.toString())
+        if (msg.type === 'input') {
+          const ptySession = manager.get(sessionId)
+          if (ptySession) ptySession.pty.write(msg.data)
+        } else if (msg.type === 'resize') {
+          const ptySession = manager.get(sessionId)
+          if (ptySession && msg.cols && msg.rows) {
+            ptySession.pty.resize(msg.cols, msg.rows)
           }
         }
+      } catch {}
+    })
+
+    ws.on('close', () => {
+      console.log(`[pty-ws] Disconnected: ${project}/${sessionDir}`)
+      manager.detach(sessionId, client)
+    })
+  })
+
+  function attachToServer(server: Server) {
+    server.on('upgrade', (request, socket, head) => {
+      const url = new URL(request.url ?? '/', 'http://localhost')
+      const match = url.pathname.match(/^\/ws\/terminal\/([^/]+)\/([^/]+)$/)
+
+      if (match) {
+        const [, project, sessionDir] = match
+        console.log(`[pty-ws] Upgrade request: ${project}/${sessionDir}`)
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, project, sessionDir)
+        })
+      } else {
+        socket.destroy()
       }
     })
-  )
+  }
 
-  return nodeWs
+  return { wss, attachToServer }
 }
