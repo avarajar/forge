@@ -3,7 +3,8 @@ import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, Badge, showToast } from '@forge-dev/ui'
 
 interface NewTaskProps {
-  projects: Record<string, { path: string }>
+  projects: Record<string, { path: string; account: string }>
+  accounts: string[]
   initialType?: string
   onBack: () => void
   onCreated: () => void
@@ -14,13 +15,13 @@ const TYPES = [
   { id: 'design', label: 'Design', color: '#8b5cf6' },
   { id: 'review', label: 'Review', color: '#6366f1' },
   { id: 'plan', label: 'Plan', color: '#3b82f6' },
-  { id: 'create', label: 'Create Project', color: '#10b981' },
 ]
 
 export const NewTask: FunctionComponent<NewTaskProps> = ({
-  projects, initialType, onBack, onCreated
+  projects, accounts, initialType, onBack, onCreated
 }) => {
   const [type, setType] = useState(initialType ?? 'dev')
+  const [selectedAccount, setSelectedAccount] = useState('')
   const [project, setProject] = useState('')
   const [task, setTask] = useState('')
   const [description, setDescription] = useState('')
@@ -30,24 +31,52 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
   const projectNames = Object.keys(projects)
 
+  // Derive accounts from projects if not provided
+  const accountList = accounts.length > 0
+    ? accounts
+    : Array.from(new Set(Object.values(projects).map(p => p.account).filter(Boolean))).sort()
+
+  // Filter projects by selected account
+  const filteredProjectNames = selectedAccount
+    ? projectNames.filter(n => projects[n]?.account === selectedAccount)
+    : projectNames
+
+  // Auto-select first account
   useEffect(() => {
-    if (projectNames.length > 0 && !project) {
-      setProject(projectNames[0])
+    if (accountList.length > 0 && !selectedAccount) {
+      setSelectedAccount(accountList[0])
     }
-  }, [projectNames])
+  }, [accountList])
+
+  // Auto-select first project when account changes or on mount
+  useEffect(() => {
+    if (filteredProjectNames.length > 0) {
+      if (!project || !filteredProjectNames.includes(project)) {
+        setProject(filteredProjectNames[0])
+      }
+    } else {
+      setProject('')
+    }
+  }, [selectedAccount, filteredProjectNames.join(',')])
+
+  // Auto-fill account from selected project
+  useEffect(() => {
+    if (project && projects[project]?.account) {
+      setSelectedAccount(projects[project].account)
+    }
+  }, [project])
 
   useEffect(() => {
-    if (project && type !== 'create') {
+    if (project) {
       fetch(`/api/cw/detect/${project}`)
         .then(r => r.json())
         .then(d => setDetection(d as Record<string, unknown>))
         .catch(() => setDetection(null))
     }
-  }, [project, type])
+  }, [project])
 
   const handleStart = async () => {
-    if (type !== 'create' && !task.trim()) return
-    if (type === 'create' && !description.trim()) return
+    if (!task.trim()) return
 
     setStarting(true)
     try {
@@ -56,8 +85,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: type === 'design' ? 'dev' : type,
-          project: type === 'create' ? task.trim() : project,
-          task: type === 'review' ? task.trim() : task.trim(),
+          project,
+          task: task.trim(),
           description: description.trim() || undefined,
           workflow: workflow || undefined
         })
@@ -77,7 +106,6 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   }
 
   const isReview = type === 'review'
-  const isCreate = type === 'create'
 
   return (
     <div>
@@ -109,48 +137,60 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           ))}
         </div>
 
-        {/* Project selector (not for Create) */}
-        {!isCreate && (
+        {/* Account selector */}
+        {accountList.length > 1 && (
           <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">Project</label>
+            <label class="block text-sm font-medium mb-1">Account</label>
             <select
               class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-              value={project}
-              onChange={(e) => setProject((e.target as HTMLSelectElement).value)}
+              value={selectedAccount}
+              onChange={(e) => setSelectedAccount((e.target as HTMLSelectElement).value)}
             >
-              {projectNames.map(p => (
-                <option key={p} value={p}>{p}</option>
+              {accountList.map(a => (
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
-            {projects[project] && (
-              <div class="text-xs text-forge-muted mt-1">{projects[project].path}</div>
-            )}
           </div>
         )}
 
-        {/* Task name / PR number / Project name */}
+        {/* Project selector */}
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1">Project</label>
+          <select
+            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+            value={project}
+            onChange={(e) => setProject((e.target as HTMLSelectElement).value)}
+          >
+            {filteredProjectNames.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          {projects[project] && (
+            <div class="text-xs text-forge-muted mt-1">{(projects[project] as { path: string }).path}</div>
+          )}
+        </div>
+
+        {/* Task name / PR number */}
         <div class="mb-4">
           <label class="block text-sm font-medium mb-1">
-            {isReview ? 'PR Number or URL' : isCreate ? 'Project Name' : 'Task Name or URL'}
+            {isReview ? 'PR Number or URL' : 'Task Name or URL'}
           </label>
           <input
             type="text"
             value={task}
             onInput={(e) => setTask((e.target as HTMLInputElement).value)}
-            placeholder={isReview ? '42 or https://github.com/...' : isCreate ? 'my-new-project' : 'fix-auth or https://linear.app/...'}
+            placeholder={isReview ? '42 or https://github.com/...' : 'fix-auth or https://linear.app/...'}
             class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
           />
         </div>
 
         {/* Description */}
         <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">
-            {isCreate ? 'Describe what you want to build' : 'Description (optional)'}
-          </label>
+          <label class="block text-sm font-medium mb-1">Description (optional)</label>
           <textarea
             value={description}
             onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-            placeholder={isCreate ? 'A SaaS platform for...' : 'Describe the task...'}
+            placeholder="Describe the task..."
             rows={3}
             class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
           />
@@ -183,7 +223,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         )}
 
         {/* Stack detection */}
-        {detection && !isCreate && (
+        {detection && (
           <div class="flex flex-wrap gap-2 mb-6">
             {detection.framework && <Badge label={String(detection.framework)} color="var(--forge-accent)" />}
             {detection.testRunner && <Badge label={String(detection.testRunner)} color="var(--forge-success)" />}
@@ -196,17 +236,14 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
         {/* Start button */}
         <ActionButton
-          label={starting ? 'Starting...' : isCreate ? 'Create Project ▶' : 'Start Task ▶'}
+          label={starting ? 'Starting...' : 'Start Task ▶'}
           variant="primary"
           loading={starting}
-          disabled={isCreate ? !description.trim() : !task.trim()}
+          disabled={!task.trim()}
           onClick={handleStart}
         />
         <div class="text-xs text-forge-muted mt-2">
-          {isCreate
-            ? 'Creates a new project with CW'
-            : `Opens a CW session in your terminal for ${project}`
-          }
+          Opens a CW session in your terminal for {project}
         </div>
       </div>
     </div>

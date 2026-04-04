@@ -4,6 +4,7 @@ import { Shell } from './shell.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
+import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { EmptyState } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import './styles/theme.css'
@@ -13,26 +14,33 @@ type View = 'list' | 'detail' | 'new-task'
 
 function App() {
   const [spaces, setSpaces] = useState<CWSession[]>([])
-  const [projects, setProjects] = useState<Record<string, { path: string }>>({})
+  const [projects, setProjects] = useState<Record<string, { path: string; account: string }>>({})
+  const [accounts, setAccounts] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<View>('list')
   const [selectedSession, setSelectedSession] = useState<CWSession | null>(null)
   const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
   // Filter state
+  const [filterAccount, setFilterAccount] = useState<string | null>(null)
   const [filterProject, setFilterProject] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<string | null>(null)
   const [showDone, setShowDone] = useState(false)
 
+  // Create Project modal
+  const [showCreateProject, setShowCreateProject] = useState(false)
+
   const fetchData = async () => {
     setLoading(true)
     try {
-      const [spacesRes, projectsRes] = await Promise.all([
+      const [spacesRes, projectsRes, accountsRes] = await Promise.all([
         fetch('/api/cw/spaces'),
-        fetch('/api/cw/projects')
+        fetch('/api/cw/projects'),
+        fetch('/api/cw/accounts'),
       ])
       setSpaces(await spacesRes.json() as CWSession[])
-      setProjects(await projectsRes.json() as Record<string, { path: string }>)
+      setProjects(await projectsRes.json() as Record<string, { path: string; account: string }>)
+      setAccounts(await accountsRes.json() as string[])
     } catch {
       // server not ready
     } finally {
@@ -44,16 +52,39 @@ function App() {
 
   const hasProjects = Object.keys(projects).length > 0
 
-  // Derive unique project names from spaces
+  // Derive unique account names from spaces (fallback if accounts endpoint empty)
+  const accountNames = useMemo(() => {
+    if (accounts.length > 0) return accounts
+    const names = new Set<string>()
+    for (const s of spaces) if (s.account) names.add(s.account)
+    return Array.from(names).sort()
+  }, [accounts, spaces])
+
+  // Derive project names, filtered by selected account
   const projectNames = useMemo(() => {
     const names = new Set<string>()
-    for (const s of spaces) names.add(s.project)
+    for (const s of spaces) {
+      if (filterAccount && s.account !== filterAccount) continue
+      names.add(s.project)
+    }
     return Array.from(names).sort()
-  }, [spaces])
+  }, [spaces, filterAccount])
+
+  // When account filter changes, clear project filter if it no longer belongs to new account
+  const handleFilterAccount = (account: string | null) => {
+    setFilterAccount(account)
+    if (account && filterProject) {
+      const proj = projects[filterProject]
+      if (proj && proj.account !== account) {
+        setFilterProject(null)
+      }
+    }
+  }
 
   // Filter spaces
   const filteredSpaces = useMemo(() => {
     return spaces.filter(s => {
+      if (filterAccount && s.account !== filterAccount) return false
       if (filterProject && s.project !== filterProject) return false
       if (filterType) {
         if (filterType === 'dev' && s.type !== 'task') return false
@@ -64,7 +95,7 @@ function App() {
       if (!showDone && s.status === 'done') return false
       return true
     })
-  }, [spaces, filterProject, filterType, showDone])
+  }, [spaces, filterAccount, filterProject, filterType, showDone])
 
   const handleNewTask = (type?: string) => {
     setNewTaskType(type)
@@ -87,21 +118,33 @@ function App() {
           description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
         />
       ) : view === 'list' ? (
-        <TaskList
-          spaces={filteredSpaces}
-          allSpaces={spaces}
-          loading={loading}
-          onNewTask={handleNewTask}
-          onSelectTask={handleSelectTask}
-          onRefresh={fetchData}
-          projectNames={projectNames}
-          filterProject={filterProject}
-          onFilterProject={setFilterProject}
-          filterType={filterType}
-          onFilterType={setFilterType}
-          showDone={showDone}
-          onShowDone={setShowDone}
-        />
+        <>
+          <TaskList
+            spaces={filteredSpaces}
+            allSpaces={spaces}
+            loading={loading}
+            onNewTask={handleNewTask}
+            onCreateProject={() => setShowCreateProject(true)}
+            onSelectTask={handleSelectTask}
+            onRefresh={fetchData}
+            accountNames={accountNames}
+            filterAccount={filterAccount}
+            onFilterAccount={handleFilterAccount}
+            projectNames={projectNames}
+            filterProject={filterProject}
+            onFilterProject={setFilterProject}
+            filterType={filterType}
+            onFilterType={setFilterType}
+            showDone={showDone}
+            onShowDone={setShowDone}
+          />
+          <CreateProjectModal
+            open={showCreateProject}
+            accounts={accountNames}
+            onClose={() => setShowCreateProject(false)}
+            onCreated={() => { setShowCreateProject(false); fetchData() }}
+          />
+        </>
       ) : view === 'detail' && selectedSession ? (
         <TaskDetail
           session={selectedSession}
@@ -111,6 +154,7 @@ function App() {
       ) : view === 'new-task' ? (
         <NewTask
           projects={projects}
+          accounts={accountNames}
           initialType={newTaskType}
           onBack={() => setView('list')}
           onCreated={() => { setView('list'); fetchData() }}

@@ -12,8 +12,12 @@ interface TaskListProps {
   allSpaces: CWSession[]
   loading: boolean
   onNewTask: (type?: string) => void
+  onCreateProject: () => void
   onSelectTask: (session: CWSession) => void
   onRefresh: () => void
+  accountNames: string[]
+  filterAccount: string | null
+  onFilterAccount: (a: string | null) => void
   projectNames: string[]
   filterProject: string | null
   onFilterProject: (p: string | null) => void
@@ -130,6 +134,16 @@ const TypeBadge: FunctionComponent<{ type: string }> = ({ type }) => {
   )
 }
 
+/** Account badge — small pill shown on task cards */
+const AccountBadge: FunctionComponent<{ account: string }> = ({ account }) => (
+  <span
+    class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-forge-muted"
+    style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)' }}
+  >
+    {account}
+  </span>
+)
+
 /** Project pill */
 const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
   <span
@@ -164,8 +178,9 @@ const SourceLink: FunctionComponent<{ source?: string; url?: string }> = ({ sour
 /** Active task card */
 const TaskCard: FunctionComponent<{
   session: CWSession
+  showAccount: boolean
   onSelect: () => void
-}> = ({ session, onSelect }) => {
+}> = ({ session, showAccount, onSelect }) => {
   const style = getTypeStyle(session.type)
   const [hovered, setHovered] = useState(false)
   return (
@@ -194,6 +209,9 @@ const TaskCard: FunctionComponent<{
             {taskName(session)}
           </span>
           <ProjectPill name={session.project} />
+          {showAccount && session.account && (
+            <AccountBadge account={session.account} />
+          )}
         </div>
         <div class="flex items-center gap-3">
           {session.opens > 0 && (
@@ -224,8 +242,9 @@ const TaskCard: FunctionComponent<{
 /** Done task row — quieter style */
 const DoneTaskRow: FunctionComponent<{
   session: CWSession
+  showAccount: boolean
   onSelect: () => void
-}> = ({ session, onSelect }) => {
+}> = ({ session, showAccount, onSelect }) => {
   const [hovered, setHovered] = useState(false)
   return (
     <div
@@ -244,6 +263,9 @@ const DoneTaskRow: FunctionComponent<{
       <div class="flex-1 min-w-0 flex items-center gap-2.5">
         <span class="text-sm text-forge-muted truncate">{taskName(session)}</span>
         <ProjectPill name={session.project} />
+        {showAccount && session.account && (
+          <AccountBadge account={session.account} />
+        )}
       </div>
       <div class="shrink-0 flex items-center gap-3">
         <span class="text-[11px] text-forge-muted">
@@ -307,7 +329,7 @@ interface ProjectInfo {
   mcps: { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } | null
 }
 
-const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
+const ProjectBanner: FunctionComponent<{ project: string; account?: string }> = ({ project, account }) => {
   const [info, setInfo] = useState<ProjectInfo>({ stack: null, mcps: null })
 
   useEffect(() => {
@@ -347,6 +369,9 @@ const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
       <div class="flex items-center gap-2 mb-1.5">
         <span class="text-xs font-bold text-forge-accent uppercase tracking-wider">Project:</span>
         <span class="font-semibold text-forge-text">{project}</span>
+        {account && (
+          <span class="text-xs text-forge-muted" style={{ opacity: 0.7 }}>({account})</span>
+        )}
       </div>
       {stackParts.length > 0 && (
         <div class="flex items-center gap-1.5 text-xs text-forge-muted flex-wrap">
@@ -384,8 +409,12 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   allSpaces,
   loading: _loading,
   onNewTask,
+  onCreateProject,
   onSelectTask,
   onRefresh,
+  accountNames,
+  filterAccount,
+  onFilterAccount,
   projectNames,
   filterProject,
   onFilterProject,
@@ -401,15 +430,24 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   const totalActive = useMemo(() => allSpaces.filter(s => s.status === 'active').length, [allSpaces])
   const totalDone = useMemo(() => allSpaces.filter(s => s.status === 'done').length, [allSpaces])
 
+  // Show account badge when not filtered to a single account
+  const showAccount = filterAccount === null && accountNames.length > 1
+
+  // Find account for the currently selected project (for banner)
+  const projectAccount = useMemo(() => {
+    if (!filterProject) return undefined
+    return spaces.find(s => s.project === filterProject)?.account
+  }, [filterProject, spaces])
+
   if (allSpaces.length === 0) {
     return null // onboarding shown by parent
   }
 
-  const hasActiveFilters = filterProject !== null || filterType !== null
+  const hasActiveFilters = filterAccount !== null || filterProject !== null || filterType !== null
 
   return (
     <div>
-      {/* ---- Header row: title + new task ---- */}
+      {/* ---- Header row: title + actions ---- */}
       <div class="flex items-center justify-between mb-6">
         <div>
           <h2 class="text-xl font-bold text-forge-text">Tasks</h2>
@@ -424,6 +462,14 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             onClick={onRefresh}
           >
             Refresh
+          </button>
+          {/* Create Project — separate from task creation */}
+          <button
+            class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text"
+            style={{ backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)' }}
+            onClick={onCreateProject}
+          >
+            + Project
           </button>
           <ActionButton label="+ New Task" variant="primary" onClick={() => onNewTask()} />
         </div>
@@ -449,6 +495,27 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         class="flex flex-wrap items-center gap-2.5 mb-6 pb-5"
         style={{ borderBottom: '1px solid rgba(42,42,62,0.4)' }}
       >
+        {/* Account filter — shown only when there are multiple accounts */}
+        {accountNames.length > 1 && (
+          <select
+            class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border text-forge-text appearance-none cursor-pointer min-w-[130px] hover:border-forge-border transition-colors"
+            style={filterAccount
+              ? { borderColor: 'rgba(99,102,241,0.4)', backgroundColor: 'rgba(99,102,241,0.06)' }
+              : { borderColor: 'rgba(42,42,62,0.6)' }
+            }
+            value={filterAccount ?? ''}
+            onChange={(e: Event) => {
+              const val = (e.target as HTMLSelectElement).value
+              onFilterAccount(val || null)
+            }}
+          >
+            <option value="">All accounts</option>
+            {accountNames.map(a => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+        )}
+
         {/* Project filter */}
         <select
           class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border border-forge-border text-forge-text appearance-none cursor-pointer min-w-[140px] hover:border-forge-border transition-colors"
@@ -497,7 +564,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         {hasActiveFilters && (
           <button
             class="px-2.5 py-1.5 text-[11px] text-forge-muted hover:text-forge-error transition-colors"
-            onClick={() => { onFilterProject(null); onFilterType(null) }}
+            onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
           >
             Clear filters
           </button>
@@ -505,7 +572,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       </div>
 
       {/* ---- Project info banner (when project is filtered) ---- */}
-      {filterProject && <ProjectBanner project={filterProject} />}
+      {filterProject && <ProjectBanner project={filterProject} account={projectAccount} />}
 
       {/* ---- Active tasks ---- */}
       {active.length > 0 && (
@@ -524,6 +591,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
               <TaskCard
                 key={`${s.project}-${s.task ?? s.pr}-active`}
                 session={s}
+                showAccount={showAccount}
                 onSelect={() => onSelectTask(s)}
               />
             ))}
@@ -543,7 +611,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           {hasActiveFilters && (
             <button
               class="mt-3 text-xs text-forge-accent hover:underline"
-              onClick={() => { onFilterProject(null); onFilterType(null) }}
+              onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
             >
               Clear filters
             </button>
@@ -568,6 +636,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
               <DoneTaskRow
                 key={`${s.project}-${s.task ?? s.pr}-done`}
                 session={s}
+                showAccount={showAccount}
                 onSelect={() => onSelectTask(s)}
               />
             ))}
