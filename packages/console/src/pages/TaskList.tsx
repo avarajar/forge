@@ -304,7 +304,7 @@ const FilterPill: FunctionComponent<{
 
 interface ProjectInfo {
   stack: Record<string, unknown> | null
-  mcps: { global: Record<string, unknown>; cw: string[] } | null
+  mcps: { global: Record<string, unknown>; cw: string[]; plugins: string[] } | null
 }
 
 const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
@@ -333,6 +333,7 @@ const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
 
   const globalMcps = info.mcps ? Object.keys(info.mcps.global) : []
   const cwMcps = info.mcps?.cw ?? []
+  const plugins = info.mcps?.plugins ?? []
   const allMcps = [...globalMcps, ...cwMcps.map(m => `${m} (CW)`)]
 
   if (!info.stack && !info.mcps) return null
@@ -361,6 +362,12 @@ const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
         <div class="flex items-center gap-1.5 text-xs text-forge-muted mt-0.5 flex-wrap">
           <span class="text-forge-muted opacity-70">MCPs:</span>
           <span class="text-forge-text">{allMcps.join(' | ')}</span>
+        </div>
+      )}
+      {plugins.length > 0 && (
+        <div class="flex items-center gap-1.5 text-xs text-forge-muted mt-0.5 flex-wrap">
+          <span class="text-forge-muted opacity-70">Plugins:</span>
+          <span class="text-forge-text">{plugins.join(' | ')}</span>
         </div>
       )}
     </div>

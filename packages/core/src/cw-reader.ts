@@ -81,11 +81,12 @@ export class CWReader {
       .map(e => e.name)
   }
 
-  getMCPs(): { global: Record<string, unknown>; cw: string[] } {
-    const result: { global: Record<string, unknown>; cw: string[] } = { global: {}, cw: [] }
+  getMCPs(): { global: Record<string, unknown>; cw: string[]; plugins: string[] } {
+    const result: { global: Record<string, unknown>; cw: string[]; plugins: string[] } = { global: {}, cw: [], plugins: [] }
+    const home = process.env.HOME ?? ''
 
-    // Global Claude MCPs
-    const claudeSettings = join(process.env.HOME ?? '', '.claude', 'settings.json')
+    // Global Claude MCP servers from ~/.claude/settings.json
+    const claudeSettings = join(home, '.claude', 'settings.json')
     if (existsSync(claudeSettings)) {
       try {
         const data = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
@@ -93,7 +94,18 @@ export class CWReader {
       } catch {}
     }
 
-    // CW managed MCPs
+    // Claude plugins from ~/.claude/plugins/installed_plugins.json
+    const pluginsFile = join(home, '.claude', 'plugins', 'installed_plugins.json')
+    if (existsSync(pluginsFile)) {
+      try {
+        const data = JSON.parse(readFileSync(pluginsFile, 'utf-8'))
+        if (data.plugins) {
+          result.plugins = Object.keys(data.plugins).map(k => k.split('@')[0])
+        }
+      } catch {}
+    }
+
+    // CW managed MCPs from ~/.cw/mcps/
     const mcpsDir = join(this.cwDir, 'mcps')
     if (existsSync(mcpsDir)) {
       const files = readdirSync(mcpsDir).filter(f => f.endsWith('.json'))

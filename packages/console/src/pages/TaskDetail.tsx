@@ -18,7 +18,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [runningTests, setRunningTests] = useState(false)
   const [stack, setStack] = useState<Record<string, unknown> | null>(null)
-  const [mcps, setMcps] = useState<{ global: Record<string, unknown>; cw: string[] } | null>(null)
+  const [mcps, setMcps] = useState<{ global: Record<string, unknown>; cw: string[]; plugins: string[] } | null>(null)
 
   const sessionDir = session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`
 
@@ -45,7 +45,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
         fetch('/api/cw/mcps')
       ])
       setStack(await stackRes.json() as Record<string, unknown>)
-      setMcps(await mcpsRes.json() as { global: Record<string, unknown>; cw: string[] })
+      setMcps(await mcpsRes.json() as { global: Record<string, unknown>; cw: string[]; plugins: string[] })
     } catch {}
   }
 
@@ -279,6 +279,20 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
                 {Object.keys(mcps.global).length === 0 && mcps.cw.length === 0 && (
                   <div class="text-sm text-forge-muted py-4 text-center">No MCP servers configured</div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Plugins */}
+          {mcps && mcps.plugins && mcps.plugins.length > 0 && (
+            <div>
+              <div class="text-xs text-forge-muted uppercase mb-3">Plugins</div>
+              <div class="flex flex-wrap gap-2">
+                {mcps.plugins.map(name => (
+                  <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium bg-forge-surface border border-forge-border text-forge-text">
+                    {name}
+                  </span>
+                ))}
               </div>
             </div>
           )}
