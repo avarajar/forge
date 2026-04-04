@@ -81,8 +81,8 @@ export class CWReader {
       .map(e => e.name)
   }
 
-  getMCPs(): { global: Record<string, unknown>; cw: string[]; plugins: string[] } {
-    const result: { global: Record<string, unknown>; cw: string[]; plugins: string[] } = { global: {}, cw: [], plugins: [] }
+  getMCPs(project?: string): { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } {
+    const result: { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } = { global: {}, project: [], cw: [], plugins: [] }
     const home = process.env.HOME ?? ''
 
     // Global Claude MCP servers from ~/.claude/settings.json
@@ -92,6 +92,32 @@ export class CWReader {
         const data = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
         if (data.mcpServers) result.global = data.mcpServers
       } catch {}
+    }
+
+    // Project-level MCPs from .mcp.json in project root
+    if (project) {
+      const projects = this.getProjects()
+      const projPath = projects[project]?.path ?? ''
+      if (projPath) {
+        // Check .mcp.json (standard Claude Code project MCP config)
+        const mcpJson = join(projPath, '.mcp.json')
+        if (existsSync(mcpJson)) {
+          try {
+            const data = JSON.parse(readFileSync(mcpJson, 'utf-8'))
+            if (data.mcpServers) result.project = Object.keys(data.mcpServers)
+          } catch {}
+        }
+        // Check .claude/settings.json for project-level MCPs
+        const claudeProjSettings = join(projPath, '.claude', 'settings.json')
+        if (existsSync(claudeProjSettings)) {
+          try {
+            const data = JSON.parse(readFileSync(claudeProjSettings, 'utf-8'))
+            if (data.mcpServers) {
+              result.project = [...result.project, ...Object.keys(data.mcpServers)]
+            }
+          } catch {}
+        }
+      }
     }
 
     // Claude plugins from ~/.claude/plugins/installed_plugins.json

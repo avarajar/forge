@@ -304,7 +304,7 @@ const FilterPill: FunctionComponent<{
 
 interface ProjectInfo {
   stack: Record<string, unknown> | null
-  mcps: { global: Record<string, unknown>; cw: string[]; plugins: string[] } | null
+  mcps: { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } | null
 }
 
 const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
@@ -314,7 +314,7 @@ const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
     let cancelled = false
     Promise.all([
       fetch(`/api/cw/detect/${project}`).then(r => r.json()).catch(() => null),
-      fetch('/api/cw/mcps').then(r => r.json()).catch(() => null),
+      fetch(`/api/cw/mcps?project=${project}`).then(r => r.json()).catch(() => null),
     ]).then(([stack, mcps]) => {
       if (!cancelled) setInfo({ stack, mcps })
     })
@@ -332,9 +332,10 @@ const ProjectBanner: FunctionComponent<{ project: string }> = ({ project }) => {
   }
 
   const globalMcps = info.mcps ? Object.keys(info.mcps.global) : []
+  const projectMcps = info.mcps?.project ?? []
   const cwMcps = info.mcps?.cw ?? []
   const plugins = info.mcps?.plugins ?? []
-  const allMcps = [...globalMcps, ...cwMcps.map(m => `${m} (CW)`)]
+  const allMcps = [...projectMcps.map(m => `${m} (project)`), ...globalMcps, ...cwMcps.map(m => `${m} (CW)`)]
 
   if (!info.stack && !info.mcps) return null
 

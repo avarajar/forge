@@ -37,7 +37,8 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.get('/mcps', (c) => {
-    return c.json(reader.getMCPs())
+    const project = c.req.query('project')
+    return c.json(reader.getMCPs(project))
   })
 
   app.get('/git/status/:project/:sessionDir', (c) => {

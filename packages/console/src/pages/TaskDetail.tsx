@@ -18,7 +18,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
   const [testOutput, setTestOutput] = useState<string | null>(null)
   const [runningTests, setRunningTests] = useState(false)
   const [stack, setStack] = useState<Record<string, unknown> | null>(null)
-  const [mcps, setMcps] = useState<{ global: Record<string, unknown>; cw: string[]; plugins: string[] } | null>(null)
+  const [mcps, setMcps] = useState<{ global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } | null>(null)
 
   const sessionDir = session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`
 
@@ -42,10 +42,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
     try {
       const [stackRes, mcpsRes] = await Promise.all([
         fetch(`/api/cw/detect/${session.project}`),
-        fetch('/api/cw/mcps')
+        fetch(`/api/cw/mcps?project=${session.project}`)
       ])
       setStack(await stackRes.json() as Record<string, unknown>)
-      setMcps(await mcpsRes.json() as { global: Record<string, unknown>; cw: string[]; plugins: string[] })
+      setMcps(await mcpsRes.json() as { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] })
     } catch {}
   }
 
@@ -252,6 +252,18 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
             <div>
               <div class="text-xs text-forge-muted uppercase mb-3">MCP Servers</div>
               <div class="space-y-2">
+                {mcps.project && mcps.project.length > 0 && (
+                  <div>
+                    <div class="text-xs text-forge-muted mb-2">Project (.mcp.json)</div>
+                    <div class="flex flex-wrap gap-2">
+                      {mcps.project.map(name => (
+                        <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium text-forge-text" style={{ backgroundColor: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {Object.keys(mcps.global).length > 0 && (
                   <div>
                     <div class="text-xs text-forge-muted mb-2">Global (Claude Code)</div>
