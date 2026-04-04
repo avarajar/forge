@@ -1,6 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
-import { Tabs, ActionButton, Badge, ForgeTerminal, showToast } from '@forge-dev/ui'
+import { ActionButton, Badge, ForgeTerminal, SplitPane, AccordionSection, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 
 interface TaskDetailProps {
@@ -10,32 +10,37 @@ interface TaskDetailProps {
 }
 
 export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack, onDone }) => {
-  const [activeTab, setActiveTab] = useState('status')
   const [gitLog, setGitLog] = useState<string>('')
   const [gitDiff, setGitDiff] = useState<string>('')
   const [gitStatus, setGitStatus] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
-  const [testOutput, setTestOutput] = useState<string | null>(null)
-  const [runningTests, setRunningTests] = useState(false)
+  const [branch, setBranch] = useState<string>('')
   const [stack, setStack] = useState<Record<string, unknown> | null>(null)
   const [mcps, setMcps] = useState<{ global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } | null>(null)
+  const [ptyExited, setPtyExited] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [wsKey, setWsKey] = useState(0) // increment to force reconnect
 
   const sessionDir = session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`
+  const taskName = session.type === 'review' ? `PR #${session.pr}` : session.task
+  const typeLabel = session.type === 'review' ? 'REVIEW' : 'DEV'
+  const typeColor = session.type === 'review' ? 'var(--forge-accent)' : 'var(--forge-warning)'
 
-  const fetchGit = async () => {
-    const [logRes, diffRes, statusRes] = await Promise.all([
-      fetch(`/api/cw/git/log/${session.project}/${sessionDir}`),
-      fetch(`/api/cw/git/diff/${session.project}/${sessionDir}`),
-      fetch(`/api/cw/git/status/${session.project}/${sessionDir}`)
+  const wsUrl = `ws://${window.location.host}/ws/terminal/${session.project}/${sessionDir}?k=${wsKey}`
+
+  const fetchSidebarData = async () => {
+    const [logRes, diffRes, statusRes, notesRes] = await Promise.all([
+      fetch(`/api/cw/git/log/${session.project}/${sessionDir}`).catch(() => null),
+      fetch(`/api/cw/git/diff/${session.project}/${sessionDir}`).catch(() => null),
+      fetch(`/api/cw/git/status/${session.project}/${sessionDir}`).catch(() => null),
+      fetch(`/api/cw/notes/${session.project}/${sessionDir}`).catch(() => null)
     ])
-    setGitLog((await logRes.json() as { output: string }).output)
-    setGitDiff((await diffRes.json() as { output: string }).output)
-    setGitStatus((await statusRes.json() as { output: string }).output)
-  }
+    if (logRes) setGitLog((await logRes.json() as { output: string }).output)
+    if (diffRes) setGitDiff((await diffRes.json() as { output: string }).output)
+    if (statusRes) setGitStatus((await statusRes.json() as { output: string }).output)
+    if (notesRes) setNotes((await notesRes.json() as { content: string }).content)
 
-  const fetchNotes = async () => {
-    const res = await fetch(`/api/cw/notes/${session.project}/${sessionDir}`)
-    setNotes((await res.json() as { content: string }).content)
+    setBranch(session.task ?? session.pr ?? '')
   }
 
   const fetchTools = async () => {
@@ -49,24 +54,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
     } catch {}
   }
 
-  useEffect(() => { fetchGit(); fetchNotes(); fetchTools() }, [session])
-
-  const resume = async () => {
-    try {
-      await fetch('/api/cw/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: session.type === 'review' ? 'review' : 'dev',
-          project: session.project,
-          task: session.type === 'review' ? session.pr : session.task
-        })
-      })
-      showToast('Session resumed in terminal', 'success')
-    } catch {
-      showToast('Failed to resume', 'error')
-    }
-  }
+  useEffect(() => {
+    fetchSidebarData()
+    fetchTools()
+  }, [session])
 
   const markDone = async () => {
     try {
@@ -86,245 +77,162 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
     }
   }
 
-  const taskName = session.type === 'review' ? `PR #${session.pr}` : session.task
-  const typeLabel = session.type === 'review' ? 'REVIEW' : 'DEV'
-  const typeColor = session.type === 'review' ? 'var(--forge-accent)' : 'var(--forge-warning)'
+  const handleRestart = () => {
+    setPtyExited(false)
+    setWsKey(k => k + 1)
+  }
 
-  const tabs = [
-    { id: 'status', label: 'Status' },
-    { id: 'diff', label: 'Diff' },
-    { id: 'tests', label: 'Tests' },
-    { id: 'tools', label: 'Tools' },
-    { id: 'notes', label: 'Notes' },
-  ]
+  /* ---- Sidebar content ---- */
+  const sidebar = (
+    <div class="h-full bg-forge-bg">
+      {/* Quick stats */}
+      <div class="px-3 py-3 border-b" style={{ borderColor: 'var(--forge-ghost-border)' }}>
+        <div class="text-xs text-forge-muted mb-1">
+          {session.opens} session{session.opens !== 1 ? 's' : ''}
+        </div>
+        {gitStatus && (
+          <div class="text-xs text-forge-muted">
+            {gitStatus.split('\n').filter(Boolean).length} file{gitStatus.split('\n').filter(Boolean).length !== 1 ? 's' : ''} changed
+          </div>
+        )}
+      </div>
+
+      <AccordionSection title="Status" defaultOpen={true}>
+        {gitStatus ? (
+          <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all">{gitStatus}</pre>
+        ) : (
+          <span class="text-xs text-forge-muted">Clean</span>
+        )}
+        {gitLog && (
+          <div class="mt-3">
+            <div class="text-[10px] text-forge-muted uppercase mb-1">Commits</div>
+            <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all">{gitLog}</pre>
+          </div>
+        )}
+      </AccordionSection>
+
+      <AccordionSection title="Diff">
+        {gitDiff ? (
+          <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all max-h-[300px] overflow-auto">{gitDiff}</pre>
+        ) : (
+          <span class="text-xs text-forge-muted">No diff</span>
+        )}
+      </AccordionSection>
+
+      <AccordionSection title="Notes">
+        {notes ? (
+          <pre class="text-[11px] font-mono text-forge-text whitespace-pre-wrap break-all max-h-[400px] overflow-auto">{notes}</pre>
+        ) : (
+          <span class="text-xs text-forge-muted">No notes</span>
+        )}
+      </AccordionSection>
+
+      <AccordionSection title="Tools">
+        <div class="space-y-2">
+          {stack && (
+            <div class="flex flex-wrap gap-1">
+              {stack.framework && (
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: 'var(--forge-accent)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                  {String(stack.framework)}
+                </span>
+              )}
+              {stack.testRunner && (
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  {String(stack.testRunner)}
+                </span>
+              )}
+              {stack.hasTailwind && (
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>
+                  Tailwind
+                </span>
+              )}
+              {stack.hasPlaywright && (
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                  Playwright
+                </span>
+              )}
+              {stack.hasDockerfile && (
+                <span class="px-2 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
+                  Docker
+                </span>
+              )}
+            </div>
+          )}
+          {mcps && (
+            <div class="text-[11px] text-forge-muted">
+              {[...Object.keys(mcps.global), ...mcps.project, ...mcps.cw].join(', ') || 'No MCPs'}
+            </div>
+          )}
+        </div>
+      </AccordionSection>
+    </div>
+  )
+
+  /* ---- Terminal content ---- */
+  const terminal = (
+    <div class="h-full relative">
+      <ForgeTerminal
+        wsUrl={wsUrl}
+        onExit={(code) => setPtyExited(true)}
+        onConnectionChange={(c) => setConnected(c)}
+      />
+      {/* Connecting overlay */}
+      {!connected && !ptyExited && (
+        <div class="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
+          <span class="text-sm text-white/70">Connecting...</span>
+        </div>
+      )}
+    </div>
+  )
 
   return (
-    <div>
-      <button
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 mb-4 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
-        style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-        onClick={onBack}
-      >
-        ← Back to tasks
-      </button>
-
-      {/* Header */}
-      <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col h-full">
+      {/* ---- Header ---- */}
+      <div class="flex items-center justify-between px-4 py-3 border-b shrink-0" style={{ borderColor: 'var(--forge-ghost-border)' }}>
         <div class="flex items-center gap-3">
+          <button
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+            style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
+            onClick={onBack}
+          >
+            ←
+          </button>
           <Badge label={typeLabel} color={typeColor} />
-          <h2 class="text-xl font-bold">{taskName}</h2>
+          <span class="text-base font-bold text-forge-text">{taskName}</span>
           <span class="text-sm text-forge-muted">{session.project}</span>
+          {branch && (
+            <span class="text-xs font-mono text-forge-muted px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--forge-ghost-bg)' }}>
+              {branch}
+            </span>
+          )}
         </div>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
+          {/* Connection indicator */}
+          <span
+            class="w-2 h-2 rounded-full"
+            style={{ backgroundColor: connected ? 'var(--forge-success)' : 'var(--forge-muted)' }}
+            title={connected ? 'Connected' : 'Disconnected'}
+          />
+          {ptyExited && (
+            <ActionButton label="Restart" variant="secondary" onClick={handleRestart} />
+          )}
           {session.status === 'active' && (
-            <>
-              <ActionButton label="▶ Resume" variant="primary" onClick={resume} />
-              <ActionButton label="✓ Done" variant="secondary" onClick={markDone} />
-            </>
+            <ActionButton label="Done" variant="secondary" onClick={markDone} />
           )}
         </div>
       </div>
 
-      <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
-
-      {/* Status tab */}
-      {activeTab === 'status' && (
-        <div>
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="p-3 rounded-lg bg-forge-surface border border-forge-border">
-              <div class="text-xs text-forge-muted mb-1">Branch</div>
-              <div class="text-sm font-medium truncate">{session.task ?? session.pr}</div>
-            </div>
-            <div class="p-3 rounded-lg bg-forge-surface border border-forge-border">
-              <div class="text-xs text-forge-muted mb-1">Sessions</div>
-              <div class="text-sm font-medium">{session.opens} open{session.opens !== 1 ? 's' : ''}</div>
-            </div>
-            <div class="p-3 rounded-lg bg-forge-surface border border-forge-border">
-              <div class="text-xs text-forge-muted mb-1">Status</div>
-              <div class="text-sm font-medium">{session.status}</div>
-            </div>
-          </div>
-
-          {gitStatus && (
-            <div>
-              <div class="text-xs text-forge-muted uppercase mb-2">Changed files</div>
-              <pre class="p-3 rounded-lg bg-forge-surface border border-forge-border text-xs font-mono whitespace-pre-wrap">{gitStatus}</pre>
-            </div>
-          )}
-
-          {gitLog && (
-            <div class="mt-4">
-              <div class="text-xs text-forge-muted uppercase mb-2">Recent commits</div>
-              <pre class="p-3 rounded-lg bg-forge-surface border border-forge-border text-xs font-mono whitespace-pre-wrap">{gitLog}</pre>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Diff tab */}
-      {activeTab === 'diff' && (
-        <div>
-          {gitDiff ? (
-            <pre class="p-3 rounded-lg bg-forge-surface border border-forge-border text-xs font-mono whitespace-pre-wrap overflow-auto max-h-[600px]">{gitDiff}</pre>
-          ) : (
-            <div class="text-forge-muted text-sm py-8 text-center">No diff available</div>
-          )}
-        </div>
-      )}
-
-      {/* Tests tab */}
-      {activeTab === 'tests' && (
-        <div>
-          <ActionButton
-            label={runningTests ? 'Running...' : 'Run Tests'}
-            variant="primary"
-            loading={runningTests}
-            onClick={async () => {
-              setRunningTests(true)
-              try {
-                const res = await fetch(`/api/cw/git/status/${session.project}/${sessionDir}`)
-                setTestOutput('Tests would run in worktree: ' + session.worktree)
-              } catch {
-                setTestOutput('Failed to run tests')
-              } finally {
-                setRunningTests(false)
-              }
-            }}
-          />
-          {testOutput && (
-            <div class="mt-4">
-              <ForgeTerminal content={testOutput} height={300} />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Tools tab */}
-      {activeTab === 'tools' && (
-        <div class="space-y-6">
-          {/* Stack Detection */}
-          {stack && (
-            <div>
-              <div class="text-xs text-forge-muted uppercase mb-3">Detected Stack</div>
-              <div class="flex flex-wrap gap-2">
-                {stack.framework && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: 'var(--forge-accent)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                    {String(stack.framework)}
-                  </span>
-                )}
-                {stack.testRunner && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                    {String(stack.testRunner)}
-                  </span>
-                )}
-                {stack.hasTailwind && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(56,189,248,0.1)', color: '#38bdf8', border: '1px solid rgba(56,189,248,0.2)' }}>
-                    Tailwind
-                  </span>
-                )}
-                {stack.hasShadcn && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: 'var(--forge-accent)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                    shadcn/ui
-                  </span>
-                )}
-                {stack.hasPlaywright && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                    Playwright
-                  </span>
-                )}
-                {stack.hasDockerfile && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)' }}>
-                    Docker
-                  </span>
-                )}
-                {stack.hasTokens && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.2)' }}>
-                    Design Tokens
-                  </span>
-                )}
-                {stack.hasPackageJson && !stack.framework && (
-                  <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--forge-warning)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                    Node.js
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* MCPs */}
-          {mcps && (
-            <div>
-              <div class="text-xs text-forge-muted uppercase mb-3">MCP Servers</div>
-              <div class="space-y-2">
-                {mcps.project && mcps.project.length > 0 && (
-                  <div>
-                    <div class="text-xs text-forge-muted mb-2">Project (.mcp.json)</div>
-                    <div class="flex flex-wrap gap-2">
-                      {mcps.project.map(name => (
-                        <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium text-forge-text" style={{ backgroundColor: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {Object.keys(mcps.global).length > 0 && (
-                  <div>
-                    <div class="text-xs text-forge-muted mb-2">Global (Claude Code)</div>
-                    <div class="flex flex-wrap gap-2">
-                      {Object.keys(mcps.global).map(name => (
-                        <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium bg-forge-surface border border-forge-border text-forge-text">
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {mcps.cw.length > 0 && (
-                  <div class="mt-3">
-                    <div class="text-xs text-forge-muted mb-2">CW Managed</div>
-                    <div class="flex flex-wrap gap-2">
-                      {mcps.cw.map(name => (
-                        <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium bg-forge-surface border border-forge-border text-forge-text">
-                          {name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {Object.keys(mcps.global).length === 0 && mcps.cw.length === 0 && (
-                  <div class="text-sm text-forge-muted py-4 text-center">No MCP servers configured</div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Plugins */}
-          {mcps && mcps.plugins && mcps.plugins.length > 0 && (
-            <div>
-              <div class="text-xs text-forge-muted uppercase mb-3">Plugins</div>
-              <div class="flex flex-wrap gap-2">
-                {mcps.plugins.map(name => (
-                  <span key={name} class="px-3 py-1.5 rounded-lg text-xs font-medium bg-forge-surface border border-forge-border text-forge-text">
-                    {name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Notes tab */}
-      {activeTab === 'notes' && (
-        <div>
-          {notes ? (
-            <pre class="p-4 rounded-lg bg-forge-surface border border-forge-border text-sm font-mono whitespace-pre-wrap overflow-auto max-h-[600px]">{notes}</pre>
-          ) : (
-            <div class="text-forge-muted text-sm py-8 text-center">No notes for this task</div>
-          )}
-        </div>
-      )}
+      {/* ---- Split layout ---- */}
+      <div class="flex-1 min-h-0">
+        <SplitPane
+          left={sidebar}
+          right={terminal}
+          defaultWidth={300}
+          minWidth={200}
+          maxWidth={500}
+          storageKey="forge-task-sidebar-width"
+        />
+      </div>
     </div>
   )
 }
