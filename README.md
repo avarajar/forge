@@ -91,21 +91,38 @@ cw open <project>                # Register a project (or cw project register)
 
 Once you have at least one project registered, Forge will show it in the dashboard.
 
-### Run
+### Launch
+
+The easiest way — if you have CW installed:
+
+```bash
+cw forge
+```
+
+Or run directly with npx (no install needed):
+
+```bash
+npx @forge-dev/platform
+```
+
+Or install globally:
+
+```bash
+npm i -g @forge-dev/platform
+forge console
+```
+
+The dashboard opens at `http://localhost:3000`.
+
+### Development
+
+To work on Forge itself:
 
 ```bash
 git clone https://github.com/avarajar/forge.git
 cd forge
 npm install
 npx turbo dev
-```
-
-The dashboard opens at `http://localhost:3000`.
-
-### Or run directly
-
-```bash
-npx @forge-dev/platform
 ```
 
 <br />
