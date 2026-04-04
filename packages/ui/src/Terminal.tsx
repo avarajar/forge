@@ -106,7 +106,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
             // Send current dimensions immediately so PTY matches terminal
             fitAddon.fit()
             const { cols, rows } = term
-            ws.send(JSON.stringify({ type: 'resize', cols, rows }))
+            ws!.send(JSON.stringify({ type: 'resize', cols, rows }))
 
             wsDisposables.push(term.onData((data: string) => {
               if (ws?.readyState === WebSocket.OPEN) {
