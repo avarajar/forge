@@ -25,7 +25,8 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onBack
   const typeLabel = session.type === 'review' ? 'REVIEW' : 'DEV'
   const typeColor = session.type === 'review' ? 'var(--forge-accent)' : 'var(--forge-warning)'
 
-  const wsUrl = `ws://${window.location.host}/ws/terminal/${session.project}/${sessionDir}?k=${wsKey}`
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${session.project}/${sessionDir}?k=${wsKey}`
 
   const fetchData = async () => {
     const [logRes, diffRes, statusRes, notesRes] = await Promise.all([

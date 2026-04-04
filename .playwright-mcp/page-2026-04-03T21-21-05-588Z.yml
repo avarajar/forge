@@ -1,0 +1,34 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - heading "Forge" [level=1] [ref=e6]
+    - button "home Home" [ref=e8]:
+      - generic [ref=e9]: home
+      - generic [ref=e10]: Home
+    - button "Light mode" [ref=e12]
+  - main [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e16]: Forge Console
+      - generic [ref=e18]: Cmd+K
+    - generic [ref=e20]:
+      - heading "Welcome to Forge" [level=2] [ref=e21]
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - generic [ref=e25]: folder
+            - generic [ref=e26]: Projects
+          - generic [ref=e27]: "0"
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - generic [ref=e31]: puzzle
+            - generic [ref=e32]: Modules
+          - generic [ref=e33]: "0"
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - generic [ref=e37]: zap
+            - generic [ref=e38]: Status
+          - generic [ref=e39]: Offline
+      - generic [ref=e41]:
+        - button "+ New Project" [ref=e42]:
+          - generic [ref=e43]: + New Project
+        - button "Open Project" [ref=e44]:
+          - generic [ref=e45]: Open Project

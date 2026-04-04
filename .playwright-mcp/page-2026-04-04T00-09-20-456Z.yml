@@ -1,0 +1,334 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: 🔥
+      - heading "Forge" [level=1] [ref=e7]
+    - button "Switch to light mode" [ref=e9]:
+      - generic [ref=e10]: ☀️
+      - generic [ref=e11]: Light
+  - main [ref=e12]:
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - heading "Tasks" [level=2] [ref=e17]
+          - paragraph [ref=e18]: 35 active · 77 done
+        - generic [ref=e19]:
+          - button "Refresh" [ref=e20]
+          - button "+ New Task" [ref=e21]:
+            - generic [ref=e22]: + New Task
+      - generic [ref=e23]:
+        - generic [ref=e24]: "Quick:"
+        - button "+ Dev" [ref=e25]
+        - button "+ Design" [ref=e26]
+        - button "+ Review" [ref=e27]
+        - button "+ Plan" [ref=e28]
+      - generic [ref=e29]:
+        - combobox [ref=e30] [cursor=pointer]:
+          - option "All projects"
+          - option "ai-lastest-stuff"
+          - option "centinela"
+          - option "cw-repo"
+          - option "forge"
+          - option "healthbot"
+          - option "mixpanel-mcp"
+          - option "newstand-platform"
+          - option "oberon"
+          - option "propia"
+          - option "seimseim"
+          - option "tns-web"
+          - option "toma-el-nombre-del-claude-md"
+          - option "triton" [selected]
+          - option "viral-pipeline"
+          - option "youtube-channel-analitycs"
+        - generic [ref=e31]:
+          - button "Dev" [ref=e32]
+          - button "Design" [ref=e33]
+          - button "Review" [ref=e34]
+          - button "Plan" [ref=e35]
+        - button "Show done" [ref=e36]
+        - button "Clear filters" [ref=e508]
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - generic [ref=e40]: Active
+          - generic [ref=e41]: 25 tasks
+        - generic [ref=e42]:
+          - button "DEV MER-7293 triton 7 sessions linear 2d ago ► Resume" [ref=e95] [cursor=pointer]:
+            - generic [ref=e97]: DEV
+            - generic [ref=e99]:
+              - generic [ref=e100]:
+                - generic [ref=e101]: MER-7293
+                - generic [ref=e102]: triton
+              - generic [ref=e103]:
+                - generic [ref=e104]: 7 sessions
+                - link "linear" [ref=e105]:
+                  - /url: https://linear.app/meridianai/issue/MER-7293/be-expose-bounced-emails-field-on-the-people-api
+            - generic [ref=e106]:
+              - generic [ref=e107]: 2d ago
+              - generic [ref=e108]: ► Resume
+          - button "DEV pull-8778 triton 1 session github 2d ago ► Resume" [ref=e109] [cursor=pointer]:
+            - generic [ref=e111]: DEV
+            - generic [ref=e113]:
+              - generic [ref=e114]:
+                - generic [ref=e115]: pull-8778
+                - generic [ref=e116]: triton
+              - generic [ref=e117]:
+                - generic [ref=e118]: 1 session
+                - link "github" [ref=e119]:
+                  - /url: https://github.com/meridianai/triton/pull/8778
+            - generic [ref=e120]:
+              - generic [ref=e121]: 2d ago
+              - generic [ref=e122]: ► Resume
+          - button "DEV MER-6962 triton 14 sessions linear 3d ago ► Resume" [ref=e149] [cursor=pointer]:
+            - generic [ref=e151]: DEV
+            - generic [ref=e153]:
+              - generic [ref=e154]:
+                - generic [ref=e155]: MER-6962
+                - generic [ref=e156]: triton
+              - generic [ref=e157]:
+                - generic [ref=e158]: 14 sessions
+                - link "linear" [ref=e159]:
+                  - /url: https://linear.app/meridianai/issue/MER-6962/add-outboundinbound-email-columns-and-interaction-segmentation-to
+            - generic [ref=e160]:
+              - generic [ref=e161]: 3d ago
+              - generic [ref=e162]: ► Resume
+          - 'button "REVIEW PR #8837 triton 1 session 3d ago ► Resume" [ref=e163] [cursor=pointer]':
+            - generic [ref=e165]: REVIEW
+            - generic [ref=e167]:
+              - generic [ref=e168]:
+                - generic [ref=e169]: "PR #8837"
+                - generic [ref=e170]: triton
+              - generic [ref=e172]: 1 session
+            - generic [ref=e173]:
+              - generic [ref=e174]: 3d ago
+              - generic [ref=e175]: ► Resume
+          - button "DEV performance triton 1 session 4d ago ► Resume" [ref=e176] [cursor=pointer]:
+            - generic [ref=e178]: DEV
+            - generic [ref=e180]:
+              - generic [ref=e181]:
+                - generic [ref=e182]: performance
+                - generic [ref=e183]: triton
+              - generic [ref=e185]: 1 session
+            - generic [ref=e186]:
+              - generic [ref=e187]: 4d ago
+              - generic [ref=e188]: ► Resume
+          - 'button "REVIEW PR #8826 triton 1 session 4d ago ► Resume" [ref=e189] [cursor=pointer]':
+            - generic [ref=e191]: REVIEW
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - generic [ref=e195]: "PR #8826"
+                - generic [ref=e196]: triton
+              - generic [ref=e198]: 1 session
+            - generic [ref=e199]:
+              - generic [ref=e200]: 4d ago
+              - generic [ref=e201]: ► Resume
+          - button "DEV MER-7314 triton 2 sessions linear 4d ago ► Resume" [ref=e202] [cursor=pointer]:
+            - generic [ref=e204]: DEV
+            - generic [ref=e206]:
+              - generic [ref=e207]:
+                - generic [ref=e208]: MER-7314
+                - generic [ref=e209]: triton
+              - generic [ref=e210]:
+                - generic [ref=e211]: 2 sessions
+                - link "linear" [ref=e212]:
+                  - /url: https://linear.app/meridianai/issue/MER-7314/cloning-fix-duplication-of-all-tab-in-level-2-sourcing
+            - generic [ref=e213]:
+              - generic [ref=e214]: 4d ago
+              - generic [ref=e215]: ► Resume
+          - button "DEV AI-439 triton 3 sessions linear 7d ago ► Resume" [ref=e216] [cursor=pointer]:
+            - generic [ref=e218]: DEV
+            - generic [ref=e220]:
+              - generic [ref=e221]:
+                - generic [ref=e222]: AI-439
+                - generic [ref=e223]: triton
+              - generic [ref=e224]:
+                - generic [ref=e225]: 3 sessions
+                - link "linear" [ref=e226]:
+                  - /url: https://linear.app/meridianai/issue/AI-439/be-collect-scout-feedback-for-thread-context-block
+            - generic [ref=e227]:
+              - generic [ref=e228]: 7d ago
+              - generic [ref=e229]: ► Resume
+          - 'button "REVIEW PR #8707 triton 1 session 7d ago ► Resume" [ref=e230] [cursor=pointer]':
+            - generic [ref=e232]: REVIEW
+            - generic [ref=e234]:
+              - generic [ref=e235]:
+                - generic [ref=e236]: "PR #8707"
+                - generic [ref=e237]: triton
+              - generic [ref=e239]: 1 session
+            - generic [ref=e240]:
+              - generic [ref=e241]: 7d ago
+              - generic [ref=e242]: ► Resume
+          - 'button "REVIEW PR #8780 triton 1 session 8d ago ► Resume" [ref=e243] [cursor=pointer]':
+            - generic [ref=e245]: REVIEW
+            - generic [ref=e247]:
+              - generic [ref=e248]:
+                - generic [ref=e249]: "PR #8780"
+                - generic [ref=e250]: triton
+              - generic [ref=e252]: 1 session
+            - generic [ref=e253]:
+              - generic [ref=e254]: 8d ago
+              - generic [ref=e255]: ► Resume
+          - 'button "REVIEW PR #8775 triton 1 session 8d ago ► Resume" [ref=e256] [cursor=pointer]':
+            - generic [ref=e258]: REVIEW
+            - generic [ref=e260]:
+              - generic [ref=e261]:
+                - generic [ref=e262]: "PR #8775"
+                - generic [ref=e263]: triton
+              - generic [ref=e265]: 1 session
+            - generic [ref=e266]:
+              - generic [ref=e267]: 8d ago
+              - generic [ref=e268]: ► Resume
+          - button "DEV MER-6915 triton 5 sessions linear 9d ago ► Resume" [ref=e269] [cursor=pointer]:
+            - generic [ref=e271]: DEV
+            - generic [ref=e273]:
+              - generic [ref=e274]:
+                - generic [ref=e275]: MER-6915
+                - generic [ref=e276]: triton
+              - generic [ref=e277]:
+                - generic [ref=e278]: 5 sessions
+                - link "linear" [ref=e279]:
+                  - /url: https://linear.app/meridianai/issue/MER-6915/add-admin-action-to-delete-synced-data-on-useradmin
+            - generic [ref=e280]:
+              - generic [ref=e281]: 9d ago
+              - generic [ref=e282]: ► Resume
+          - button "DEV pull-8639 triton 3 sessions github 9d ago ► Resume" [ref=e283] [cursor=pointer]:
+            - generic [ref=e285]: DEV
+            - generic [ref=e287]:
+              - generic [ref=e288]:
+                - generic [ref=e289]: pull-8639
+                - generic [ref=e290]: triton
+              - generic [ref=e291]:
+                - generic [ref=e292]: 3 sessions
+                - link "github" [ref=e293]:
+                  - /url: https://github.com/meridianai/triton/pull/8639
+            - generic [ref=e294]:
+              - generic [ref=e295]: 9d ago
+              - generic [ref=e296]: ► Resume
+          - 'button "REVIEW PR #8744 triton 1 session 10d ago ► Resume" [ref=e297] [cursor=pointer]':
+            - generic [ref=e299]: REVIEW
+            - generic [ref=e301]:
+              - generic [ref=e302]:
+                - generic [ref=e303]: "PR #8744"
+                - generic [ref=e304]: triton
+              - generic [ref=e306]: 1 session
+            - generic [ref=e307]:
+              - generic [ref=e308]: 10d ago
+              - generic [ref=e309]: ► Resume
+          - 'button "REVIEW PR #8697 triton 1 session 10d ago ► Resume" [ref=e310] [cursor=pointer]':
+            - generic [ref=e312]: REVIEW
+            - generic [ref=e314]:
+              - generic [ref=e315]:
+                - generic [ref=e316]: "PR #8697"
+                - generic [ref=e317]: triton
+              - generic [ref=e319]: 1 session
+            - generic [ref=e320]:
+              - generic [ref=e321]: 10d ago
+              - generic [ref=e322]: ► Resume
+          - 'button "REVIEW PR #8653 triton 1 session 16d ago ► Resume" [ref=e336] [cursor=pointer]':
+            - generic [ref=e338]: REVIEW
+            - generic [ref=e340]:
+              - generic [ref=e341]:
+                - generic [ref=e342]: "PR #8653"
+                - generic [ref=e343]: triton
+              - generic [ref=e345]: 1 session
+            - generic [ref=e346]:
+              - generic [ref=e347]: 16d ago
+              - generic [ref=e348]: ► Resume
+          - button "DEV MER-7236 triton 4 sessions linear 17d ago ► Resume" [ref=e362] [cursor=pointer]:
+            - generic [ref=e364]: DEV
+            - generic [ref=e366]:
+              - generic [ref=e367]:
+                - generic [ref=e368]: MER-7236
+                - generic [ref=e369]: triton
+              - generic [ref=e370]:
+                - generic [ref=e371]: 4 sessions
+                - link "linear" [ref=e372]:
+                  - /url: https://linear.app/meridianai/issue/MER-7236/ability-to-send-different-onboarding-email-to-trial-users
+            - generic [ref=e373]:
+              - generic [ref=e374]: 17d ago
+              - generic [ref=e375]: ► Resume
+          - button "DEV pull-8599 triton 1 session github 17d ago ► Resume" [ref=e389] [cursor=pointer]:
+            - generic [ref=e391]: DEV
+            - generic [ref=e393]:
+              - generic [ref=e394]:
+                - generic [ref=e395]: pull-8599
+                - generic [ref=e396]: triton
+              - generic [ref=e397]:
+                - generic [ref=e398]: 1 session
+                - link "github" [ref=e399]:
+                  - /url: https://github.com/meridianai/triton/pull/8599
+            - generic [ref=e400]:
+              - generic [ref=e401]: 17d ago
+              - generic [ref=e402]: ► Resume
+          - button "DEV MER-7070 triton 2 sessions linear 18d ago ► Resume" [ref=e403] [cursor=pointer]:
+            - generic [ref=e405]: DEV
+            - generic [ref=e407]:
+              - generic [ref=e408]:
+                - generic [ref=e409]: MER-7070
+                - generic [ref=e410]: triton
+              - generic [ref=e411]:
+                - generic [ref=e412]: 2 sessions
+                - link "linear" [ref=e413]:
+                  - /url: https://linear.app/meridianai/issue/MER-7070/move-ic-discussion-type-column-to-the-left-of-stage-in-emailed-ic
+            - generic [ref=e414]:
+              - generic [ref=e415]: 18d ago
+              - generic [ref=e416]: ► Resume
+          - 'button "REVIEW PR #8589 triton 1 session 18d ago ► Resume" [ref=e417] [cursor=pointer]':
+            - generic [ref=e419]: REVIEW
+            - generic [ref=e421]:
+              - generic [ref=e422]:
+                - generic [ref=e423]: "PR #8589"
+                - generic [ref=e424]: triton
+              - generic [ref=e426]: 1 session
+            - generic [ref=e427]:
+              - generic [ref=e428]: 18d ago
+              - generic [ref=e429]: ► Resume
+          - 'button "REVIEW PR #8591 triton 2 sessions 18d ago ► Resume" [ref=e430] [cursor=pointer]':
+            - generic [ref=e432]: REVIEW
+            - generic [ref=e434]:
+              - generic [ref=e435]:
+                - generic [ref=e436]: "PR #8591"
+                - generic [ref=e437]: triton
+              - generic [ref=e439]: 2 sessions
+            - generic [ref=e440]:
+              - generic [ref=e441]: 18d ago
+              - generic [ref=e442]: ► Resume
+          - 'button "REVIEW PR #8556 triton 1 session 22d ago ► Resume" [ref=e443] [cursor=pointer]':
+            - generic [ref=e445]: REVIEW
+            - generic [ref=e447]:
+              - generic [ref=e448]:
+                - generic [ref=e449]: "PR #8556"
+                - generic [ref=e450]: triton
+              - generic [ref=e452]: 1 session
+            - generic [ref=e453]:
+              - generic [ref=e454]: 22d ago
+              - generic [ref=e455]: ► Resume
+          - 'button "REVIEW PR #8432 triton 2 sessions 22d ago ► Resume" [ref=e456] [cursor=pointer]':
+            - generic [ref=e458]: REVIEW
+            - generic [ref=e460]:
+              - generic [ref=e461]:
+                - generic [ref=e462]: "PR #8432"
+                - generic [ref=e463]: triton
+              - generic [ref=e465]: 2 sessions
+            - generic [ref=e466]:
+              - generic [ref=e467]: 22d ago
+              - generic [ref=e468]: ► Resume
+          - 'button "REVIEW PR #8523 triton 1 session 23d ago ► Resume" [ref=e469] [cursor=pointer]':
+            - generic [ref=e471]: REVIEW
+            - generic [ref=e473]:
+              - generic [ref=e474]:
+                - generic [ref=e475]: "PR #8523"
+                - generic [ref=e476]: triton
+              - generic [ref=e478]: 1 session
+            - generic [ref=e479]:
+              - generic [ref=e480]: 23d ago
+              - generic [ref=e481]: ► Resume
+          - 'button "REVIEW PR #8478 triton 4 sessions 23d ago ► Resume" [ref=e495] [cursor=pointer]':
+            - generic [ref=e497]: REVIEW
+            - generic [ref=e499]:
+              - generic [ref=e500]:
+                - generic [ref=e501]: "PR #8478"
+                - generic [ref=e502]: triton
+              - generic [ref=e504]: 4 sessions
+            - generic [ref=e505]:
+              - generic [ref=e506]: 23d ago
+              - generic [ref=e507]: ► Resume

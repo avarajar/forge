@@ -1,0 +1,386 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - heading "Forge" [level=1] [ref=e6]
+    - button "Light" [ref=e8]
+  - main [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - button "+ New Task" [ref=e12]:
+          - generic [ref=e13]: + New Task
+        - generic [ref=e14]:
+          - button "Dev" [ref=e15]
+          - button "Design" [ref=e16]
+          - button "Review" [ref=e17]
+          - button "Plan" [ref=e18]
+        - button "Refresh" [ref=e19]:
+          - generic [ref=e20]: Refresh
+      - generic [ref=e21]:
+        - generic [ref=e22]: Active · 38 tasks
+        - generic [ref=e23]:
+          - generic [ref=e24] [cursor=pointer]:
+            - generic [ref=e25]:
+              - generic [ref=e26]: DEV
+              - generic [ref=e27]: initial
+              - generic [ref=e28]: forge
+            - generic [ref=e29]:
+              - generic [ref=e30]: 1d ago
+              - generic [ref=e31]: ▶ Resume
+          - generic [ref=e32] [cursor=pointer]:
+            - generic [ref=e33]:
+              - generic [ref=e34]: DEV
+              - generic [ref=e35]: initia
+              - generic [ref=e36]: forge
+            - generic [ref=e37]:
+              - generic [ref=e38]: 1d ago
+              - generic [ref=e39]: ▶ Resume
+          - generic [ref=e40] [cursor=pointer]:
+            - generic [ref=e41]:
+              - generic [ref=e42]: DEV
+              - generic [ref=e43]: skills
+              - generic [ref=e44]: seimseim
+            - generic [ref=e45]:
+              - generic [ref=e46]: 2d ago
+              - generic [ref=e47]: ▶ Resume
+          - generic [ref=e48] [cursor=pointer]:
+            - generic [ref=e49]:
+              - generic [ref=e50]: DEV
+              - generic [ref=e51]: pull-21
+              - generic [ref=e52]: seimseim
+            - generic [ref=e53]:
+              - generic [ref=e54]: 2d ago
+              - generic [ref=e55]: ▶ Resume
+          - generic [ref=e56] [cursor=pointer]:
+            - generic [ref=e57]:
+              - generic [ref=e58]: DEV
+              - generic [ref=e59]: MER-7293
+              - generic [ref=e60]: triton
+            - generic [ref=e61]:
+              - generic [ref=e62]: 2d ago
+              - generic [ref=e63]: ▶ Resume
+          - generic [ref=e64] [cursor=pointer]:
+            - generic [ref=e65]:
+              - generic [ref=e66]: DEV
+              - generic [ref=e67]: pull-8778
+              - generic [ref=e68]: triton
+            - generic [ref=e69]:
+              - generic [ref=e70]: 2d ago
+              - generic [ref=e71]: ▶ Resume
+          - generic [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]:
+              - generic [ref=e74]: DEV
+              - generic [ref=e75]: improve
+              - generic [ref=e76]: ai-lastest-stuff
+            - generic [ref=e77]:
+              - generic [ref=e78]: 2d ago
+              - generic [ref=e79]: ▶ Resume
+          - generic [ref=e80] [cursor=pointer]:
+            - generic [ref=e81]:
+              - generic [ref=e82]: DEV
+              - generic [ref=e83]: joselito
+              - generic [ref=e84]: seimseim
+            - generic [ref=e85]:
+              - generic [ref=e86]: 2d ago
+              - generic [ref=e87]: ▶ Resume
+          - generic [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]:
+              - generic [ref=e90]: DEV
+              - generic [ref=e91]: improv
+              - generic [ref=e92]: ai-lastest-stuff
+            - generic [ref=e93]:
+              - generic [ref=e94]: 2d ago
+              - generic [ref=e95]: ▶ Resume
+          - generic [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]:
+              - generic [ref=e98]: DEV
+              - generic [ref=e99]: MER-6962
+              - generic [ref=e100]: triton
+            - generic [ref=e101]:
+              - generic [ref=e102]: 3d ago
+              - generic [ref=e103]: ▶ Resume
+          - generic [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]:
+              - generic [ref=e106]: REVIEW
+              - generic [ref=e107]: "PR #8837"
+              - generic [ref=e108]: triton
+            - generic [ref=e109]:
+              - generic [ref=e110]: 3d ago
+              - generic [ref=e111]: ▶ Resume
+          - generic [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]:
+              - generic [ref=e114]: DEV
+              - generic [ref=e115]: performance
+              - generic [ref=e116]: triton
+            - generic [ref=e117]:
+              - generic [ref=e118]: 4d ago
+              - generic [ref=e119]: ▶ Resume
+          - generic [ref=e120] [cursor=pointer]:
+            - generic [ref=e121]:
+              - generic [ref=e122]: REVIEW
+              - generic [ref=e123]: "PR #8826"
+              - generic [ref=e124]: triton
+            - generic [ref=e125]:
+              - generic [ref=e126]: 4d ago
+              - generic [ref=e127]: ▶ Resume
+          - generic [ref=e128] [cursor=pointer]:
+            - generic [ref=e129]:
+              - generic [ref=e130]: DEV
+              - generic [ref=e131]: MER-7314
+              - generic [ref=e132]: triton
+            - generic [ref=e133]:
+              - generic [ref=e134]: 4d ago
+              - generic [ref=e135]: ▶ Resume
+          - generic [ref=e136] [cursor=pointer]:
+            - generic [ref=e137]:
+              - generic [ref=e138]: DEV
+              - generic [ref=e139]: AI-439
+              - generic [ref=e140]: triton
+            - generic [ref=e141]:
+              - generic [ref=e142]: 7d ago
+              - generic [ref=e143]: ▶ Resume
+          - generic [ref=e144] [cursor=pointer]:
+            - generic [ref=e145]:
+              - generic [ref=e146]: REVIEW
+              - generic [ref=e147]: "PR #359"
+              - generic [ref=e148]: newstand-platform
+            - generic [ref=e149]:
+              - generic [ref=e150]: 7d ago
+              - generic [ref=e151]: ▶ Resume
+          - generic [ref=e152] [cursor=pointer]:
+            - generic [ref=e153]:
+              - generic [ref=e154]: REVIEW
+              - generic [ref=e155]: "PR #8707"
+              - generic [ref=e156]: triton
+            - generic [ref=e157]:
+              - generic [ref=e158]: 7d ago
+              - generic [ref=e159]: ▶ Resume
+          - generic [ref=e160] [cursor=pointer]:
+            - generic [ref=e161]:
+              - generic [ref=e162]: REVIEW
+              - generic [ref=e163]: "PR #8780"
+              - generic [ref=e164]: triton
+            - generic [ref=e165]:
+              - generic [ref=e166]: 8d ago
+              - generic [ref=e167]: ▶ Resume
+          - generic [ref=e168] [cursor=pointer]:
+            - generic [ref=e169]:
+              - generic [ref=e170]: REVIEW
+              - generic [ref=e171]: "PR #8775"
+              - generic [ref=e172]: triton
+            - generic [ref=e173]:
+              - generic [ref=e174]: 8d ago
+              - generic [ref=e175]: ▶ Resume
+          - generic [ref=e176] [cursor=pointer]:
+            - generic [ref=e177]:
+              - generic [ref=e178]: DEV
+              - generic [ref=e179]: MER-6915
+              - generic [ref=e180]: triton
+            - generic [ref=e181]:
+              - generic [ref=e182]: 9d ago
+              - generic [ref=e183]: ▶ Resume
+          - generic [ref=e184] [cursor=pointer]:
+            - generic [ref=e185]:
+              - generic [ref=e186]: DEV
+              - generic [ref=e187]: pull-8639
+              - generic [ref=e188]: triton
+            - generic [ref=e189]:
+              - generic [ref=e190]: 9d ago
+              - generic [ref=e191]: ▶ Resume
+          - generic [ref=e192] [cursor=pointer]:
+            - generic [ref=e193]:
+              - generic [ref=e194]: REVIEW
+              - generic [ref=e195]: "PR #8744"
+              - generic [ref=e196]: triton
+            - generic [ref=e197]:
+              - generic [ref=e198]: 10d ago
+              - generic [ref=e199]: ▶ Resume
+          - generic [ref=e200] [cursor=pointer]:
+            - generic [ref=e201]:
+              - generic [ref=e202]: REVIEW
+              - generic [ref=e203]: "PR #8697"
+              - generic [ref=e204]: triton
+            - generic [ref=e205]:
+              - generic [ref=e206]: 10d ago
+              - generic [ref=e207]: ▶ Resume
+          - generic [ref=e208] [cursor=pointer]:
+            - generic [ref=e209]:
+              - generic [ref=e210]: DEV
+              - generic [ref=e211]: "333"
+              - generic [ref=e212]: newstand-platform
+            - generic [ref=e213]:
+              - generic [ref=e214]: 14d ago
+              - generic [ref=e215]: ▶ Resume
+          - generic [ref=e216] [cursor=pointer]:
+            - generic [ref=e217]:
+              - generic [ref=e218]: REVIEW
+              - generic [ref=e219]: "PR #8653"
+              - generic [ref=e220]: triton
+            - generic [ref=e221]:
+              - generic [ref=e222]: 16d ago
+              - generic [ref=e223]: ▶ Resume
+          - generic [ref=e224] [cursor=pointer]:
+            - generic [ref=e225]:
+              - generic [ref=e226]: DEV
+              - generic [ref=e227]: init
+              - generic [ref=e228]: propia
+            - generic [ref=e229]:
+              - generic [ref=e230]: 16d ago
+              - generic [ref=e231]: ▶ Resume
+          - generic [ref=e232] [cursor=pointer]:
+            - generic [ref=e233]:
+              - generic [ref=e234]: DEV
+              - generic [ref=e235]: MER-7236
+              - generic [ref=e236]: triton
+            - generic [ref=e237]:
+              - generic [ref=e238]: 17d ago
+              - generic [ref=e239]: ▶ Resume
+          - generic [ref=e240] [cursor=pointer]:
+            - generic [ref=e241]:
+              - generic [ref=e242]: REVIEW
+              - generic [ref=e243]: "PR #338"
+              - generic [ref=e244]: newstand-platform
+            - generic [ref=e245]:
+              - generic [ref=e246]: 17d ago
+              - generic [ref=e247]: ▶ Resume
+          - generic [ref=e248] [cursor=pointer]:
+            - generic [ref=e249]:
+              - generic [ref=e250]: DEV
+              - generic [ref=e251]: pull-8599
+              - generic [ref=e252]: triton
+            - generic [ref=e253]:
+              - generic [ref=e254]: 17d ago
+              - generic [ref=e255]: ▶ Resume
+          - generic [ref=e256] [cursor=pointer]:
+            - generic [ref=e257]:
+              - generic [ref=e258]: DEV
+              - generic [ref=e259]: MER-7070
+              - generic [ref=e260]: triton
+            - generic [ref=e261]:
+              - generic [ref=e262]: 18d ago
+              - generic [ref=e263]: ▶ Resume
+          - generic [ref=e264] [cursor=pointer]:
+            - generic [ref=e265]:
+              - generic [ref=e266]: REVIEW
+              - generic [ref=e267]: "PR #8589"
+              - generic [ref=e268]: triton
+            - generic [ref=e269]:
+              - generic [ref=e270]: 18d ago
+              - generic [ref=e271]: ▶ Resume
+          - generic [ref=e272] [cursor=pointer]:
+            - generic [ref=e273]:
+              - generic [ref=e274]: REVIEW
+              - generic [ref=e275]: "PR #8591"
+              - generic [ref=e276]: triton
+            - generic [ref=e277]:
+              - generic [ref=e278]: 18d ago
+              - generic [ref=e279]: ▶ Resume
+          - generic [ref=e280] [cursor=pointer]:
+            - generic [ref=e281]:
+              - generic [ref=e282]: REVIEW
+              - generic [ref=e283]: "PR #8556"
+              - generic [ref=e284]: triton
+            - generic [ref=e285]:
+              - generic [ref=e286]: 22d ago
+              - generic [ref=e287]: ▶ Resume
+          - generic [ref=e288] [cursor=pointer]:
+            - generic [ref=e289]:
+              - generic [ref=e290]: REVIEW
+              - generic [ref=e291]: "PR #8432"
+              - generic [ref=e292]: triton
+            - generic [ref=e293]:
+              - generic [ref=e294]: 22d ago
+              - generic [ref=e295]: ▶ Resume
+          - generic [ref=e296] [cursor=pointer]:
+            - generic [ref=e297]:
+              - generic [ref=e298]: REVIEW
+              - generic [ref=e299]: "PR #8523"
+              - generic [ref=e300]: triton
+            - generic [ref=e301]:
+              - generic [ref=e302]: 23d ago
+              - generic [ref=e303]: ▶ Resume
+          - generic [ref=e304] [cursor=pointer]:
+            - generic [ref=e305]:
+              - generic [ref=e306]: REVIEW
+              - generic [ref=e307]: "PR #334"
+              - generic [ref=e308]: newstand-platform
+            - generic [ref=e309]:
+              - generic [ref=e310]: 23d ago
+              - generic [ref=e311]: ▶ Resume
+          - generic [ref=e312] [cursor=pointer]:
+            - generic [ref=e313]:
+              - generic [ref=e314]: REVIEW
+              - generic [ref=e315]: "PR #"
+              - generic [ref=e316]: newstand-platform
+            - generic [ref=e317]:
+              - generic [ref=e318]: 23d ago
+              - generic [ref=e319]: ▶ Resume
+          - generic [ref=e320] [cursor=pointer]:
+            - generic [ref=e321]:
+              - generic [ref=e322]: REVIEW
+              - generic [ref=e323]: "PR #8478"
+              - generic [ref=e324]: triton
+            - generic [ref=e325]:
+              - generic [ref=e326]: 23d ago
+              - generic [ref=e327]: ▶ Resume
+      - generic [ref=e328]:
+        - generic [ref=e329]: Recent (done)
+        - generic [ref=e330]:
+          - generic [ref=e331] [cursor=pointer]:
+            - generic [ref=e332]:
+              - generic [ref=e333]: REVIEW
+              - generic [ref=e334]: "PR #8851"
+              - generic [ref=e335]: triton
+            - generic [ref=e336]: 2 sessions
+          - generic [ref=e337] [cursor=pointer]:
+            - generic [ref=e338]:
+              - generic [ref=e339]: REVIEW
+              - generic [ref=e340]: "PR #8835"
+              - generic [ref=e341]: triton
+            - generic [ref=e342]: 1 session
+          - generic [ref=e343] [cursor=pointer]:
+            - generic [ref=e344]:
+              - generic [ref=e345]: REVIEW
+              - generic [ref=e346]: "PR #8803"
+              - generic [ref=e347]: triton
+            - generic [ref=e348]: 1 session
+          - generic [ref=e349] [cursor=pointer]:
+            - generic [ref=e350]:
+              - generic [ref=e351]: REVIEW
+              - generic [ref=e352]: "PR #8799"
+              - generic [ref=e353]: triton
+            - generic [ref=e354]: 1 session
+          - generic [ref=e355] [cursor=pointer]:
+            - generic [ref=e356]:
+              - generic [ref=e357]: DEV
+              - generic [ref=e358]: DCST-875
+              - generic [ref=e359]: tns-web
+            - generic [ref=e360]: 1 session
+          - generic [ref=e361] [cursor=pointer]:
+            - generic [ref=e362]:
+              - generic [ref=e363]: REVIEW
+              - generic [ref=e364]: "PR #8741"
+              - generic [ref=e365]: triton
+            - generic [ref=e366]: 1 session
+          - generic [ref=e367] [cursor=pointer]:
+            - generic [ref=e368]:
+              - generic [ref=e369]: REVIEW
+              - generic [ref=e370]: "PR #8740"
+              - generic [ref=e371]: triton
+            - generic [ref=e372]: 1 session
+          - generic [ref=e373] [cursor=pointer]:
+            - generic [ref=e374]:
+              - generic [ref=e375]: REVIEW
+              - generic [ref=e376]: "PR #8743"
+              - generic [ref=e377]: triton
+            - generic [ref=e378]: 1 session
+          - generic [ref=e379] [cursor=pointer]:
+            - generic [ref=e380]:
+              - generic [ref=e381]: REVIEW
+              - generic [ref=e382]: "PR #8676"
+              - generic [ref=e383]: triton
+            - generic [ref=e384]: 1 session
+          - generic [ref=e385] [cursor=pointer]:
+            - generic [ref=e386]:
+              - generic [ref=e387]: REVIEW
+              - generic [ref=e388]: "PR #8672"
+              - generic [ref=e389]: triton
+            - generic [ref=e390]: 1 session

@@ -88,10 +88,12 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
       if (wsUrl && !disposed) {
         const connectWs = (url: string) => {
           if (disposed) return
+          console.log('[ForgeTerminal] Connecting to:', url)
           ws = new WebSocket(url)
           const wsDisposables: { dispose: () => void }[] = []
 
           ws.onopen = () => {
+            console.log('[ForgeTerminal] WebSocket OPEN')
             reconnectAttempt = 0
             onConnectionChangeRef.current?.(true)
 
@@ -124,7 +126,8 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
             } catch {}
           }
 
-          ws.onclose = () => {
+          ws.onclose = (evt) => {
+            console.log('[ForgeTerminal] WebSocket CLOSE:', evt.code, evt.reason)
             wsDisposables.forEach(d => d.dispose())
             wsDisposables.length = 0
             onConnectionChangeRef.current?.(false)
@@ -140,7 +143,9 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
             }
           }
 
-          ws.onerror = () => {}
+          ws.onerror = (e) => {
+            console.error('[ForgeTerminal] WebSocket error:', e)
+          }
         }
 
         connectWs(wsUrl)
