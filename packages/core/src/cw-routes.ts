@@ -75,8 +75,8 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/start', async (c) => {
-    const { type, project, task, description, workflow } = await c.req.json<{
-      type: string; project: string; task: string; description?: string; workflow?: string
+    const { type, project, task, description, workflow, account, directory } = await c.req.json<{
+      type: string; project: string; task: string; description?: string; workflow?: string; account?: string; directory?: string
     }>()
 
     let cmd = ''
@@ -86,6 +86,8 @@ export function cwRoutes(reader: CWReader): Hono {
       cmd = `cw plan ${project} "${description ?? task}"`
     } else if (type === 'create') {
       cmd = `cw create "${description ?? task}" --name ${project}`
+      if (account) cmd += ` --account ${account}`
+      if (directory) cmd += ` --dir ${directory}`
     } else {
       cmd = `cw work ${project} ${task}`
       if (workflow) cmd += ` --workflow ${workflow}`

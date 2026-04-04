@@ -14,6 +14,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
 }) => {
   const [account, setAccount] = useState('')
   const [name, setName] = useState('')
+  const [directory, setDirectory] = useState('')
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
 
@@ -28,6 +29,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
   useEffect(() => {
     if (!open) {
       setName('')
+      setDirectory('')
       setDescription('')
       setCreating(false)
     }
@@ -47,6 +49,8 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
           project: name.trim(),
           task: name.trim(),
           description: description.trim(),
+          account: account.trim() || undefined,
+          directory: directory.trim() || undefined,
         })
       })
       const result = await res.json() as { ok: boolean; error?: string }
@@ -96,6 +100,19 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
               class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
             />
           )}
+        </div>
+
+        {/* Directory */}
+        <div>
+          <label class="block text-sm font-medium mb-1">Directory</label>
+          <input
+            type="text"
+            value={directory}
+            onInput={(e) => setDirectory((e.target as HTMLInputElement).value)}
+            placeholder="~/Workspace/personal"
+            class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+          />
+          <p class="text-xs text-forge-muted mt-1">Where to create the project. Leave empty for CW default.</p>
         </div>
 
         {/* Project name */}
