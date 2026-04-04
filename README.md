@@ -22,7 +22,7 @@
 
 <br />
 
-**Forge** is a visual dashboard for [CW (Claude Workspace Manager)](https://github.com/joseandrade-monoku/cw) — manage worktree sessions, tasks, PR reviews, and Claude Code integrations from a single web UI.
+**Forge** is a visual dashboard for [CW (Claude Workspace Manager)](https://github.com/avarajar/cw) — manage worktree sessions, tasks, PR reviews, and Claude Code integrations from a single web UI.
 
 [Getting Started](#-getting-started) &bull; [Screenshots](#-screenshots) &bull; [Architecture](#-architecture) &bull; [Modules](#-modules) &bull; [Roadmap](#-roadmap)
 
@@ -72,7 +72,7 @@ Filter by project to see detected stack, MCPs, and plugins. Manage or delete pro
 ### Prerequisites
 
 - Node.js >= 20
-- [CW](https://github.com/joseandrade-monoku/cw) installed and configured (`cw init`)
+- [CW](https://github.com/avarajar/cw) installed and configured (`cw init`)
 - At least one project registered (`cw open <project>`)
 
 ### Run
@@ -236,8 +236,7 @@ cd packages/console && npx vite       # Dashboard dev server
 
 ## License
 
-MIT &copy; [Jose Andrade](https://github.com/joseandrade-monoku) / [Monoku](https://monoku.com)
-
+MIT &copy; [Jose Andrade](https://github.com/avarajar)
 <div align="center">
 <br />
 
@@ -245,7 +244,7 @@ MIT &copy; [Jose Andrade](https://github.com/joseandrade-monoku) / [Monoku](http
 
 <br />
 
-**Built with Forge + [CW](https://github.com/joseandrade-monoku/cw) + [Claude Code](https://claude.ai/code)**
+**Built with Forge + [CW](https://github.com/avarajar/cw) + [Claude Code](https://claude.ai/code)**
 
 <sub>Powered by [Hono](https://hono.dev), [Preact](https://preactjs.com), [xterm.js](https://xtermjs.org), and the open-source community.</sub>
 
