@@ -16,11 +16,14 @@ export function ptyRoutes(
     upgradeWebSocket((c) => {
       const project = c.req.param('project') as string
       const sessionDir = c.req.param('sessionDir') as string
+      console.log(`[pty-routes] WebSocket upgrade for ${project}/${sessionDir}`)
 
       return {
         onOpen(_evt, ws) {
+          console.log(`[pty-routes] onOpen: ${project}/${sessionDir}`)
           const session = reader.getSession(project, sessionDir)
           if (!session) {
+            console.log(`[pty-routes] Session not found: ${project}/${sessionDir}`)
             ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
             ws.close()
             return
