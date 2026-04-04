@@ -329,8 +329,11 @@ interface ProjectInfo {
   mcps: { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } | null
 }
 
-const ProjectBanner: FunctionComponent<{ project: string; account?: string }> = ({ project, account }) => {
+const ProjectBanner: FunctionComponent<{ project: string; account?: string; onDeleted?: () => void }> = ({ project, account, onDeleted }) => {
   const [info, setInfo] = useState<ProjectInfo>({ stack: null, mcps: null })
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleteFiles, setDeleteFiles] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -359,6 +362,29 @@ const ProjectBanner: FunctionComponent<{ project: string; account?: string }> = 
   const plugins = info.mcps?.plugins ?? []
   const allMcps = [...projectMcps.map(m => `${m} (project)`), ...globalMcps, ...cwMcps.map(m => `${m} (CW)`)]
 
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/cw/delete-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, deleteFiles })
+      })
+      const result = await res.json() as { ok: boolean }
+      if (result.ok) {
+        const { showToast } = await import('@forge-dev/ui')
+        showToast(`Project "${project}" deleted${deleteFiles ? ' (files removed)' : ''}`, 'info')
+        onDeleted?.()
+      }
+    } catch {
+      const { showToast } = await import('@forge-dev/ui')
+      showToast('Failed to delete project', 'error')
+    } finally {
+      setDeleting(false)
+      setShowDelete(false)
+    }
+  }
+
   if (!info.stack && !info.mcps) return null
 
   return (
@@ -366,13 +392,57 @@ const ProjectBanner: FunctionComponent<{ project: string; account?: string }> = 
       class="rounded-xl px-4 py-3 mb-5 text-sm"
       style={{ backgroundColor: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}
     >
-      <div class="flex items-center gap-2 mb-1.5">
-        <span class="text-xs font-bold text-forge-accent uppercase tracking-wider">Project:</span>
-        <span class="font-semibold text-forge-text">{project}</span>
-        {account && (
-          <span class="text-xs text-forge-muted" style={{ opacity: 0.7 }}>({account})</span>
-        )}
+      <div class="flex items-center justify-between mb-1.5">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-forge-accent uppercase tracking-wider">Project:</span>
+          <span class="font-semibold text-forge-text">{project}</span>
+          {account && (
+            <span class="text-xs text-forge-muted" style={{ opacity: 0.7 }}>({account})</span>
+          )}
+        </div>
+        <button
+          class="text-xs text-forge-muted hover:text-forge-error transition-colors"
+          onClick={() => setShowDelete(!showDelete)}
+        >
+          Delete project
+        </button>
       </div>
+
+      {/* Delete confirmation */}
+      {showDelete && (
+        <div class="rounded-lg p-3 mb-2" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <p class="text-xs text-forge-text mb-2">Are you sure? This will unregister "{project}" from CW.</p>
+          <label class="flex items-center gap-2 text-xs text-forge-muted mb-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={deleteFiles}
+              onChange={(e) => setDeleteFiles((e.target as HTMLInputElement).checked)}
+            />
+            Also delete project files from disk
+          </label>
+          {deleteFiles && (
+            <p class="text-xs mb-3" style={{ color: 'var(--forge-error)' }}>
+              This will permanently delete all files. This cannot be undone.
+            </p>
+          )}
+          <div class="flex gap-2">
+            <button
+              class="px-3 py-1.5 text-xs rounded-lg text-white font-medium"
+              style={{ backgroundColor: 'var(--forge-error)' }}
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : deleteFiles ? 'Delete project + files' : 'Unregister project'}
+            </button>
+            <button
+              class="px-3 py-1.5 text-xs rounded-lg text-forge-muted border border-forge-border"
+              onClick={() => { setShowDelete(false); setDeleteFiles(false) }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {stackParts.length > 0 && (
         <div class="flex items-center gap-1.5 text-xs text-forge-muted flex-wrap">
           <span class="text-forge-muted opacity-70">Stack:</span>
@@ -572,7 +642,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       </div>
 
       {/* ---- Project info banner (when project is filtered) ---- */}
-      {filterProject && <ProjectBanner project={filterProject} account={projectAccount} />}
+      {filterProject && <ProjectBanner project={filterProject} account={projectAccount} onDeleted={() => { onFilterProject(null); onRefresh() }} />}
 
       {/* ---- Active tasks ---- */}
       {active.length > 0 && (

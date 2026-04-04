@@ -119,5 +119,32 @@ export function cwRoutes(reader: CWReader): Hono {
     return c.json({ ok: true })
   })
 
+  app.post('/delete-project', async (c) => {
+    const { project, deleteFiles } = await c.req.json<{ project: string; deleteFiles: boolean }>()
+
+    // Get project path before removing from CW
+    const projects = reader.getProjects()
+    const projPath = projects[project]?.path
+
+    // Unregister from CW
+    try {
+      execSync(`cw project remove ${project}`, { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+    } catch {
+      // May not be registered, continue anyway
+    }
+
+    // Delete files if requested
+    if (deleteFiles && projPath) {
+      try {
+        const { rmSync } = await import('node:fs')
+        rmSync(projPath, { recursive: true, force: true })
+      } catch {
+        return c.json({ ok: true, filesDeleted: false, reason: 'Failed to delete directory' })
+      }
+    }
+
+    return c.json({ ok: true, filesDeleted: deleteFiles && !!projPath })
+  })
+
   return app
 }
