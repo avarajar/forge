@@ -39,44 +39,49 @@ interface TypeStyle {
   dot: string
   bgRgba: string
   borderRgba: string
+  textColor: string
 }
 
 const TYPE_STYLES: Record<string, TypeStyle> = {
   task: {
     label: 'DEV',
     bg: 'bg-amber-500/10',
-    text: 'text-amber-400',
+    text: '',
     border: 'border-amber-500/20',
-    dot: 'bg-amber-400',
-    bgRgba: 'rgba(245,158,11,0.1)',
-    borderRgba: 'rgba(245,158,11,0.2)',
+    dot: 'bg-amber-500',
+    bgRgba: 'rgba(245,158,11,0.12)',
+    borderRgba: 'rgba(245,158,11,0.25)',
+    textColor: '#d97706',
   },
   review: {
     label: 'REVIEW',
     bg: 'bg-blue-500/10',
-    text: 'text-blue-400',
+    text: '',
     border: 'border-blue-500/20',
-    dot: 'bg-blue-400',
-    bgRgba: 'rgba(59,130,246,0.1)',
-    borderRgba: 'rgba(59,130,246,0.2)',
+    dot: 'bg-blue-500',
+    bgRgba: 'rgba(59,130,246,0.12)',
+    borderRgba: 'rgba(59,130,246,0.25)',
+    textColor: '#2563eb',
   },
   design: {
     label: 'DESIGN',
     bg: 'bg-purple-500/10',
-    text: 'text-purple-400',
+    text: '',
     border: 'border-purple-500/20',
-    dot: 'bg-purple-400',
-    bgRgba: 'rgba(168,85,247,0.1)',
-    borderRgba: 'rgba(168,85,247,0.2)',
+    dot: 'bg-purple-500',
+    bgRgba: 'rgba(168,85,247,0.12)',
+    borderRgba: 'rgba(168,85,247,0.25)',
+    textColor: '#7c3aed',
   },
   plan: {
     label: 'PLAN',
     bg: 'bg-cyan-500/10',
-    text: 'text-cyan-400',
+    text: '',
     border: 'border-cyan-500/20',
-    dot: 'bg-cyan-400',
-    bgRgba: 'rgba(6,182,212,0.1)',
-    borderRgba: 'rgba(6,182,212,0.2)',
+    dot: 'bg-cyan-500',
+    bgRgba: 'rgba(6,182,212,0.12)',
+    borderRgba: 'rgba(6,182,212,0.25)',
+    textColor: '#0891b2',
   },
 }
 
@@ -125,8 +130,8 @@ const TypeBadge: FunctionComponent<{ type: string }> = ({ type }) => {
   const s = getTypeStyle(type)
   return (
     <span
-      class={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${s.text} border`}
-      style={{ backgroundColor: s.bgRgba, borderColor: s.borderRgba }}
+      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border"
+      style={{ backgroundColor: s.bgRgba, borderColor: s.borderRgba, color: s.textColor }}
     >
       <span class={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
@@ -289,8 +294,8 @@ const FilterPill: FunctionComponent<{
   if (active && style) {
     return (
       <button
-        class={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all ${style.text}`}
-        style={{ backgroundColor: style.bgRgba, borderColor: style.borderRgba }}
+        class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
+        style={{ backgroundColor: style.bgRgba, borderColor: style.borderRgba, color: style.textColor }}
         onClick={onClick}
       >
         {label}
@@ -556,8 +561,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         {QUICK_TYPES.map(t => (
           <button
             key={t.key}
-            class={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${t.style.text} hover:opacity-80`}
-            style={{ backgroundColor: t.style.bgRgba, borderColor: t.style.borderRgba }}
+            class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all hover:opacity-80"
+            style={{ backgroundColor: t.style.bgRgba, borderColor: t.style.borderRgba, color: t.style.textColor }}
             onClick={() => onNewTask(t.key)}
           >
             + {t.label}
