@@ -1,0 +1,133 @@
+<h2>When you click on an active task, what do you see?</h2>
+<p class="subtitle">The task detail view — your "cockpit" for a running task</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:20px;font-family:monospace;font-size:11px;color:#e0e0f0;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="background:#f59e0b;color:white;padding:1px 6px;border-radius:4px;font-size:9px;">DEV</span>
+              <span style="font-size:14px;font-weight:bold;">fix-auth-redirect</span>
+            </div>
+            <div style="color:#6b7280;font-size:10px;margin-top:2px;">triton &middot; started 2h ago &middot; 3 sessions</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <div style="background:#10b981;color:white;padding:4px 12px;border-radius:6px;font-size:10px;cursor:pointer;">&#9654; Resume</div>
+            <div style="background:#2a2a3e;border:1px solid #3b3b5e;padding:4px 12px;border-radius:6px;font-size:10px;cursor:pointer;">&#10003; Done</div>
+          </div>
+        </div>
+
+        <!-- Status cards -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">
+          <div style="background:#2a2a3e;border-radius:6px;padding:10px;">
+            <div style="color:#6b7280;font-size:9px;">Branch</div>
+            <div style="font-size:11px;font-weight:bold;">fix-auth-redirect</div>
+          </div>
+          <div style="background:#2a2a3e;border-radius:6px;padding:10px;">
+            <div style="color:#6b7280;font-size:9px;">Files changed</div>
+            <div style="font-size:11px;font-weight:bold;">4 files</div>
+          </div>
+          <div style="background:#2a2a3e;border-radius:6px;padding:10px;">
+            <div style="color:#6b7280;font-size:9px;">Commits</div>
+            <div style="font-size:11px;font-weight:bold;">2</div>
+          </div>
+        </div>
+
+        <!-- Recent activity -->
+        <div style="color:#6b7280;font-size:9px;text-transform:uppercase;margin-bottom:6px;">Activity</div>
+        <div style="background:#2a2a3e;border-radius:6px;padding:8px;font-size:10px;line-height:1.8;">
+          <div><span style="color:#10b981;">&#10003;</span> Created worktree from main</div>
+          <div><span style="color:#10b981;">&#10003;</span> fix: handle OAuth redirect URL</div>
+          <div><span style="color:#10b981;">&#10003;</span> test: add auth redirect tests</div>
+          <div><span style="color:#6366f1;">&#9679;</span> Session active (2m ago)</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Status Dashboard</h3>
+      <p>See what happened: branch, files changed, commits, activity timeline. "Resume" opens terminal. Pure status view — you see what's going on without opening the code.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:20px;font-family:monospace;font-size:11px;color:#e0e0f0;">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="background:#f59e0b;color:white;padding:1px 6px;border-radius:4px;font-size:9px;">DEV</span>
+            <span style="font-size:14px;font-weight:bold;">fix-auth-redirect</span>
+            <span style="color:#6b7280;">triton</span>
+          </div>
+          <div style="background:#10b981;color:white;padding:4px 12px;border-radius:6px;font-size:10px;">&#9654; Resume</div>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display:flex;gap:0;border-bottom:1px solid #3b3b5e;margin-bottom:12px;">
+          <div style="padding:6px 12px;border-bottom:2px solid #6366f1;color:#6366f1;font-size:10px;">Status</div>
+          <div style="padding:6px 12px;color:#6b7280;font-size:10px;">Diff</div>
+          <div style="padding:6px 12px;color:#6b7280;font-size:10px;">Tests</div>
+          <div style="padding:6px 12px;color:#6b7280;font-size:10px;">Screenshots</div>
+          <div style="padding:6px 12px;color:#6b7280;font-size:10px;">Notes</div>
+        </div>
+
+        <!-- Status tab content -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+          <div style="background:#2a2a3e;border-radius:6px;padding:8px;">
+            <div style="color:#6b7280;font-size:9px;">Branch</div>
+            <div style="font-size:10px;">fix-auth-redirect</div>
+          </div>
+          <div style="background:#2a2a3e;border-radius:6px;padding:8px;">
+            <div style="color:#6b7280;font-size:9px;">Sessions</div>
+            <div style="font-size:10px;">3 opens</div>
+          </div>
+        </div>
+
+        <div style="background:#2a2a3e;border-radius:6px;padding:8px;font-size:10px;line-height:1.6;">
+          <div><span style="color:#10b981;">&#10003;</span> fix: handle OAuth redirect</div>
+          <div><span style="color:#10b981;">&#10003;</span> test: auth redirect tests</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Tabbed Detail (recommended)</h3>
+      <p>Same status info but with tabs: Status, Diff, Tests, Screenshots, Notes. Visual QA goes in "Screenshots" tab — side by side before/after. "Diff" shows git diff. "Notes" is the TASK_NOTES.md from CW.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:20px;font-family:monospace;font-size:11px;color:#e0e0f0;">
+        <!-- Minimal card -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="background:#f59e0b;color:white;padding:1px 6px;border-radius:4px;font-size:9px;">DEV</span>
+              <span style="font-size:14px;font-weight:bold;">fix-auth-redirect</span>
+            </div>
+            <div style="color:#6b7280;font-size:10px;margin-top:2px;">triton &middot; 2h ago</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div style="background:#10b981;color:white;padding:10px 24px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:bold;">&#9654; Resume in Terminal</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;padding:10px 24px;border-radius:8px;font-size:12px;cursor:pointer;">View Diff</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;padding:10px 24px;border-radius:8px;font-size:12px;cursor:pointer;">Run Tests</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;padding:10px 24px;border-radius:8px;font-size:12px;cursor:pointer;">Visual QA</div>
+          <div style="background:#ef4444;color:white;padding:10px 24px;border-radius:8px;font-size:12px;cursor:pointer;">Close Task</div>
+        </div>
+
+        <div style="color:#6b7280;font-size:10px;margin-top:16px;">2 commits &middot; 4 files &middot; branch: fix-auth-redirect</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Action Buttons</h3>
+      <p>Minimal info, big action buttons. Resume, View Diff, Run Tests, Visual QA, Close. No tabs — every action is a click away. Simplest possible.</p>
+    </div>
+  </div>
+
+</div>

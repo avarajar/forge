@@ -1,0 +1,51 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - heading "Forge" [level=1] [ref=e6]
+    - generic [ref=e7]:
+      - button "Home" [ref=e8]:
+        - generic [ref=e10]: Home
+      - generic [ref=e11]: Modules
+    - button "Light mode" [ref=e13]
+  - main [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - combobox [ref=e17] [cursor=pointer]:
+          - option "healthbot" [selected]
+          - option "forge-demo"
+        - generic [ref=e18]: /Users/joselito/Workspace/personal/healthbot
+      - generic [ref=e20]: Cmd+K
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - generic [ref=e25]:
+            - generic [ref=e26]: folder
+            - generic [ref=e27]: Projects
+          - generic [ref=e28]: "2"
+        - generic [ref=e30]:
+          - generic [ref=e31]:
+            - generic [ref=e32]: puzzle
+            - generic [ref=e33]: Modules
+          - generic [ref=e34]: "7"
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]: zap
+            - generic [ref=e39]: Status
+          - generic [ref=e40]: Online
+      - generic [ref=e42]:
+        - heading "Your Projects" [level=3] [ref=e43]
+        - button "+ Add" [ref=e44]:
+          - generic [ref=e45]: + Add
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - generic [ref=e49]: healthbot
+            - generic [ref=e50]: /Users/joselito/Workspace/personal/healthbot
+          - button "Remove" [ref=e52]:
+            - generic [ref=e53]: Remove
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - generic [ref=e56]: forge-demo
+            - generic [ref=e57]: /Users/joselito/Workspace/personal/forge
+          - button "Remove" [ref=e59]:
+            - generic [ref=e60]: Remove
+      - paragraph [ref=e61]: Select a project from the dropdown above, then use the modules in the sidebar to run tests, deploy, and more.

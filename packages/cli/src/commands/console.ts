@@ -47,7 +47,8 @@ export function consoleCommand() {
       })
 
       const { serve } = await import('@hono/node-server')
-      serve({ fetch: server.app.fetch, port })
+      const httpServer = serve({ fetch: server.app.fetch, port })
+      server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
       console.log(`Forge Console running at http://localhost:${port}`)
       if (isTeam) {

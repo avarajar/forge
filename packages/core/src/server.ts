@@ -5,9 +5,14 @@ import { ForgeDB } from './db.js'
 import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
 import type { ActionDef } from '@forge-dev/sdk'
-import { join } from 'node:path'
+import { join, basename, resolve } from 'node:path'
+import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
+import { CWReader } from './cw-reader.js'
+import { cwRoutes } from './cw-routes.js'
+import { PTYManager } from './pty-manager.js'
+import { createTerminalWss } from './pty-routes.js'
 
 interface ServerOptions {
   dataDir: string
@@ -33,6 +38,19 @@ export function createForgeServer(options: ServerOptions) {
   if (authToken) {
     app.use('/api/*', bearerAuth(authToken))
   }
+
+  const cwReader = new CWReader()
+  app.route('/api/cw', cwRoutes(cwReader))
+
+  const ptyManager = new PTYManager()
+  const terminalWss = createTerminalWss(ptyManager, cwReader)
+
+  app.post('/api/cw/terminal/kill', async (c) => {
+    const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
+    const sessionId = `${project}::${sessionDir}`
+    ptyManager.kill(sessionId)
+    return c.json({ ok: true })
+  })
 
   async function resolveAction(c: Context): Promise<
     | { action: ActionDef; cwd: string; logId: string }
@@ -188,6 +206,37 @@ export function createForgeServer(options: ServerOptions) {
     }
   })
 
+  app.get('/api/filesystem/browse', (c) => {
+    const home = process.env.HOME ?? '/tmp'
+    const dir = resolve(c.req.query('path') ?? process.cwd())
+    if (!dir.startsWith(home)) {
+      return c.json({ error: 'Access denied: path must be within home directory' }, 403)
+    }
+    if (!existsSync(dir)) {
+      return c.json({ error: 'Directory not found' }, 404)
+    }
+    try {
+      const entries = readdirSync(dir, { withFileTypes: true })
+      const dirs = entries
+        .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+        .map(e => ({
+          name: e.name,
+          path: join(dir, e.name),
+          hasPackageJson: existsSync(join(dir, e.name, 'package.json')),
+          hasGit: existsSync(join(dir, e.name, '.git'))
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      return c.json({
+        current: dir,
+        name: basename(dir),
+        parent: join(dir, '..'),
+        directories: dirs
+      })
+    } catch {
+      return c.json({ error: 'Cannot read directory' }, 500)
+    }
+  })
+
   const fetch = (path: string, init?: RequestInit) => {
     return app.request(path, init)
   }
@@ -195,6 +244,7 @@ export function createForgeServer(options: ServerOptions) {
   return {
     app,
     fetch,
-    close: () => db.close()
+    attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
+    close: () => { ptyManager.dispose(); db.close() }
   }
 }

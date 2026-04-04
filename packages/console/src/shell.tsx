@@ -2,7 +2,6 @@ import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { signal } from '@preact/signals'
 import { ToastContainer } from '@forge-dev/ui'
 
-export const currentModule = signal<string | null>(null)
 export const theme = signal<'dark' | 'light'>('dark')
 
 const toggleTheme = () => {
@@ -11,67 +10,45 @@ const toggleTheme = () => {
 }
 
 interface ShellProps {
-  modules: { id: string; name: string; icon: string; color: string }[]
   children: ComponentChildren
+  fullHeight?: boolean
+  onLogoClick?: () => void
 }
 
-export const Shell: FunctionComponent<ShellProps> = ({ modules, children }) => {
+export const Shell: FunctionComponent<ShellProps> = ({ children, fullHeight, onLogoClick }) => {
   return (
-    <div class="flex h-screen bg-forge-bg text-forge-text">
-      {/* Sidebar */}
-      <nav class="w-56 bg-forge-surface border-r border-forge-border flex flex-col">
-        <div class="p-4 border-b border-forge-border">
-          <h1 class="text-lg font-bold flex items-center gap-2">
+    <div class={fullHeight ? 'h-screen flex flex-col bg-forge-bg text-forge-text overflow-hidden' : 'min-h-screen bg-forge-bg text-forge-text'}>
+      <header class="h-14 flex items-center justify-between px-6 backdrop-blur-sm sticky top-0 z-50 shrink-0" style={{ borderBottom: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}>
+        <div
+          class="flex items-center gap-2.5 cursor-pointer"
+          onClick={onLogoClick}
+          role={onLogoClick ? 'button' : undefined}
+        >
+          <span class="text-xl select-none" aria-hidden="true">&#128293;</span>
+          <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-forge-accent to-forge-warning bg-clip-text text-transparent">
             Forge
           </h1>
         </div>
-
-        <div class="flex-1 py-2">
-          {modules.map(m => (
-            <button
-              key={m.id}
-              class={`w-full text-left px-4 py-2.5 flex items-center gap-3 text-sm transition-colors
-                ${currentModule.value === m.id
-                  ? 'bg-forge-accent/10 text-forge-accent border-r-2 border-forge-accent'
-                  : 'text-forge-muted hover:text-forge-text hover:bg-forge-surface'}`}
-              onClick={() => { currentModule.value = m.id }}
-            >
-              <span>{m.icon}</span>
-              <span>{m.name}</span>
-            </button>
-          ))}
-        </div>
-
-        <div class="p-4 border-t border-forge-border">
+        <div class="flex items-center gap-3">
           <button
-            class="text-xs text-forge-muted hover:text-forge-text"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-forge-muted hover:text-forge-text hover:bg-forge-surface border border-transparent hover:border-forge-border transition-all"
             onClick={toggleTheme}
+            aria-label={`Switch to ${theme.value === 'dark' ? 'light' : 'dark'} mode`}
           >
-            {theme.value === 'dark' ? 'Light mode' : 'Dark mode'}
+            <span class="text-sm">{theme.value === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19'}</span>
+            <span>{theme.value === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
         </div>
-      </nav>
-
-      {/* Main */}
-      <main class="flex-1 overflow-auto">
-        {/* Top bar */}
-        <header class="h-14 border-b border-forge-border flex items-center justify-between px-6">
-          <div class="flex items-center gap-4">
-            <span class="text-sm text-forge-muted">Forge Console</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <kbd class="text-xs text-forge-muted bg-forge-surface px-2 py-1 rounded border border-forge-border">
-              Cmd+K
-            </kbd>
-          </div>
-        </header>
-
-        {/* Content */}
-        <div class="p-6">
+      </header>
+      {fullHeight ? (
+        <main class="flex-1 min-h-0 overflow-hidden">
           {children}
-        </div>
-      </main>
-
+        </main>
+      ) : (
+        <main class="max-w-4xl mx-auto px-6 py-8">
+          {children}
+        </main>
+      )}
       <ToastContainer />
     </div>
   )

@@ -1,0 +1,116 @@
+<h2>How should the Design task flow work?</h2>
+<p class="subtitle">This is the new thing CW doesn't have. What happens when you pick "Design"?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:20px;font-family:monospace;font-size:11px;color:#e0e0f0;">
+        <div style="font-size:13px;font-weight:bold;margin-bottom:12px;">&#127912; New Design Task</div>
+
+        <div style="margin-bottom:10px;">
+          <div style="color:#6b7280;font-size:9px;margin-bottom:4px;">PROJECT: healthbot</div>
+          <div style="color:#6b7280;font-size:9px;margin-bottom:4px;">TASK: landing-redesign</div>
+        </div>
+
+        <div style="color:#6b7280;font-size:9px;margin-bottom:6px;">WHAT DO YOU HAVE?</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+          <div style="background:#6366f1;border:1px solid #6366f1;border-radius:6px;padding:6px 10px;font-size:10px;color:white;">&#128206; Figma link</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:6px;padding:6px 10px;font-size:10px;">&#128221; Description only</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:6px;padding:6px 10px;font-size:10px;">&#127912; Sketch/wireframe</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:6px;padding:6px 10px;font-size:10px;">&#128444; Screenshot/image</div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div style="color:#6b7280;font-size:9px;margin-bottom:4px;">FIGMA URL</div>
+          <div style="background:#2a2a3e;border:1px solid #6366f1;border-radius:6px;padding:6px 10px;">
+            https://figma.com/file/abc123...
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="color:#6b7280;font-size:9px;margin-bottom:4px;">DETECTED</div>
+          <div style="display:flex;gap:6px;">
+            <span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:9px;">&#10003; Tailwind</span>
+            <span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:9px;">&#10003; shadcn/ui</span>
+            <span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:9px;">&#10003; Figma MCP</span>
+          </div>
+        </div>
+
+        <div style="background:#10b981;color:white;padding:8px;border-radius:8px;text-align:center;font-size:11px;font-weight:bold;">
+          Start Design Task &#9654;
+        </div>
+        <div style="color:#6b7280;font-size:9px;margin-top:4px;text-align:center;">
+          Imports Figma frames → detects style guide → generates components
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Input-Based (recommended)</h3>
+      <p>Ask "what do you have?" — Figma link, description, sketch, screenshot. Forge detects your stack (Tailwind? shadcn? Figma MCP connected?) and chains the right tools. One screen, adapts to input.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:20px;font-family:monospace;font-size:11px;color:#e0e0f0;">
+        <div style="font-size:13px;font-weight:bold;margin-bottom:12px;">&#127912; Design Task</div>
+
+        <div style="color:#6b7280;font-size:9px;margin-bottom:8px;">CHOOSE A WORKFLOW</div>
+
+        <div style="background:#2a2a3e;border:1px solid #6366f1;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="font-weight:bold;font-size:11px;">Figma → Code</div>
+          <div style="color:#6b7280;font-size:10px;">Paste a Figma link, get React/Vue/Svelte components</div>
+        </div>
+        <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="font-weight:bold;font-size:11px;">Description → Prototype</div>
+          <div style="color:#6b7280;font-size:10px;">Describe what you want, AI generates a working prototype</div>
+        </div>
+        <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="font-weight:bold;font-size:11px;">Style Guide Setup</div>
+          <div style="color:#6b7280;font-size:10px;">Define or import colors, typography, spacing, components</div>
+        </div>
+        <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:8px;padding:12px;margin-bottom:8px;">
+          <div style="font-weight:bold;font-size:11px;">Visual QA</div>
+          <div style="color:#6b7280;font-size:10px;">Compare implementation vs design, catch visual regressions</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Workflow Picker</h3>
+      <p>Choose what you want to do: Figma→Code, Description→Prototype, Style Guide Setup, Visual QA. Each is a predefined workflow. Clearer but more rigid.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:20px;font-family:monospace;font-size:11px;color:#e0e0f0;">
+        <div style="font-size:13px;font-weight:bold;margin-bottom:12px;">&#127912; Design: landing-redesign</div>
+        <div style="color:#6b7280;font-size:10px;margin-bottom:16px;">healthbot</div>
+
+        <div style="background:#2a2a3e;border:2px dashed #3b3b5e;border-radius:8px;padding:24px;text-align:center;margin-bottom:12px;">
+          <div style="font-size:18px;margin-bottom:8px;">&#128206;</div>
+          <div style="font-size:11px;color:#6b7280;">Drop a Figma link, image, or describe what you want</div>
+          <div style="background:#2a2a3e;border:1px solid #3b3b5e;border-radius:6px;padding:8px;margin-top:10px;text-align:left;">
+            <span style="color:#6b7280;">Paste link, drop file, or type a description...</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:9px;">&#10003; Tailwind</span>
+          <span style="background:#10b981;color:white;padding:2px 8px;border-radius:4px;font-size:9px;">&#10003; shadcn</span>
+          <span style="background:#6b7280;color:white;padding:2px 8px;border-radius:4px;font-size:9px;">&#10007; No style guide</span>
+        </div>
+
+        <div style="background:#f59e0b20;border:1px solid #f59e0b40;border-radius:6px;padding:8px;font-size:10px;color:#f59e0b;">
+          &#9888; No style guide found. Want to <u>create one</u> first?
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Universal Input</h3>
+      <p>One big input: paste a Figma link, drop an image, or type a description. Forge figures out what to do. Warns if no style guide. Most flexible but might feel vague.</p>
+    </div>
+  </div>
+
+</div>

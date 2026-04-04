@@ -26,22 +26,29 @@ export const ActionButton: FunctionComponent<ActionButtonProps> = ({
     }
   }
 
-  const variantClasses = {
-    primary: 'bg-forge-accent hover:bg-forge-accent/80 text-white',
-    secondary: 'bg-forge-surface border border-forge-border hover:bg-forge-border text-forge-text',
-    danger: 'bg-forge-error hover:bg-forge-error/80 text-white'
+  const variantStyles: Record<string, { bg: string; hover: string; text: string; border?: string }> = {
+    primary: { bg: 'var(--forge-accent)', hover: 'var(--forge-accent)', text: '#ffffff' },
+    secondary: { bg: 'var(--forge-surface)', hover: 'var(--forge-border)', text: 'var(--forge-text)', border: 'var(--forge-border)' },
+    danger: { bg: 'var(--forge-error)', hover: 'var(--forge-error)', text: '#ffffff' }
   }
+
+  const s = variantStyles[variant]
 
   return (
     <button
-      class={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]}`}
+      class="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{
+        backgroundColor: s.bg,
+        color: s.text,
+        border: s.border ? `1px solid ${s.border}` : 'none'
+      }}
       disabled={disabled || loading}
       onClick={handleClick}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
     >
       {loading ? (
         <span class="i-lucide-loader-2 animate-spin" />
-      ) : icon ? (
-        <span>{icon}</span>
       ) : null}
       <span>{label}</span>
     </button>

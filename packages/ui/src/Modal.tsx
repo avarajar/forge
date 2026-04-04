@@ -25,7 +25,11 @@ export const Modal: FunctionComponent<ModalProps> = ({
         {onConfirm && (
           <div class="flex justify-end gap-2 p-4 border-t border-forge-border">
             <button class="px-4 py-2 rounded-lg text-sm bg-forge-surface border border-forge-border hover:bg-forge-border" onClick={onClose}>Cancel</button>
-            <button class="px-4 py-2 rounded-lg text-sm bg-forge-accent text-white hover:bg-forge-accent/80" onClick={onConfirm}>{confirmLabel}</button>
+            <button
+              class="px-4 py-2 rounded-lg text-sm text-white transition-opacity hover:opacity-80"
+              style={{ backgroundColor: 'var(--forge-accent)' }}
+              onClick={onConfirm}
+            >{confirmLabel}</button>
           </div>
         )}
       </div>
