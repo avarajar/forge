@@ -117,15 +117,19 @@ function App() {
   return (
     <Shell>
       {loading ? (
-        <div class="py-20 text-center text-forge-muted">Loading...</div>
+        <div class="max-w-4xl mx-auto px-6 py-8">
+          <div class="py-20 text-center text-forge-muted">Loading...</div>
+        </div>
       ) : !hasProjects ? (
-        <EmptyState
-          icon="&#128296;"
-          title="Welcome to Forge"
-          description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
-        />
+        <div class="max-w-4xl mx-auto px-6 py-8">
+          <EmptyState
+            icon="&#128296;"
+            title="Welcome to Forge"
+            description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
+          />
+        </div>
       ) : view === 'list' ? (
-        <>
+        <div class="max-w-4xl mx-auto px-6 py-8">
           <TaskList
             spaces={filteredSpaces}
             allSpaces={spaces}
@@ -151,7 +155,7 @@ function App() {
             onClose={() => setShowCreateProject(false)}
             onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
           />
-        </>
+        </div>
       ) : view === 'detail' && selectedSession ? (
         <TaskDetail
           session={selectedSession}
@@ -159,13 +163,15 @@ function App() {
           onDone={() => { setView('list'); refreshAfterAction() }}
         />
       ) : view === 'new-task' ? (
-        <NewTask
-          projects={projects}
-          accounts={accountNames}
-          initialType={newTaskType}
-          onBack={() => setView('list')}
-          onCreated={() => { setView('list'); refreshAfterAction() }}
-        />
+        <div class="max-w-4xl mx-auto px-6 py-8">
+          <NewTask
+            projects={projects}
+            accounts={accountNames}
+            initialType={newTaskType}
+            onBack={() => setView('list')}
+            onCreated={() => { setView('list'); refreshAfterAction() }}
+          />
+        </div>
       ) : null}
     </Shell>
   )

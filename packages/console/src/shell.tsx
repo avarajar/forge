@@ -15,7 +15,7 @@ interface ShellProps {
 
 export const Shell: FunctionComponent<ShellProps> = ({ children }) => {
   return (
-    <div class="min-h-screen bg-forge-bg text-forge-text">
+    <div class="h-screen flex flex-col bg-forge-bg text-forge-text overflow-hidden">
       <header class="h-14 flex items-center justify-between px-6 backdrop-blur-sm sticky top-0 z-50" style={{ borderBottom: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}>
         <div class="flex items-center gap-2.5">
           <span class="text-xl select-none" aria-hidden="true">&#128293;</span>
@@ -34,7 +34,7 @@ export const Shell: FunctionComponent<ShellProps> = ({ children }) => {
           </button>
         </div>
       </header>
-      <main class="max-w-4xl mx-auto px-6 py-8">
+      <main class="flex-1 min-h-0">
         {children}
       </main>
       <ToastContainer />
