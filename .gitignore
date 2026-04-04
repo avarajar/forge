@@ -7,5 +7,7 @@ dist/
 forge.db
 .test-*
 .claude/
+.playwright-mcp/
+.superpowers/
 TASK_NOTES.md
 SHARED_CONTEXT.md
