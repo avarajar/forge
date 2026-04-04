@@ -63,6 +63,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
 
       term.open(containerRef.current!)
       fitAddon.fit()
+      if (isInteractive) term.focus()
 
       // Static content mode
       if (content && !isInteractive) {
