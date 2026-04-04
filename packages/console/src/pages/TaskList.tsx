@@ -401,10 +401,14 @@ const ProjectBanner: FunctionComponent<{ project: string; account?: string; onDe
           )}
         </div>
         <button
-          class="text-xs text-forge-muted hover:text-forge-error transition-colors"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+          style={showDelete
+            ? { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.35)', color: 'var(--forge-error)' }
+            : { backgroundColor: 'rgba(239,68,68,0.06)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--forge-error)', opacity: 0.75 }
+          }
           onClick={() => setShowDelete(!showDelete)}
         >
-          Delete project
+          ⚠ Delete project
         </button>
       </div>
 
@@ -427,7 +431,7 @@ const ProjectBanner: FunctionComponent<{ project: string; account?: string; onDe
           )}
           <div class="flex gap-2">
             <button
-              class="px-3 py-1.5 text-xs rounded-lg text-white font-medium"
+              class="px-3 py-1.5 text-xs rounded-lg text-white font-medium transition-colors"
               style={{ backgroundColor: 'var(--forge-error)' }}
               onClick={handleDelete}
               disabled={deleting}
@@ -435,7 +439,8 @@ const ProjectBanner: FunctionComponent<{ project: string; account?: string; onDe
               {deleting ? 'Deleting...' : deleteFiles ? 'Delete project + files' : 'Unregister project'}
             </button>
             <button
-              class="px-3 py-1.5 text-xs rounded-lg text-forge-muted border border-forge-border"
+              class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+              style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
               onClick={() => { setShowDelete(false); setDeleteFiles(false) }}
             >
               Cancel
@@ -535,8 +540,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           </button>
           {/* Create Project — separate from task creation */}
           <button
-            class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text"
-            style={{ backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)' }}
+            class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:bg-forge-surface"
+            style={{ borderColor: 'rgba(42,42,62,0.4)' }}
             onClick={onCreateProject}
           >
             + Project
@@ -633,10 +638,11 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         {/* Clear filters */}
         {hasActiveFilters && (
           <button
-            class="px-2.5 py-1.5 text-[11px] text-forge-muted hover:text-forge-error transition-colors"
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+            style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
             onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
           >
-            Clear filters
+            ✕ Clear filters
           </button>
         )}
       </div>
@@ -680,10 +686,11 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           </p>
           {hasActiveFilters && (
             <button
-              class="mt-3 text-xs text-forge-accent hover:underline"
+              class="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+              style={{ backgroundColor: 'rgba(30,30,50,0.6)', borderColor: 'rgba(42,42,62,0.6)' }}
               onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
             >
-              Clear filters
+              ✕ Clear filters
             </button>
           )}
         </div>
