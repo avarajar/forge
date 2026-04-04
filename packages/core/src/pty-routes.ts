@@ -7,14 +7,15 @@ export function ptyRoutes(
   app: Hono,
   manager: PTYManager,
   reader: CWReader
-): ReturnType<typeof createNodeWebSocket> {
-  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app })
+) {
+  const nodeWs = createNodeWebSocket({ app })
+  const { upgradeWebSocket } = nodeWs
 
   app.get(
     '/ws/terminal/:project/:sessionDir',
     upgradeWebSocket((c) => {
-      const project = c.req.param('project')
-      const sessionDir = c.req.param('sessionDir')
+      const project = c.req.param('project') as string
+      const sessionDir = c.req.param('sessionDir') as string
 
       return {
         onOpen(_evt, ws) {
@@ -73,5 +74,5 @@ export function ptyRoutes(
     })
   )
 
-  return { injectWebSocket, upgradeWebSocket }
+  return nodeWs
 }
