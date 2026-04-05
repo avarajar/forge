@@ -6,6 +6,7 @@
     "modules/*"
   ],
   "scripts": {
+    "start": "npm install && npm run build && node packages/platform/dist/index.js",
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",

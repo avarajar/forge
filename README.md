@@ -93,34 +93,28 @@ Once you have at least one project registered, Forge will show it in the dashboa
 
 ### Launch
 
-The easiest way — if you have CW installed:
+Clone and run:
 
 ```bash
-cw forge
+git clone https://github.com/avarajar/forge.git
+cd forge
+npm start
 ```
 
-Or run directly with npx (no install needed):
+That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`.
+
+Other ways to launch:
 
 ```bash
-npx @forge-dev/platform
+cw forge                   # If you have CW installed
+npx @forge-dev/platform    # No install needed
 ```
-
-Or install globally:
-
-```bash
-npm i -g @forge-dev/platform
-forge console
-```
-
-The dashboard opens at `http://localhost:3000`.
 
 ### Development
 
 To work on Forge itself:
 
 ```bash
-git clone https://github.com/avarajar/forge.git
-cd forge
 npm install
 npx turbo dev
 ```

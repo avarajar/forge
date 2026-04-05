@@ -1,10 +1,29 @@
 import * as pty from 'node-pty'
 import type { IPty } from 'node-pty'
+import { existsSync, chmodSync, statSync } from 'node:fs'
+import { join, dirname } from 'node:path'
+import { createRequire } from 'node:module'
 import type { CWSession } from './cw-types.js'
 
 const SCROLLBACK_LIMIT = 5000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+
+// npm install can strip execute permission from spawn-helper — fix it once at load
+function ensureSpawnHelperPermissions() {
+  try {
+    const require = createRequire(import.meta.url)
+    const ptyPath = dirname(require.resolve('node-pty/package.json'))
+    const helper = join(ptyPath, 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+    if (existsSync(helper)) {
+      const mode = statSync(helper).mode
+      if (!(mode & 0o111)) {
+        chmodSync(helper, mode | 0o755)
+      }
+    }
+  } catch { /* best effort */ }
+}
+ensureSpawnHelperPermissions()
 
 export interface PTYClient {
   send: (data: string) => void
@@ -44,22 +63,28 @@ export class PTYManager {
     return `${project}::${sessionDir}`
   }
 
-  getOrCreate(project: string, sessionDir: string, session: CWSession): PTYSession {
+  getOrCreate(project: string, sessionDir: string, session: CWSession): PTYSession | null {
     const key = this.makeKey(project, sessionDir)
     const existing = this.sessions.get(key)
     if (existing) return existing
 
     const shell = process.env.SHELL || '/bin/zsh'
     const command = this.buildCommand(session)
-    const cwd = session.worktree
+    const cwd = session.worktree && existsSync(session.worktree) ? session.worktree : process.cwd()
 
-    const ptyProcess = pty.spawn(shell, ['-c', command], {
-      name: 'xterm-256color',
-      cols: 120,
-      rows: 40,
-      cwd,
-      env: { ...process.env } as Record<string, string>
-    })
+    let ptyProcess: IPty
+    try {
+      ptyProcess = pty.spawn(shell, ['-c', command], {
+        name: 'xterm-256color',
+        cols: 120,
+        rows: 40,
+        cwd,
+        env: { ...process.env } as Record<string, string>
+      })
+    } catch (err) {
+      console.error(`[pty] Failed to spawn for ${key}: ${err}`)
+      return null
+    }
 
     const ptySession: PTYSession = {
       pty: ptyProcess,

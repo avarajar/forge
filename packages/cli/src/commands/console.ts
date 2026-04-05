@@ -46,6 +46,16 @@ export function consoleCommand() {
         authToken: isTeam ? authToken : undefined
       })
 
+      const { serveStatic } = await import('@hono/node-server/serve-static')
+      const { readFileSync } = await import('node:fs')
+      const consoleDist = join(import.meta.dirname, '../../../console/dist')
+      if (existsSync(consoleDist)) {
+        server.app.use('/*', serveStatic({ root: consoleDist }))
+        // SPA fallback: serve index.html for non-API routes
+        const indexHtml = readFileSync(join(consoleDist, 'index.html'), 'utf-8')
+        server.app.get('*', (c) => c.html(indexHtml))
+      }
+
       const { serve } = await import('@hono/node-server')
       const httpServer = serve({ fetch: server.app.fetch, port })
       server.attachTerminalWs(httpServer as unknown as import('node:http').Server)

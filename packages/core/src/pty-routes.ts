@@ -18,7 +18,13 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
     }
 
     const sessionId = `${project}::${sessionDir}`
-    manager.getOrCreate(project, sessionDir, session)
+    const ptySession = manager.getOrCreate(project, sessionDir, session)
+    if (!ptySession) {
+      console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
+      ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal for ${project}/${sessionDir}` }))
+      ws.close()
+      return
+    }
 
     const client = {
       send: (data: string) => {

@@ -82,7 +82,7 @@ App (app.tsx)
 ## Development
 
 ```bash
-npm install           # Install all workspace deps
+npm start             # Install + build + launch (one command)
 npx turbo dev         # Dev mode (all packages)
 npx turbo build       # Build all
 npx turbo test        # Run all tests
