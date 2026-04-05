@@ -66,7 +66,7 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
     const session = openTabs[index]
     if (!session) return
 
-    const sessionDir = session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`
+    const sessionDir = session.sessionDir ?? (session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`)
     try {
       await fetch('/api/cw/terminal/kill', {
         method: 'POST',

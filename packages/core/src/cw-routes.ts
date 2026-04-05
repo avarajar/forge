@@ -4,6 +4,9 @@ import { execSync, execFileSync, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+const spawnedPids = new Map<string, number>()
+export { spawnedPids }
+
 export function cwRoutes(reader: CWReader): Hono {
   const app = new Hono()
 
@@ -108,15 +111,22 @@ export function cwRoutes(reader: CWReader): Hono {
     })
     child.unref()
 
+    // Track PID so PTY manager can kill it before taking over
+    if (child.pid) {
+      const taskSlug = type === 'review' ? task : task
+      const dirName = type === 'review' ? `review-pr-${taskSlug}` : `task-${taskSlug}`
+      spawnedPids.set(`${project}::${dirName}`, child.pid)
+    }
+
     return c.json({ ok: true, command: `cw ${args.join(' ')}` })
   })
 
   app.post('/done', async (c) => {
-    const { project, task, type } = await c.req.json<{ project: string; task: string; type: string }>()
+    const { project, task, type, sessionDir } = await c.req.json<{ project: string; task: string; type: string; sessionDir?: string }>()
 
     // Directly update session.json for instant UI feedback
     const cwHome = join(process.env.HOME ?? '', '.cw')
-    const sessionDirName = type === 'review' ? `review-pr-${task}` : `task-${task}`
+    const sessionDirName = sessionDir ?? (type === 'review' ? `review-pr-${task}` : `task-${task}`)
     const sessionFile = join(cwHome, 'sessions', project, sessionDirName, 'session.json')
 
     let updated = false

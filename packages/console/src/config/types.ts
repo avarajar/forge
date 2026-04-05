@@ -68,7 +68,8 @@ export const QUICK_TYPES = [
 
 /* ── Shared helpers ── */
 
-export const sessionKey = (s: CWSession) => `${s.project}::${s.task ?? s.pr}`
+export const sessionKey = (s: CWSession) =>
+  s.sessionDir ? `${s.project}::${s.sessionDir}` : `${s.project}::${s.task ?? s.pr}`
 
 export const sessionLabel = (s: CWSession) =>
   s.type === 'review' ? `PR #${s.pr}` : (s.task ?? 'unknown')

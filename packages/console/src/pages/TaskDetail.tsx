@@ -28,7 +28,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
   const [wsKey, setWsKey] = useState(0)
   const [tools, setTools] = useState<ToolsInfo | null>(null)
 
-  const sessionDir = session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`
+  const sessionDir = session.sessionDir ?? (session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`)
   const typeCfg = TYPE_STYLES[session.type] ?? TYPE_STYLES.task
 
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -58,7 +58,8 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
         body: JSON.stringify({
           project: session.project,
           task: session.type === 'review' ? session.pr : session.task,
-          type: session.type
+          type: session.type,
+          sessionDir
         })
       })
       showToast('Task closed', 'info')

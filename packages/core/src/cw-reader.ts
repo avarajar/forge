@@ -36,6 +36,7 @@ export class CWReader {
 
         try {
           const data = JSON.parse(readFileSync(sessionPath, 'utf-8')) as CWSession
+          data.sessionDir = entry.name
           sessions.push(data)
         } catch {
           // skip corrupt session files
@@ -52,7 +53,9 @@ export class CWReader {
     const path = join(this.cwDir, 'sessions', project, sessionDir, 'session.json')
     if (!existsSync(path)) return null
     try {
-      return JSON.parse(readFileSync(path, 'utf-8'))
+      const data = JSON.parse(readFileSync(path, 'utf-8')) as CWSession
+      data.sessionDir = sessionDir
+      return data
     } catch {
       return null
     }

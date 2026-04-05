@@ -21,6 +21,7 @@ export interface CWSession {
   last_opened: string
   opens: number
   closed?: string
+  sessionDir?: string
 }
 
 export interface CWConfig {
