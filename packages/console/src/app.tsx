@@ -4,6 +4,7 @@ import { Shell } from './shell.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
+import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { TabBar } from './components/TabBar.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
@@ -84,6 +85,8 @@ function App() {
   // Create Project modal
   const [showCreateProject, setShowCreateProject] = useState(false)
 
+  const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     try {
       const [spacesRes, projectsRes, accountsRes] = await Promise.all([
@@ -124,6 +127,15 @@ function App() {
     tabs.goToList()
     setListView('list')
   }, [tabs.goToList])
+
+  const handleStartPrototype = useCallback((project: string) => {
+    setPrototypeProject(project)
+  }, [])
+
+  const handleBackFromPrototype = useCallback(() => {
+    setPrototypeProject(null)
+    setListView('list')
+  }, [])
 
   // --- Render ---
 
@@ -168,6 +180,11 @@ function App() {
               onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
             />
           </>
+        ) : prototypeProject ? (
+          <PrototypePanel
+            project={prototypeProject}
+            onBack={handleBackFromPrototype}
+          />
         ) : listView === 'new-task' ? (
           <NewTask
             projects={projects}
@@ -175,6 +192,7 @@ function App() {
             initialType={newTaskType}
             onBack={() => setListView('list')}
             onCreated={() => { setListView('list'); refreshAfterAction() }}
+            onStartPrototype={handleStartPrototype}
           />
         ) : null}
       </Shell>
