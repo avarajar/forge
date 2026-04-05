@@ -204,6 +204,45 @@ export class SandboxManager {
     }
   }
 
+  injectProjectContext(id: string, projectPath: string): { tailwind: boolean; tokens: boolean; shadcn: boolean } {
+    const sandbox = this.sandboxes.get(id)
+    if (!sandbox) return { tailwind: false, tokens: false, shadcn: false }
+
+    // Tailwind: check for config files and copy to sandbox
+    const tailwindFiles = ['tailwind.config.ts', 'tailwind.config.js', 'tailwind.config.mjs']
+    let tailwind = false
+    for (const file of tailwindFiles) {
+      const src = join(projectPath, file)
+      if (existsSync(src)) {
+        cpSync(src, join(sandbox.dir, 'tailwind.config.project.ts'))
+        tailwind = true
+        break
+      }
+    }
+
+    // Tokens: check for token directories and copy recursively
+    const tokenDirs = ['tokens', 'src/tokens', 'src/design-tokens']
+    let tokens = false
+    for (const dir of tokenDirs) {
+      const src = join(projectPath, dir)
+      if (existsSync(src)) {
+        cpSync(src, join(sandbox.dir, 'tokens'), { recursive: true })
+        tokens = true
+        break
+      }
+    }
+
+    // shadcn: check for components.json and copy to sandbox
+    const shadcnSrc = join(projectPath, 'components.json')
+    let shadcn = false
+    if (existsSync(shadcnSrc)) {
+      cpSync(shadcnSrc, join(sandbox.dir, 'components.json'))
+      shadcn = true
+    }
+
+    return { tailwind, tokens, shadcn }
+  }
+
   dispose(): void {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer)

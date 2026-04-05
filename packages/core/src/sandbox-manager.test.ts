@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { SandboxManager } from './sandbox-manager.js'
 import type { SandboxInput } from './sandbox-types.js'
@@ -83,5 +83,66 @@ describe('SandboxManager', () => {
 
     expect(manager.get(sandbox.id)).toBeUndefined()
     expect(existsSync(dir)).toBe(false)
+  })
+})
+
+describe('SandboxManager context injection', () => {
+  const CONTEXT_TEST_DIR = join(import.meta.dirname, '../.test-sandbox-context')
+  const FAKE_PROJECT_DIR = join(import.meta.dirname, '../.test-fake-project')
+  let manager: SandboxManager
+
+  beforeAll(() => {
+    // Clean up and create test dirs
+    for (const dir of [CONTEXT_TEST_DIR, FAKE_PROJECT_DIR]) {
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true })
+      }
+      mkdirSync(dir, { recursive: true })
+    }
+
+    // Create fake project files
+    writeFileSync(
+      join(FAKE_PROJECT_DIR, 'tailwind.config.ts'),
+      `export default { theme: { extend: { colors: { brand: "#ff0000" } } } }`
+    )
+    mkdirSync(join(FAKE_PROJECT_DIR, 'tokens'), { recursive: true })
+    writeFileSync(
+      join(FAKE_PROJECT_DIR, 'tokens', 'colors.json'),
+      JSON.stringify({ primary: '#3b82f6' })
+    )
+
+    manager = new SandboxManager({
+      templateDir: TEMPLATE_DIR,
+      sandboxBaseDir: CONTEXT_TEST_DIR,
+      portRangeStart: 62000,
+    })
+  })
+
+  afterAll(() => {
+    manager.dispose()
+    for (const dir of [CONTEXT_TEST_DIR, FAKE_PROJECT_DIR]) {
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+  })
+
+  it('injects project tailwind config into sandbox', () => {
+    const sandbox = manager.create({ name: 'tailwind-test', input: defaultInput })
+    const result = manager.injectProjectContext(sandbox.id, FAKE_PROJECT_DIR)
+
+    expect(result.tailwind).toBe(true)
+    const destPath = join(sandbox.dir, 'tailwind.config.project.ts')
+    expect(existsSync(destPath)).toBe(true)
+    const contents = readFileSync(destPath, 'utf8')
+    expect(contents).toContain('brand')
+  })
+
+  it('injects project tokens into sandbox', () => {
+    const sandbox = manager.create({ name: 'tokens-test', input: defaultInput })
+    const result = manager.injectProjectContext(sandbox.id, FAKE_PROJECT_DIR)
+
+    expect(result.tokens).toBe(true)
+    expect(existsSync(join(sandbox.dir, 'tokens', 'colors.json'))).toBe(true)
   })
 })
