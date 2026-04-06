@@ -1,8 +1,14 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
+import type { CWSession } from './cw-types.js'
 import { execSync, execFileSync, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+
+// Sessions created via /api/cw/start that don't exist on disk yet.
+// PTY routes check here when reader.getSession() returns null.
+const pendingSessions = new Map<string, CWSession>()
+export { pendingSessions }
 
 export function cwRoutes(reader: CWReader): Hono {
   const app = new Hono()
@@ -133,7 +139,7 @@ export function cwRoutes(reader: CWReader): Hono {
     // The PTY manager will spawn `cw work/review` when the tab connects.
     // No detached process — avoids double spawn and stale session resume.
     const sessionDirName = `${dirPrefix}${taskSlug}`
-    const sessionData: Record<string, unknown> = {
+    const sessionData: CWSession = {
       project,
       task: type === 'review' ? undefined : taskSlug,
       pr: type === 'review' ? taskSlug : undefined,
@@ -148,6 +154,9 @@ export function cwRoutes(reader: CWReader): Hono {
       opens: 0,
       sessionDir: sessionDirName,
     }
+
+    // Store so pty-routes can find it before CW creates session.json on disk
+    pendingSessions.set(`${project}::${sessionDirName}`, sessionData)
 
     return c.json({ ok: true, session: sessionData, command: `cw ${args.join(' ')}` })
   })

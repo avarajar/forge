@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'node:http'
 import type { PTYManager } from './pty-manager.js'
 import type { CWReader } from './cw-reader.js'
+import { pendingSessions } from './cw-routes.js'
 
 export function createTerminalWss(manager: PTYManager, reader: CWReader) {
   const wss = new WebSocketServer({ noServer: true })
@@ -9,7 +10,10 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
   wss.on('connection', (ws: WebSocket, project: string, sessionDir: string) => {
     console.log(`[pty-ws] Connected: ${project}/${sessionDir}`)
 
-    const session = reader.getSession(project, sessionDir)
+    const sessionId = `${project}::${sessionDir}`
+    const session = reader.getSession(project, sessionDir) ?? pendingSessions.get(sessionId)
+    if (session) pendingSessions.delete(sessionId)
+
     if (!session) {
       console.log(`[pty-ws] Session not found: ${project}/${sessionDir}`)
       ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
@@ -17,7 +21,6 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
       return
     }
 
-    const sessionId = `${project}::${sessionDir}`
     const ptySession = manager.getOrCreate(project, sessionDir, session)
     if (!ptySession) {
       console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
