@@ -108,6 +108,7 @@ export function cwRoutes(reader: CWReader): Hono {
     const args: string[] = []
     if (type === 'review') {
       args.push('review', project, task)
+      if (account) args.push('--account', account)
     } else if (type === 'plan') {
       args.push('plan', project, description ?? task)
     } else if (type === 'create') {
@@ -116,6 +117,7 @@ export function cwRoutes(reader: CWReader): Hono {
       if (directory) args.push('--dir', directory)
     } else {
       args.push('work', project, task)
+      if (account) args.push('--account', account)
       if (workflow) args.push('--workflow', workflow)
     }
 

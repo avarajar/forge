@@ -52,9 +52,12 @@ export class PTYManager {
 
   private buildCommand(session: CWSession): string {
     if (session.type === 'review') {
-      return `cw review ${session.project} ${session.pr}`
+      let cmd = `cw review ${session.project} ${session.pr}`
+      if (session.account) cmd += ` --account ${session.account}`
+      return cmd
     }
     let cmd = `cw work ${session.project} ${session.task}`
+    if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
     return cmd
   }

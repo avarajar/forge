@@ -82,6 +82,7 @@ describe('PTYManager', () => {
     const session = makeSession({ project: 'myapp', task: 'fix-login', account: 'work', workflow: 'bugfix' })
     const ptySession = manager.getOrCreate('myapp', 'task-fix-login', session)
     expect(ptySession.command).toContain('cw work myapp fix-login')
+    expect(ptySession.command).toContain('--account work')
     expect(ptySession.command).toContain('--workflow bugfix')
   })
 
