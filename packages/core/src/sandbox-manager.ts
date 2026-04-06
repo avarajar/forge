@@ -84,6 +84,18 @@ export class SandboxManager {
     const sandbox = this.sandboxes.get(id)
     if (!sandbox || sandbox.port === null) return false
 
+    // Install dependencies first
+    try {
+      const { execSync } = await import('node:child_process')
+      execSync('npm install --prefer-offline --no-audit --no-fund', {
+        cwd: sandbox.dir,
+        stdio: 'pipe',
+        timeout: 60000,
+      })
+    } catch {
+      return false
+    }
+
     return new Promise<boolean>((resolve) => {
       const child = spawn('npx', ['vite', '--port', String(sandbox.port), '--host', '127.0.0.1', '--strictPort'], {
         cwd: sandbox.dir,
