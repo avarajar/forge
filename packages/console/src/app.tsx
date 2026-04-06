@@ -191,7 +191,11 @@ function App() {
             accounts={filters.accountNames}
             initialType={newTaskType}
             onBack={() => setListView('list')}
-            onCreated={() => { setListView('list'); refreshAfterAction() }}
+            onCreated={(session) => {
+              setListView('list')
+              if (session) tabs.openTab(session)
+              refreshAfterAction()
+            }}
             onStartPrototype={handleStartPrototype}
           />
         ) : null}

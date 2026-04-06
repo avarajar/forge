@@ -4,9 +4,6 @@ import { execSync, execFileSync, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-const spawnedPids = new Map<string, number>()
-export { spawnedPids }
-
 export function cwRoutes(reader: CWReader): Hono {
   const app = new Hono()
 
@@ -132,22 +129,27 @@ export function cwRoutes(reader: CWReader): Hono {
       }
     }
 
-    // CW commands are interactive (open terminal windows).
-    // Spawn detached so they don't block the server.
-    const child = spawn('cw', args, {
-      detached: true,
-      stdio: 'ignore'
-    })
-    child.unref()
-
-    // Track PID so PTY manager can kill it before taking over
-    if (child.pid) {
-      const taskSlug = type === 'review' ? task : task
-      const dirName = type === 'review' ? `review-pr-${taskSlug}` : `task-${taskSlug}`
-      spawnedPids.set(`${project}::${dirName}`, child.pid)
+    // Return session info so the frontend can open the tab directly.
+    // The PTY manager will spawn `cw work/review` when the tab connects.
+    // No detached process — avoids double spawn and stale session resume.
+    const sessionDirName = `${dirPrefix}${taskSlug}`
+    const sessionData: Record<string, unknown> = {
+      project,
+      task: type === 'review' ? undefined : taskSlug,
+      pr: type === 'review' ? taskSlug : undefined,
+      type: type === 'review' ? 'review' : 'task',
+      account: account ?? '',
+      workflow: workflow ?? '',
+      worktree: '',
+      notes: '',
+      status: 'active',
+      created: new Date().toISOString(),
+      last_opened: new Date().toISOString(),
+      opens: 0,
+      sessionDir: sessionDirName,
     }
 
-    return c.json({ ok: true, command: `cw ${args.join(' ')}` })
+    return c.json({ ok: true, session: sessionData, command: `cw ${args.join(' ')}` })
   })
 
   app.post('/done', async (c) => {

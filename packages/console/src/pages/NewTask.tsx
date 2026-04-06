@@ -1,13 +1,14 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, Badge, showToast } from '@forge-dev/ui'
+import type { CWSession } from '@forge-dev/core'
 
 interface NewTaskProps {
   projects: Record<string, { path: string; account: string }>
   accounts: string[]
   initialType?: string
   onBack: () => void
-  onCreated: () => void
+  onCreated: (session?: CWSession) => void
   onStartPrototype?: (project: string) => void
 }
 
@@ -92,10 +93,10 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           account: selectedAccount || undefined
         })
       })
-      const result = await res.json() as { ok: boolean; error?: string }
+      const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
       if (result.ok) {
-        showToast('Task started — check your terminal', 'success')
-        onCreated()
+        showToast('Task started', 'success')
+        onCreated(result.session)
       } else {
         showToast(result.error ?? 'Failed to start task', 'error')
       }

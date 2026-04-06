@@ -2,7 +2,6 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'node:http'
 import type { PTYManager } from './pty-manager.js'
 import type { CWReader } from './cw-reader.js'
-import { spawnedPids } from './cw-routes.js'
 
 export function createTerminalWss(manager: PTYManager, reader: CWReader) {
   const wss = new WebSocketServer({ noServer: true })
@@ -19,14 +18,6 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
     }
 
     const sessionId = `${project}::${sessionDir}`
-
-    // Kill any detached CW process spawned by /api/cw/start before PTY takes over
-    const trackedPid = spawnedPids.get(sessionId)
-    if (trackedPid) {
-      try { process.kill(trackedPid) } catch {}
-      spawnedPids.delete(sessionId)
-    }
-
     const ptySession = manager.getOrCreate(project, sessionDir, session)
     if (!ptySession) {
       console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
