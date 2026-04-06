@@ -88,7 +88,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           project,
           task: task.trim(),
           description: description.trim() || undefined,
-          workflow: workflow || undefined
+          workflow: workflow || undefined,
+          account: selectedAccount || undefined
         })
       })
       const result = await res.json() as { ok: boolean; error?: string }

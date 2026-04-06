@@ -89,6 +89,22 @@ export function cwRoutes(reader: CWReader): Hono {
       type: string; project: string; task: string; description?: string; workflow?: string; account?: string; directory?: string
     }>()
 
+    // Check if session already exists (active)
+    const cwHome = join(process.env.HOME ?? '', '.cw')
+    const taskSlug = task.trim()
+    const dirPrefix = type === 'review' ? 'review-pr-' : 'task-'
+    const sessionDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
+    const sessionFile = join(sessionDir, 'session.json')
+
+    if (existsSync(sessionFile)) {
+      try {
+        const meta = JSON.parse(readFileSync(sessionFile, 'utf-8'))
+        if (meta.status === 'active') {
+          return c.json({ ok: false, error: `Session "${taskSlug}" already exists for ${project}. Pick a different name or open the existing task.` }, 409)
+        }
+      } catch {}
+    }
+
     const args: string[] = []
     if (type === 'review') {
       args.push('review', project, task)
@@ -101,6 +117,17 @@ export function cwRoutes(reader: CWReader): Hono {
     } else {
       args.push('work', project, task)
       if (workflow) args.push('--workflow', workflow)
+    }
+
+    // Pre-write description to TASK_NOTES.md so CW picks it up
+    if (description && type !== 'plan' && type !== 'create') {
+      const { mkdirSync, writeFileSync: writeSync } = await import('node:fs')
+      const notesDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
+      mkdirSync(notesDir, { recursive: true })
+      const notesFile = join(notesDir, type === 'review' ? 'REVIEW_NOTES.md' : 'TASK_NOTES.md')
+      if (!existsSync(notesFile)) {
+        writeSync(notesFile, `# ${type === 'review' ? 'Review' : 'Task'}: ${taskSlug}\n\n## Description\n${description}\n\n## Notes\n`)
+      }
     }
 
     // CW commands are interactive (open terminal windows).

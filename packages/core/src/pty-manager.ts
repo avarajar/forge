@@ -55,7 +55,7 @@ export class PTYManager {
       return `cw review ${session.project} ${session.pr}`
     }
     let cmd = `cw work ${session.project} ${session.task}`
-    if (session.account) cmd += ` --account ${session.account}`
+    if (session.workflow) cmd += ` --workflow ${session.workflow}`
     return cmd
   }
 
