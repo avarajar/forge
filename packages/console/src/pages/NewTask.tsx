@@ -8,6 +8,7 @@ interface NewTaskProps {
   initialType?: string
   onBack: () => void
   onCreated: () => void
+  onStartPrototype?: (project: string) => void
 }
 
 const TYPES = [
@@ -18,7 +19,7 @@ const TYPES = [
 ]
 
 export const NewTask: FunctionComponent<NewTaskProps> = ({
-  projects, accounts, initialType, onBack, onCreated
+  projects, accounts, initialType, onBack, onCreated, onStartPrototype
 }) => {
   const [type, setType] = useState(initialType ?? 'dev')
   const [selectedAccount, setSelectedAccount] = useState('')
@@ -71,6 +72,11 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
   const handleStart = async () => {
     if (!task.trim()) return
+
+    if (type === 'design' && onStartPrototype) {
+      onStartPrototype(project)
+      return
+    }
 
     setStarting(true)
     try {

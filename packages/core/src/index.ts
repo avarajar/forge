@@ -15,3 +15,6 @@ export type { CWProject, CWSession, CWConfig, StackDetection } from './cw-types.
 export { PTYManager } from './pty-manager.js'
 export type { PTYSession, PTYClient } from './pty-manager.js'
 export { createTerminalWss } from './pty-routes.js'
+export { SandboxManager } from './sandbox-manager.js'
+export { prototypeRoutes } from './prototype-routes.js'
+export type { Sandbox, SandboxState, SandboxInput, SandboxConfig, InputType } from './sandbox-types.js'

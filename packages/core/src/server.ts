@@ -13,6 +13,9 @@ import { CWReader } from './cw-reader.js'
 import { cwRoutes } from './cw-routes.js'
 import { PTYManager } from './pty-manager.js'
 import { createTerminalWss } from './pty-routes.js'
+import { SandboxManager } from './sandbox-manager.js'
+import { prototypeRoutes } from './prototype-routes.js'
+import { tmpdir } from 'node:os'
 
 interface ServerOptions {
   dataDir: string
@@ -44,6 +47,13 @@ export function createForgeServer(options: ServerOptions) {
 
   const ptyManager = new PTYManager()
   const terminalWss = createTerminalWss(ptyManager, cwReader)
+
+  const sandboxManager = new SandboxManager({
+    templateDir: join(import.meta.dirname, '../sandbox-template'),
+    sandboxBaseDir: join(tmpdir(), 'forge-sandboxes'),
+    portRangeStart: 51000,
+  })
+  app.route('/api/prototype', prototypeRoutes(sandboxManager))
 
   app.post('/api/cw/terminal/kill', async (c) => {
     const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
@@ -245,6 +255,6 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); db.close() }
+    close: () => { ptyManager.dispose(); sandboxManager.dispose(); db.close() }
   }
 }
