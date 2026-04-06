@@ -39,7 +39,9 @@ export function prototypeRoutes(manager: SandboxManager): Hono {
 
     try {
       const ok = await manager.startDevServer(id)
-      return c.json({ ok, port: sandbox.port })
+      if (!ok) return c.json({ error: 'Failed to start dev server (npm install or vite startup failed)' }, 500)
+      const updated = manager.get(id)
+      return c.json({ ok: true, port: updated?.port ?? sandbox.port })
     } catch {
       return c.json({ error: 'Failed to start dev server' }, 500)
     }
