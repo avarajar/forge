@@ -1,9 +1,12 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import type { CWSession } from './cw-types.js'
-import { execSync, execFileSync, spawn } from 'node:child_process'
+import { ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
+import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
+import { promisify } from 'node:util'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+
+const execFileAsync = promisify(execFile)
 
 // Sessions created via /api/cw/start that don't exist on disk yet.
 // PTY routes check here when reader.getSession() returns null.
@@ -37,6 +40,31 @@ export function cwRoutes(reader: CWReader): Hono {
 
   app.get('/accounts', (c) => {
     return c.json(reader.getAccounts())
+  })
+
+  app.post('/accounts', async (c) => {
+    const { name } = await c.req.json<{ name: string }>()
+
+    if (!name || !name.trim()) {
+      return c.json({ ok: false, error: 'Account name is required' }, 400)
+    }
+
+    const trimmed = name.trim()
+    if (!ACCOUNT_NAME_RE.test(trimmed)) {
+      return c.json({ ok: false, error: 'Name must start with a letter or number and contain only letters, numbers, hyphens, and underscores (max 64 chars)' }, 400)
+    }
+
+    if (reader.getAccounts().includes(trimmed)) {
+      return c.json({ ok: false, error: `Account "${trimmed}" already exists` }, 409)
+    }
+
+    try {
+      await execFileAsync('cw', ['account', 'add', trimmed], { encoding: 'utf-8', timeout: 10000 })
+      return c.json({ ok: true, name: trimmed })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return c.json({ ok: false, error: `Failed to create account: ${message}` }, 500)
+    }
   })
 
   app.get('/detect/:project', (c) => {

@@ -82,4 +82,48 @@ describe('CW Routes', () => {
     const res = await app.request('/api/cw/session/testproj/nonexistent')
     expect(res.status).toBe(404)
   })
+
+  it('POST /api/cw/accounts rejects empty name', async () => {
+    const res = await app.request('/api/cw/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '' })
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json() as { ok: boolean; error: string }
+    expect(body.ok).toBe(false)
+    expect(body.error).toContain('required')
+  })
+
+  it('POST /api/cw/accounts rejects invalid characters', async () => {
+    const res = await app.request('/api/cw/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'bad account!' })
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json() as { ok: boolean; error: string }
+    expect(body.ok).toBe(false)
+  })
+
+  it('POST /api/cw/accounts rejects name starting with hyphen', async () => {
+    const res = await app.request('/api/cw/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: '-bad' })
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/accounts rejects duplicate account', async () => {
+    const res = await app.request('/api/cw/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'default' })
+    })
+    expect(res.status).toBe(409)
+    const body = await res.json() as { ok: boolean; error: string }
+    expect(body.ok).toBe(false)
+    expect(body.error).toContain('already exists')
+  })
 })

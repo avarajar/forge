@@ -6,6 +6,7 @@ import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
 import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
+import { CreateAccountModal } from './pages/CreateAccountModal.js'
 import { TabBar } from './components/TabBar.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
@@ -82,8 +83,9 @@ function App() {
   const [listView, setListView] = useState<'list' | 'new-task'>('list')
   const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
-  // Create Project modal
+  // Create Project / Account modals
   const [showCreateProject, setShowCreateProject] = useState(false)
+  const [showCreateAccount, setShowCreateAccount] = useState(false)
 
   const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
 
@@ -159,6 +161,7 @@ function App() {
               loading={loading}
               onNewTask={handleNewTask}
               onCreateProject={() => setShowCreateProject(true)}
+              onCreateAccount={() => setShowCreateAccount(true)}
               onSelectTask={tabs.openTab}
               onRefresh={() => fetchData()}
               accountNames={filters.accountNames}
@@ -178,6 +181,11 @@ function App() {
               accounts={filters.accountNames}
               onClose={() => setShowCreateProject(false)}
               onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
+            />
+            <CreateAccountModal
+              open={showCreateAccount}
+              onClose={() => setShowCreateAccount(false)}
+              onCreated={() => { setShowCreateAccount(false); refreshAfterAction() }}
             />
           </>
         ) : prototypeProject ? (
