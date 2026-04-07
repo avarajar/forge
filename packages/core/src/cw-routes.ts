@@ -94,7 +94,25 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Check if session already exists (active)
     const cwHome = join(process.env.HOME ?? '', '.cw')
-    const taskSlug = task.trim()
+    let taskSlug = task.trim()
+
+    // Extract identifier from URLs (mirrors CW's parsing)
+    if (taskSlug.startsWith('http')) {
+      if (taskSlug.includes('github.com')) {
+        const m = taskSlug.match(/(\d+)\s*$/)
+        if (m) taskSlug = m[1]
+      } else if (taskSlug.includes('linear.app')) {
+        const m = taskSlug.match(/([A-Z]+-\d+)/)
+        if (m) taskSlug = m[1]
+      } else if (taskSlug.includes('notion.so') || taskSlug.includes('notion.site')) {
+        const parts = taskSlug.split('/')
+        const last = parts[parts.length - 1] ?? ''
+        taskSlug = last.replace(/-[a-f0-9]+$/, '').slice(0, 30)
+      } else {
+        taskSlug = taskSlug.replace(/^https?:\/\//, '').replace(/\//g, '-').slice(0, 30)
+      }
+    }
+
     const dirPrefix = type === 'review' ? 'review-pr-' : 'task-'
     const sessionDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
     const sessionFile = join(sessionDir, 'session.json')
