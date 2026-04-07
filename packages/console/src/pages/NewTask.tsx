@@ -51,8 +51,12 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
   // On mount: set initial account and project (runs once)
   useEffect(() => {
-    const acc = initialAccount && accountList.includes(initialAccount)
-      ? initialAccount
+    // If a project is pre-selected, derive account from it when not explicitly set
+    const derivedAccount = initialProject && !initialAccount && projects[initialProject]
+      ? projects[initialProject].account
+      : undefined
+    const acc = (initialAccount ?? derivedAccount) && accountList.includes((initialAccount ?? derivedAccount)!)
+      ? (initialAccount ?? derivedAccount)!
       : accountList.length > 0 ? accountList[0] : ''
     setSelectedAccount(acc)
     const projs = acc

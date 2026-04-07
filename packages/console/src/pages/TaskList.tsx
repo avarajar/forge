@@ -277,6 +277,11 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
               />
             ))}
           </div>
+          {filterProject && (
+            <div class="mt-4 flex items-center gap-3">
+              <QuickTypePills onNewTask={onNewTask} />
+            </div>
+          )}
         </div>
       )}
 
