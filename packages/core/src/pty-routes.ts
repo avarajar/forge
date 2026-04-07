@@ -7,28 +7,7 @@ import { pendingSessions } from './cw-routes.js'
 export function createTerminalWss(manager: PTYManager, reader: CWReader) {
   const wss = new WebSocketServer({ noServer: true })
 
-  wss.on('connection', (ws: WebSocket, project: string, sessionDir: string) => {
-    console.log(`[pty-ws] Connected: ${project}/${sessionDir}`)
-
-    const sessionId = `${project}::${sessionDir}`
-    const session = reader.getSession(project, sessionDir) ?? pendingSessions.get(sessionId)
-    if (session) pendingSessions.delete(sessionId)
-
-    if (!session) {
-      console.log(`[pty-ws] Session not found: ${project}/${sessionDir}`)
-      ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
-      ws.close()
-      return
-    }
-
-    const ptySession = manager.getOrCreate(project, sessionDir, session)
-    if (!ptySession) {
-      console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
-      ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal for ${project}/${sessionDir}` }))
-      ws.close()
-      return
-    }
-
+  function wireWs(ws: WebSocket, sessionId: string, project: string, sessionDir: string) {
     const client = {
       send: (data: string) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(data)
@@ -57,6 +36,40 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
       console.log(`[pty-ws] Disconnected: ${project}/${sessionDir}`)
       manager.detach(sessionId, client)
     })
+  }
+
+  wss.on('connection', (ws: WebSocket, project: string, sessionDir: string) => {
+    console.log(`[pty-ws] Connected: ${project}/${sessionDir}`)
+
+    const sessionId = `${project}::${sessionDir}`
+
+    // Reattach to an already-running PTY even if session metadata is gone
+    // (e.g. general sessions where session.json never exists on disk and
+    //  pendingSessions was consumed on the first connect)
+    if (manager.has(sessionId)) {
+      wireWs(ws, sessionId, project, sessionDir)
+      return
+    }
+
+    const session = reader.getSession(project, sessionDir) ?? pendingSessions.get(sessionId)
+    if (session) pendingSessions.delete(sessionId)
+
+    if (!session) {
+      console.log(`[pty-ws] Session not found: ${project}/${sessionDir}`)
+      ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
+      ws.close()
+      return
+    }
+
+    const ptySession = manager.getOrCreate(project, sessionDir, session)
+    if (!ptySession) {
+      console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
+      ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal for ${project}/${sessionDir}` }))
+      ws.close()
+      return
+    }
+
+    wireWs(ws, sessionId, project, sessionDir)
   })
 
   function attachToServer(server: Server) {

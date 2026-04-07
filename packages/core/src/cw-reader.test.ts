@@ -80,6 +80,21 @@ describe('CWReader', () => {
     expect(session).toBeNull()
   })
 
+  it('reads notes from TASK_NOTES.md when session.json does not exist yet', () => {
+    // Simulate a freshly started task: TASK_NOTES.md exists but session.json hasn't been created yet
+    mkdirSync(join(TEST_CW, 'sessions/myapp/task-new'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/myapp/task-new/TASK_NOTES.md'), '# Task: new\n\n## Description\nSome bug description\n')
+    const notes = reader.getNotes('myapp', 'task-new')
+    expect(notes).toContain('Some bug description')
+  })
+
+  it('reads notes from REVIEW_NOTES.md when session.json does not exist yet', () => {
+    mkdirSync(join(TEST_CW, 'sessions/myapp/review-pr-99'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/myapp/review-pr-99/REVIEW_NOTES.md'), '# Review: pr-99\n\n## Description\nReview notes here\n')
+    const notes = reader.getNotes('myapp', 'review-pr-99')
+    expect(notes).toContain('Review notes here')
+  })
+
   it('reads accounts', () => {
     const accounts = reader.getAccounts()
     expect(accounts).toContain('default')
