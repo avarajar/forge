@@ -12,7 +12,7 @@ export interface CWSession {
   project: string
   task?: string
   pr?: string
-  type: 'task' | 'review'
+  type: 'task' | 'review' | 'general'
   account: string
   workflow?: string
   worktree: string
@@ -25,6 +25,7 @@ export interface CWSession {
   opens: number
   closed?: string
   sessionDir?: string
+  skipPermissions?: boolean
 }
 
 export interface CWConfig {

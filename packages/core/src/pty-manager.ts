@@ -51,12 +51,16 @@ export class PTYManager {
   }
 
   private buildCommand(session: CWSession): string {
+    const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
+    if (session.type === 'general') {
+      return `${prefix} launch ${session.account || ''}`
+    }
     if (session.type === 'review') {
-      let cmd = `cw review ${session.project} ${session.pr}`
+      let cmd = `${prefix} review ${session.project} ${session.pr}`
       if (session.account) cmd += ` --account ${session.account}`
       return cmd
     }
-    let cmd = `cw work ${session.project} ${session.task}`
+    let cmd = `${prefix} work ${session.project} ${session.task}`
     if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
     return cmd

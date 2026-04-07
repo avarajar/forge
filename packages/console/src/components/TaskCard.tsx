@@ -63,7 +63,8 @@ export const TaskCard: FunctionComponent<{
   showAccount: boolean
   isOpenInTab: boolean
   onSelect: () => void
-}> = ({ session, showAccount, isOpenInTab, onSelect }) => {
+  onMarkDone?: () => void
+}> = ({ session, showAccount, isOpenInTab, onSelect, onMarkDone }) => {
   const style = getTypeStyle(session.type)
   const [hovered, setHovered] = useState(false)
   return (
@@ -108,6 +109,16 @@ export const TaskCard: FunctionComponent<{
         <span class="text-xs text-forge-muted whitespace-nowrap">
           {timeAgo(session.last_opened)}
         </span>
+        {onMarkDone && (
+          <button
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-forge-muted hover:text-forge-success opacity-0 group-hover:opacity-100"
+            style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
+            onClick={(e: Event) => { e.stopPropagation(); onMarkDone() }}
+            title="Mark as done"
+          >
+            ✓ Done
+          </button>
+        )}
         {isOpenInTab ? (
           <span
             class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
