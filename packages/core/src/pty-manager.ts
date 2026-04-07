@@ -77,7 +77,9 @@ export class PTYManager {
 
     const shell = process.env.SHELL || '/bin/zsh'
     const command = this.buildCommand(session)
-    const cwd = session.worktree && existsSync(session.worktree) ? session.worktree : process.cwd()
+    const cwd = session.type === 'general'
+      ? (process.env.HOME ?? process.cwd())
+      : session.worktree && existsSync(session.worktree) ? session.worktree : process.cwd()
 
     let ptyProcess: IPty
     try {
