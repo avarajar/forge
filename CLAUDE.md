@@ -134,3 +134,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - Do not skip tests
 - Do not store secrets in config files
 - Do not break the `npx @forge-dev/platform` zero-config experience
+
+## Related Projects
+
+- **CW (Claude Workspace Manager)** — The CLI tool Forge wraps. Source at `/Users/joselito/Workspace/personal/cw-repo/`. Pure Bash script (~4300 lines). Forge spawns CW commands like `cw work`, `cw review`, `cw launch` via PTY.

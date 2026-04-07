@@ -7,6 +7,8 @@ interface NewTaskProps {
   projects: Record<string, { path: string; account: string }>
   accounts: string[]
   initialType?: string
+  initialAccount?: string
+  initialProject?: string
   onBack: () => void
   onCreated: (session?: CWSession) => void
   onStartPrototype?: (project: string) => void
@@ -17,10 +19,11 @@ const TYPES = [
   { id: 'design', label: 'Design', color: '#8b5cf6' },
   { id: 'review', label: 'Review', color: '#6366f1' },
   { id: 'plan', label: 'Plan', color: '#3b82f6' },
+  { id: 'general', label: 'General', color: '#059669' },
 ]
 
 export const NewTask: FunctionComponent<NewTaskProps> = ({
-  projects, accounts, initialType, onBack, onCreated, onStartPrototype
+  projects, accounts, initialType, initialAccount, initialProject, onBack, onCreated, onStartPrototype
 }) => {
   const [type, setType] = useState(initialType ?? 'dev')
   const [selectedAccount, setSelectedAccount] = useState('')
@@ -28,10 +31,13 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const [task, setTask] = useState('')
   const [description, setDescription] = useState('')
   const [workflow, setWorkflow] = useState('')
+  const [skipPermissions, setSkipPermissions] = useState(false)
   const [starting, setStarting] = useState(false)
   const [detection, setDetection] = useState<Record<string, unknown> | null>(null)
 
   const projectNames = Object.keys(projects)
+  const isGeneral = type === 'general'
+  const isReview = type === 'review'
 
   // Derive accounts from projects if not provided
   const accountList = accounts.length > 0
@@ -45,12 +51,17 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
   // On mount: set initial account and project (runs once)
   useEffect(() => {
-    const acc = accountList.length > 0 ? accountList[0] : ''
+    const acc = initialAccount && accountList.includes(initialAccount)
+      ? initialAccount
+      : accountList.length > 0 ? accountList[0] : ''
     setSelectedAccount(acc)
     const projs = acc
       ? projectNames.filter(n => projects[n]?.account === acc)
       : projectNames
-    if (projs.length > 0) setProject(projs[0])
+    const proj = initialProject && projs.includes(initialProject)
+      ? initialProject
+      : projs.length > 0 ? projs[0] : ''
+    if (proj) setProject(proj)
   }, [])
 
   // When account changes (user interaction), update project list
@@ -63,16 +74,16 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   }
 
   useEffect(() => {
-    if (project) {
+    if (project && !isGeneral) {
       fetch(`/api/cw/detect/${project}`)
         .then(r => r.json())
         .then(d => setDetection(d as Record<string, unknown>))
         .catch(() => setDetection(null))
     }
-  }, [project])
+  }, [project, isGeneral])
 
   const handleStart = async () => {
-    if (!task.trim()) return
+    if (!isGeneral && !task.trim()) return
 
     if (type === 'design' && onStartPrototype) {
       onStartPrototype(project)
@@ -81,33 +92,36 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
     setStarting(true)
     try {
+      const body: Record<string, unknown> = {
+        type: type === 'design' ? 'dev' : type,
+        account: selectedAccount || undefined,
+        skipPermissions: skipPermissions || undefined,
+      }
+      if (!isGeneral) {
+        body.project = project
+        body.task = task.trim()
+        body.description = description.trim() || undefined
+        body.workflow = workflow || undefined
+      }
+
       const res = await fetch('/api/cw/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: type === 'design' ? 'dev' : type,
-          project,
-          task: task.trim(),
-          description: description.trim() || undefined,
-          workflow: workflow || undefined,
-          account: selectedAccount || undefined
-        })
+        body: JSON.stringify(body)
       })
       const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
       if (result.ok) {
-        showToast('Task started', 'success')
+        showToast(isGeneral ? 'Session started' : 'Task started', 'success')
         onCreated(result.session)
       } else {
-        showToast(result.error ?? 'Failed to start task', 'error')
+        showToast(result.error ?? 'Failed to start', 'error')
       }
     } catch {
-      showToast('Failed to start task', 'error')
+      showToast('Failed to start', 'error')
     } finally {
       setStarting(false)
     }
   }
-
-  const isReview = type === 'review'
 
   return (
     <div>
@@ -119,7 +133,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         ← Back to tasks
       </button>
 
-      <h2 class="text-xl font-bold mb-6">New Task</h2>
+      <h2 class="text-xl font-bold mb-6">{isGeneral ? 'New Session' : 'New Task'}</h2>
 
       <div class="max-w-lg">
         {/* Type selector */}
@@ -143,8 +157,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           ))}
         </div>
 
-        {/* Account selector */}
-        {accountList.length > 1 && (
+        {/* Account selector — always shown for general, conditional for others */}
+        {(isGeneral || accountList.length > 1) && (
           <div class="mb-4">
             <label class="block text-sm font-medium mb-1">Account</label>
             <select
@@ -159,48 +173,54 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           </div>
         )}
 
-        {/* Project selector */}
-        <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">Project</label>
-          <select
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-            value={project}
-            onChange={(e) => setProject((e.target as HTMLSelectElement).value)}
-          >
-            {filteredProjectNames.map(p => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-          {projects[project] && (
-            <div class="text-xs text-forge-muted mt-1">{(projects[project] as { path: string }).path}</div>
-          )}
-        </div>
+        {/* Project selector — hidden for general */}
+        {!isGeneral && (
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">Project</label>
+            <select
+              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+              value={project}
+              onChange={(e) => setProject((e.target as HTMLSelectElement).value)}
+            >
+              {filteredProjectNames.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            {projects[project] && (
+              <div class="text-xs text-forge-muted mt-1">{(projects[project] as { path: string }).path}</div>
+            )}
+          </div>
+        )}
 
-        {/* Task name / PR number */}
-        <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">
-            {isReview ? 'PR Number or URL' : 'Task Name or URL'}
-          </label>
-          <input
-            type="text"
-            value={task}
-            onInput={(e) => setTask((e.target as HTMLInputElement).value)}
-            placeholder={isReview ? '42 or https://github.com/...' : 'fix-auth or https://linear.app/...'}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-          />
-        </div>
+        {/* Task name / PR number — hidden for general */}
+        {!isGeneral && (
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">
+              {isReview ? 'PR Number or URL' : 'Task Name or URL'}
+            </label>
+            <input
+              type="text"
+              value={task}
+              onInput={(e) => setTask((e.target as HTMLInputElement).value)}
+              placeholder={isReview ? '42 or https://github.com/...' : 'fix-auth or https://linear.app/...'}
+              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+            />
+          </div>
+        )}
 
-        {/* Description */}
-        <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">Description (optional)</label>
-          <textarea
-            value={description}
-            onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-            placeholder="Describe the task..."
-            rows={3}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
-          />
-        </div>
+        {/* Description — hidden for general */}
+        {!isGeneral && (
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">Description (optional)</label>
+            <textarea
+              value={description}
+              onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
+              placeholder="Describe the task..."
+              rows={3}
+              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
+            />
+          </div>
+        )}
 
         {/* Workflow (dev only) */}
         {type === 'dev' && (
@@ -228,8 +248,19 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           </div>
         )}
 
-        {/* Stack detection */}
-        {detection && (
+        {/* Skip permissions toggle */}
+        <label class="flex items-center gap-2 mb-4 cursor-pointer text-sm text-forge-muted">
+          <input
+            type="checkbox"
+            checked={skipPermissions}
+            onChange={(e) => setSkipPermissions((e.target as HTMLInputElement).checked)}
+          />
+          Bypass permissions
+          <span class="text-[11px] opacity-60">(--skip-permissions)</span>
+        </label>
+
+        {/* Stack detection — hidden for general */}
+        {!isGeneral && detection && (
           <div class="flex flex-wrap gap-2 mb-6">
             {detection.framework && <Badge label={String(detection.framework)} color="var(--forge-accent)" />}
             {detection.testRunner && <Badge label={String(detection.testRunner)} color="var(--forge-success)" />}
@@ -242,14 +273,17 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
         {/* Start button */}
         <ActionButton
-          label={starting ? 'Starting...' : 'Start Task ▶'}
+          label={starting ? 'Starting...' : isGeneral ? 'Launch Session ▶' : 'Start Task ▶'}
           variant="primary"
           loading={starting}
-          disabled={!task.trim()}
+          disabled={!isGeneral && !task.trim()}
           onClick={handleStart}
         />
         <div class="text-xs text-forge-muted mt-2">
-          Opens a CW session in your terminal for {project}
+          {isGeneral
+            ? `Opens Claude for account "${selectedAccount || accountList[0] || 'default'}"`
+            : `Opens a CW session in your terminal for ${project}`
+          }
         </div>
       </div>
     </div>

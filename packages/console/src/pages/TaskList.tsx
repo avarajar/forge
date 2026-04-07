@@ -6,6 +6,21 @@ import { TYPE_STYLES, QUICK_TYPES, sessionKey, type TypeStyle } from '../config/
 import { TaskCard, DoneTaskRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
 
+const QuickTypePills: FunctionComponent<{ onNewTask: (type: string) => void }> = ({ onNewTask }) => (
+  <div class="flex items-center gap-2">
+    {QUICK_TYPES.map(t => (
+      <button
+        key={t.key}
+        class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all hover:opacity-80"
+        style={{ backgroundColor: t.style.bgVar, borderColor: t.style.borderVar, color: t.style.color }}
+        onClick={() => onNewTask(t.key)}
+      >
+        + {t.label}
+      </button>
+    ))}
+  </div>
+)
+
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
 /* ------------------------------------------------------------------ */
@@ -30,6 +45,7 @@ interface TaskListProps {
   showDone: boolean
   onShowDone: (v: boolean) => void
   openTabKeys?: Set<string>
+  onMarkDone?: (session: CWSession) => void
 }
 
 /* ------------------------------------------------------------------ */
@@ -99,6 +115,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   showDone,
   onShowDone,
   openTabKeys,
+  onMarkDone,
 }) => {
   const active = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
   const done = useMemo(() => spaces.filter(s => s.status === 'done').slice(0, 15), [spaces])
@@ -158,16 +175,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       {/* Quick-launch type pills */}
       <div class="flex items-center gap-2 mb-5">
         <span class="text-[11px] text-forge-muted uppercase tracking-wider mr-1">Quick:</span>
-        {QUICK_TYPES.map(t => (
-          <button
-            key={t.key}
-            class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all hover:opacity-80"
-            style={{ backgroundColor: t.style.bgVar, borderColor: t.style.borderVar, color: t.style.color }}
-            onClick={() => onNewTask(t.key)}
-          >
-            + {t.label}
-          </button>
-        ))}
+        <QuickTypePills onNewTask={onNewTask} />
       </div>
 
       {/* Filter bar */}
@@ -265,6 +273,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
                 showAccount={showAccount}
                 isOpenInTab={openTabKeys?.has(sessionKey(s)) ?? false}
                 onSelect={() => onSelectTask(s)}
+                onMarkDone={onMarkDone ? () => onMarkDone(s) : undefined}
               />
             ))}
           </div>
@@ -280,6 +289,12 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
               ? 'No active tasks match your filters.'
               : 'No active tasks. Start something new!'}
           </p>
+          {filterProject && (
+            <div class="mt-4 flex flex-col items-center gap-3">
+              <ActionButton label="+ New Task" variant="primary" onClick={() => onNewTask()} />
+              <QuickTypePills onNewTask={onNewTask} />
+            </div>
+          )}
           {hasActiveFilters && (
             <button
               class="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"

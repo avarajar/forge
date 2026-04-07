@@ -125,6 +125,30 @@ function App() {
     setListView('new-task')
   }
 
+  const handleMarkDone = useCallback(async (session: CWSession) => {
+    try {
+      const res = await fetch('/api/cw/done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project: session.project,
+          task: session.type === 'review' ? session.pr : session.task,
+          type: session.type,
+          sessionDir: session.sessionDir
+        })
+      })
+      const result = await res.json() as { ok: boolean; error?: string }
+      if (result.ok) {
+        showToast('Task closed', 'info')
+        refreshAfterAction()
+      } else {
+        showToast(result.error ?? 'Failed to mark task as done', 'error')
+      }
+    } catch {
+      showToast('Failed to mark task as done', 'error')
+    }
+  }, [refreshAfterAction])
+
   const handleGoToList = useCallback(() => {
     tabs.goToList()
     setListView('list')
@@ -175,6 +199,7 @@ function App() {
               showDone={filters.showDone}
               onShowDone={filters.setShowDone}
               openTabKeys={tabs.openTabKeys}
+              onMarkDone={handleMarkDone}
             />
             <CreateProjectModal
               open={showCreateProject}
@@ -198,6 +223,8 @@ function App() {
             projects={projects}
             accounts={filters.accountNames}
             initialType={newTaskType}
+            initialAccount={filters.filterAccount ?? undefined}
+            initialProject={filters.filterProject ?? undefined}
             onBack={() => setListView('list')}
             onCreated={(session) => {
               setListView('list')

@@ -24,6 +24,8 @@
   --forge-tint-purple-border: rgba(168,85,247,0.25);
   --forge-tint-cyan-bg: rgba(6,182,212,0.12);
   --forge-tint-cyan-border: rgba(6,182,212,0.25);
+  --forge-tint-emerald-bg: rgba(5,150,105,0.12);
+  --forge-tint-emerald-border: rgba(5,150,105,0.25);
   --forge-tint-accent-bg: rgba(99,102,241,0.1);
   --forge-tint-accent-border: rgba(99,102,241,0.3);
 }
@@ -47,6 +49,8 @@
   --forge-tint-purple-border: rgba(168,85,247,0.3);
   --forge-tint-cyan-bg: rgba(6,182,212,0.12);
   --forge-tint-cyan-border: rgba(6,182,212,0.3);
+  --forge-tint-emerald-bg: rgba(5,150,105,0.15);
+  --forge-tint-emerald-border: rgba(5,150,105,0.3);
   --forge-tint-accent-bg: rgba(99,102,241,0.1);
   --forge-tint-accent-border: rgba(99,102,241,0.25);
 }

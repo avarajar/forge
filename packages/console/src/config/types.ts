@@ -52,6 +52,15 @@ export const TYPE_STYLES: Record<string, TypeStyle> = {
     bgVar: 'var(--forge-tint-cyan-bg)',
     borderVar: 'var(--forge-tint-cyan-border)',
   },
+  general: {
+    label: 'GENERAL',
+    color: '#059669',
+    bg: 'rgba(5,150,105,0.10)',
+    border: 'rgba(5,150,105,0.25)',
+    dotClass: 'bg-emerald-500',
+    bgVar: 'var(--forge-tint-emerald-bg)',
+    borderVar: 'var(--forge-tint-emerald-border)',
+  },
 }
 
 export const getTypeStyle = (type: string): TypeStyle =>
@@ -60,10 +69,11 @@ export const getTypeStyle = (type: string): TypeStyle =>
 /* ── Quick-launch type pills ── */
 
 export const QUICK_TYPES = [
-  { key: 'dev',    label: 'Dev',    style: TYPE_STYLES['task'] },
-  { key: 'review', label: 'Review', style: TYPE_STYLES['review'] },
-  { key: 'design', label: 'Design', style: TYPE_STYLES['design'] },
-  { key: 'plan',   label: 'Plan',   style: TYPE_STYLES['plan'] },
+  { key: 'dev',     label: 'Dev',     style: TYPE_STYLES['task'] },
+  { key: 'review',  label: 'Review',  style: TYPE_STYLES['review'] },
+  { key: 'design',  label: 'Design',  style: TYPE_STYLES['design'] },
+  { key: 'plan',    label: 'Plan',    style: TYPE_STYLES['plan'] },
+  { key: 'general', label: 'General', style: TYPE_STYLES['general'] },
 ]
 
 /* ── Shared helpers ── */
@@ -72,7 +82,7 @@ export const sessionKey = (s: CWSession) =>
   s.sessionDir ? `${s.project}::${s.sessionDir}` : `${s.project}::${s.task ?? s.pr}`
 
 export const sessionLabel = (s: CWSession) =>
-  s.type === 'review' ? `PR #${s.pr}` : (s.task ?? 'unknown')
+  s.type === 'review' ? `PR #${s.pr}` : s.type === 'general' ? `General (${s.account})` : (s.task ?? 'unknown')
 
 export const timeAgo = (date: string): string => {
   const diff = Date.now() - new Date(date).getTime()

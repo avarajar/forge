@@ -116,9 +116,35 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/start', async (c) => {
-    const { type, project, task, description, workflow, account, directory } = await c.req.json<{
-      type: string; project: string; task: string; description?: string; workflow?: string; account?: string; directory?: string
+    const { type, project, task, description, workflow, account, directory, skipPermissions } = await c.req.json<{
+      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean
     }>()
+
+    // General sessions: no project or task required, just an account
+    if (type === 'general') {
+      const acct = account || 'default'
+      const sessionDirName = `general-${acct}-${Date.now()}`
+      const sessionData: CWSession = {
+        project: '__general',
+        type: 'general',
+        account: acct,
+        workflow: '',
+        worktree: '',
+        notes: '',
+        status: 'active',
+        created: new Date().toISOString(),
+        last_opened: new Date().toISOString(),
+        opens: 0,
+        sessionDir: sessionDirName,
+        skipPermissions: skipPermissions ?? false,
+      }
+      pendingSessions.set(`__general::${sessionDirName}`, sessionData)
+      return c.json({ ok: true, session: sessionData, command: `cw launch ${acct}` })
+    }
+
+    if (!project || !task) {
+      return c.json({ ok: false, error: 'Project and task are required' }, 400)
+    }
 
     // Check if session already exists (active)
     const cwHome = join(process.env.HOME ?? '', '.cw')
@@ -155,6 +181,7 @@ export function cwRoutes(reader: CWReader): Hono {
     }
 
     const args: string[] = []
+    if (skipPermissions) args.push('--skip-permissions')
     if (type === 'review') {
       args.push('review', project, task)
       if (account) args.push('--account', account)
@@ -199,6 +226,7 @@ export function cwRoutes(reader: CWReader): Hono {
       last_opened: new Date().toISOString(),
       opens: 0,
       sessionDir: sessionDirName,
+      skipPermissions: skipPermissions ?? false,
     }
 
     // Store so pty-routes can find it before CW creates session.json on disk
