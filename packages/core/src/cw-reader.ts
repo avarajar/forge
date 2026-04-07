@@ -62,15 +62,18 @@ export class CWReader {
   }
 
   getNotes(project: string, sessionDir: string): string {
-    const sessionPath = join(this.cwDir, 'sessions', project, sessionDir, 'session.json')
-    if (!existsSync(sessionPath)) return ''
-    try {
-      const session = JSON.parse(readFileSync(sessionPath, 'utf-8')) as CWSession
-      if (existsSync(session.notes)) return readFileSync(session.notes, 'utf-8')
-    } catch {}
-    // Try TASK_NOTES.md or REVIEW_NOTES.md directly
+    const baseDir = join(this.cwDir, 'sessions', project, sessionDir)
+    // Try session.json notes path first
+    const sessionPath = join(baseDir, 'session.json')
+    if (existsSync(sessionPath)) {
+      try {
+        const session = JSON.parse(readFileSync(sessionPath, 'utf-8')) as CWSession
+        if (existsSync(session.notes)) return readFileSync(session.notes, 'utf-8')
+      } catch {}
+    }
+    // Fall back to notes files directly (may exist before session.json is created)
     for (const name of ['TASK_NOTES.md', 'REVIEW_NOTES.md']) {
-      const p = join(this.cwDir, 'sessions', project, sessionDir, name)
+      const p = join(baseDir, name)
       if (existsSync(p)) return readFileSync(p, 'utf-8')
     }
     return ''

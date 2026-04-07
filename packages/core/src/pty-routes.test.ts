@@ -37,6 +37,22 @@ describe('PTY Routes', () => {
     expect(ptySession.command).toContain('cw work testproj mytask')
   })
 
+  it('general session with skipPermissions passes flag directly to claude', () => {
+    const sessionId = '__general::general-test'
+    if (manager.has(sessionId)) manager.kill(sessionId)
+
+    const session = {
+      project: '__general', type: 'general' as const, account: 'default',
+      workflow: '', worktree: '', notes: '', status: 'active' as const,
+      created: '', last_opened: '', opens: 0, skipPermissions: true,
+    }
+    const ptySession = manager.getOrCreate('__general', 'general-test', session)
+    expect(ptySession).toBeDefined()
+    expect(ptySession.command).toContain('--dangerously-skip-permissions')
+    expect(ptySession.command).not.toContain('--skip-permissions')
+    manager.kill(sessionId)
+  })
+
   it('PTYManager returns undefined for missing session ID', () => {
     expect(manager.get('nonexistent::session')).toBeUndefined()
   })
@@ -95,6 +111,34 @@ describe('PTY Routes — integration', () => {
     expect(ptySession.clients.size).toBe(0)
     expect(manager.has(sessionId)).toBe(true)
     expect(ptySession.lastClientDisconnect).not.toBeNull()
+  })
+
+  it('reconnects to running PTY without session metadata', () => {
+    const reader = new CWReader(TEST_CW)
+    const session = reader.getSession('testproj', 'task-mytask')!
+    const sessionId = 'testproj::task-mytask'
+
+    // Ensure clean state and create a PTY
+    if (manager.has(sessionId)) manager.kill(sessionId)
+    manager.getOrCreate('testproj', 'task-mytask', session)
+
+    // Attach first client, then detach (simulating initial connect + disconnect)
+    const client1 = { send: vi.fn(), close: vi.fn() }
+    manager.attach(sessionId, client1)
+    manager.detach(sessionId, client1)
+
+    // PTY should still be running with 0 clients
+    expect(manager.has(sessionId)).toBe(true)
+    expect(manager.get(sessionId)!.clients.size).toBe(0)
+
+    // Second client connects — should be able to reattach via manager.get()
+    // even if pendingSessions and reader.getSession both miss
+    const existingPty = manager.get(sessionId)
+    expect(existingPty).toBeDefined()
+
+    const client2 = { send: vi.fn(), close: vi.fn() }
+    manager.attach(sessionId, client2)
+    expect(existingPty!.clients.size).toBe(1)
   })
 
   it('kill removes session completely', () => {
