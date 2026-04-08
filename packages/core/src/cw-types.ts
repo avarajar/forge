@@ -12,7 +12,7 @@ export interface CWSession {
   project: string
   task?: string
   pr?: string
-  type: 'task' | 'review' | 'general'
+  type: 'task' | 'review' | 'general' | 'create'
   account: string
   workflow?: string
   model?: string

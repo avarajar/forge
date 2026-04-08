@@ -82,7 +82,10 @@ export const sessionKey = (s: CWSession) =>
   s.sessionDir ? `${s.project}::${s.sessionDir}` : `${s.project}::${s.task ?? s.pr}`
 
 export const sessionLabel = (s: CWSession) =>
-  s.type === 'review' ? `PR #${s.pr}` : s.type === 'general' ? `General (${s.account})` : (s.task ?? 'unknown')
+  s.type === 'review' ? `PR #${s.pr}`
+  : s.type === 'general' ? `General (${s.account})`
+  : s.type === 'create' ? `Create: ${s.task ?? 'project'}`
+  : (s.task ?? 'unknown')
 
 export const timeAgo = (date: string): string => {
   const diff = Date.now() - new Date(date).getTime()

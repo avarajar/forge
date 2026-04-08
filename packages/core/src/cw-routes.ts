@@ -8,6 +8,10 @@ import { join } from 'node:path'
 
 const execFileAsync = promisify(execFile)
 
+// Sentinel project names for sessions not tied to a registered project
+const GENERAL_PROJECT = '__general'
+const CREATING_PROJECT = '__creating'
+
 // Sessions created via /api/cw/start that don't exist on disk yet.
 // PTY routes check here when reader.getSession() returns null.
 const pendingSessions = new Map<string, CWSession>()
@@ -125,7 +129,7 @@ export function cwRoutes(reader: CWReader): Hono {
       const acct = account || 'default'
       const sessionDirName = `general-${acct}-${Date.now()}`
       const projectPath = project ? reader.getProjects()[project]?.path : undefined
-      const projectName = project && projectPath ? project : '__general'
+      const projectName = project && projectPath ? project : GENERAL_PROJECT
       const sessionData: CWSession = {
         project: projectName,
         type: 'general',
@@ -143,6 +147,30 @@ export function cwRoutes(reader: CWReader): Hono {
       }
       pendingSessions.set(`${projectName}::${sessionDirName}`, sessionData)
       return c.json({ ok: true, session: sessionData, command: `cw launch ${acct}` })
+    }
+
+    if (type === 'create') {
+      const name = project?.trim()
+      if (!name) return c.json({ ok: false, error: 'Project name is required' }, 400)
+      const sessionDirName = `create-${name}-${Date.now()}`
+      const sessionData: CWSession = {
+        project: CREATING_PROJECT,
+        task: name,
+        type: 'create',
+        account: account ?? '',
+        model: model || undefined,
+        workflow: '',
+        worktree: directory ?? '',
+        notes: description ?? name,
+        status: 'active',
+        created: new Date().toISOString(),
+        last_opened: new Date().toISOString(),
+        opens: 0,
+        sessionDir: sessionDirName,
+        skipPermissions: skipPermissions ?? false,
+      }
+      pendingSessions.set(`${CREATING_PROJECT}::${sessionDirName}`, sessionData)
+      return c.json({ ok: true, session: sessionData })
     }
 
     if (!project || !task) {
@@ -192,11 +220,6 @@ export function cwRoutes(reader: CWReader): Hono {
     } else if (type === 'plan') {
       args.push('plan', project, description ?? task)
       if (model) args.push('--model', model)
-    } else if (type === 'create') {
-      args.push('create', description ?? task, '--name', project)
-      if (account) args.push('--account', account)
-      if (model) args.push('--model', model)
-      if (directory) args.push('--dir', directory)
     } else {
       args.push('work', project, task)
       if (account) args.push('--account', account)
@@ -205,7 +228,7 @@ export function cwRoutes(reader: CWReader): Hono {
     }
 
     // Pre-write description to TASK_NOTES.md so CW picks it up
-    if (description && type !== 'plan' && type !== 'create') {
+    if (description && type !== 'plan') {
       const { mkdirSync, writeFileSync: writeSync } = await import('node:fs')
       const notesDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
       mkdirSync(notesDir, { recursive: true })

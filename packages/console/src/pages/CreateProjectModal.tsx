@@ -1,12 +1,13 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { Modal, showToast } from '@forge-dev/ui'
+import type { CWSession } from '@forge-dev/core'
 
 interface CreateProjectModalProps {
   open: boolean
   accounts: string[]
   onClose: () => void
-  onCreated: () => void
+  onCreated: (session?: CWSession) => void
 }
 
 export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
@@ -53,10 +54,10 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
           directory: directory.trim() || undefined,
         })
       })
-      const result = await res.json() as { ok: boolean; error?: string }
+      const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
       if (result.ok) {
-        showToast('Project creation started — check your terminal', 'success')
-        onCreated()
+        showToast('Project creation started in terminal', 'success')
+        onCreated(result.session)
       } else {
         showToast(result.error ?? 'Failed to create project', 'error')
       }
