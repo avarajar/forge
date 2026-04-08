@@ -81,7 +81,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
       : projectNames
     const proj = initialProject && projs.includes(initialProject)
       ? initialProject
-      : projs.length > 0 ? projs[0] : ''
+      : (!isGeneral && projs.length > 0) ? projs[0] : ''
     if (proj) setProject(proj)
   }, [])
 
@@ -89,8 +89,10 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const handleAccountChange = (acc: string) => {
     setSelectedAccount(acc)
     const projs = projectNames.filter(n => projects[n]?.account === acc)
-    if (projs.length > 0 && !projs.includes(project)) {
+    if (!isGeneral && projs.length > 0 && !projs.includes(project)) {
       setProject(projs[0])
+    } else if (isGeneral && project && !projs.includes(project)) {
+      setProject('')
     }
   }
 
@@ -124,6 +126,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         body.description = description.trim() || undefined
         body.workflow = workflow || undefined
         body.model = model || undefined
+      } else if (project) {
+        body.project = project
       }
 
       const res = await fetch('/api/cw/start', {
@@ -172,7 +176,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                 ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' }
                 : undefined
               }
-              onClick={() => { setType(t.id); setModel('') }}
+              onClick={() => { setType(t.id); setModel(''); if (t.id === 'general') setProject('') }}
             >
               {t.label}
             </button>
@@ -195,20 +199,23 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           </div>
         )}
 
-        {/* Project selector — hidden for general */}
-        {!isGeneral && (
+        {/* Project selector — optional for general, required for others */}
+        {(!isGeneral || filteredProjectNames.length > 0) && (
           <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">Project</label>
+            <label class="block text-sm font-medium mb-1">
+              Project{isGeneral && <span class="font-normal text-forge-muted"> (optional)</span>}
+            </label>
             <select
               class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
               value={project}
               onChange={(e) => setProject((e.target as HTMLSelectElement).value)}
             >
+              {isGeneral && <option value="">— none —</option>}
               {filteredProjectNames.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
-            {projects[project] && (
+            {project && projects[project] && (
               <div class="text-xs text-forge-muted mt-1">{(projects[project] as { path: string }).path}</div>
             )}
           </div>
@@ -332,7 +339,9 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         />
         <div class="text-xs text-forge-muted mt-2">
           {isGeneral
-            ? `Opens Claude for account "${selectedAccount || accountList[0] || 'default'}"`
+            ? project
+              ? `Opens Claude in "${project}" for account "${selectedAccount || accountList[0] || 'default'}"`
+              : `Opens Claude for account "${selectedAccount || accountList[0] || 'default'}"`
             : `Opens a CW session in your terminal for ${project}`
           }
         </div>
