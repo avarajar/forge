@@ -203,20 +203,27 @@ export function cwRoutes(reader: CWReader): Hono {
     // Check if session already exists (active)
     const cwHome = join(process.env.HOME ?? '', '.cw')
     let taskSlug = task.trim()
+    let taskUrl: string | undefined
+    let taskSource: string | undefined
 
     // Extract identifier from URLs (mirrors CW's parsing)
     if (taskSlug.startsWith('http')) {
+      taskUrl = taskSlug
       if (taskSlug.includes('github.com')) {
+        taskSource = 'github'
         const m = taskSlug.match(/(\d+)\s*$/)
         if (m) taskSlug = m[1]
       } else if (taskSlug.includes('linear.app')) {
+        taskSource = 'linear'
         const m = taskSlug.match(/([A-Z]+-\d+)/)
         if (m) taskSlug = m[1]
       } else if (taskSlug.includes('notion.so') || taskSlug.includes('notion.site')) {
+        taskSource = 'notion'
         const parts = taskSlug.split('/')
         const last = parts[parts.length - 1] ?? ''
         taskSlug = last.replace(/-[a-f0-9]+$/, '').slice(0, 30)
       } else {
+        taskSource = 'url'
         taskSlug = taskSlug.replace(/^https?:\/\//, '').replace(/\//g, '-').slice(0, 30)
       }
     }
@@ -273,6 +280,8 @@ export function cwRoutes(reader: CWReader): Hono {
       account: account ?? '',
       workflow: workflow ?? '',
       model: model || undefined,
+      source: taskSource,
+      source_url: taskUrl,
       worktree: '',
       notes: '',
       status: 'active',
