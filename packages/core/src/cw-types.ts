@@ -20,6 +20,7 @@ export interface CWSession {
   notes: string
   source?: string
   source_url?: string
+  prBranch?: string
   status: 'active' | 'done'
   created: string
   last_opened: string

@@ -205,6 +205,7 @@ export function cwRoutes(reader: CWReader): Hono {
     let taskSlug = task.trim()
     let taskUrl: string | undefined
     let taskSource: string | undefined
+    let prBranch: string | undefined
 
     // Extract identifier from URLs (mirrors CW's parsing)
     if (taskSlug.startsWith('http')) {
@@ -222,7 +223,12 @@ export function cwRoutes(reader: CWReader): Hono {
               cwd: projectPath || process.cwd()
             })
             const branch = result.stdout.trim()
-            taskSlug = branch || `pull-${pullM[1]}`
+            if (branch) {
+              taskSlug = branch
+              prBranch = branch  // signal PTY to base worktree on this remote branch
+            } else {
+              taskSlug = `pull-${pullM[1]}`
+            }
           } catch {
             taskSlug = `pull-${pullM[1]}`
           }
@@ -300,6 +306,7 @@ export function cwRoutes(reader: CWReader): Hono {
       model: model || undefined,
       source: taskSource,
       source_url: taskUrl,
+      prBranch,
       worktree: '',
       notes: '',
       status: 'active',

@@ -105,18 +105,18 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain(`cw work myapp ${url}`)
   })
 
-  it('passes pre-fetched branch name (task) to CW for GitHub PR tasks', () => {
-    // Forge pre-fetches the PR branch via gh, stores it in session.task
+  it('passes pre-fetched branch name to CW and adds --base so worktree has PR commits', () => {
     const session = makeSession({
       project: 'myapp',
-      task: 'feature-fix-auth',   // pre-fetched branch name
+      task: 'feature-fix-auth',
       source: 'github',
-      source_url: 'https://github.com/org/repo/pull/42',  // kept for display
+      source_url: 'https://github.com/org/repo/pull/42',
+      prBranch: 'feature-fix-auth',
       account: 'work',
     })
     const ptySession = manager.getOrCreate('myapp', 'task-feature-fix-auth', session)
-    // Should use the branch name directly, NOT the GitHub URL
     expect(ptySession.command).toContain('cw work myapp feature-fix-auth')
+    expect(ptySession.command).toContain('--base feature-fix-auth')
     expect(ptySession.command).not.toContain('github.com')
   })
 
