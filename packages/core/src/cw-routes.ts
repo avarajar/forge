@@ -124,12 +124,14 @@ export function cwRoutes(reader: CWReader): Hono {
     if (type === 'general') {
       const acct = account || 'default'
       const sessionDirName = `general-${acct}-${Date.now()}`
+      const projectPath = project ? reader.getProjects()[project]?.path : undefined
+      const projectName = project && projectPath ? project : '__general'
       const sessionData: CWSession = {
-        project: '__general',
+        project: projectName,
         type: 'general',
         account: acct,
         workflow: '',
-        worktree: '',
+        worktree: projectPath ?? '',
         notes: '',
         status: 'active',
         created: new Date().toISOString(),
@@ -138,7 +140,7 @@ export function cwRoutes(reader: CWReader): Hono {
         sessionDir: sessionDirName,
         skipPermissions: skipPermissions ?? false,
       }
-      pendingSessions.set(`__general::${sessionDirName}`, sessionData)
+      pendingSessions.set(`${projectName}::${sessionDirName}`, sessionData)
       return c.json({ ok: true, session: sessionData, command: `cw launch ${acct}` })
     }
 

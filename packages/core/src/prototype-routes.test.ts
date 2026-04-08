@@ -110,6 +110,46 @@ describe('Prototype API Routes', () => {
     expect(sandbox.state).toBe('archived')
   })
 
+  it('POST /api/prototype/:id/start-server returns full sandbox (not just { ok, port })', async () => {
+    // Regression: start-server used to return { ok: true, port } which caused the
+    // client to lose the sandbox id and all other fields after create().
+    class FastStartManager extends SandboxManager {
+      override async startDevServer(id: string): Promise<boolean> {
+        // Skip npm install + vite; just mark as ready
+        this.updateState(id, 'ready')
+        return true
+      }
+    }
+
+    const fastManager = new FastStartManager({
+      templateDir: TEMPLATE_DIR,
+      sandboxBaseDir: TEST_DIR,
+      portRangeStart: 63500,
+    })
+    const fastApp = new Hono()
+    fastApp.route('/api/prototype', prototypeRoutes(fastManager))
+
+    const createRes = await fastApp.request('/api/prototype/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'start-server-shape', inputType: 'description', inputData: 'A page' }),
+    })
+    const created = await createRes.json() as { id: string }
+
+    const res = await fastApp.request(`/api/prototype/${created.id}/start-server`, { method: 'POST' })
+    expect(res.status).toBe(200)
+    const body = await res.json() as Record<string, unknown>
+
+    // Must include full sandbox fields so client can identify the sandbox by id
+    expect(body.id).toBe(created.id)
+    expect(body.name).toBe('start-server-shape')
+    expect(body.state).toBeDefined()
+    // Must NOT be the old { ok: true, port } shape
+    expect(body.ok).toBeUndefined()
+
+    fastManager.dispose()
+  })
+
   it('DELETE /api/prototype/:id deletes a sandbox', async () => {
     // Create one first
     const createRes = await app.request('/api/prototype/create', {

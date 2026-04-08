@@ -30,6 +30,8 @@ export function usePrototype(): UsePrototypeReturn {
   const [state, setState] = useState<SandboxState>('idle')
   const [error, setError] = useState<string | null>(null)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Ref tracks latest sandbox so callbacks don't close over stale state
+  const sandboxRef = useRef<PrototypeSandbox | null>(null)
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current !== null) {
@@ -51,9 +53,12 @@ export function usePrototype(): UsePrototypeReturn {
         const res = await fetch(`/api/prototype/${id}`)
         if (!res.ok) return
         const data = (await res.json()) as PrototypeSandbox
-        setSandbox(data)
-        if (data.state !== 'generating') {
-          setState(data.state)
+        if (data.state !== sandboxRef.current?.state) {
+          sandboxRef.current = data
+          setSandbox(data)
+          if (data.state !== 'generating') {
+            setState(data.state)
+          }
         }
       } catch {
         // silently ignore transient poll errors
@@ -97,6 +102,7 @@ export function usePrototype(): UsePrototypeReturn {
         }
         const started = (await startRes.json()) as PrototypeSandbox
 
+        sandboxRef.current = started
         setSandbox(started)
         setState(started.state ?? 'ready')
       } catch (err) {
@@ -109,11 +115,12 @@ export function usePrototype(): UsePrototypeReturn {
 
   const generate = useCallback(
     async (inputType: InputType, inputData: Record<string, unknown>) => {
-      if (!sandbox) return
+      const current = sandboxRef.current
+      if (!current) return
       setError(null)
       setState('generating')
       try {
-        const res = await fetch(`/api/prototype/${sandbox.id}/generate`, {
+        const res = await fetch(`/api/prototype/${current.id}/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inputType, inputData }),
@@ -124,19 +131,20 @@ export function usePrototype(): UsePrototypeReturn {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
-        setState(sandbox.state ?? 'ready')
+        setState(sandboxRef.current?.state ?? 'ready')
       }
     },
-    [sandbox],
+    [],
   )
 
   const regenerate = useCallback(
     async (inputType: InputType, inputData: Record<string, unknown>) => {
-      if (!sandbox) return
+      const current = sandboxRef.current
+      if (!current) return
       setError(null)
       setState('generating')
       try {
-        const res = await fetch(`/api/prototype/${sandbox.id}/regenerate`, {
+        const res = await fetch(`/api/prototype/${current.id}/regenerate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ inputType, inputData }),
@@ -147,17 +155,18 @@ export function usePrototype(): UsePrototypeReturn {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err))
-        setState(sandbox.state ?? 'ready')
+        setState(sandboxRef.current?.state ?? 'ready')
       }
     },
-    [sandbox],
+    [],
   )
 
   const archive = useCallback(async () => {
-    if (!sandbox) return
+    const current = sandboxRef.current
+    if (!current) return
     setError(null)
     try {
-      const res = await fetch(`/api/prototype/${sandbox.id}/archive`, {
+      const res = await fetch(`/api/prototype/${current.id}/archive`, {
         method: 'POST',
       })
       if (!res.ok) {
@@ -169,32 +178,35 @@ export function usePrototype(): UsePrototypeReturn {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [sandbox])
+  }, [])
 
   const remove = useCallback(async () => {
-    if (!sandbox) return
+    const current = sandboxRef.current
+    if (!current) return
     setError(null)
     try {
-      const res = await fetch(`/api/prototype/${sandbox.id}`, {
+      const res = await fetch(`/api/prototype/${current.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) {
         const msg = await res.text()
         throw new Error(msg || 'Failed to remove prototype')
       }
+      sandboxRef.current = null
       setSandbox(null)
       setState('idle')
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
-  }, [sandbox])
+  }, [])
 
   const share = useCallback(
     async (prUrl: string, branch: string, previewUrl?: string) => {
-      if (!sandbox) return
+      const current = sandboxRef.current
+      if (!current) return
       setError(null)
       try {
-        const res = await fetch(`/api/prototype/${sandbox.id}/share`, {
+        const res = await fetch(`/api/prototype/${current.id}/share`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prUrl, branch, previewUrl }),
@@ -211,7 +223,7 @@ export function usePrototype(): UsePrototypeReturn {
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [sandbox],
+    [],
   )
 
   return {
