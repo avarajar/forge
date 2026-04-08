@@ -70,7 +70,8 @@ export class PTYManager {
       return cmd
     }
     if (session.type === 'review') {
-      let cmd = `${prefix} review ${session.project} ${session.pr}`
+      const prArg = session.source_url || session.pr
+      let cmd = `${prefix} review ${session.project} ${prArg}`
       if (session.account) cmd += ` --account ${session.account}`
       if (session.model) cmd += ` --model ${session.model}`
       return cmd
