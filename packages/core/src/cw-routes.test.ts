@@ -183,8 +183,7 @@ describe('CW Routes', () => {
     expect(body.session.task).toBe('ENG-123')
   })
 
-  it('POST /api/cw/start with GitHub PR URL sets source/source_url and falls back to pull-N slug', async () => {
-    // gh will fail in test env — verifies graceful fallback to pull-<number> slug
+  it('POST /api/cw/start with GitHub PR URL sets source/source_url, task is PR number', async () => {
     const url = 'https://github.com/org/repo/pull/42'
     const res = await app.request('/api/cw/start', {
       method: 'POST',
@@ -196,8 +195,7 @@ describe('CW Routes', () => {
     expect(body.ok).toBe(true)
     expect(body.session.source).toBe('github')
     expect(body.session.source_url).toBe(url)
-    // When gh fails, falls back to pull-42 slug
-    expect(body.session.task).toBe('pull-42')
+    expect(body.session.task).toBe('42')
   })
 
   it('POST /api/cw/start with GitHub PR URL for review extracts PR number', async () => {
