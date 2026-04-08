@@ -27,6 +27,7 @@ const MODELS = [
   { id: 'haiku', label: 'Haiku', description: 'Fast, simple tasks' },
   { id: 'sonnet', label: 'Sonnet', description: 'Daily coding' },
   { id: 'opus', label: 'Opus', description: 'Complex reasoning' },
+  { id: 'opus[1m]', label: 'Opus 1M', description: '1M context window' },
 ]
 
 const MODEL_DEFAULTS: Record<string, string> = {
