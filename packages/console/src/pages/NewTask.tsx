@@ -22,6 +22,22 @@ const TYPES = [
   { id: 'general', label: 'General', color: '#059669' },
 ]
 
+const MODELS = [
+  { id: '', label: 'Auto', description: 'Default per type' },
+  { id: 'haiku', label: 'Haiku', description: 'Fast, simple tasks' },
+  { id: 'sonnet', label: 'Sonnet', description: 'Daily coding' },
+  { id: 'opus', label: 'Opus', description: 'Complex reasoning' },
+  { id: 'opusplan', label: 'OpusPlan', description: 'Opus plans, Sonnet codes' },
+]
+
+const MODEL_DEFAULTS: Record<string, string> = {
+  dev: 'sonnet',
+  review: 'sonnet',
+  plan: 'opus',
+  design: 'sonnet',
+  general: 'sonnet',
+}
+
 export const NewTask: FunctionComponent<NewTaskProps> = ({
   projects, accounts, initialType, initialAccount, initialProject, onBack, onCreated, onStartPrototype
 }) => {
@@ -31,6 +47,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const [task, setTask] = useState('')
   const [description, setDescription] = useState('')
   const [workflow, setWorkflow] = useState('')
+  const [model, setModel] = useState('')
   const [skipPermissions, setSkipPermissions] = useState(false)
   const [starting, setStarting] = useState(false)
   const [detection, setDetection] = useState<Record<string, unknown> | null>(null)
@@ -106,6 +123,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         body.task = task.trim()
         body.description = description.trim() || undefined
         body.workflow = workflow || undefined
+        body.model = model || undefined
       }
 
       const res = await fetch('/api/cw/start', {
@@ -154,7 +172,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                 ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' }
                 : undefined
               }
-              onClick={() => setType(t.id)}
+              onClick={() => { setType(t.id); setModel('') }}
             >
               {t.label}
             </button>
@@ -262,6 +280,35 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           Bypass permissions
           <span class="text-[11px] opacity-60">(--skip-permissions)</span>
         </label>
+
+        {/* Model selector */}
+        {!isGeneral && (
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">
+              Model <span class="text-forge-muted font-normal">({MODEL_DEFAULTS[type] || 'sonnet'} by default)</span>
+            </label>
+            <div class="flex flex-wrap gap-2">
+              {MODELS.map(m => (
+                <button
+                  key={m.id}
+                  class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                    model === m.id
+                      ? 'text-forge-accent'
+                      : 'border-forge-border bg-forge-surface text-forge-muted'
+                  }`}
+                  style={model === m.id
+                    ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                    : undefined
+                  }
+                  onClick={() => setModel(m.id)}
+                  title={m.description}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Stack detection — hidden for general */}
         {!isGeneral && detection && (

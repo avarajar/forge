@@ -62,11 +62,13 @@ export class PTYManager {
     if (session.type === 'review') {
       let cmd = `${prefix} review ${session.project} ${session.pr}`
       if (session.account) cmd += ` --account ${session.account}`
+      if (session.model) cmd += ` --model ${session.model}`
       return cmd
     }
     let cmd = `${prefix} work ${session.project} ${session.task}`
     if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
+    if (session.model) cmd += ` --model ${session.model}`
     return cmd
   }
 

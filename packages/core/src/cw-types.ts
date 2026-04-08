@@ -15,6 +15,7 @@ export interface CWSession {
   type: 'task' | 'review' | 'general'
   account: string
   workflow?: string
+  model?: string
   worktree: string
   notes: string
   source?: string
