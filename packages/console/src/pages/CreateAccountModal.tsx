@@ -1,6 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { Modal, showToast } from '@forge-dev/ui'
+import type { CWSession } from '@forge-dev/core'
 
 // Shared with server (packages/core/src/cw-types.ts ACCOUNT_NAME_RE)
 const ACCOUNT_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
@@ -8,7 +9,7 @@ const ACCOUNT_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 interface CreateAccountModalProps {
   open: boolean
   onClose: () => void
-  onCreated: () => void
+  onCreated: (session?: CWSession) => void
 }
 
 export const CreateAccountModal: FunctionComponent<CreateAccountModalProps> = ({
@@ -38,8 +39,18 @@ export const CreateAccountModal: FunctionComponent<CreateAccountModalProps> = ({
       })
       const result = await res.json() as { ok: boolean; error?: string }
       if (result.ok) {
-        showToast(`Account "${trimmed}" created`, 'success')
-        onCreated()
+        let session: CWSession | undefined
+        try {
+          const launchRes = await fetch('/api/cw/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'general', account: trimmed })
+          })
+          const launchResult = await launchRes.json() as { ok: boolean; session?: CWSession }
+          if (launchResult.ok) session = launchResult.session
+        } catch {}
+        showToast(`Account "${trimmed}" created — run "claude /login" in the terminal`, 'success')
+        onCreated(session)
       } else {
         showToast(result.error ?? 'Failed to create account', 'error')
       }

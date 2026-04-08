@@ -205,12 +205,12 @@ function App() {
               open={showCreateProject}
               accounts={filters.accountNames}
               onClose={() => setShowCreateProject(false)}
-              onCreated={() => { setShowCreateProject(false); refreshAfterAction() }}
+              onCreated={(session) => { setShowCreateProject(false); if (session) tabs.openTab(session); refreshAfterAction() }}
             />
             <CreateAccountModal
               open={showCreateAccount}
               onClose={() => setShowCreateAccount(false)}
-              onCreated={() => { setShowCreateAccount(false); refreshAfterAction() }}
+              onCreated={(session) => { setShowCreateAccount(false); if (session) tabs.openTab(session); refreshAfterAction() }}
             />
           </>
         ) : prototypeProject ? (

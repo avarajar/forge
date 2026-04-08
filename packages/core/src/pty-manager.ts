@@ -59,6 +59,16 @@ export class PTYManager {
       if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
       return cmd
     }
+    if (session.type === 'create') {
+      const desc = session.notes || session.task || 'New project'
+      const quotedDesc = `'${desc.replace(/'/g, "'\\''")}'`
+      let cmd = `cw create ${quotedDesc}`
+      if (session.task) cmd += ` --name ${session.task}`
+      if (session.account) cmd += ` --account ${session.account}`
+      if (session.model) cmd += ` --model ${session.model}`
+      if (session.worktree) cmd += ` --dir ${session.worktree}`
+      return cmd
+    }
     if (session.type === 'review') {
       let cmd = `${prefix} review ${session.project} ${session.pr}`
       if (session.account) cmd += ` --account ${session.account}`
@@ -85,7 +95,7 @@ export class PTYManager {
     const command = this.buildCommand(session)
     const cwd = session.worktree && existsSync(session.worktree)
       ? session.worktree
-      : session.type === 'general'
+      : (session.type === 'general' || session.type === 'create')
         ? (process.env.HOME ?? process.cwd())
         : process.cwd()
 

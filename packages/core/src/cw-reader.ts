@@ -9,6 +9,8 @@ export class CWReader {
     this.cwDir = cwDir ?? join(process.env.HOME ?? '', '.cw')
   }
 
+  get cwHome(): string { return this.cwDir }
+
   getProjects(): Record<string, CWProject> {
     const path = join(this.cwDir, 'projects.json')
     if (!existsSync(path)) return {}

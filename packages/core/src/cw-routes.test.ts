@@ -126,4 +126,56 @@ describe('CW Routes', () => {
     expect(body.ok).toBe(false)
     expect(body.error).toContain('already exists')
   })
+
+  it('POST /api/cw/start with type=create returns session with type "create"', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'create',
+        project: 'my-new-app',
+        description: 'A SaaS for team collaboration',
+        account: 'default',
+      })
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean; session: { type: string; task: string; notes: string; project: string } }
+    expect(body.ok).toBe(true)
+    expect(body.session.type).toBe('create')
+    expect(body.session.task).toBe('my-new-app')
+    expect(body.session.notes).toBe('A SaaS for team collaboration')
+    expect(body.session.project).toBe('__creating')
+  })
+
+  it('DELETE /api/cw/accounts/:name removes account directory', async () => {
+    const accountDir = join(TEST_CW, 'accounts/todelete')
+    mkdirSync(accountDir, { recursive: true })
+    writeFileSync(join(accountDir, 'meta.json'), '{}')
+
+    const res = await app.request('/api/cw/accounts/todelete', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(true)
+
+    const { existsSync } = await import('node:fs')
+    expect(existsSync(accountDir)).toBe(false)
+  })
+
+  it('DELETE /api/cw/accounts/:name returns 404 for unknown account', async () => {
+    const res = await app.request('/api/cw/accounts/doesnotexist', { method: 'DELETE' })
+    expect(res.status).toBe(404)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(false)
+  })
+
+  it('POST /api/cw/start with type=create requires project name', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'create', description: 'No name given' })
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json() as { ok: boolean; error: string }
+    expect(body.ok).toBe(false)
+  })
 })

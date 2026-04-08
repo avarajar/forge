@@ -92,6 +92,22 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain('cw review testproj 42')
   })
 
+  it('builds correct command for create sessions', () => {
+    const session = makeSession({
+      type: 'create',
+      project: '__creating',
+      task: 'my-saas',
+      notes: 'A SaaS for team collaboration',
+      account: 'work',
+      worktree: '',
+    })
+    const ptySession = manager.getOrCreate('__creating', 'create-my-saas-123', session)
+    expect(ptySession.command).toContain('cw create')
+    expect(ptySession.command).toContain('my-saas')
+    expect(ptySession.command).toContain('A SaaS for team collaboration')
+    expect(ptySession.command).toContain('--account work')
+  })
+
   it('cleanup kills idle sessions', () => {
     vi.useFakeTimers()
     const session = makeSession()
