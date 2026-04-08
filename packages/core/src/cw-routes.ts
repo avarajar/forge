@@ -116,8 +116,8 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/start', async (c) => {
-    const { type, project, task, description, workflow, account, directory, skipPermissions } = await c.req.json<{
-      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean
+    const { type, project, task, description, workflow, account, directory, skipPermissions, model } = await c.req.json<{
+      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string
     }>()
 
     // General sessions: no project or task required, just an account
@@ -185,16 +185,20 @@ export function cwRoutes(reader: CWReader): Hono {
     if (type === 'review') {
       args.push('review', project, task)
       if (account) args.push('--account', account)
+      if (model) args.push('--model', model)
     } else if (type === 'plan') {
       args.push('plan', project, description ?? task)
+      if (model) args.push('--model', model)
     } else if (type === 'create') {
       args.push('create', description ?? task, '--name', project)
       if (account) args.push('--account', account)
+      if (model) args.push('--model', model)
       if (directory) args.push('--dir', directory)
     } else {
       args.push('work', project, task)
       if (account) args.push('--account', account)
       if (workflow) args.push('--workflow', workflow)
+      if (model) args.push('--model', model)
     }
 
     // Pre-write description to TASK_NOTES.md so CW picks it up
@@ -219,6 +223,7 @@ export function cwRoutes(reader: CWReader): Hono {
       type: type === 'review' ? 'review' : 'task',
       account: account ?? '',
       workflow: workflow ?? '',
+      model: model ?? '',
       worktree: '',
       notes: '',
       status: 'active',
