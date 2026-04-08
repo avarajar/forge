@@ -92,6 +92,32 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain('cw review testproj 42')
   })
 
+  it('uses source_url in command for Linear task so CW uses Linear branch name', () => {
+    const url = 'https://linear.app/team/issue/ENG-123-fix-auth-bug'
+    const session = makeSession({
+      project: 'myapp',
+      task: 'ENG-123',
+      source: 'linear',
+      source_url: url,
+      account: 'work',
+    })
+    const ptySession = manager.getOrCreate('myapp', 'task-ENG-123', session)
+    expect(ptySession.command).toContain(`cw work myapp ${url}`)
+  })
+
+  it('uses source_url in command for GitHub PR review', () => {
+    const url = 'https://github.com/org/repo/pull/42'
+    const session = makeSession({
+      type: 'review',
+      task: undefined,
+      pr: '42',
+      source: 'github',
+      source_url: url,
+    })
+    const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
+    expect(ptySession.command).toContain(`cw review testproj ${url}`)
+  })
+
   it('builds correct command for create sessions', () => {
     const session = makeSession({
       type: 'create',
