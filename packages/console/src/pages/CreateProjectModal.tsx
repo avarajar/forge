@@ -17,6 +17,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
   const [name, setName] = useState('')
   const [directory, setDirectory] = useState('')
   const [description, setDescription] = useState('')
+  const [model, setModel] = useState('')
   const [creating, setCreating] = useState(false)
 
   // Auto-select first account when modal opens or accounts change
@@ -32,6 +33,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
       setName('')
       setDirectory('')
       setDescription('')
+      setModel('')
       setCreating(false)
     }
   }, [open])
@@ -52,6 +54,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
           description: description.trim(),
           account: account.trim() || undefined,
           directory: directory.trim() || undefined,
+          model: model || undefined,
         })
       })
       const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
@@ -142,6 +145,36 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
             rows={3}
             class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
           />
+        </div>
+
+        {/* Model selector */}
+        <div>
+          <label class="block text-sm font-medium mb-1">Model</label>
+          <div class="flex flex-wrap gap-2">
+            {[
+              { id: '', label: 'Auto' },
+              { id: 'haiku', label: 'Haiku' },
+              { id: 'sonnet', label: 'Sonnet' },
+              { id: 'opus', label: 'Opus' },
+            ].map(m => (
+              <button
+                key={m.id}
+                type="button"
+                class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                  model === m.id
+                    ? 'text-forge-accent'
+                    : 'border-forge-border bg-forge-bg text-forge-muted'
+                }`}
+                style={model === m.id
+                  ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                  : undefined
+                }
+                onClick={() => setModel(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <p class="text-xs text-forge-muted">
