@@ -1,10 +1,83 @@
 import { type FunctionComponent } from 'preact'
-import { useMemo } from 'preact/hooks'
-import { ActionButton } from '@forge-dev/ui'
+import { useState, useMemo } from 'preact/hooks'
+import { ActionButton, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { TYPE_STYLES, QUICK_TYPES, sessionKey, type TypeStyle } from '../config/types.js'
 import { TaskCard, DoneTaskRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
+
+const AccountBanner: FunctionComponent<{ account: string; onDeleted: () => void }> = ({ account, onDeleted }) => {
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/cw/accounts/${encodeURIComponent(account)}`, { method: 'DELETE' })
+      const result = await res.json() as { ok: boolean; error?: string }
+      if (result.ok) {
+        showToast(`Account "${account}" removed`, 'info')
+        onDeleted()
+      } else {
+        showToast(result.error ?? 'Failed to remove account', 'error')
+      }
+    } catch {
+      showToast('Failed to remove account', 'error')
+    } finally {
+      setDeleting(false)
+      setShowDelete(false)
+    }
+  }
+
+  return (
+    <div
+      class="rounded-xl px-4 py-3 mb-5 text-sm"
+      style={{ backgroundColor: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}
+    >
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-forge-accent uppercase tracking-wider">Account:</span>
+          <span class="font-semibold text-forge-text">{account}</span>
+        </div>
+        <button
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+          style={showDelete
+            ? { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.35)', color: 'var(--forge-error)' }
+            : { backgroundColor: 'rgba(239,68,68,0.06)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--forge-error)', opacity: 0.75 }
+          }
+          onClick={() => setShowDelete(!showDelete)}
+        >
+          ⚠ Remove account
+        </button>
+      </div>
+      {showDelete && (
+        <div class="rounded-lg p-3 mt-2" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <p class="text-xs text-forge-text mb-3">
+            Remove account "{account}"? This deletes the account profile and Claude config.
+            Projects registered under this account are not deleted.
+          </p>
+          <div class="flex gap-2">
+            <button
+              class="px-3 py-1.5 text-xs rounded-lg text-white font-medium"
+              style={{ backgroundColor: 'var(--forge-error)' }}
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Removing...' : 'Remove account'}
+            </button>
+            <button
+              class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+              style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
+              onClick={() => setShowDelete(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const QuickTypePills: FunctionComponent<{ onNewTask: (type: string) => void }> = ({ onNewTask }) => (
   <div class="flex items-center gap-2">
@@ -254,7 +327,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         )}
       </div>
 
-      {/* Project info banner */}
+      {/* Account / project banners */}
+      {filterAccount && <AccountBanner account={filterAccount} onDeleted={() => { onFilterAccount(null); onRefresh() }} />}
       {filterProject && <ProjectBanner project={filterProject} account={projectAccount} onDeleted={() => { onFilterProject(null); onRefresh() }} />}
 
       {/* Active tasks */}

@@ -147,6 +147,27 @@ describe('CW Routes', () => {
     expect(body.session.project).toBe('__creating')
   })
 
+  it('DELETE /api/cw/accounts/:name removes account directory', async () => {
+    const accountDir = join(TEST_CW, 'accounts/todelete')
+    mkdirSync(accountDir, { recursive: true })
+    writeFileSync(join(accountDir, 'meta.json'), '{}')
+
+    const res = await app.request('/api/cw/accounts/todelete', { method: 'DELETE' })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(true)
+
+    const { existsSync } = await import('node:fs')
+    expect(existsSync(accountDir)).toBe(false)
+  })
+
+  it('DELETE /api/cw/accounts/:name returns 404 for unknown account', async () => {
+    const res = await app.request('/api/cw/accounts/doesnotexist', { method: 'DELETE' })
+    expect(res.status).toBe(404)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(false)
+  })
+
   it('POST /api/cw/start with type=create requires project name', async () => {
     const res = await app.request('/api/cw/start', {
       method: 'POST',

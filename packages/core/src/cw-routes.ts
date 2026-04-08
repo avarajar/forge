@@ -71,6 +71,29 @@ export function cwRoutes(reader: CWReader): Hono {
     }
   })
 
+  app.delete('/accounts/:name', async (c) => {
+    const name = c.req.param('name')
+
+    if (!ACCOUNT_NAME_RE.test(name)) {
+      return c.json({ ok: false, error: 'Invalid account name' }, 400)
+    }
+
+    const accountDir = join(reader.cwHome, 'accounts', name)
+
+    if (!existsSync(accountDir)) {
+      return c.json({ ok: false, error: `Account "${name}" not found` }, 404)
+    }
+
+    try {
+      const { rmSync } = await import('node:fs')
+      rmSync(accountDir, { recursive: true, force: true })
+      return c.json({ ok: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return c.json({ ok: false, error: `Failed to remove account: ${message}` }, 500)
+    }
+  })
+
   app.get('/detect/:project', (c) => {
     const project = c.req.param('project')
     return c.json(reader.detectStack(project))
