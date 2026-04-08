@@ -77,7 +77,7 @@ export class PTYManager {
     }
     // Pass source_url to CW for any URL-sourced task (linear, github, notion)
     // so CW's URL-aware init_prompt runs: fetches issue/PR context, uses correct branch
-    const taskArg = session.source_url ?? session.task
+    const taskArg = session.source_url || session.task
     let cmd = `${prefix} work ${session.project} ${taskArg}`
     if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
