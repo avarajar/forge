@@ -105,19 +105,17 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain(`cw work myapp ${url}`)
   })
 
-  it('passes pre-fetched branch name to CW and adds --base so worktree has PR commits', () => {
+  it('passes GitHub PR URL to CW so its init_prompt fetches the PR and uses the correct branch', () => {
+    const url = 'https://github.com/org/repo/pull/42'
     const session = makeSession({
       project: 'myapp',
-      task: 'feature-fix-auth',
+      task: '42',
       source: 'github',
-      source_url: 'https://github.com/org/repo/pull/42',
-      prBranch: 'feature-fix-auth',
+      source_url: url,
       account: 'work',
     })
-    const ptySession = manager.getOrCreate('myapp', 'task-feature-fix-auth', session)
-    expect(ptySession.command).toContain('cw work myapp feature-fix-auth')
-    expect(ptySession.command).toContain('--base feature-fix-auth')
-    expect(ptySession.command).not.toContain('github.com')
+    const ptySession = manager.getOrCreate('myapp', 'task-42', session)
+    expect(ptySession.command).toContain(`cw work myapp ${url}`)
   })
 
   it('uses pr number directly for review sessions (no source_url needed)', () => {

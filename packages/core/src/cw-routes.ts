@@ -205,38 +205,14 @@ export function cwRoutes(reader: CWReader): Hono {
     let taskSlug = task.trim()
     let taskUrl: string | undefined
     let taskSource: string | undefined
-    let prBranch: string | undefined
 
     // Extract identifier from URLs (mirrors CW's parsing)
     if (taskSlug.startsWith('http')) {
       taskUrl = taskSlug
       if (taskSlug.includes('github.com')) {
         taskSource = 'github'
-        const pullM = taskSlug.match(/\/pull\/(\d+)/)
-        if (pullM && type !== 'review') {
-          // For dev tasks with a PR URL: pre-fetch the actual branch via gh CLI
-          // so CW creates the worktree on the PR's branch without needing GitHub MCP
-          const projectPath = project ? reader.getProjects()[project]?.path : undefined
-          try {
-            const result = await execFileAsync('gh', ['pr', 'view', pullM[1], '--json', 'headRefName', '--jq', '.headRefName'], {
-              encoding: 'utf-8', timeout: 5000,
-              cwd: projectPath || process.cwd()
-            })
-            const branch = result.stdout.trim()
-            if (branch) {
-              taskSlug = branch
-              prBranch = branch  // signal PTY to base worktree on this remote branch
-            } else {
-              taskSlug = `pull-${pullM[1]}`
-            }
-          } catch {
-            taskSlug = `pull-${pullM[1]}`
-          }
-        } else {
-          // Review type or non-PR URL: just extract the number/slug
-          const m = taskSlug.match(/\d+$/)
-          if (m) taskSlug = m[0]
-        }
+        const m = taskSlug.match(/(\d+)\s*$/)
+        if (m) taskSlug = m[1]
       } else if (taskSlug.includes('linear.app')) {
         taskSource = 'linear'
         const m = taskSlug.match(/([A-Z]+-\d+)/)
@@ -306,7 +282,6 @@ export function cwRoutes(reader: CWReader): Hono {
       model: model || undefined,
       source: taskSource,
       source_url: taskUrl,
-      prBranch,
       worktree: '',
       notes: '',
       status: 'active',

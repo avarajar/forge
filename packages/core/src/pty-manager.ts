@@ -75,16 +75,10 @@ export class PTYManager {
       if (session.model) cmd += ` --model ${session.model}`
       return cmd
     }
-    // For linear/notion: pass source_url so CW uses its URL-aware init_prompt (branchName field, etc.)
-    // For github: task already holds the pre-fetched branch name — pass it directly
-    // For plain names: task is already the right value
-    const taskArg = (session.source === 'linear' || session.source === 'notion')
-      ? (session.source_url ?? session.task)
-      : session.task
+    // Pass source_url to CW for any URL-sourced task (linear, github, notion)
+    // so CW's URL-aware init_prompt runs: fetches issue/PR context, uses correct branch
+    const taskArg = session.source_url ?? session.task
     let cmd = `${prefix} work ${session.project} ${taskArg}`
-    // When we pre-fetched a PR branch, base the worktree on that remote branch
-    // so CW checks out the PR's existing commits instead of branching from main
-    if (session.prBranch) cmd += ` --base ${session.prBranch}`
     if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
     if (session.model) cmd += ` --model ${session.model}`
