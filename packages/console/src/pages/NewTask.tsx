@@ -125,10 +125,10 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         body.task = task.trim()
         body.description = description.trim() || undefined
         body.workflow = workflow || undefined
-        body.model = model || undefined
       } else if (project) {
         body.project = project
       }
+      body.model = model || undefined
 
       const res = await fetch('/api/cw/start', {
         method: 'POST',
@@ -289,33 +289,31 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         </label>
 
         {/* Model selector */}
-        {!isGeneral && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">
-              Model <span class="text-forge-muted font-normal">({MODEL_DEFAULTS[type] || 'sonnet'} by default)</span>
-            </label>
-            <div class="flex flex-wrap gap-2">
-              {MODELS.map(m => (
-                <button
-                  key={m.id}
-                  class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                    model === m.id
-                      ? 'text-forge-accent'
-                      : 'border-forge-border bg-forge-surface text-forge-muted'
-                  }`}
-                  style={model === m.id
-                    ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
-                    : undefined
-                  }
-                  onClick={() => setModel(m.id)}
-                  title={m.description}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1">
+            Model <span class="text-forge-muted font-normal">({MODEL_DEFAULTS[type] || 'sonnet'} by default)</span>
+          </label>
+          <div class="flex flex-wrap gap-2">
+            {MODELS.map(m => (
+              <button
+                key={m.id}
+                class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                  model === m.id
+                    ? 'text-forge-accent'
+                    : 'border-forge-border bg-forge-surface text-forge-muted'
+                }`}
+                style={model === m.id
+                  ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                  : undefined
+                }
+                onClick={() => setModel(m.id)}
+                title={m.description}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
         {/* Stack detection — hidden for general */}
         {!isGeneral && detection && (

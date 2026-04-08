@@ -53,9 +53,9 @@ export class PTYManager {
   private buildCommand(session: CWSession): string {
     const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
     if (session.type === 'general') {
-      // Pass --dangerously-skip-permissions directly to claude via $@
-      // because cw launch doesn't apply CW_CLAUDE_FLAGS
+      // cw launch passes extra args directly to claude via $@
       let cmd = `cw launch ${session.account || ''}`
+      if (session.model) cmd += ` --model ${session.model}`
       if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
       return cmd
     }

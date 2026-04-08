@@ -130,6 +130,7 @@ export function cwRoutes(reader: CWReader): Hono {
         project: projectName,
         type: 'general',
         account: acct,
+        model: model ?? '',
         workflow: '',
         worktree: projectPath ?? '',
         notes: '',
