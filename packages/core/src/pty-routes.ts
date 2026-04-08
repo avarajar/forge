@@ -51,7 +51,9 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
       return
     }
 
-    const session = reader.getSession(project, sessionDir) ?? pendingSessions.get(sessionId)
+    // Prefer pendingSessions (freshly created via /api/cw/start, has source_url)
+    // over disk session (may be stale/done from a previous run, missing source_url)
+    const session = pendingSessions.get(sessionId) ?? reader.getSession(project, sessionDir)
     if (session) pendingSessions.delete(sessionId)
 
     if (!session) {
