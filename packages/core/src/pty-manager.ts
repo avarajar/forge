@@ -70,13 +70,17 @@ export class PTYManager {
       return cmd
     }
     if (session.type === 'review') {
-      const prArg = session.source_url || session.pr
-      let cmd = `${prefix} review ${session.project} ${prArg}`
+      let cmd = `${prefix} review ${session.project} ${session.pr}`
       if (session.account) cmd += ` --account ${session.account}`
       if (session.model) cmd += ` --model ${session.model}`
       return cmd
     }
-    const taskArg = session.source_url || session.task
+    // For linear/notion: pass source_url so CW uses its URL-aware init_prompt (branchName field, etc.)
+    // For github: task already holds the pre-fetched branch name — pass it directly
+    // For plain names: task is already the right value
+    const taskArg = (session.source === 'linear' || session.source === 'notion')
+      ? (session.source_url ?? session.task)
+      : session.task
     let cmd = `${prefix} work ${session.project} ${taskArg}`
     if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
