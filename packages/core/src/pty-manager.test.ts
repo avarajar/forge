@@ -118,17 +118,27 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain(`cw work myapp ${url}`)
   })
 
-  it('uses pr number directly for review sessions (no source_url needed)', () => {
+  it('passes source_url to CW for review sessions so CW uses correct PR branch', () => {
+    const url = 'https://github.com/org/repo/pull/42'
     const session = makeSession({
       type: 'review',
       task: undefined,
       pr: '42',
       source: 'github',
-      source_url: 'https://github.com/org/repo/pull/42',
+      source_url: url,
+    })
+    const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
+    expect(ptySession.command).toContain(`cw review testproj ${url}`)
+  })
+
+  it('falls back to pr number when source_url is absent for review sessions', () => {
+    const session = makeSession({
+      type: 'review',
+      task: undefined,
+      pr: '42',
     })
     const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
     expect(ptySession.command).toContain('cw review testproj 42')
-    expect(ptySession.command).not.toContain('github.com')
   })
 
   it('builds correct command for create sessions', () => {
