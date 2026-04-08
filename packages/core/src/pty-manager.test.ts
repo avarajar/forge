@@ -92,7 +92,7 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain('cw review testproj 42')
   })
 
-  it('uses source_url in command for Linear task so CW uses Linear branch name', () => {
+  it('passes source_url to CW for Linear tasks so CW uses Linear branchName', () => {
     const url = 'https://linear.app/team/issue/ENG-123-fix-auth-bug'
     const session = makeSession({
       project: 'myapp',
@@ -105,17 +105,32 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain(`cw work myapp ${url}`)
   })
 
-  it('uses source_url in command for GitHub PR review', () => {
-    const url = 'https://github.com/org/repo/pull/42'
+  it('passes pre-fetched branch name (task) to CW for GitHub PR tasks', () => {
+    // Forge pre-fetches the PR branch via gh, stores it in session.task
+    const session = makeSession({
+      project: 'myapp',
+      task: 'feature-fix-auth',   // pre-fetched branch name
+      source: 'github',
+      source_url: 'https://github.com/org/repo/pull/42',  // kept for display
+      account: 'work',
+    })
+    const ptySession = manager.getOrCreate('myapp', 'task-feature-fix-auth', session)
+    // Should use the branch name directly, NOT the GitHub URL
+    expect(ptySession.command).toContain('cw work myapp feature-fix-auth')
+    expect(ptySession.command).not.toContain('github.com')
+  })
+
+  it('uses pr number directly for review sessions (no source_url needed)', () => {
     const session = makeSession({
       type: 'review',
       task: undefined,
       pr: '42',
       source: 'github',
-      source_url: url,
+      source_url: 'https://github.com/org/repo/pull/42',
     })
     const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
-    expect(ptySession.command).toContain(`cw review testproj ${url}`)
+    expect(ptySession.command).toContain('cw review testproj 42')
+    expect(ptySession.command).not.toContain('github.com')
   })
 
   it('builds correct command for create sessions', () => {
