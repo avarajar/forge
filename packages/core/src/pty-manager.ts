@@ -82,6 +82,9 @@ export class PTYManager {
       ? (session.source_url ?? session.task)
       : session.task
     let cmd = `${prefix} work ${session.project} ${taskArg}`
+    // When we pre-fetched a PR branch, base the worktree on that remote branch
+    // so CW checks out the PR's existing commits instead of branching from main
+    if (session.prBranch) cmd += ` --base ${session.prBranch}`
     if (session.account) cmd += ` --account ${session.account}`
     if (session.workflow) cmd += ` --workflow ${session.workflow}`
     if (session.model) cmd += ` --model ${session.model}`
