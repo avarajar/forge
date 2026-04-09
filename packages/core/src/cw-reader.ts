@@ -1,6 +1,6 @@
-import { readdirSync, readFileSync, existsSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync, lstatSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CWProject, CWSession, StackDetection } from './cw-types.js'
+import type { CWProject, CWSession, SkillEntry, SkillDetail, StackDetection } from './cw-types.js'
 
 export class CWReader {
   private cwDir: string
@@ -222,6 +222,140 @@ export class CWReader {
     }
 
     return { mcps, plugins }
+  }
+
+  private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
+    const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+    if (!match) return { frontmatter: {}, body: content }
+
+    const rawBlock = match[1]
+    const body = match[2]
+    const frontmatter: Record<string, unknown> = {}
+
+    let inMetadata = false
+    const metadataObj: Record<string, unknown> = {}
+
+    for (const line of rawBlock.split('\n')) {
+      if (line.match(/^metadata:\s*$/)) {
+        inMetadata = true
+        continue
+      }
+      if (inMetadata) {
+        const nested = line.match(/^\s+(\w[\w-]*):\s*(.*)$/)
+        if (nested) {
+          metadataObj[nested[1]] = nested[2].replace(/^['"]|['"]$/g, '')
+          continue
+        }
+        // line is not indented — stop nested block
+        inMetadata = false
+      }
+      const kv = line.match(/^(\w[\w-]*):\s*(.*)$/)
+      if (kv) {
+        frontmatter[kv[1]] = kv[2].replace(/^['"]|['"]$/g, '')
+      }
+    }
+
+    if (Object.keys(metadataObj).length > 0) frontmatter['metadata'] = metadataObj
+
+    return { frontmatter, body }
+  }
+
+  getSkillDir(scope: 'global' | 'account' | 'project', scopeRef: string, name: string): string {
+    const home = process.env.HOME ?? ''
+    if (scope === 'global') {
+      return join(home, '.claude', 'skills', name)
+    }
+    if (scope === 'account') {
+      return join(this.cwDir, 'accounts', scopeRef, 'skills', name)
+    }
+    // project
+    const projects = this.getProjects()
+    const projPath = projects[scopeRef]?.path ?? scopeRef
+    return join(projPath, '.claude', 'skills', name)
+  }
+
+  getSkills(account?: string, project?: string): SkillEntry[] {
+    const home = process.env.HOME ?? ''
+    const results: SkillEntry[] = []
+
+    const scanDir = (dir: string, scope: SkillEntry['scope'], scopeRef: string) => {
+      if (!existsSync(dir)) return
+      const entries = readdirSync(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        // Skip symlinks that are account skills symlinked by CW
+        const fullPath = join(dir, entry.name)
+        try {
+          const stat = lstatSync(fullPath)
+          if (stat.isSymbolicLink() && entry.name.startsWith('acct--')) continue
+        } catch {
+          continue
+        }
+        const skillMd = join(fullPath, 'SKILL.md')
+        if (!existsSync(skillMd)) continue
+        try {
+          const content = readFileSync(skillMd, 'utf-8')
+          const { frontmatter } = this.parseFrontmatter(content)
+          const refsDir = join(fullPath, 'references')
+          const hasReferences = existsSync(refsDir) &&
+            readdirSync(refsDir).some(f => f.endsWith('.md'))
+          results.push({
+            name: String(frontmatter['name'] ?? entry.name),
+            dirName: entry.name,
+            scope,
+            scopeRef,
+            description: String(frontmatter['description'] ?? ''),
+            domain: frontmatter['domain'] ? String(frontmatter['domain']) : undefined,
+            triggers: frontmatter['triggers'] ? String(frontmatter['triggers']) : undefined,
+            hasReferences,
+          })
+        } catch {
+          // skip unreadable skill
+        }
+      }
+    }
+
+    scanDir(join(home, '.claude', 'skills'), 'global', 'global')
+
+    if (account) {
+      scanDir(join(this.cwDir, 'accounts', account, 'skills'), 'account', account)
+    }
+
+    if (project) {
+      const projects = this.getProjects()
+      const projPath = projects[project]?.path ?? project
+      scanDir(join(projPath, '.claude', 'skills'), 'project', project)
+    }
+
+    return results
+  }
+
+  getSkill(scope: 'global' | 'account' | 'project', scopeRef: string, name: string): SkillDetail | null {
+    const dir = this.getSkillDir(scope, scopeRef, name)
+    const skillMd = join(dir, 'SKILL.md')
+    if (!existsSync(skillMd)) return null
+
+    try {
+      const content = readFileSync(skillMd, 'utf-8')
+      const { frontmatter, body } = this.parseFrontmatter(content)
+
+      const references: { name: string; content: string }[] = []
+      const refsDir = join(dir, 'references')
+      if (existsSync(refsDir)) {
+        for (const f of readdirSync(refsDir)) {
+          if (!f.endsWith('.md')) continue
+          try {
+            references.push({ name: f, content: readFileSync(join(refsDir, f), 'utf-8') })
+          } catch {
+            // skip unreadable reference
+          }
+        }
+      }
+
+      return { name: String(frontmatter['name'] ?? name), scope, scopeRef, frontmatter, body, references }
+    } catch {
+      return null
+    }
   }
 
   detectStack(project: string): StackDetection {

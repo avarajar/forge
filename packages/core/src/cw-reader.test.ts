@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
 import { CWReader } from './cw-reader.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -108,5 +108,152 @@ describe('CWReader', () => {
     expect(detection.hasPackageJson).toBe(true)
     expect(detection.hasTests).toBe(true)
     rmSync('/tmp/myapp', { recursive: true, force: true })
+  })
+})
+
+describe('Skills', () => {
+  const TEST_HOME = join(import.meta.dirname, '../.test-home')
+  const TEST_CW2 = join(import.meta.dirname, '../.test-cw2')
+
+  const GLOBAL_SKILL_MD = `---
+name: my-global-skill
+description: A global skill for testing
+domain: testing
+triggers: when testing
+---
+# My Global Skill
+
+This is the skill body.
+`
+
+  const ACCOUNT_SKILL_MD = `---
+name: my-account-skill
+description: An account-scoped skill
+domain: workflow
+---
+# Account Skill Body
+`
+
+  const PROJECT_SKILL_MD = `---
+name: my-project-skill
+description: A project-scoped skill
+---
+# Project Skill Body
+`
+
+  let reader: CWReader
+  let origHome: string | undefined
+
+  beforeAll(() => {
+    origHome = process.env.HOME
+
+    // Global skill: TEST_HOME/.claude/skills/my-global-skill/
+    const globalSkillDir = join(TEST_HOME, '.claude', 'skills', 'my-global-skill')
+    mkdirSync(globalSkillDir, { recursive: true })
+    writeFileSync(join(globalSkillDir, 'SKILL.md'), GLOBAL_SKILL_MD)
+
+    const globalRefsDir = join(globalSkillDir, 'references')
+    mkdirSync(globalRefsDir, { recursive: true })
+    writeFileSync(join(globalRefsDir, 'ref-one.md'), '# Reference One\nSome reference content.')
+
+    // Account skill: TEST_CW2/accounts/default/skills/my-account-skill/
+    const accountSkillDir = join(TEST_CW2, 'accounts', 'default', 'skills', 'my-account-skill')
+    mkdirSync(accountSkillDir, { recursive: true })
+    writeFileSync(join(accountSkillDir, 'SKILL.md'), ACCOUNT_SKILL_MD)
+
+    // Project skill: /tmp/myapp2/.claude/skills/my-project-skill/
+    const projectSkillDir = '/tmp/myapp2/.claude/skills/my-project-skill'
+    mkdirSync(projectSkillDir, { recursive: true })
+    writeFileSync(join(projectSkillDir, 'SKILL.md'), PROJECT_SKILL_MD)
+
+    // projects.json for TEST_CW2
+    mkdirSync(TEST_CW2, { recursive: true })
+    writeFileSync(join(TEST_CW2, 'projects.json'), JSON.stringify({
+      myapp2: { path: '/tmp/myapp2', account: 'default', type: 'fullstack', registered: '2026-01-01T00:00:00Z' }
+    }))
+
+    process.env.HOME = TEST_HOME
+    reader = new CWReader(TEST_CW2)
+  })
+
+  afterAll(() => {
+    process.env.HOME = origHome
+    rmSync(TEST_HOME, { recursive: true, force: true })
+    rmSync(TEST_CW2, { recursive: true, force: true })
+    rmSync('/tmp/myapp2', { recursive: true, force: true })
+  })
+
+  it('getSkillDir returns correct path for global scope', () => {
+    const dir = reader.getSkillDir('global', 'global', 'my-global-skill')
+    expect(dir).toBe(join(TEST_HOME, '.claude', 'skills', 'my-global-skill'))
+  })
+
+  it('getSkillDir returns correct path for account scope', () => {
+    const dir = reader.getSkillDir('account', 'default', 'my-account-skill')
+    expect(dir).toBe(join(TEST_CW2, 'accounts', 'default', 'skills', 'my-account-skill'))
+  })
+
+  it('getSkillDir returns correct path for project scope', () => {
+    const dir = reader.getSkillDir('project', 'myapp2', 'my-project-skill')
+    expect(dir).toBe('/tmp/myapp2/.claude/skills/my-project-skill')
+  })
+
+  it('getSkills returns global skills', () => {
+    const skills = reader.getSkills()
+    expect(skills).toHaveLength(1)
+    const skill = skills[0]
+    expect(skill.name).toBe('my-global-skill')
+    expect(skill.scope).toBe('global')
+    expect(skill.scopeRef).toBe('global')
+    expect(skill.description).toBe('A global skill for testing')
+    expect(skill.domain).toBe('testing')
+    expect(skill.triggers).toBe('when testing')
+    expect(skill.hasReferences).toBe(true)
+  })
+
+  it('getSkills includes account skills when account provided', () => {
+    const skills = reader.getSkills('default')
+    const names = skills.map(s => s.name)
+    expect(names).toContain('my-global-skill')
+    expect(names).toContain('my-account-skill')
+    const acct = skills.find(s => s.name === 'my-account-skill')
+    expect(acct?.scope).toBe('account')
+    expect(acct?.scopeRef).toBe('default')
+    expect(acct?.hasReferences).toBe(false)
+  })
+
+  it('getSkills includes project skills when project provided', () => {
+    const skills = reader.getSkills(undefined, 'myapp2')
+    const names = skills.map(s => s.name)
+    expect(names).toContain('my-global-skill')
+    expect(names).toContain('my-project-skill')
+    const proj = skills.find(s => s.name === 'my-project-skill')
+    expect(proj?.scope).toBe('project')
+    expect(proj?.scopeRef).toBe('myapp2')
+  })
+
+  it('getSkill returns full detail for global skill', () => {
+    const detail = reader.getSkill('global', 'global', 'my-global-skill')
+    expect(detail).not.toBeNull()
+    expect(detail!.name).toBe('my-global-skill')
+    expect(detail!.scope).toBe('global')
+    expect(detail!.body).toContain('This is the skill body.')
+    expect(detail!.references).toHaveLength(1)
+    expect(detail!.references[0].name).toBe('ref-one.md')
+    expect(detail!.references[0].content).toContain('Reference One')
+    expect(detail!.frontmatter['description']).toBe('A global skill for testing')
+  })
+
+  it('getSkill returns full detail for account skill', () => {
+    const detail = reader.getSkill('account', 'default', 'my-account-skill')
+    expect(detail).not.toBeNull()
+    expect(detail!.name).toBe('my-account-skill')
+    expect(detail!.body).toContain('Account Skill Body')
+    expect(detail!.references).toHaveLength(0)
+  })
+
+  it('getSkill returns null for missing skill', () => {
+    const detail = reader.getSkill('global', 'global', 'nonexistent')
+    expect(detail).toBeNull()
   })
 })
