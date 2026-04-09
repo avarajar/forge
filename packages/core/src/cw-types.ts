@@ -52,3 +52,34 @@ export interface StackDetection {
   framework: string | null
   testRunner: string | null
 }
+
+export type SkillScope = 'global' | 'account' | 'project'
+
+export interface SkillEntry {
+  name: string
+  dirName: string
+  scope: SkillScope
+  scopeRef: string
+  description: string
+  domain?: string
+  triggers?: string
+  hasReferences: boolean
+}
+
+export interface SkillDetail {
+  name: string
+  scope: SkillScope
+  scopeRef: string
+  frontmatter: Record<string, unknown>
+  body: string
+  references: { name: string; content: string }[]
+}
+
+export interface ExploreResult {
+  name: string
+  slug: string
+  installs: number
+  source: 'skills.sh'
+  url: string
+  repo: string
+}
