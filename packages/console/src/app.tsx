@@ -4,6 +4,7 @@ import { Shell } from './shell.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
+import { Skills } from './pages/Skills.js'
 import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { CreateAccountModal } from './pages/CreateAccountModal.js'
@@ -80,7 +81,7 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   // Sub-views within list
-  const [listView, setListView] = useState<'list' | 'new-task'>('list')
+  const [listView, setListView] = useState<'list' | 'new-task' | 'skills'>('list')
   const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
   // Create Project / Account modals
@@ -154,6 +155,50 @@ function App() {
     setListView('list')
   }, [tabs.goToList])
 
+  const handleCreateSkillWithAI = useCallback(async (scope: string, scopeRef: string, description: string) => {
+    let targetDir = ''
+    if (scope === 'global') targetDir = '~/.claude/skills/'
+    else if (scope === 'account') targetDir = `~/.cw/accounts/${scopeRef}/skills/`
+    else targetDir = `<project>/.claude/skills/`
+
+    const initDescription = [
+      'Use the skill-creator skill to create a new Claude Code skill.',
+      '',
+      `The user wants: ${description}`,
+      `Target scope: ${scope}${scopeRef ? ` (${scopeRef})` : ''}`,
+      `Save location: ${targetDir}`,
+      '',
+      'Before creating from scratch, search for existing similar skills:',
+      '1. Search skills.sh for related skills (WebSearch or WebFetch https://skills.sh/api/search?q=<keywords>)',
+      '2. Search GitHub for claude-code skill repos',
+      '3. Present what you find — let the user pick a base or start fresh',
+      '',
+      'Then use skill-creator to build/customize the skill and save it.',
+    ].join('\n')
+
+    try {
+      const res = await fetch('/api/cw/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'general',
+          account: accounts[0] || 'default',
+          description: initDescription,
+        })
+      })
+      const result = await res.json() as { ok: boolean; session?: CWSession }
+      if (result.ok && result.session) {
+        tabs.openTab(result.session)
+        setListView('list')
+        showToast('AI skill creation session started', 'success')
+      } else {
+        showToast('Failed to start session', 'error')
+      }
+    } catch {
+      showToast('Failed to start skill creation session', 'error')
+    }
+  }, [accounts, tabs])
+
   const handleStartPrototype = useCallback((project: string) => {
     setPrototypeProject(project)
   }, [])
@@ -200,6 +245,7 @@ function App() {
               onShowDone={filters.setShowDone}
               openTabKeys={tabs.openTabKeys}
               onMarkDone={handleMarkDone}
+            onSkills={() => setListView('skills')}
             />
             <CreateProjectModal
               open={showCreateProject}
@@ -232,6 +278,13 @@ function App() {
               refreshAfterAction()
             }}
             onStartPrototype={handleStartPrototype}
+          />
+        ) : listView === 'skills' ? (
+          <Skills
+            accounts={filters.accountNames}
+            projects={projects}
+            onBack={() => setListView('list')}
+            onCreateWithAI={handleCreateSkillWithAI}
           />
         ) : null}
       </Shell>

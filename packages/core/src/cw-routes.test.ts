@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Hono } from 'hono'
 import { cwRoutes } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
@@ -211,6 +211,41 @@ describe('CW Routes', () => {
     expect(body.session.source).toBe('github')
     expect(body.session.source_url).toBe(url)
     expect(body.session.pr).toBe('42')
+  })
+
+  it('POST /api/cw/start pre-writes description to TASK_NOTES.md', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'dev',
+        project: 'testproj',
+        task: 'desc-test',
+        description: 'Fix the broken auth flow',
+      })
+    })
+    expect(res.status).toBe(200)
+    const notesPath = join(TEST_CW, 'sessions/testproj/task-desc-test/TASK_NOTES.md')
+    expect(existsSync(notesPath)).toBe(true)
+    const content = readFileSync(notesPath, 'utf-8')
+    expect(content).toContain('## Description')
+    expect(content).toContain('Fix the broken auth flow')
+    expect(content).toContain('**Project:** testproj')
+  })
+
+  it('POST /api/cw/start without description does not pre-write TASK_NOTES.md', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'dev',
+        project: 'testproj',
+        task: 'no-desc-test',
+      })
+    })
+    expect(res.status).toBe(200)
+    const notesPath = join(TEST_CW, 'sessions/testproj/task-no-desc-test/TASK_NOTES.md')
+    expect(existsSync(notesPath)).toBe(false)
   })
 
   it('POST /api/cw/start with type=create requires project name', async () => {

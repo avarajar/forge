@@ -11,6 +11,7 @@ import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
 import { CWReader } from './cw-reader.js'
 import { cwRoutes } from './cw-routes.js'
+import { skillRoutes } from './skill-routes.js'
 import { PTYManager } from './pty-manager.js'
 import { createTerminalWss } from './pty-routes.js'
 import { SandboxManager } from './sandbox-manager.js'
@@ -44,6 +45,7 @@ export function createForgeServer(options: ServerOptions) {
 
   const cwReader = new CWReader()
   app.route('/api/cw', cwRoutes(cwReader))
+  app.route('/api/skills', skillRoutes(cwReader))
 
   const ptyManager = new PTYManager()
   const terminalWss = createTerminalWss(ptyManager, cwReader)

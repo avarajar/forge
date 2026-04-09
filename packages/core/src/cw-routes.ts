@@ -3,7 +3,7 @@ import { CWReader } from './cw-reader.js'
 import { ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
 import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 const execFileAsync = promisify(execFile)
@@ -131,6 +131,17 @@ export function cwRoutes(reader: CWReader): Hono {
     }
   })
 
+  app.get('/git/branch/:project/:sessionDir', (c) => {
+    const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+    try {
+      const output = execSync('git rev-parse --abbrev-ref HEAD', { cwd: session.worktree, encoding: 'utf-8', timeout: 5000 }).trim()
+      return c.json({ branch: output })
+    } catch {
+      return c.json({ branch: '' })
+    }
+  })
+
   app.get('/git/diff/:project/:sessionDir', (c) => {
     const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
@@ -201,7 +212,7 @@ export function cwRoutes(reader: CWReader): Hono {
     }
 
     // Check if session already exists (active)
-    const cwHome = join(process.env.HOME ?? '', '.cw')
+    const cwHome = reader.cwHome
     let taskSlug = task.trim()
     let taskUrl: string | undefined
     let taskSource: string | undefined
@@ -257,14 +268,36 @@ export function cwRoutes(reader: CWReader): Hono {
       if (model) args.push('--model', model)
     }
 
-    // Pre-write description to TASK_NOTES.md so CW picks it up
+    // Pre-write description to TASK_NOTES.md so CW picks it up.
+    // Uses ## Description section that CW extracts into the init_prompt.
     if (description && type !== 'plan') {
-      const { mkdirSync, writeFileSync: writeSync } = await import('node:fs')
       const notesDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
       mkdirSync(notesDir, { recursive: true })
       const notesFile = join(notesDir, type === 'review' ? 'REVIEW_NOTES.md' : 'TASK_NOTES.md')
       if (!existsSync(notesFile)) {
-        writeSync(notesFile, `# ${type === 'review' ? 'Review' : 'Task'}: ${taskSlug}\n\n## Description\n${description}\n\n## Notes\n`)
+        const header = type === 'review' ? 'Review' : 'Task'
+        const now = new Date().toISOString().slice(0, 10)
+        writeFileSync(notesFile, [
+          `# ${header}: ${taskSlug}`,
+          `**Project:** ${project}`,
+          `**Created:** ${now}`,
+          '',
+          '## Description',
+          description,
+          '',
+          '## Context',
+          '<!-- Additional context discovered during work -->',
+          '',
+          '## Decisions',
+          '<!-- Important decisions made during this task -->',
+          '',
+          '## Status',
+          '- [ ] Pending',
+          '',
+          '## Notes',
+          '<!-- Findings, context, references -->',
+          '',
+        ].join('\n'))
       }
     }
 
@@ -302,7 +335,7 @@ export function cwRoutes(reader: CWReader): Hono {
     const { project, task, type, sessionDir } = await c.req.json<{ project: string; task: string; type: string; sessionDir?: string }>()
 
     // Directly update session.json for instant UI feedback
-    const cwHome = join(process.env.HOME ?? '', '.cw')
+    const cwHome = reader.cwHome
     const sessionDirName = sessionDir ?? (type === 'review' ? `review-pr-${task}` : `task-${task}`)
     const sessionFile = join(cwHome, 'sessions', project, sessionDirName, 'session.json')
 
@@ -344,9 +377,7 @@ export function cwRoutes(reader: CWReader): Hono {
     }
 
     // Always clean up session data for this project
-    const { rmSync, existsSync } = await import('node:fs')
-    const { join } = await import('node:path')
-    const sessionsDir = join(process.env.HOME ?? '', '.cw', 'sessions', project)
+    const sessionsDir = join(reader.cwHome, 'sessions', project)
     if (existsSync(sessionsDir)) {
       try { rmSync(sessionsDir, { recursive: true, force: true }) } catch {}
     }
