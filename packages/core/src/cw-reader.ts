@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync, lstatSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CWProject, CWSession, SkillEntry, SkillDetail, StackDetection } from './cw-types.js'
 
@@ -283,14 +283,8 @@ export class CWReader {
       const entries = readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {
         if (!entry.isDirectory()) continue
-        // Skip symlinks that are account skills symlinked by CW
+        if (entry.name.startsWith('acct--')) continue
         const fullPath = join(dir, entry.name)
-        try {
-          const stat = lstatSync(fullPath)
-          if (stat.isSymbolicLink() && entry.name.startsWith('acct--')) continue
-        } catch {
-          continue
-        }
         const skillMd = join(fullPath, 'SKILL.md')
         if (!existsSync(skillMd)) continue
         try {

@@ -203,7 +203,19 @@ const SkillEditorView: FunctionComponent<{
       const d = await res.json() as SkillDetail
       setDetail(d)
       // Reconstruct full SKILL.md with frontmatter
-      const fmLines = Object.entries(d.frontmatter).map(([k, v]) => `${k}: ${String(v)}`)
+      const serializeFm = (obj: Record<string, unknown>, indent = ''): string[] => {
+        const lines: string[] = []
+        for (const [k, v] of Object.entries(obj)) {
+          if (v && typeof v === 'object' && !Array.isArray(v)) {
+            lines.push(`${indent}${k}:`)
+            lines.push(...serializeFm(v as Record<string, unknown>, indent + '  '))
+          } else {
+            lines.push(`${indent}${k}: ${String(v ?? '')}`)
+          }
+        }
+        return lines
+      }
+      const fmLines = serializeFm(d.frontmatter)
       const fullContent = fmLines.length > 0
         ? `---\n${fmLines.join('\n')}\n---\n\n${d.body}`
         : d.body
@@ -450,7 +462,8 @@ const SkillExploreView: FunctionComponent<{
     try {
       const res = await fetch(`/api/skills/explore?q=${encodeURIComponent(query.trim())}`)
       if (!res.ok) throw new Error('search failed')
-      setResults(await res.json() as ExploreResult[])
+      const data = await res.json() as { results: ExploreResult[] }
+      setResults(data.results)
     } catch {
       showToast('Failed to search skills', 'error')
     } finally {
@@ -565,13 +578,12 @@ const SkillCreateView: FunctionComponent<{
   const handleCreateManually = async () => {
     if (!name.trim()) return
     setCreating(true)
-    const sp = scopePath(scope, scopeRef)
     const template = `---\nname: ${name.trim()}\ndescription: ${description.trim()}\ndomain: general\n---\n\n# ${name.trim()}\n\n${description.trim()}\n`
     try {
-      const res = await fetch(`/api/skills/${sp}`, {
+      const res = await fetch('/api/skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), content: template }),
+        body: JSON.stringify({ scope, scopeRef: scopeRef || undefined, name: name.trim(), content: template }),
       })
       const result = await res.json() as { ok: boolean; error?: string }
       if (result.ok) {
@@ -706,13 +718,15 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onB
   const [scopeFilter, setScopeFilter] = useState('')
   const [editingSkill, setEditingSkill] = useState<SkillEntry | null>(null)
 
+  const firstAccount = accounts[0] ?? ''
+  const firstProject = Object.keys(projects)[0] ?? ''
+
   const fetchSkills = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (accounts.length > 0) params.set('account', accounts[0])
-      const projectNames = Object.keys(projects)
-      if (projectNames.length > 0) params.set('project', projectNames[0])
+      if (firstAccount) params.set('account', firstAccount)
+      if (firstProject) params.set('project', firstProject)
       const res = await fetch(`/api/skills?${params.toString()}`)
       if (!res.ok) throw new Error('fetch failed')
       setSkills(await res.json() as SkillEntry[])
@@ -721,7 +735,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onB
     } finally {
       setLoading(false)
     }
-  }, [accounts, projects])
+  }, [firstAccount, firstProject])
 
   useEffect(() => { fetchSkills() }, [fetchSkills])
 

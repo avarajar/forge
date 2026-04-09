@@ -3,37 +3,20 @@ import { CWReader } from './cw-reader.js'
 import type { ExploreResult, SkillScope } from './cw-types.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
-type ScopePath =
-  | { scope: 'global'; scopeRef: string; name: string }
-  | { scope: 'account'; scopeRef: string; name: string }
-  | { scope: 'project'; scopeRef: string; name: string }
-
-function parseScopeParams(
-  scope: SkillScope,
-  params: Record<string, string>
-): ScopePath {
-  if (scope === 'global') {
-    return { scope: 'global', scopeRef: 'global', name: params['name'] ?? '' }
-  }
-  if (scope === 'account') {
-    return { scope: 'account', scopeRef: params['account'] ?? '', name: params['name'] ?? '' }
-  }
-  return { scope: 'project', scopeRef: params['project'] ?? '', name: params['name'] ?? '' }
-}
+const execFileAsync = promisify(execFile)
 
 export function skillRoutes(reader: CWReader): Hono {
   const app = new Hono()
 
-  // GET / — list skills (optional ?account= ?project=)
   app.get('/', (c) => {
     const account = c.req.query('account')
     const project = c.req.query('project')
     return c.json(reader.getSkills(account, project))
   })
 
-  // GET /global/:name — get global skill detail
   app.get('/global/:name', (c) => {
     const name = c.req.param('name')
     const skill = reader.getSkill('global', 'global', name)
@@ -41,7 +24,6 @@ export function skillRoutes(reader: CWReader): Hono {
     return c.json(skill)
   })
 
-  // GET /account/:account/:name — get account skill detail
   app.get('/account/:account/:name', (c) => {
     const { account, name } = c.req.param()
     const skill = reader.getSkill('account', account, name)
@@ -49,7 +31,6 @@ export function skillRoutes(reader: CWReader): Hono {
     return c.json(skill)
   })
 
-  // GET /project/:project/:name — get project skill detail
   app.get('/project/:project/:name', (c) => {
     const { project, name } = c.req.param()
     const skill = reader.getSkill('project', project, name)
@@ -57,7 +38,6 @@ export function skillRoutes(reader: CWReader): Hono {
     return c.json(skill)
   })
 
-  // POST / — create skill
   app.post('/', async (c) => {
     const { scope, scopeRef, name, content } = await c.req.json<{
       scope: SkillScope
@@ -83,7 +63,6 @@ export function skillRoutes(reader: CWReader): Hono {
     }
   })
 
-  // PUT/DELETE helpers registered for all three scope patterns
   const scopePatterns: Array<{ pattern: string; scope: SkillScope; paramKey?: string }> = [
     { pattern: '/global/:name', scope: 'global' },
     { pattern: '/account/:account/:name', scope: 'account', paramKey: 'account' },
@@ -91,7 +70,6 @@ export function skillRoutes(reader: CWReader): Hono {
   ]
 
   for (const { pattern, scope, paramKey } of scopePatterns) {
-    // PUT /{scope-path}/:name — update SKILL.md
     app.put(pattern, async (c) => {
       const params = c.req.param() as Record<string, string>
       const scopeRef = paramKey ? (params[paramKey] ?? '') : 'global'
@@ -113,7 +91,6 @@ export function skillRoutes(reader: CWReader): Hono {
       }
     })
 
-    // PUT /{scope-path}/:name/references/:filename — create/update reference file
     app.put(`${pattern}/references/:filename`, async (c) => {
       const params = c.req.param() as Record<string, string>
       const scopeRef = paramKey ? (params[paramKey] ?? '') : 'global'
@@ -138,7 +115,6 @@ export function skillRoutes(reader: CWReader): Hono {
       }
     })
 
-    // DELETE /{scope-path}/:name/references/:filename — delete reference file
     app.delete(`${pattern}/references/:filename`, (c) => {
       const params = c.req.param() as Record<string, string>
       const scopeRef = paramKey ? (params[paramKey] ?? '') : 'global'
@@ -160,7 +136,6 @@ export function skillRoutes(reader: CWReader): Hono {
       }
     })
 
-    // DELETE /{scope-path}/:name — delete entire skill directory
     app.delete(pattern, (c) => {
       const params = c.req.param() as Record<string, string>
       const scopeRef = paramKey ? (params[paramKey] ?? '') : 'global'
@@ -181,7 +156,6 @@ export function skillRoutes(reader: CWReader): Hono {
     })
   }
 
-  // GET /explore — proxy to skills.sh
   app.get('/explore', async (c) => {
     const q = c.req.query('q') ?? ''
     try {
@@ -214,7 +188,6 @@ export function skillRoutes(reader: CWReader): Hono {
     }
   })
 
-  // POST /install — install a skill from skills.sh
   app.post('/install', async (c) => {
     const { slug, scope, scopeRef } = await c.req.json<{
       slug: string
@@ -228,10 +201,9 @@ export function skillRoutes(reader: CWReader): Hono {
 
     try {
       if (scope === 'global') {
-        execFileSync('npx', ['skills', 'add', slug, '--global', '--yes', '--agent', 'claude'], {
+        await execFileAsync('npx', ['skills', 'add', slug, '--global', '--yes', '--agent', 'claude'], {
           encoding: 'utf-8',
           timeout: 60000,
-          stdio: 'pipe',
         })
         return c.json({ ok: true })
       }
