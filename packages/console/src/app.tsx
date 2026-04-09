@@ -4,6 +4,7 @@ import { Shell } from './shell.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
+import { Skills } from './pages/Skills.js'
 import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { CreateAccountModal } from './pages/CreateAccountModal.js'
@@ -80,7 +81,7 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   // Sub-views within list
-  const [listView, setListView] = useState<'list' | 'new-task'>('list')
+  const [listView, setListView] = useState<'list' | 'new-task' | 'skills'>('list')
   const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
   // Create Project / Account modals
@@ -154,6 +155,10 @@ function App() {
     setListView('list')
   }, [tabs.goToList])
 
+  const handleCreateSkillWithAI = useCallback((scope: string, scopeRef: string, description: string) => {
+    showToast('AI skill creation coming soon', 'info')
+  }, [])
+
   const handleStartPrototype = useCallback((project: string) => {
     setPrototypeProject(project)
   }, [])
@@ -200,6 +205,7 @@ function App() {
               onShowDone={filters.setShowDone}
               openTabKeys={tabs.openTabKeys}
               onMarkDone={handleMarkDone}
+            onSkills={() => setListView('skills')}
             />
             <CreateProjectModal
               open={showCreateProject}
@@ -232,6 +238,13 @@ function App() {
               refreshAfterAction()
             }}
             onStartPrototype={handleStartPrototype}
+          />
+        ) : listView === 'skills' ? (
+          <Skills
+            accounts={filters.accountNames}
+            projects={projects}
+            onBack={() => setListView('list')}
+            onCreateWithAI={handleCreateSkillWithAI}
           />
         ) : null}
       </Shell>

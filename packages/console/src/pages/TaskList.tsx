@@ -119,6 +119,7 @@ interface TaskListProps {
   onShowDone: (v: boolean) => void
   openTabKeys?: Set<string>
   onMarkDone?: (session: CWSession) => void
+  onSkills?: () => void
 }
 
 /* ------------------------------------------------------------------ */
@@ -189,6 +190,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   onShowDone,
   openTabKeys,
   onMarkDone,
+  onSkills,
 }) => {
   const active = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
   const done = useMemo(() => spaces.filter(s => s.status === 'done').slice(0, 15), [spaces])
@@ -241,6 +243,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           >
             + Project
           </button>
+          {onSkills && <ActionButton label="Skills" variant="secondary" onClick={onSkills} />}
           <ActionButton label="+ New Task" variant="primary" onClick={() => onNewTask()} />
         </div>
       </div>
