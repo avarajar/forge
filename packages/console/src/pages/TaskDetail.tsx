@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { useState, useEffect } from 'preact/hooks'
+import { useState, useEffect, useRef, useCallback } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { TYPE_STYLES } from '../config/types.js'
@@ -32,23 +32,42 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${session.project}/${sessionDir}?k=${wsKey}`
 
+  const fallbackBranch = session.task ?? session.pr ?? ''
+
+  const fetchBranch = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/cw/git/branch/${session.project}/${sessionDir}`)
+      if (res.ok) {
+        const data = await res.json() as { branch: string }
+        if (data.branch) setBranch(data.branch)
+      }
+    } catch {}
+  }, [session.project, sessionDir])
+
   const fetchData = async () => {
-    const [statusRes, toolsRes, branchRes] = await Promise.all([
+    const [statusRes, toolsRes] = await Promise.all([
       fetch(`/api/cw/git/status/${session.project}/${sessionDir}`).catch(() => null),
       fetch(`/api/cw/tools?project=${session.project}`).catch(() => null),
-      fetch(`/api/cw/git/branch/${session.project}/${sessionDir}`).catch(() => null),
     ])
     if (statusRes) setGitStatus((await statusRes.json() as { output: string }).output)
     if (toolsRes) setTools(await toolsRes.json() as ToolsInfo)
-    if (branchRes) {
-      const data = await branchRes.json() as { branch: string }
-      setBranch(data.branch || session.task || session.pr || '')
-    } else {
-      setBranch(session.task ?? session.pr ?? '')
-    }
+    await fetchBranch()
   }
 
-  useEffect(() => { fetchData() }, [session])
+  useEffect(() => {
+    setBranch(fallbackBranch)
+    fetchData()
+  }, [session])
+
+  // Re-fetch branch after terminal connects — CW creates the worktree async
+  const prevConnected = useRef(false)
+  useEffect(() => {
+    if (connected && !prevConnected.current) {
+      const t = setTimeout(fetchBranch, 3000)
+      return () => clearTimeout(t)
+    }
+    prevConnected.current = connected
+  }, [connected, fetchBranch])
 
   const markDone = async () => {
     try {
