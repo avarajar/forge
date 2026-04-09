@@ -19,9 +19,7 @@ interface TaskDetailProps {
 /* ── Component ── */
 
 export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClose, onDone }) => {
-  const [gitLog, setGitLog] = useState<string>('')
   const [gitStatus, setGitStatus] = useState<string>('')
-  const [notes, setNotes] = useState<string>('')
   const [branch, setBranch] = useState<string>('')
   const [ptyExited, setPtyExited] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -35,17 +33,19 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
   const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${session.project}/${sessionDir}?k=${wsKey}`
 
   const fetchData = async () => {
-    const [logRes, statusRes, notesRes, toolsRes] = await Promise.all([
-      fetch(`/api/cw/git/log/${session.project}/${sessionDir}`).catch(() => null),
+    const [statusRes, toolsRes, branchRes] = await Promise.all([
       fetch(`/api/cw/git/status/${session.project}/${sessionDir}`).catch(() => null),
-      fetch(`/api/cw/notes/${session.project}/${sessionDir}`).catch(() => null),
       fetch(`/api/cw/tools?project=${session.project}`).catch(() => null),
+      fetch(`/api/cw/git/branch/${session.project}/${sessionDir}`).catch(() => null),
     ])
-    if (logRes) setGitLog((await logRes.json() as { output: string }).output)
     if (statusRes) setGitStatus((await statusRes.json() as { output: string }).output)
-    if (notesRes) setNotes((await notesRes.json() as { content: string }).content)
     if (toolsRes) setTools(await toolsRes.json() as ToolsInfo)
-    setBranch(session.task ?? session.pr ?? '')
+    if (branchRes) {
+      const data = await branchRes.json() as { branch: string }
+      setBranch(data.branch || session.task || session.pr || '')
+    } else {
+      setBranch(session.task ?? session.pr ?? '')
+    }
   }
 
   useEffect(() => { fetchData() }, [session])
@@ -75,7 +75,6 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
   }
 
   const filesChanged = gitStatus ? gitStatus.split('\n').filter(Boolean).length : 0
-  const commitCount = gitLog ? gitLog.split('\n').filter(Boolean).length : 0
 
   const mcpList = tools?.mcps ?? []
   const pluginList = tools?.plugins ?? []
@@ -102,14 +101,21 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
             {typeCfg.label}
           </span>
 
-          {/* Branch */}
+          {/* Branch (click to copy) */}
           {branch && (
-            <span
-              class="text-[11px] font-mono px-1.5 py-0.5 rounded shrink-0 truncate max-w-[180px]"
-              style={{ backgroundColor: 'var(--forge-ghost-bg)', color: 'var(--forge-muted)' }}
+            <button
+              class="text-[11px] font-mono px-1.5 py-0.5 rounded shrink-0 truncate max-w-[260px] cursor-pointer transition-colors"
+              style={{ backgroundColor: 'var(--forge-ghost-bg)', color: 'var(--forge-muted)', border: 'none' }}
+              title="Click to copy branch name"
+              onClick={() => {
+                navigator.clipboard.writeText(branch)
+                showToast('Branch copied', 'info')
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-text)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-muted)' }}
             >
               {branch}
-            </span>
+            </button>
           )}
 
           {/* Separator */}
@@ -119,15 +125,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
           <div class="flex items-center gap-2.5 text-[11px] text-forge-muted">
             <span>{filesChanged} file{filesChanged !== 1 ? 's' : ''}</span>
             <span style={{ opacity: 0.3 }}>&middot;</span>
-            <span>{commitCount} commit{commitCount !== 1 ? 's' : ''}</span>
-            <span style={{ opacity: 0.3 }}>&middot;</span>
             <span>{session.opens} session{session.opens !== 1 ? 's' : ''}</span>
-            {notes && (
-              <>
-                <span style={{ opacity: 0.3 }}>&middot;</span>
-                <span style={{ color: 'var(--forge-accent)' }}>has notes</span>
-              </>
-            )}
           </div>
 
           <span class="flex-1" />

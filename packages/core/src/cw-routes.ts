@@ -131,6 +131,17 @@ export function cwRoutes(reader: CWReader): Hono {
     }
   })
 
+  app.get('/git/branch/:project/:sessionDir', (c) => {
+    const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+    try {
+      const output = execSync('git rev-parse --abbrev-ref HEAD', { cwd: session.worktree, encoding: 'utf-8', timeout: 5000 }).trim()
+      return c.json({ branch: output })
+    } catch {
+      return c.json({ branch: '' })
+    }
+  })
+
   app.get('/git/diff/:project/:sessionDir', (c) => {
     const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
     if (!session) return c.json({ error: 'Session not found' }, 404)
