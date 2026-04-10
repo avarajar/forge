@@ -362,6 +362,42 @@ export function cwRoutes(reader: CWReader): Hono {
     return c.json({ ok: true, updated })
   })
 
+  app.post('/move-project', async (c) => {
+    const { project, toAccount } = await c.req.json<{ project: string; toAccount: string }>()
+
+    if (!project || !toAccount) {
+      return c.json({ ok: false, error: 'Project and target account are required' }, 400)
+    }
+
+    if (!ACCOUNT_NAME_RE.test(toAccount)) {
+      return c.json({ ok: false, error: 'Invalid account name' }, 400)
+    }
+
+    const projects = reader.getProjects()
+
+    if (!projects[project]) {
+      return c.json({ ok: false, error: `Project "${project}" not found` }, 404)
+    }
+
+    if (projects[project].account === toAccount) {
+      return c.json({ ok: false, error: `Project "${project}" is already in account "${toAccount}"` }, 409)
+    }
+
+    if (!reader.getAccounts().includes(toAccount)) {
+      return c.json({ ok: false, error: `Account "${toAccount}" does not exist` }, 404)
+    }
+
+    projects[project] = { ...projects[project], account: toAccount }
+
+    try {
+      writeFileSync(join(reader.cwHome, 'projects.json'), JSON.stringify(projects, null, 2))
+      return c.json({ ok: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return c.json({ ok: false, error: `Failed to update projects: ${message}` }, 500)
+    }
+  })
+
   app.post('/delete-project', async (c) => {
     const { project, deleteFiles } = await c.req.json<{ project: string; deleteFiles: boolean }>()
 

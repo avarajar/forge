@@ -10,12 +10,18 @@ interface ProjectInfo {
 export const ProjectBanner: FunctionComponent<{
   project: string
   account?: string
+  accounts?: string[]
   onDeleted?: () => void
-}> = ({ project, account, onDeleted }) => {
+  onMoved?: () => void
+}> = ({ project, account, accounts, onDeleted, onMoved }) => {
   const [info, setInfo] = useState<ProjectInfo>({ stack: null, mcps: null })
-  const [showDelete, setShowDelete] = useState(false)
+  const [activePanel, setActivePanel] = useState<'move' | 'delete' | null>(null)
   const [deleteFiles, setDeleteFiles] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [moveTarget, setMoveTarget] = useState('')
+  const [moving, setMoving] = useState(false)
+
+  const moveTargets = (accounts ?? []).filter(a => a !== account)
 
   useEffect(() => {
     let cancelled = false
@@ -44,6 +50,12 @@ export const ProjectBanner: FunctionComponent<{
   const plugins = info.mcps?.plugins ?? []
   const allMcps = [...projectMcps.map(m => `${m} (project)`), ...globalMcps, ...cwMcps.map(m => `${m} (CW)`)]
 
+  const openPanel = (panel: 'move' | 'delete') => {
+    setActivePanel(activePanel === panel ? null : panel)
+    setMoveTarget('')
+    setDeleteFiles(false)
+  }
+
   const handleDelete = async () => {
     setDeleting(true)
     try {
@@ -61,7 +73,32 @@ export const ProjectBanner: FunctionComponent<{
       showToast('Failed to delete project', 'error')
     } finally {
       setDeleting(false)
-      setShowDelete(false)
+      setActivePanel(null)
+    }
+  }
+
+  const handleMove = async () => {
+    if (!moveTarget) return
+    setMoving(true)
+    try {
+      const res = await fetch('/api/cw/move-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project, toAccount: moveTarget })
+      })
+      const result = await res.json() as { ok: boolean; error?: string }
+      if (result.ok) {
+        showToast(`Project "${project}" moved to "${moveTarget}"`, 'success')
+        setActivePanel(null)
+        setMoveTarget('')
+        onMoved?.()
+      } else {
+        showToast(result.error ?? 'Failed to move project', 'error')
+      }
+    } catch {
+      showToast('Failed to move project', 'error')
+    } finally {
+      setMoving(false)
     }
   }
 
@@ -80,19 +117,67 @@ export const ProjectBanner: FunctionComponent<{
             <span class="text-xs text-forge-muted" style={{ opacity: 0.7 }}>({account})</span>
           )}
         </div>
-        <button
-          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors"
-          style={showDelete
-            ? { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.35)', color: 'var(--forge-error)' }
-            : { backgroundColor: 'rgba(239,68,68,0.06)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--forge-error)', opacity: 0.75 }
-          }
-          onClick={() => setShowDelete(!showDelete)}
-        >
-          ⚠ Delete project
-        </button>
+        <div class="flex items-center gap-2">
+          {moveTargets.length > 0 && (
+            <button
+              class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+              style={activePanel === 'move'
+                ? { backgroundColor: 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.35)', color: 'var(--forge-accent)' }
+                : { backgroundColor: 'rgba(99,102,241,0.06)', borderColor: 'rgba(99,102,241,0.2)', color: 'var(--forge-accent)', opacity: 0.75 }
+              }
+              onClick={() => openPanel('move')}
+            >
+              Move to account
+            </button>
+          )}
+          <button
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors"
+            style={activePanel === 'delete'
+              ? { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.35)', color: 'var(--forge-error)' }
+              : { backgroundColor: 'rgba(239,68,68,0.06)', borderColor: 'rgba(239,68,68,0.2)', color: 'var(--forge-error)', opacity: 0.75 }
+            }
+            onClick={() => openPanel('delete')}
+          >
+            ⚠ Delete project
+          </button>
+        </div>
       </div>
 
-      {showDelete && (
+      {activePanel === 'move' && (
+        <div class="rounded-lg p-3 mb-2" style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+          <p class="text-xs text-forge-text mb-2">Move "{project}" to a different account.</p>
+          <select
+            class="w-full px-2.5 py-1.5 text-xs rounded-lg bg-forge-surface border text-forge-text appearance-none cursor-pointer mb-3"
+            style={{ borderColor: 'rgba(99,102,241,0.3)' }}
+            value={moveTarget}
+            onChange={(e) => setMoveTarget((e.target as HTMLSelectElement).value)}
+          >
+            <option value="">Select account...</option>
+            {moveTargets.map(a => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
+          <div class="flex gap-2">
+            <button
+              class="px-3 py-1.5 text-xs rounded-lg text-white font-medium transition-colors disabled:opacity-50"
+              style={{ backgroundColor: 'var(--forge-accent)' }}
+              onClick={handleMove}
+              disabled={moving || !moveTarget}
+            >
+              {moving ? 'Moving...' : 'Move project'}
+            </button>
+            <button
+              class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
+              style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
+              onClick={() => { setActivePanel(null); setMoveTarget('') }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activePanel === 'delete' && (
         <div class="rounded-lg p-3 mb-2" style={{ backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
           <p class="text-xs text-forge-text mb-2">Are you sure? This will unregister "{project}" from CW.</p>
           <label class="flex items-center gap-2 text-xs text-forge-muted mb-3 cursor-pointer">
@@ -120,7 +205,7 @@ export const ProjectBanner: FunctionComponent<{
             <button
               class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
               style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-              onClick={() => { setShowDelete(false); setDeleteFiles(false) }}
+              onClick={() => { setActivePanel(null); setDeleteFiles(false) }}
             >
               Cancel
             </button>
