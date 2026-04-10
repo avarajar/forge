@@ -107,6 +107,7 @@ interface TaskListProps {
   onCreateAccount: () => void
   onSelectTask: (session: CWSession) => void
   onRefresh: () => void
+  projects: Record<string, { path: string; account: string }>
   accountNames: string[]
   filterAccount: string | null
   onFilterAccount: (a: string | null) => void
@@ -178,6 +179,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   onCreateAccount,
   onSelectTask,
   onRefresh,
+  projects,
   accountNames,
   filterAccount,
   onFilterAccount,
@@ -202,8 +204,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
 
   const projectAccount = useMemo(() => {
     if (!filterProject) return undefined
-    return spaces.find(s => s.project === filterProject)?.account
-  }, [filterProject, spaces])
+    return projects[filterProject]?.account ?? spaces.find(s => s.project === filterProject)?.account
+  }, [filterProject, projects, spaces])
 
   if (allSpaces.length === 0) {
     return null
