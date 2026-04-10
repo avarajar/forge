@@ -233,6 +233,7 @@ function App() {
               onCreateAccount={() => setShowCreateAccount(true)}
               onSelectTask={tabs.openTab}
               onRefresh={() => fetchData()}
+              projects={projects}
               accountNames={filters.accountNames}
               filterAccount={filters.filterAccount}
               onFilterAccount={filters.setFilterAccount}

@@ -26,8 +26,14 @@ export function useTaskFilters({ spaces, accounts, projects }: UseTaskFiltersOpt
       if (filterAccount && s.account !== filterAccount) continue
       names.add(s.project)
     }
+    // Also include registered projects (filtered by account) so projects
+    // with no sessions still appear after being moved to a new account
+    for (const [name, p] of Object.entries(projects)) {
+      if (filterAccount && p.account !== filterAccount) continue
+      names.add(name)
+    }
     return Array.from(names).sort()
-  }, [spaces, filterAccount])
+  }, [spaces, projects, filterAccount])
 
   const handleFilterAccount = (account: string | null) => {
     setFilterAccount(account)
