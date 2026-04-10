@@ -154,6 +154,7 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain('cw create')
     expect(ptySession.command).toContain('my-saas')
     expect(ptySession.command).toContain('A SaaS for team collaboration')
+    expect(ptySession.command).toContain('--team')
     expect(ptySession.command).toContain('--account work')
   })
 

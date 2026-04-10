@@ -62,7 +62,7 @@ export class PTYManager {
     if (session.type === 'create') {
       const desc = session.notes || session.task || 'New project'
       const quotedDesc = `'${desc.replace(/'/g, "'\\''")}'`
-      let cmd = `cw create ${quotedDesc}`
+      let cmd = `cw create ${quotedDesc} --team`
       if (session.task) cmd += ` --name ${session.task}`
       if (session.account) cmd += ` --account ${session.account}`
       if (session.model) cmd += ` --model ${session.model}`
