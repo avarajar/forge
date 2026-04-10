@@ -332,7 +332,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
 
       {/* Account / project banners */}
       {filterAccount && <AccountBanner account={filterAccount} onDeleted={() => { onFilterAccount(null); onRefresh() }} />}
-      {filterProject && <ProjectBanner project={filterProject} account={projectAccount} onDeleted={() => { onFilterProject(null); onRefresh() }} />}
+      {filterProject && <ProjectBanner project={filterProject} account={projectAccount} accounts={accountNames} onDeleted={() => { onFilterProject(null); onRefresh() }} onMoved={onRefresh} />}
 
       {/* Active tasks */}
       {active.length > 0 && (

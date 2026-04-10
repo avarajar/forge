@@ -248,6 +248,73 @@ describe('CW Routes', () => {
     expect(existsSync(notesPath)).toBe(false)
   })
 
+  it('POST /api/cw/move-project moves project to existing account', async () => {
+    mkdirSync(join(TEST_CW, 'accounts/work'), { recursive: true })
+
+    const res = await app.request('/api/cw/move-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'testproj', toAccount: 'work' })
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(true)
+
+    const projects = JSON.parse(readFileSync(join(TEST_CW, 'projects.json'), 'utf-8')) as Record<string, { account: string }>
+    expect(projects.testproj.account).toBe('work')
+
+    // restore for other tests
+    writeFileSync(join(TEST_CW, 'projects.json'), JSON.stringify({
+      testproj: { path: '/tmp/testproj', account: 'default', type: 'fullstack', registered: '2026-01-01T00:00:00Z' }
+    }))
+  })
+
+  it('POST /api/cw/move-project returns 409 when already in target account', async () => {
+    const res = await app.request('/api/cw/move-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'testproj', toAccount: 'default' })
+    })
+    expect(res.status).toBe(409)
+    const body = await res.json() as { ok: boolean; error: string }
+    expect(body.ok).toBe(false)
+    expect(body.error).toContain('already in account')
+  })
+
+  it('POST /api/cw/move-project returns 404 for unknown project', async () => {
+    const res = await app.request('/api/cw/move-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'nonexistent', toAccount: 'default' })
+    })
+    expect(res.status).toBe(404)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(false)
+  })
+
+  it('POST /api/cw/move-project returns 404 for unknown target account', async () => {
+    const res = await app.request('/api/cw/move-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'testproj', toAccount: 'nosuchaccount' })
+    })
+    expect(res.status).toBe(404)
+    const body = await res.json() as { ok: boolean; error: string }
+    expect(body.ok).toBe(false)
+    expect(body.error).toContain('does not exist')
+  })
+
+  it('POST /api/cw/move-project returns 400 for missing fields', async () => {
+    const res = await app.request('/api/cw/move-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'testproj' })
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json() as { ok: boolean }
+    expect(body.ok).toBe(false)
+  })
+
   it('POST /api/cw/start with type=create requires project name', async () => {
     const res = await app.request('/api/cw/start', {
       method: 'POST',
