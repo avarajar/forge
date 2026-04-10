@@ -76,17 +76,6 @@ export const QUICK_TYPES = [
   { key: 'general', label: 'General', style: TYPE_STYLES['general'] },
 ]
 
-/* ── Model defaults per task type ── */
-
-export const MODEL_DEFAULTS: Record<string, string> = {
-  dev: 'sonnet',
-  review: 'sonnet',
-  plan: 'opus',
-  design: 'sonnet',
-  general: 'sonnet',
-  create: 'opus',
-}
-
 /* ── Shared helpers ── */
 
 export const sessionKey = (s: CWSession) =>

@@ -2,7 +2,6 @@ import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, Badge, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { MODEL_DEFAULTS } from '../config/types.js'
 
 interface NewTaskProps {
   projects: Record<string, { path: string; account: string }>
@@ -284,7 +283,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         {/* Model selector */}
         <div class="mb-4">
           <label class="block text-sm font-medium mb-1">
-            Model <span class="text-forge-muted font-normal">({MODEL_DEFAULTS[type] || 'sonnet'} by default)</span>
+            Model <span class="text-forge-muted font-normal">(claude default if not set)</span>
           </label>
           <div class="flex flex-wrap gap-2">
             {MODELS.map(m => (
