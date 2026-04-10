@@ -2,6 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { Modal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
+import { MODEL_DEFAULTS } from '../config/types.js'
 
 interface CreateProjectModalProps {
   open: boolean
@@ -54,7 +55,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
           description: description.trim(),
           account: account.trim() || undefined,
           directory: directory.trim() || undefined,
-          model: model || undefined,
+          model: model || MODEL_DEFAULTS.create,
         })
       })
       const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
