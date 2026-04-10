@@ -2,6 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, Badge, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
+import { MODEL_DEFAULTS } from '../config/types.js'
 
 interface NewTaskProps {
   projects: Record<string, { path: string; account: string }>
@@ -29,13 +30,6 @@ const MODELS = [
   { id: 'opus', label: 'Opus', description: 'Complex reasoning' },
 ]
 
-const MODEL_DEFAULTS: Record<string, string> = {
-  dev: 'sonnet',
-  review: 'sonnet',
-  plan: 'opus',
-  design: 'sonnet',
-  general: 'sonnet',
-}
 
 export const NewTask: FunctionComponent<NewTaskProps> = ({
   projects, accounts, initialType, initialAccount, initialProject, onBack, onCreated, onStartPrototype
