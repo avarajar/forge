@@ -22,7 +22,7 @@ This guide walks you through creating a custom Forge module from scratch — a s
 ## 1. Prerequisites
 
 - Node.js >= 20
-- A working Forge monorepo (run `npm install` at the root)
+- A working Forge monorepo (run `pnpm install` at the root)
 - Familiarity with TypeScript and Preact
 
 All examples use `@yourorg/mod-yourname` as the module name. Replace `yourorg` and `yourname` with your own values throughout.
@@ -524,7 +524,7 @@ If your module is inside the monorepo, ensure its directory is listed in the roo
 }
 ```
 
-Modules placed under `modules/` are automatically included. Run `npm install` after adding a new package.
+Modules placed under `modules/` are automatically included. Run `pnpm install` after adding a new package.
 
 ### Step 2 — Register panels in registry.ts
 
@@ -552,14 +552,14 @@ Add your module as a dependency in `packages/console/package.json`:
 }
 ```
 
-Then run `npm install` again.
+Then run `pnpm install` again.
 
 ### Step 4 — Verify
 
 Start the dev server and confirm your module appears in the sidebar:
 
 ```bash
-npx turbo dev
+pnpm dev
 ```
 
 If the module does not appear, check that `forge-module.json` is present in the module root and that `name` matches exactly.
@@ -644,10 +644,10 @@ Run tests:
 
 ```bash
 # From the monorepo root
-npx turbo test
+pnpm test
 
 # Or from your module directory
-npx vitest run
+pnpm vitest run
 ```
 
 ---
@@ -672,7 +672,7 @@ Remove `"private": true` and add build and publish fields:
   "files": ["dist", "forge-module.json"],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "pnpm build"
   },
   "peerDependencies": {
     "preact": "^10.0.0",
@@ -697,7 +697,7 @@ Key changes for publishing:
 ### Step 2 — Build
 
 ```bash
-npm run build
+pnpm build
 ```
 
 Check that `dist/panels/index.js` and the compiled panel files exist.
@@ -705,7 +705,7 @@ Check that `dist/panels/index.js` and the compiled panel files exist.
 ### Step 3 — Publish
 
 ```bash
-npm publish --access public
+pnpm publish --access public
 ```
 
 For scoped packages (`@yourorg/...`) the `--access public` flag is required on first publish.

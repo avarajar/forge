@@ -12,9 +12,9 @@
     "preact": "^10.25.0",
     "@preact/signals": "^2.0.0",
     "preact-router": "^4.1.0",
-    "@forge-dev/ui": "*",
-    "@forge-dev/sdk": "*",
-    "@forge-dev/core": "*"
+    "@forge-dev/ui": "workspace:*",
+    "@forge-dev/sdk": "workspace:*",
+    "@forge-dev/core": "workspace:*"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.9.0",

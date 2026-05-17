@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+  - "modules/*"
+
+# Explicit allowlist of dependencies allowed to run install scripts.
+# Default-deny posture mitigates supply-chain attacks via malicious
+# `postinstall` payloads (Shai-Hulud, node-ipc, axios — 2026).
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+  node-pty: true

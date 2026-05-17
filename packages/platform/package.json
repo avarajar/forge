@@ -11,8 +11,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@forge-dev/core": "*",
-    "@forge-dev/console": "*",
+    "@forge-dev/core": "workspace:*",
+    "@forge-dev/console": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "open": "^10.0.0"
   },
