@@ -74,6 +74,7 @@ Filter by project to see detected stack, MCPs, and plugins. Manage or delete pro
 | Requirement | Version | Install |
 |-------------|---------|---------|
 | **Node.js** | >= 20 | [nodejs.org](https://nodejs.org) |
+| **pnpm** | >= 11 | `corepack enable && corepack prepare pnpm@latest --activate` |
 | **Python 3** | >= 3.9 | Required by CW for session management |
 | **Git** | any recent | Worktree support required |
 | **Claude Code** | latest | `npm i -g @anthropic-ai/claude-code` |
