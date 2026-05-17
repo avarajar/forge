@@ -102,7 +102,7 @@ cd forge
 pnpm start
 ```
 
-That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`.
+That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`. The first run takes ~1–2 minutes while it installs 249 packages and compiles the monorepo; subsequent starts are near-instant thanks to Turborepo's cache.
 
 Other ways to launch:
 
