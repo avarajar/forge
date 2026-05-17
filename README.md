@@ -74,6 +74,7 @@ Filter by project to see detected stack, MCPs, and plugins. Manage or delete pro
 | Requirement | Version | Install |
 |-------------|---------|---------|
 | **Node.js** | >= 20 | [nodejs.org](https://nodejs.org) |
+| **pnpm** | >= 11 | `corepack enable && corepack prepare pnpm@latest --activate` |
 | **Python 3** | >= 3.9 | Required by CW for session management |
 | **Git** | any recent | Worktree support required |
 | **Claude Code** | latest | `npm i -g @anthropic-ai/claude-code` |
@@ -98,10 +99,10 @@ Clone and run:
 ```bash
 git clone https://github.com/avarajar/forge.git
 cd forge
-npm start
+pnpm start
 ```
 
-That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`.
+That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`. The first run takes ~1–2 minutes while it installs 249 packages and compiles the monorepo; subsequent starts are near-instant thanks to Turborepo's cache.
 
 Other ways to launch:
 
@@ -115,8 +116,8 @@ npx @forge-dev/platform    # No install needed
 To work on Forge itself:
 
 ```bash
-npm install
-npx turbo dev
+pnpm install
+pnpm dev
 ```
 
 <br />
@@ -220,7 +221,7 @@ Forge supports extensible modules via `forge-module.json` manifests. Each module
   "displayName": "QA",
   "icon": "test-tube",
   "actions": [
-    { "id": "run-tests", "label": "Run Tests", "command": "npx vitest", "streaming": true }
+    { "id": "run-tests", "label": "Run Tests", "command": "pnpm vitest", "streaming": true }
   ],
   "detectors": [
     { "tool": "vitest", "files": ["vitest.config.*"], "suggestion": "Vitest detected" }
@@ -235,17 +236,17 @@ Panels are Preact components using `definePanel()` from `@forge-dev/sdk`.
 ## Development
 
 ```bash
-npm install           # Install all workspace deps
-npx turbo dev         # Dev mode (all packages)
-npx turbo build       # Build all
-npx turbo test        # Run all tests (137 tests)
+pnpm install          # Install all workspace deps
+pnpm dev              # Dev mode (all packages)
+pnpm build            # Build all
+pnpm test             # Run all tests
 ```
 
 ### Run specific package
 
 ```bash
-cd packages/core && npx vitest        # Core tests
-cd packages/console && npx vite       # Dashboard dev server
+cd packages/core && pnpm vitest        # Core tests
+cd packages/console && pnpm vite       # Dashboard dev server
 ```
 
 <br />

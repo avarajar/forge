@@ -22,7 +22,7 @@ Thank you for your interest in contributing to Forge. This document covers every
 ### Requirements
 
 - Node.js >= 20
-- npm >= 10
+- pnpm >= 11 (install via `corepack enable && corepack prepare pnpm@latest --activate`)
 - Git
 
 ### Clone and install
@@ -30,15 +30,15 @@ Thank you for your interest in contributing to Forge. This document covers every
 ```bash
 git clone https://github.com/avarajar/forge.git
 cd forge
-npm install
+pnpm install
 ```
 
-`npm install` sets up all workspace packages at once via npm workspaces.
+`pnpm install` sets up all workspace packages at once via pnpm workspaces.
 
 ### Start the dev server
 
 ```bash
-npx turbo dev
+pnpm dev
 ```
 
 This starts all packages in parallel with hot-reload:
@@ -52,13 +52,13 @@ Open `http://localhost:5173` in your browser to see the dashboard.
 
 ```bash
 # Dashboard only
-cd packages/console && npx vite
+cd packages/console && pnpm vite
 
 # Core server only
-cd packages/core && npx tsx src/server.ts
+cd packages/core && pnpm tsx src/server.ts
 
 # CLI from source
-cd packages/cli && npx tsx src/index.ts
+cd packages/cli && pnpm tsx src/index.ts
 ```
 
 ---
@@ -68,7 +68,7 @@ cd packages/cli && npx tsx src/index.ts
 ### All tests
 
 ```bash
-npx turbo test
+pnpm test
 ```
 
 Turborepo runs tests across every package in parallel, respecting the dependency graph.
@@ -77,19 +77,19 @@ Turborepo runs tests across every package in parallel, respecting the dependency
 
 ```bash
 # Core tests
-cd packages/core && npx vitest
+cd packages/core && pnpm vitest
 
 # SDK tests
-cd packages/sdk && npx vitest
+cd packages/sdk && pnpm vitest
 
 # A specific module
-cd modules/mod-qa && npx vitest
+cd modules/mod-qa && pnpm vitest
 ```
 
 ### Watch mode
 
 ```bash
-npx vitest --watch
+pnpm vitest --watch
 ```
 
 ### Vitest integration
@@ -290,7 +290,7 @@ The short version:
 1. Create `modules/mod-<name>/` with a `forge-module.json` and `package.json`.
 2. Add panels under `panels/` using `definePanel` from `@forge-dev/sdk`.
 3. Register the panels in `packages/console/src/panels/registry.ts`.
-4. Add tests and make sure `npx turbo test` passes.
+4. Add tests and make sure `pnpm test` passes.
 5. Open a PR.
 
 ---
@@ -310,7 +310,7 @@ The short version:
 4. **Run the full test suite locally** before opening a PR:
 
    ```bash
-   npx turbo test
+   pnpm test
    ```
 
 5. **Open a PR** against the `main` branch. Include:

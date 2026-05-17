@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "commander": "^14.0.0",
-    "@forge-dev/core": "*",
+    "@forge-dev/core": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "open": "^10.0.0"
   },

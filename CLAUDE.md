@@ -82,10 +82,10 @@ App (app.tsx)
 ## Development
 
 ```bash
-npm start             # Install + build + launch (one command)
-npx turbo dev         # Dev mode (all packages)
-npx turbo build       # Build all
-npx turbo test        # Run all tests
+pnpm start            # Install + build + launch (one command)
+pnpm dev              # Dev mode (all packages)
+pnpm build            # Build all
+pnpm test             # Run all tests
 ```
 
 ## API Endpoints

@@ -1,12 +1,8 @@
 {
   "name": "forge",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "modules/*"
-  ],
   "scripts": {
-    "start": "npm install && npm run build && node packages/platform/dist/index.js",
+    "start": "pnpm install && pnpm build && node packages/platform/dist/index.js",
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
@@ -17,8 +13,9 @@
     "turbo": "^2.9.3",
     "typescript": "^5.8.0"
   },
-  "packageManager": "npm@10.9.0",
+  "packageManager": "pnpm@11.1.2",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.0.0",
+    "pnpm": ">=11.0.0"
   }
 }

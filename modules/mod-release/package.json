@@ -5,6 +5,6 @@
   "private": true,
   "description": "Deploy automation, feature flags, rollback, changelog",
   "exports": { "./panels": "./panels/index.ts" },
-  "peerDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "*", "@forge-dev/ui": "*" },
-  "devDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "*", "@forge-dev/ui": "*", "typescript": "^5.8.0" }
+  "peerDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "workspace:*", "@forge-dev/ui": "workspace:*" },
+  "devDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "workspace:*", "@forge-dev/ui": "workspace:*", "typescript": "^5.8.0" }
 }
