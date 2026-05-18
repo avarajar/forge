@@ -261,7 +261,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         class="flex flex-wrap items-center gap-2.5 mb-6 pb-5"
         style={{ borderBottom: '1px solid var(--forge-ghost-border)' }}
       >
-        {accountNames.length > 1 && (
+        {accountNames.length > 0 && (
           <select
             class="px-3 py-1.5 text-xs rounded-lg bg-forge-surface border text-forge-text appearance-none cursor-pointer min-w-[130px] hover:border-forge-border transition-colors"
             style={filterAccount
