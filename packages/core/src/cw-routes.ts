@@ -20,6 +20,15 @@ export { pendingSessions }
 export function cwRoutes(reader: CWReader): Hono {
   const app = new Hono()
 
+  // Resolve `cw` to an absolute path so spawn() doesn't depend on PATH.
+  // Forge is often launched from contexts (Finder, a stripped-PATH shell,
+  // a CW-spawned subprocess) where ~/.cw/bin isn't on PATH and a bare
+  // `spawn('cw')` fails with ENOENT.
+  const cwBin = (() => {
+    const candidate = join(reader.cwHome, 'bin', 'cw')
+    return existsSync(candidate) ? candidate : 'cw'
+  })()
+
   app.get('/projects', (c) => {
     return c.json(reader.getProjects())
   })
@@ -63,7 +72,7 @@ export function cwRoutes(reader: CWReader): Hono {
     }
 
     try {
-      await execFileAsync('cw', ['account', 'add', trimmed], { encoding: 'utf-8', timeout: 10000 })
+      await execFileAsync(cwBin, ['account', 'add', trimmed], { encoding: 'utf-8', timeout: 10000 })
       return c.json({ ok: true, name: trimmed })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
@@ -355,7 +364,7 @@ export function cwRoutes(reader: CWReader): Hono {
       ? ['review', project, task, '--done']
       : ['work', project, task, '--done']
     try {
-      const child = spawn('cw', args, { detached: true, stdio: 'ignore' })
+      const child = spawn(cwBin, args, { detached: true, stdio: 'ignore' })
       child.unref()
     } catch {}
 
@@ -407,7 +416,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Unregister from CW
     try {
-      execFileSync('cw', ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+      execFileSync(cwBin, ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
     } catch {
       // May not be registered, continue anyway
     }
