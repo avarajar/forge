@@ -207,10 +207,6 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
     return projects[filterProject]?.account ?? spaces.find(s => s.project === filterProject)?.account
   }, [filterProject, projects, spaces])
 
-  if (allSpaces.length === 0) {
-    return null
-  }
-
   const hasActiveFilters = filterAccount !== null || filterProject !== null || filterType !== null
 
   return (
