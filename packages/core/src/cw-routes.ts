@@ -3,8 +3,9 @@ import { CWReader } from './cw-reader.js'
 import { ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
 import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
+import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
+import { homedir } from 'node:os'
 
 const execFileAsync = promisify(execFile)
 
@@ -437,6 +438,119 @@ export function cwRoutes(reader: CWReader): Hono {
     }
 
     return c.json({ ok: true, filesDeleted: deleteFiles && !!projPath })
+  })
+
+  // Resolve a user-supplied path, expanding ~ and resolving relative to home.
+  // Returns null if the result would escape allowed roots.
+  const resolveBrowsePath = (input: string): string | null => {
+    const home = homedir()
+    let p = input.trim()
+    if (!p) p = home
+    if (p === '~' || p.startsWith('~/')) p = join(home, p.slice(1).replace(/^\//, ''))
+    if (!isAbsolute(p)) return null
+    return resolve(p)
+  }
+
+  app.get('/browse-dirs', (c) => {
+    const requested = c.req.query('path') ?? '~'
+    const target = resolveBrowsePath(requested)
+    if (!target) {
+      return c.json({ ok: false, error: 'Path must be absolute or start with ~' }, 400)
+    }
+
+    if (!existsSync(target)) {
+      return c.json({ ok: false, error: `Path does not exist: ${target}` }, 404)
+    }
+
+    let stat
+    try { stat = statSync(target) } catch {
+      return c.json({ ok: false, error: 'Cannot stat path' }, 500)
+    }
+    if (!stat.isDirectory()) {
+      return c.json({ ok: false, error: 'Not a directory' }, 400)
+    }
+
+    let entries: string[] = []
+    try {
+      entries = readdirSync(target)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return c.json({ ok: false, error: `Cannot read directory: ${message}` }, 500)
+    }
+
+    const dirs = entries
+      .filter(name => !name.startsWith('.') || name === '.git')
+      .map(name => {
+        const full = join(target, name)
+        try {
+          const s = statSync(full)
+          if (!s.isDirectory()) return null
+          const isGitRepo = existsSync(join(full, '.git'))
+          return { name, path: full, isGitRepo }
+        } catch {
+          return null
+        }
+      })
+      .filter((d): d is { name: string; path: string; isGitRepo: boolean } => d !== null && d.name !== '.git')
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    const parent = dirname(target)
+    return c.json({
+      ok: true,
+      path: target,
+      parent: parent === target ? null : parent,
+      home: homedir(),
+      isGitRepo: existsSync(join(target, '.git')),
+      entries: dirs,
+    })
+  })
+
+  app.post('/register-project', async (c) => {
+    const { path: rawPath, account, alias, type } = await c.req.json<{
+      path: string; account: string; alias?: string; type?: string
+    }>()
+
+    if (!rawPath || !account) {
+      return c.json({ ok: false, error: 'Path and account are required' }, 400)
+    }
+
+    if (!ACCOUNT_NAME_RE.test(account)) {
+      return c.json({ ok: false, error: 'Invalid account name' }, 400)
+    }
+
+    const projectPath = resolveBrowsePath(rawPath)
+    if (!projectPath) {
+      return c.json({ ok: false, error: 'Path must be absolute or start with ~' }, 400)
+    }
+
+    if (!existsSync(projectPath)) {
+      return c.json({ ok: false, error: `Path does not exist: ${projectPath}` }, 404)
+    }
+
+    if (!existsSync(join(projectPath, '.git'))) {
+      return c.json({ ok: false, error: 'Selected directory is not a git repository' }, 400)
+    }
+
+    if (!reader.getAccounts().includes(account)) {
+      return c.json({ ok: false, error: `Account "${account}" does not exist` }, 404)
+    }
+
+    const projectName = (alias?.trim() || basename(projectPath)).trim()
+    if (reader.getProjects()[projectName]) {
+      return c.json({ ok: false, error: `Project "${projectName}" is already registered` }, 409)
+    }
+
+    const args = ['project', 'register', projectPath, '--account', account]
+    if (alias?.trim()) args.push('--alias', alias.trim())
+    if (type?.trim()) args.push('--type', type.trim())
+
+    try {
+      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 30000 })
+      return c.json({ ok: true, project: projectName })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return c.json({ ok: false, error: `Failed to register project: ${message}` }, 500)
+    }
   })
 
   return app

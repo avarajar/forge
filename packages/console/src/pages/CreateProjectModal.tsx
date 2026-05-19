@@ -1,7 +1,10 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
-import { Modal, showToast } from '@forge-dev/ui'
+import { Modal, Tabs, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
+import { DirectoryPicker } from '../components/DirectoryPicker.js'
+
+type Mode = 'create' | 'existing'
 
 interface CreateProjectModalProps {
   open: boolean
@@ -13,12 +16,21 @@ interface CreateProjectModalProps {
 export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
   open, accounts, onClose, onCreated
 }) => {
+  const [mode, setMode] = useState<Mode>('create')
+
+  // Create-new state
   const [account, setAccount] = useState('')
   const [name, setName] = useState('')
   const [directory, setDirectory] = useState('')
   const [description, setDescription] = useState('')
   const [model, setModel] = useState('')
-  const [creating, setCreating] = useState(false)
+
+  // Add-existing state
+  const [existingPath, setExistingPath] = useState('')
+  const [existingIsGit, setExistingIsGit] = useState(false)
+  const [existingAlias, setExistingAlias] = useState('')
+
+  const [busy, setBusy] = useState(false)
 
   // Auto-select first account when modal opens or accounts change
   useEffect(() => {
@@ -30,19 +42,24 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
   // Reset form when modal closes
   useEffect(() => {
     if (!open) {
+      setMode('create')
       setName('')
       setDirectory('')
       setDescription('')
       setModel('')
-      setCreating(false)
+      setExistingPath('')
+      setExistingIsGit(false)
+      setExistingAlias('')
+      setBusy(false)
     }
   }, [open])
 
   const canCreate = account.trim().length > 0 && name.trim().length > 0 && description.trim().length > 0
+  const canRegister = account.trim().length > 0 && existingPath.length > 0 && existingIsGit
 
   const handleCreate = async () => {
     if (!canCreate) return
-    setCreating(true)
+    setBusy(true)
     try {
       const res = await fetch('/api/cw/start', {
         method: 'POST',
@@ -67,20 +84,66 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
     } catch {
       showToast('Failed to create project', 'error')
     } finally {
-      setCreating(false)
+      setBusy(false)
     }
   }
+
+  const handleRegister = async () => {
+    if (!canRegister) return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: existingPath,
+          account: account.trim(),
+          alias: existingAlias.trim() || undefined,
+        })
+      })
+      const result = await res.json() as { ok: boolean; error?: string; project?: string }
+      if (result.ok) {
+        showToast(`Project "${result.project}" registered`, 'success')
+        onCreated()
+      } else {
+        showToast(result.error ?? 'Failed to register project', 'error')
+      }
+    } catch {
+      showToast('Failed to register project', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const onConfirm = mode === 'create'
+    ? (canCreate && !busy ? handleCreate : undefined)
+    : (canRegister && !busy ? handleRegister : undefined)
+
+  const confirmLabel = mode === 'create'
+    ? (busy ? 'Creating...' : 'Create ▶')
+    : (busy ? 'Registering...' : 'Add ▶')
+
+  const title = mode === 'create' ? 'Create Project' : 'Add Existing Project'
 
   return (
     <Modal
       open={open}
-      title="Create Project"
+      title={title}
       onClose={onClose}
-      onConfirm={canCreate && !creating ? handleCreate : undefined}
-      confirmLabel={creating ? 'Creating...' : 'Create ▶'}
+      onConfirm={onConfirm}
+      confirmLabel={confirmLabel}
     >
+      <Tabs
+        tabs={[
+          { id: 'create', label: 'Create new' },
+          { id: 'existing', label: 'Add existing' },
+        ]}
+        active={mode}
+        onChange={(id) => setMode(id as Mode)}
+      />
+
       <div class="space-y-4">
-        {/* Account selector */}
+        {/* Account selector (shared) */}
         <div>
           <label class="block text-sm font-medium mb-1">
             Account <span style={{ color: 'var(--forge-error)' }}>*</span>
@@ -106,80 +169,116 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
           )}
         </div>
 
-        {/* Directory */}
-        <div>
-          <label class="block text-sm font-medium mb-1">Directory</label>
-          <input
-            type="text"
-            value={directory}
-            onInput={(e) => setDirectory((e.target as HTMLInputElement).value)}
-            placeholder="~/Workspace/personal"
-            class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-          />
-          <p class="text-xs text-forge-muted mt-1">Where to create the project. Leave empty for CW default.</p>
-        </div>
+        {mode === 'create' ? (
+          <>
+            {/* Directory */}
+            <div>
+              <label class="block text-sm font-medium mb-1">Directory</label>
+              <input
+                type="text"
+                value={directory}
+                onInput={(e) => setDirectory((e.target as HTMLInputElement).value)}
+                placeholder="~/Workspace/personal"
+                class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+              />
+              <p class="text-xs text-forge-muted mt-1">Where to create the project. Leave empty for CW default.</p>
+            </div>
 
-        {/* Project name */}
-        <div>
-          <label class="block text-sm font-medium mb-1">
-            Project Name <span style={{ color: 'var(--forge-error)' }}>*</span>
-          </label>
-          <input
-            type="text"
-            value={name}
-            onInput={(e) => setName((e.target as HTMLInputElement).value)}
-            placeholder="my-new-project"
-            class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-          />
-        </div>
+            {/* Project name */}
+            <div>
+              <label class="block text-sm font-medium mb-1">
+                Project Name <span style={{ color: 'var(--forge-error)' }}>*</span>
+              </label>
+              <input
+                type="text"
+                value={name}
+                onInput={(e) => setName((e.target as HTMLInputElement).value)}
+                placeholder="my-new-project"
+                class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+              />
+            </div>
 
-        {/* Description */}
-        <div>
-          <label class="block text-sm font-medium mb-1">
-            Description <span style={{ color: 'var(--forge-error)' }}>*</span>
-          </label>
-          <textarea
-            value={description}
-            onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-            placeholder="A SaaS platform for..."
-            rows={3}
-            class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
-          />
-        </div>
+            {/* Description */}
+            <div>
+              <label class="block text-sm font-medium mb-1">
+                Description <span style={{ color: 'var(--forge-error)' }}>*</span>
+              </label>
+              <textarea
+                value={description}
+                onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
+                placeholder="A SaaS platform for..."
+                rows={3}
+                class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
+              />
+            </div>
 
-        {/* Model selector */}
-        <div>
-          <label class="block text-sm font-medium mb-1">Model</label>
-          <div class="flex flex-wrap gap-2">
-            {[
-              { id: '', label: 'Auto' },
-              { id: 'haiku', label: 'Haiku' },
-              { id: 'sonnet', label: 'Sonnet' },
-              { id: 'opus', label: 'Opus' },
-            ].map(m => (
-              <button
-                key={m.id}
-                type="button"
-                class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                  model === m.id
-                    ? 'text-forge-accent'
-                    : 'border-forge-border bg-forge-bg text-forge-muted'
-                }`}
-                style={model === m.id
-                  ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
-                  : undefined
-                }
-                onClick={() => setModel(m.id)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        </div>
+            {/* Model selector */}
+            <div>
+              <label class="block text-sm font-medium mb-1">Model</label>
+              <div class="flex flex-wrap gap-2">
+                {[
+                  { id: '', label: 'Auto' },
+                  { id: 'haiku', label: 'Haiku' },
+                  { id: 'sonnet', label: 'Sonnet' },
+                  { id: 'opus', label: 'Opus' },
+                ].map(m => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                      model === m.id
+                        ? 'text-forge-accent'
+                        : 'border-forge-border bg-forge-bg text-forge-muted'
+                    }`}
+                    style={model === m.id
+                      ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
+                      : undefined
+                    }
+                    onClick={() => setModel(m.id)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <p class="text-xs text-forge-muted">
-          Runs <code class="px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(42,42,62,0.6)' }}>cw create</code> in your terminal.
-        </p>
+            <p class="text-xs text-forge-muted">
+              Runs <code class="px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(42,42,62,0.6)' }}>cw create</code> in your terminal.
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Existing repo picker */}
+            <div>
+              <label class="block text-sm font-medium mb-1">
+                Repository <span style={{ color: 'var(--forge-error)' }}>*</span>
+              </label>
+              <DirectoryPicker
+                value={existingPath}
+                onChange={(path, isGit) => { setExistingPath(path); setExistingIsGit(isGit) }}
+              />
+              <p class="text-xs text-forge-muted mt-1">
+                Browse to a folder, then click "Pick" to select it. Only git repositories can be registered.
+              </p>
+            </div>
+
+            {/* Alias */}
+            <div>
+              <label class="block text-sm font-medium mb-1">Alias</label>
+              <input
+                type="text"
+                value={existingAlias}
+                onInput={(e) => setExistingAlias((e.target as HTMLInputElement).value)}
+                placeholder="(defaults to folder name)"
+                class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+              />
+            </div>
+
+            <p class="text-xs text-forge-muted">
+              Runs <code class="px-1 py-0.5 rounded" style={{ backgroundColor: 'rgba(42,42,62,0.6)' }}>cw project register</code> for the selected repo.
+            </p>
+          </>
+        )}
       </div>
     </Modal>
   )
