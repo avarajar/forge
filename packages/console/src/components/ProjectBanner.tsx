@@ -25,9 +25,10 @@ export const ProjectBanner: FunctionComponent<{
 
   useEffect(() => {
     let cancelled = false
+    const projectEnc = encodeURIComponent(project)
     Promise.all([
-      fetch(`/api/cw/detect/${project}`).then(r => r.json()).catch(() => null),
-      fetch(`/api/cw/mcps?project=${project}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/cw/detect/${projectEnc}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/cw/mcps?project=${projectEnc}`).then(r => r.json()).catch(() => null),
     ]).then(([stack, mcps]) => {
       if (!cancelled) setInfo({ stack, mcps })
     })

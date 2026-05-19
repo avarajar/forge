@@ -90,7 +90,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
   useEffect(() => {
     if (project && !isGeneral) {
-      fetch(`/api/cw/detect/${project}`)
+      fetch(`/api/cw/detect/${encodeURIComponent(project)}`)
         .then(r => r.json())
         .then(d => setDetection(d as Record<string, unknown>))
         .catch(() => setDetection(null))

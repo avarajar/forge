@@ -29,16 +29,10 @@ export class CWReader {
       if (projectFilter && proj.name !== projectFilter) continue
 
       const projDir = join(sessionsDir, proj.name)
-      const entries = readdirSync(projDir, { withFileTypes: true })
-
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue
-        const sessionPath = join(projDir, entry.name, 'session.json')
-        if (!existsSync(sessionPath)) continue
-
+      for (const { relPath, absPath } of walkSessionDirs(projDir)) {
         try {
-          const data = JSON.parse(readFileSync(sessionPath, 'utf-8')) as CWSession
-          data.sessionDir = entry.name
+          const data = JSON.parse(readFileSync(absPath, 'utf-8')) as CWSession
+          data.sessionDir = relPath
           sessions.push(data)
         } catch {
           // skip corrupt session files
@@ -381,5 +375,23 @@ export class CWReader {
       framework,
       testRunner
     }
+  }
+}
+
+// Branch-style task names (e.g. `task/form-header`) produce nested session dirs
+// like `task-task/form-header/session.json` (CW uses `mkdir -p`), so we descend
+// past any dir that doesn't already hold a session.json.
+const MAX_SESSION_DEPTH = 5
+
+function* walkSessionDirs(baseDir: string, rel = '', depth = 0): Generator<{ relPath: string; absPath: string }> {
+  if (depth >= MAX_SESSION_DEPTH) return
+  let entries
+  try { entries = readdirSync(join(baseDir, rel), { withFileTypes: true }) } catch { return }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const childRel = rel ? `${rel}/${entry.name}` : entry.name
+    const sessionPath = join(baseDir, childRel, 'session.json')
+    if (existsSync(sessionPath)) yield { relPath: childRel, absPath: sessionPath }
+    else yield* walkSessionDirs(baseDir, childRel, depth + 1)
   }
 }

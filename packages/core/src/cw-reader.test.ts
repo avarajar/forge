@@ -100,6 +100,26 @@ describe('CWReader', () => {
     expect(accounts).toContain('default')
   })
 
+  it('finds nested sessions created from branch-like task names (e.g. task/form-header)', () => {
+    // CW writes `~/.cw/sessions/<project>/task-<task>/session.json` and uses `mkdir -p`,
+    // so a task named `task/form-header` becomes the nested path `task-task/form-header`.
+    mkdirSync(join(TEST_CW, 'sessions/myapp/task-task/form-header'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/myapp/task-task/form-header/session.json'), JSON.stringify({
+      project: 'myapp', task: 'task/form-header', type: 'task', account: 'default',
+      worktree: '/tmp/myapp/.tasks/task/form-header', notes: '',
+      status: 'active', created: '2026-05-01T10:00:00Z', last_opened: '2026-05-02T10:00:00Z', opens: 1
+    }))
+
+    const spaces = reader.getSpaces('myapp')
+    const nested = spaces.find(s => s.sessionDir === 'task-task/form-header')
+    expect(nested).toBeDefined()
+    expect(nested?.task).toBe('task/form-header')
+
+    // getSession should also resolve the nested path
+    const single = reader.getSession('myapp', 'task-task/form-header')
+    expect(single?.task).toBe('task/form-header')
+  })
+
   it('detects project stack', () => {
     mkdirSync('/tmp/myapp', { recursive: true })
     writeFileSync('/tmp/myapp/package.json', '{"dependencies":{"react":"18"}}')
