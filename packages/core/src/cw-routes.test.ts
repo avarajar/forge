@@ -4,6 +4,7 @@ import { cwRoutes } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
 
@@ -324,5 +325,149 @@ describe('CW Routes', () => {
     expect(res.status).toBe(400)
     const body = await res.json() as { ok: boolean; error: string }
     expect(body.ok).toBe(false)
+  })
+
+  describe('GET /api/cw/browse-dirs', () => {
+    const sandbox = join(tmpdir(), `forge-browse-${Date.now()}`)
+    const childA = join(sandbox, 'alpha')
+    const childB = join(sandbox, 'beta')
+    const hidden = join(sandbox, '.hidden')
+
+    beforeAll(() => {
+      mkdirSync(childA, { recursive: true })
+      mkdirSync(childB, { recursive: true })
+      mkdirSync(hidden, { recursive: true })
+      mkdirSync(join(childA, '.git'), { recursive: true })
+    })
+
+    afterAll(() => {
+      rmSync(sandbox, { recursive: true, force: true })
+    })
+
+    it('lists subdirectories of an absolute path', async () => {
+      const res = await app.request(`/api/cw/browse-dirs?path=${encodeURIComponent(sandbox)}`)
+      expect(res.status).toBe(200)
+      const body = await res.json() as {
+        ok: boolean; path: string; parent: string | null; isGitRepo: boolean
+        entries: { name: string; isGitRepo: boolean }[]
+      }
+      expect(body.ok).toBe(true)
+      expect(body.path).toBe(sandbox)
+      expect(body.parent).toBe(join(sandbox, '..').replace(/\/$/, ''))
+      expect(body.isGitRepo).toBe(false)
+      const names = body.entries.map(e => e.name)
+      expect(names).toContain('alpha')
+      expect(names).toContain('beta')
+      // hidden entries are filtered out
+      expect(names).not.toContain('.hidden')
+      const alpha = body.entries.find(e => e.name === 'alpha')!
+      expect(alpha.isGitRepo).toBe(true)
+    })
+
+    it('reports isGitRepo on the current path when .git exists', async () => {
+      const res = await app.request(`/api/cw/browse-dirs?path=${encodeURIComponent(childA)}`)
+      expect(res.status).toBe(200)
+      const body = await res.json() as { ok: boolean; isGitRepo: boolean }
+      expect(body.ok).toBe(true)
+      expect(body.isGitRepo).toBe(true)
+    })
+
+    it('returns 404 for a path that does not exist', async () => {
+      const res = await app.request(`/api/cw/browse-dirs?path=${encodeURIComponent('/definitely/not/here-xyz')}`)
+      expect(res.status).toBe(404)
+      const body = await res.json() as { ok: boolean }
+      expect(body.ok).toBe(false)
+    })
+
+    it('rejects relative paths', async () => {
+      const res = await app.request(`/api/cw/browse-dirs?path=${encodeURIComponent('relative/path')}`)
+      expect(res.status).toBe(400)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+    })
+  })
+
+  describe('POST /api/cw/register-project', () => {
+    const sandbox = join(tmpdir(), `forge-register-${Date.now()}`)
+    const gitRepo = join(sandbox, 'somerepo')
+    const notRepo = join(sandbox, 'plain-folder')
+
+    beforeAll(() => {
+      mkdirSync(join(gitRepo, '.git'), { recursive: true })
+      mkdirSync(notRepo, { recursive: true })
+    })
+
+    afterAll(() => {
+      rmSync(sandbox, { recursive: true, force: true })
+    })
+
+    it('rejects missing path or account', async () => {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: gitRepo })
+      })
+      expect(res.status).toBe(400)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+      expect(body.error).toContain('required')
+    })
+
+    it('rejects invalid account name', async () => {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: gitRepo, account: 'bad name!' })
+      })
+      expect(res.status).toBe(400)
+    })
+
+    it('returns 404 when path does not exist', async () => {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '/definitely/not/here-abc', account: 'default' })
+      })
+      expect(res.status).toBe(404)
+    })
+
+    it('rejects path that is not a git repository', async () => {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: notRepo, account: 'default' })
+      })
+      expect(res.status).toBe(400)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+      expect(body.error).toContain('git repository')
+    })
+
+    it('returns 404 for unknown account', async () => {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: gitRepo, account: 'nosuchaccount' })
+      })
+      expect(res.status).toBe(404)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+      expect(body.error).toContain('does not exist')
+    })
+
+    it('returns 409 when project name (folder basename) is already registered', async () => {
+      // testproj is registered in beforeAll above
+      const existingRepo = join(sandbox, 'testproj')
+      mkdirSync(join(existingRepo, '.git'), { recursive: true })
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: existingRepo, account: 'default' })
+      })
+      expect(res.status).toBe(409)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+      expect(body.error).toContain('already registered')
+    })
   })
 })
