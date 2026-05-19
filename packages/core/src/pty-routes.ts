@@ -77,10 +77,10 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
   function attachToServer(server: Server) {
     server.on('upgrade', (request, socket, head) => {
       const url = new URL(request.url ?? '/', 'http://localhost')
-      const match = url.pathname.match(/^\/ws\/terminal\/([^/]+)\/([^/]+)$/)
+      const parsed = parseTerminalUpgradeUrl(url.pathname)
 
-      if (match) {
-        const [, project, sessionDir] = match
+      if (parsed) {
+        const { project, sessionDir } = parsed
         console.log(`[pty-ws] Upgrade request: ${project}/${sessionDir}`)
         wss.handleUpgrade(request, socket, head, (ws) => {
           wss.emit('connection', ws, project, sessionDir)
@@ -92,4 +92,17 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
   }
 
   return { wss, attachToServer }
+}
+
+// Slashes inside `sessionDir` (from branch-style task names like `task/form-header`,
+// stored by CW as the nested dir `task-task/form-header`) must be percent-encoded
+// by the client — otherwise the regex sees too many path segments and returns null.
+export function parseTerminalUpgradeUrl(pathname: string): { project: string; sessionDir: string } | null {
+  const match = pathname.match(/^\/ws\/terminal\/([^/]+)\/([^/]+)$/)
+  if (!match) return null
+  try {
+    return { project: decodeURIComponent(match[1]), sessionDir: decodeURIComponent(match[2]) }
+  } catch {
+    return null
+  }
 }

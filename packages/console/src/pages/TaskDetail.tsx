@@ -29,14 +29,19 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
   const sessionDir = session.sessionDir ?? (session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`)
   const typeCfg = TYPE_STYLES[session.type] ?? TYPE_STYLES.task
 
+  // Branch-style task names (e.g. `task/form-header`) become sessionDirs like
+  // `task-task/form-header`. Encode each segment so the slash doesn't split the path.
+  const projectEnc = encodeURIComponent(session.project)
+  const sessionDirEnc = encodeURIComponent(sessionDir)
+
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${session.project}/${sessionDir}?k=${wsKey}`
+  const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${projectEnc}/${sessionDirEnc}?k=${wsKey}`
 
   const fetchData = async () => {
     const [statusRes, toolsRes, branchRes] = await Promise.all([
-      fetch(`/api/cw/git/status/${session.project}/${sessionDir}`).catch(() => null),
-      fetch(`/api/cw/tools?project=${session.project}`).catch(() => null),
-      fetch(`/api/cw/git/branch/${session.project}/${sessionDir}`).catch(() => null),
+      fetch(`/api/cw/git/status/${projectEnc}/${sessionDirEnc}`).catch(() => null),
+      fetch(`/api/cw/tools?project=${projectEnc}`).catch(() => null),
+      fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`).catch(() => null),
     ])
     if (statusRes) setGitStatus((await statusRes.json() as { output: string }).output)
     if (toolsRes) setTools(await toolsRes.json() as ToolsInfo)

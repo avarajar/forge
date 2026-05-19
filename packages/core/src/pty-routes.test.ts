@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { PTYManager } from './pty-manager.js'
 import { CWReader } from './cw-reader.js'
+import { parseTerminalUpgradeUrl } from './pty-routes.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -139,6 +140,26 @@ describe('PTY Routes — integration', () => {
     const client2 = { send: vi.fn(), close: vi.fn() }
     manager.attach(sessionId, client2)
     expect(existingPty!.clients.size).toBe(1)
+  })
+
+  it('parses simple terminal upgrade URL', () => {
+    expect(parseTerminalUpgradeUrl('/ws/terminal/forge/task-mytask'))
+      .toEqual({ project: 'forge', sessionDir: 'task-mytask' })
+  })
+
+  it('parses encoded slashes inside sessionDir (branch-like task names)', () => {
+    // When the user types `task/form-header`, sessionDir is `task-task/form-header`.
+    // The client URL-encodes it so the path stays single-segment.
+    const encoded = encodeURIComponent('task-task/form-header')
+    expect(parseTerminalUpgradeUrl(`/ws/terminal/forge/${encoded}`))
+      .toEqual({ project: 'forge', sessionDir: 'task-task/form-header' })
+  })
+
+  it('rejects malformed paths', () => {
+    expect(parseTerminalUpgradeUrl('/ws/other/forge/task')).toBeNull()
+    expect(parseTerminalUpgradeUrl('/ws/terminal/forge')).toBeNull()
+    // Literal slash inside sessionDir (i.e. client did not encode) must not match
+    expect(parseTerminalUpgradeUrl('/ws/terminal/forge/task-task/form-header')).toBeNull()
   })
 
   it('kill removes session completely', () => {
