@@ -183,4 +183,38 @@ describe('PTYManager', () => {
     expect(manager.has('testproj::task-fix-bug')).toBe(true)
     vi.useRealTimers()
   })
+
+  it('builds correct command for loop sessions with interval', () => {
+    const session = makeSession({
+      type: 'loop', task: 'watch-tests', sessionDir: 'loop-watch-tests',
+      loop_prompt: 'run tests and fix breakage', loop_interval: '30m',
+      account: 'work', model: 'sonnet', worktree: '/tmp/testproj',
+    })
+    const ptySession = manager.getOrCreate('testproj', 'loop-watch-tests', session)
+    expect(ptySession.command).toContain("cw loop testproj 'run tests and fix breakage'")
+    expect(ptySession.command).toContain('--name watch-tests')
+    expect(ptySession.command).toContain('--every 30m')
+    expect(ptySession.command).toContain('--account work')
+    expect(ptySession.command).toContain('--model sonnet')
+  })
+
+  it('builds loop command without --every when self-paced', () => {
+    const session = makeSession({
+      type: 'loop', task: 'triage', sessionDir: 'loop-triage',
+      loop_prompt: 'triage new issues', loop_interval: '', account: '',
+    })
+    const ptySession = manager.getOrCreate('testproj', 'loop-triage', session)
+    expect(ptySession.command).toContain("cw loop testproj 'triage new issues' --name triage")
+    expect(ptySession.command).not.toContain('--every')
+    expect(ptySession.command).not.toContain('--account')
+  })
+
+  it('escapes single quotes in loop prompts', () => {
+    const session = makeSession({
+      type: 'loop', task: 'quotes', sessionDir: 'loop-quotes',
+      loop_prompt: "check the 'auth' module",
+    })
+    const ptySession = manager.getOrCreate('testproj', 'loop-quotes', session)
+    expect(ptySession.command).toContain("'check the '\\''auth'\\'' module'")
+  })
 })

@@ -76,6 +76,16 @@ export class PTYManager {
       if (session.model) cmd += ` --model ${session.model}`
       return cmd
     }
+    if (session.type === 'loop') {
+      const prompt = session.loop_prompt ?? ''
+      const quotedPrompt = `'${prompt.replace(/'/g, "'\\''")}'`
+      const slug = session.sessionDir?.replace(/^loop-/, '') ?? session.task ?? ''
+      let cmd = `${prefix} loop ${session.project} ${quotedPrompt} --name ${slug}`
+      if (session.loop_interval) cmd += ` --every ${session.loop_interval}`
+      if (session.account) cmd += ` --account ${session.account}`
+      if (session.model) cmd += ` --model ${session.model}`
+      return cmd
+    }
     // Pass source_url to CW for any URL-sourced task (linear, github, notion)
     // so CW's URL-aware init_prompt runs: fetches issue/PR context, uses correct branch
     const taskArg = session.source_url || session.task
