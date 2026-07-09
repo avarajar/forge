@@ -393,6 +393,17 @@ describe('CW Routes', () => {
     expect(res.status).toBe(409)
   })
 
+  it('POST /api/cw/start type=loop rejects invalid explicit name', async () => {
+    for (const bad of ['UPPER', '!!!', 'x/../../evil', '-lead', 'trail-']) {
+      const res = await app.request('/api/cw/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'whatever', name: bad }),
+      })
+      expect(res.status).toBe(400)
+    }
+  })
+
   describe('GET /api/cw/browse-dirs', () => {
     const sandbox = join(tmpdir(), `forge-browse-${Date.now()}`)
     const childA = join(sandbox, 'alpha')

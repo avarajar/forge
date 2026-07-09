@@ -225,7 +225,11 @@ export function cwRoutes(reader: CWReader): Hono {
       if (interval && !/^\d+[smh]$/.test(interval)) {
         return c.json({ ok: false, error: 'Interval must be like 30s, 5m, 2h' }, 400)
       }
-      const slug = (name?.trim() || prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30))
+      const explicitName = name?.trim()
+      if (explicitName && !/^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$/.test(explicitName)) {
+        return c.json({ ok: false, error: 'Invalid name. Use lowercase letters, numbers, hyphens (max 30 chars)' }, 400)
+      }
+      const slug = (explicitName || prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30))
         .replace(/^-+|-+$/g, '')
       if (!slug) return c.json({ ok: false, error: 'Could not derive a name from the prompt' }, 400)
 
