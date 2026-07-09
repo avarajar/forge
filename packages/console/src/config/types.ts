@@ -61,6 +61,15 @@ export const TYPE_STYLES: Record<string, TypeStyle> = {
     bgVar: 'var(--forge-tint-emerald-bg)',
     borderVar: 'var(--forge-tint-emerald-border)',
   },
+  loop: {
+    label: 'LOOP',
+    color: '#e11d48',
+    bg: 'rgba(225,29,72,0.10)',
+    border: 'rgba(225,29,72,0.25)',
+    dotClass: 'bg-rose-500',
+    bgVar: 'var(--forge-tint-rose-bg)',
+    borderVar: 'var(--forge-tint-rose-border)',
+  },
 }
 
 export const getTypeStyle = (type: string): TypeStyle =>
@@ -73,6 +82,7 @@ export const QUICK_TYPES = [
   { key: 'review',  label: 'Review',  style: TYPE_STYLES['review'] },
   { key: 'design',  label: 'Design',  style: TYPE_STYLES['design'] },
   { key: 'plan',    label: 'Plan',    style: TYPE_STYLES['plan'] },
+  { key: 'loop',    label: 'Loop',    style: TYPE_STYLES['loop'] },
   { key: 'general', label: 'General', style: TYPE_STYLES['general'] },
 ]
 
@@ -85,6 +95,7 @@ export const sessionLabel = (s: CWSession) =>
   s.type === 'review' ? `PR #${s.pr}`
   : s.type === 'general' ? `General (${s.account})`
   : s.type === 'create' ? `Create: ${s.task ?? 'project'}`
+  : s.type === 'loop' ? `Loop: ${s.task ?? 'loop'}`
   : (s.task ?? 'unknown')
 
 export const timeAgo = (date: string): string => {
