@@ -38,6 +38,14 @@ describe('CWReader', () => {
       opens: 1, closed: '2026-03-31T10:00:00Z'
     }))
 
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-watch-tests'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-watch-tests/session.json'), JSON.stringify({
+      project: 'testproj', task: 'watch-tests', type: 'loop', account: 'default',
+      loop_prompt: 'run tests and fix breakage', loop_interval: '30m',
+      worktree: '', notes: '', status: 'active',
+      created: '2026-07-01T10:00:00Z', last_opened: '2026-07-02T15:00:00Z', opens: 3
+    }))
+
     reader = new CWReader(TEST_CW)
   })
 
@@ -53,7 +61,7 @@ describe('CWReader', () => {
 
   it('reads all spaces (sessions)', () => {
     const spaces = reader.getSpaces()
-    expect(spaces).toHaveLength(2)
+    expect(spaces).toHaveLength(3)
     const task = spaces.find(s => s.type === 'task')
     expect(task?.task).toBe('fix-bug')
     expect(task?.status).toBe('active')
@@ -118,6 +126,14 @@ describe('CWReader', () => {
     // getSession should also resolve the nested path
     const single = reader.getSession('myapp', 'task-task/form-header')
     expect(single?.task).toBe('task/form-header')
+  })
+
+  it('includes loop sessions with loop_prompt and loop_interval', () => {
+    const sessions = reader.getSpaces()
+    const loop = sessions.find(s => s.type === 'loop' && s.project === 'testproj')
+    expect(loop).toBeDefined()
+    expect(loop?.loop_prompt).toBe('run tests and fix breakage')
+    expect(loop?.loop_interval).toBe('30m')
   })
 
   it('detects project stack', () => {

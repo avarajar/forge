@@ -29,6 +29,15 @@ describe('CW Routes', () => {
 
     writeFileSync(join(TEST_CW, 'sessions/testproj/task-mytask/TASK_NOTES.md'), '# My Task\nSome notes')
 
+    // Loop session read from disk without a `worktree` field (CW omits it).
+    // Regression fixture for the git-route worktree guard.
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-noworktree'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-noworktree/session.json'), JSON.stringify({
+      project: 'testproj', task: 'noworktree', type: 'loop', status: 'active',
+      account: 'default', notes: '', created: '2026-07-01T00:00:00Z',
+      last_opened: '2026-07-01T00:00:00Z', opens: 1
+    }))
+
     const reader = new CWReader(TEST_CW)
     app = new Hono()
     app.route('/api/cw', cwRoutes(reader))
@@ -325,6 +334,112 @@ describe('CW Routes', () => {
     expect(res.status).toBe(400)
     const body = await res.json() as { ok: boolean; error: string }
     expect(body.ok).toBe(false)
+  })
+
+  it('POST /api/cw/start with type=loop returns loop session', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'loop', project: 'testproj',
+        loopPrompt: 'Run the Test suite & fix breakage!', loopInterval: '30m',
+        account: 'default',
+      }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean; session: Record<string, unknown> }
+    expect(body.ok).toBe(true)
+    expect(body.session.type).toBe('loop')
+    expect(body.session.loop_prompt).toBe('Run the Test suite & fix breakage!')
+    expect(body.session.loop_interval).toBe('30m')
+    // slug: lowercased, non-alphanumerics collapsed to hyphens, sliced to 30 chars, hyphens trimmed
+    expect(body.session.sessionDir).toBe('loop-run-the-test-suite-fix-breakag')
+    expect(body.session.task).toBe('run-the-test-suite-fix-breakag')
+    expect(body.session.worktree).toBe('/tmp/testproj')
+  })
+
+  it('POST /api/cw/start type=loop uses explicit name as slug', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'babysit PRs', name: 'pr-babysitter' }),
+    })
+    const body = await res.json() as { session: Record<string, unknown> }
+    expect(body.session.sessionDir).toBe('loop-pr-babysitter')
+    expect(body.session.loop_interval).toBe('')
+  })
+
+  it('POST /api/cw/start type=loop rejects empty prompt', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: '   ' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/start type=loop rejects bad interval', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'x y z', loopInterval: '99x' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/start type=loop rejects duplicate active loop', async () => {
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-dupe'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-dupe/session.json'), JSON.stringify({
+      project: 'testproj', task: 'dupe', type: 'loop', account: 'default',
+      worktree: '', notes: '', status: 'active',
+      created: '2026-07-01T00:00:00Z', last_opened: '2026-07-01T00:00:00Z', opens: 1,
+    }))
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'whatever', name: 'dupe' }),
+    })
+    expect(res.status).toBe(409)
+  })
+
+  it('POST /api/cw/start type=loop rejects invalid explicit name', async () => {
+    for (const bad of ['UPPER', '!!!', 'x/../../evil', '-lead', 'trail-']) {
+      const res = await app.request('/api/cw/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'whatever', name: bad }),
+      })
+      expect(res.status).toBe(400)
+    }
+  })
+
+  it('GET /api/cw/git/status for a worktree-less loop session returns empty output, not the server repo\'s git state', async () => {
+    const res = await app.request('/api/cw/git/status/testproj/loop-noworktree')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { output: string }
+    expect(body.output).toBe('')
+  })
+
+  it('POST /api/cw/done marks a loop session done using the loop-<task> sessionDir default', async () => {
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-donetest'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), JSON.stringify({
+      project: 'testproj', task: 'donetest', type: 'loop', status: 'active',
+      account: 'default', worktree: '', notes: '', created: '2026-07-01T00:00:00Z',
+      last_opened: '2026-07-01T00:00:00Z', opens: 1
+    }))
+
+    const res = await app.request('/api/cw/done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'testproj', task: 'donetest', type: 'loop' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean; updated: boolean }
+    expect(body.ok).toBe(true)
+    expect(body.updated).toBe(true)
+
+    const meta = JSON.parse(readFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), 'utf-8'))
+    expect(meta.status).toBe('done')
   })
 
   describe('GET /api/cw/browse-dirs', () => {

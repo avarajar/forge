@@ -19,6 +19,7 @@ const TYPES = [
   { id: 'design', label: 'Design', color: '#8b5cf6' },
   { id: 'review', label: 'Review', color: '#6366f1' },
   { id: 'plan', label: 'Plan', color: '#3b82f6' },
+  { id: 'loop', label: 'Loop', color: '#e11d48' },
   { id: 'general', label: 'General', color: '#059669' },
 ]
 
@@ -43,10 +44,14 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const [skipPermissions, setSkipPermissions] = useState(false)
   const [starting, setStarting] = useState(false)
   const [detection, setDetection] = useState<Record<string, unknown> | null>(null)
+  const [loopPrompt, setLoopPrompt] = useState('')
+  const [loopInterval, setLoopInterval] = useState('')
 
   const projectNames = Object.keys(projects)
   const isGeneral = type === 'general'
   const isReview = type === 'review'
+  const isLoop = type === 'loop'
+  const loopIntervalValid = !loopInterval.trim() || /^\d+[smh]$/.test(loopInterval.trim())
 
   // Derive accounts from projects if not provided
   const accountList = accounts.length > 0
@@ -98,7 +103,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   }, [project, isGeneral])
 
   const handleStart = async () => {
-    if (!isGeneral && !task.trim()) return
+    if (!isGeneral && !isLoop && !task.trim()) return
+    if (isLoop && (!loopPrompt.trim() || !loopIntervalValid)) return
 
     if (type === 'design' && onStartPrototype) {
       onStartPrototype(project)
@@ -112,7 +118,11 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         account: selectedAccount || undefined,
         skipPermissions: skipPermissions || undefined,
       }
-      if (!isGeneral) {
+      if (isLoop) {
+        body.project = project
+        body.loopPrompt = loopPrompt.trim()
+        body.loopInterval = loopInterval.trim() || undefined
+      } else if (!isGeneral) {
         body.project = project
         body.task = task.trim()
         body.description = description.trim() || undefined
@@ -129,7 +139,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
       })
       const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
       if (result.ok) {
-        showToast(isGeneral ? 'Session started' : 'Task started', 'success')
+        showToast(isGeneral ? 'Session started' : isLoop ? 'Loop started' : 'Task started', 'success')
         onCreated(result.session)
       } else {
         showToast(result.error ?? 'Failed to start', 'error')
@@ -151,7 +161,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         ← Back to tasks
       </button>
 
-      <h2 class="text-xl font-bold mb-6">{isGeneral ? 'New Session' : 'New Task'}</h2>
+      <h2 class="text-xl font-bold mb-6">{isGeneral ? 'New Session' : isLoop ? 'New Loop' : 'New Task'}</h2>
 
       <div class="max-w-lg">
         {/* Type selector */}
@@ -214,7 +224,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         )}
 
         {/* Task name / PR number — hidden for general */}
-        {!isGeneral && (
+        {!isGeneral && !isLoop && (
           <div class="mb-4">
             <label class="block text-sm font-medium mb-1">
               {isReview ? 'PR Number or URL' : 'Task Name or URL'}
@@ -230,7 +240,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         )}
 
         {/* Description — hidden for general */}
-        {!isGeneral && (
+        {!isGeneral && !isLoop && (
           <div class="mb-4">
             <label class="block text-sm font-medium mb-1">Description (optional)</label>
             <textarea
@@ -241,6 +251,39 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
               class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
             />
           </div>
+        )}
+
+        {/* Loop prompt + interval */}
+        {isLoop && (
+          <>
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1">Loop prompt</label>
+              <textarea
+                value={loopPrompt}
+                onInput={(e) => setLoopPrompt((e.target as HTMLTextAreaElement).value)}
+                placeholder={'e.g. "Babysit my open PRs — check for new review comments and address them", "Run the test suite and fix what breaks", "Work through the TODO backlog one item at a time"'}
+                rows={3}
+                class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
+              />
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium mb-1">
+                Interval <span class="font-normal text-forge-muted">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={loopInterval}
+                onInput={(e) => setLoopInterval((e.target as HTMLInputElement).value)}
+                placeholder="auto — Claude decides the pace"
+                class={`w-full px-3 py-2 rounded-lg bg-forge-surface border text-forge-text text-sm focus:outline-none ${
+                  loopIntervalValid ? 'border-forge-border focus:border-forge-accent' : 'border-red-500'
+                }`}
+              />
+              {!loopIntervalValid && (
+                <div class="text-xs text-red-500 mt-1">Use forms like 30s, 5m, 2h — or leave empty for self-paced</div>
+              )}
+            </div>
+          </>
         )}
 
         {/* Workflow (dev only) */}
@@ -321,10 +364,10 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
         {/* Start button */}
         <ActionButton
-          label={starting ? 'Starting...' : isGeneral ? 'Launch Session ▶' : 'Start Task ▶'}
+          label={starting ? 'Starting...' : isGeneral ? 'Launch Session ▶' : isLoop ? 'Start Loop ▶' : 'Start Task ▶'}
           variant="primary"
           loading={starting}
-          disabled={!isGeneral && !task.trim()}
+          disabled={(!isGeneral && !isLoop && !task.trim()) || (isLoop && (!loopPrompt.trim() || !loopIntervalValid))}
           onClick={handleStart}
         />
         <div class="text-xs text-forge-muted mt-2">
@@ -332,7 +375,9 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
             ? project
               ? `Opens Claude in "${project}" for account "${selectedAccount || accountList[0] || 'default'}"`
               : `Opens Claude for account "${selectedAccount || accountList[0] || 'default'}"`
-            : `Opens a CW session in your terminal for ${project}`
+            : isLoop
+              ? `Runs a recurring Claude loop in "${project}" — ${loopInterval.trim() ? `every ${loopInterval.trim()}` : 'self-paced'}`
+              : `Opens a CW session in your terminal for ${project}`
           }
         </div>
       </div>

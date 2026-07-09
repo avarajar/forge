@@ -12,7 +12,7 @@ export interface CWSession {
   project: string
   task?: string
   pr?: string
-  type: 'task' | 'review' | 'general' | 'create'
+  type: 'task' | 'review' | 'general' | 'create' | 'loop'
   account: string
   workflow?: string
   model?: string
@@ -20,6 +20,8 @@ export interface CWSession {
   notes: string
   source?: string
   source_url?: string
+  loop_prompt?: string
+  loop_interval?: string
   status: 'active' | 'done'
   created: string
   last_opened: string

@@ -36,6 +36,15 @@ export const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
   </span>
 )
 
+export const LoopIntervalChip: FunctionComponent<{ interval?: string }> = ({ interval }) => (
+  <span
+    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
+    style={{ color: getTypeStyle('loop').color, backgroundColor: 'var(--forge-tint-rose-bg)', border: '1px solid var(--forge-tint-rose-border)' }}
+  >
+    ⟳ {interval || 'auto'}
+  </span>
+)
+
 const SourceLink: FunctionComponent<{ source?: string; url?: string }> = ({ source, url }) => {
   if (!source && !url) return null
   const label = source ?? 'link'
@@ -91,6 +100,7 @@ export const TaskCard: FunctionComponent<{
             {sessionLabel(session)}
           </span>
           <ProjectPill name={session.project} />
+          {session.type === 'loop' && <LoopIntervalChip interval={session.loop_interval} />}
           {showAccount && session.account && (
             <AccountBadge account={session.account} />
           )}
@@ -165,6 +175,7 @@ export const DoneTaskRow: FunctionComponent<{
       <div class="flex-1 min-w-0 flex items-center gap-2.5">
         <span class="text-sm text-forge-muted truncate">{sessionLabel(session)}</span>
         <ProjectPill name={session.project} />
+        {session.type === 'loop' && <LoopIntervalChip interval={session.loop_interval} />}
         {showAccount && session.account && (
           <AccountBadge account={session.account} />
         )}
