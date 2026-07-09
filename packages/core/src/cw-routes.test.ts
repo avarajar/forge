@@ -327,6 +327,72 @@ describe('CW Routes', () => {
     expect(body.ok).toBe(false)
   })
 
+  it('POST /api/cw/start with type=loop returns loop session', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'loop', project: 'testproj',
+        loopPrompt: 'Run the Test suite & fix breakage!', loopInterval: '30m',
+        account: 'default',
+      }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean; session: Record<string, unknown> }
+    expect(body.ok).toBe(true)
+    expect(body.session.type).toBe('loop')
+    expect(body.session.loop_prompt).toBe('Run the Test suite & fix breakage!')
+    expect(body.session.loop_interval).toBe('30m')
+    // slug: lowercased, non-alphanumerics collapsed to hyphens, sliced to 30 chars, hyphens trimmed
+    expect(body.session.sessionDir).toBe('loop-run-the-test-suite-fix-breakag')
+    expect(body.session.task).toBe('run-the-test-suite-fix-breakag')
+    expect(body.session.worktree).toBe('/tmp/testproj')
+  })
+
+  it('POST /api/cw/start type=loop uses explicit name as slug', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'babysit PRs', name: 'pr-babysitter' }),
+    })
+    const body = await res.json() as { session: Record<string, unknown> }
+    expect(body.session.sessionDir).toBe('loop-pr-babysitter')
+    expect(body.session.loop_interval).toBe('')
+  })
+
+  it('POST /api/cw/start type=loop rejects empty prompt', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: '   ' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/start type=loop rejects bad interval', async () => {
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'x y z', loopInterval: '99x' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/start type=loop rejects duplicate active loop', async () => {
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-dupe'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-dupe/session.json'), JSON.stringify({
+      project: 'testproj', task: 'dupe', type: 'loop', account: 'default',
+      worktree: '', notes: '', status: 'active',
+      created: '2026-07-01T00:00:00Z', last_opened: '2026-07-01T00:00:00Z', opens: 1,
+    }))
+    const res = await app.request('/api/cw/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'loop', project: 'testproj', loopPrompt: 'whatever', name: 'dupe' }),
+    })
+    expect(res.status).toBe(409)
+  })
+
   describe('GET /api/cw/browse-dirs', () => {
     const sandbox = join(tmpdir(), `forge-browse-${Date.now()}`)
     const childA = join(sandbox, 'alpha')

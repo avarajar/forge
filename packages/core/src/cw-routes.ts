@@ -164,8 +164,8 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/start', async (c) => {
-    const { type, project, task, description, workflow, account, directory, skipPermissions, model } = await c.req.json<{
-      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string
+    const { type, project, task, description, workflow, account, directory, skipPermissions, model, loopPrompt, loopInterval, name } = await c.req.json<{
+      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string; loopPrompt?: string; loopInterval?: string; name?: string
     }>()
 
     // General sessions: no project or task required, just an account
@@ -214,6 +214,52 @@ export function cwRoutes(reader: CWReader): Hono {
         skipPermissions: skipPermissions ?? false,
       }
       pendingSessions.set(`${CREATING_PROJECT}::${sessionDirName}`, sessionData)
+      return c.json({ ok: true, session: sessionData })
+    }
+
+    if (type === 'loop') {
+      if (!project) return c.json({ ok: false, error: 'Project is required' }, 400)
+      const prompt = (loopPrompt ?? '').trim()
+      if (!prompt) return c.json({ ok: false, error: 'Loop prompt is required' }, 400)
+      const interval = (loopInterval ?? '').trim()
+      if (interval && !/^\d+[smh]$/.test(interval)) {
+        return c.json({ ok: false, error: 'Interval must be like 30s, 5m, 2h' }, 400)
+      }
+      const slug = (name?.trim() || prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30))
+        .replace(/^-+|-+$/g, '')
+      if (!slug) return c.json({ ok: false, error: 'Could not derive a name from the prompt' }, 400)
+
+      const sessionDirName = `loop-${slug}`
+      const loopSessionFile = join(reader.cwHome, 'sessions', project, sessionDirName, 'session.json')
+      if (existsSync(loopSessionFile)) {
+        try {
+          const meta = JSON.parse(readFileSync(loopSessionFile, 'utf-8'))
+          if (meta.status === 'active') {
+            return c.json({ ok: false, error: `Loop "${slug}" already exists for ${project}. Pick a different name or open the existing session.` }, 409)
+          }
+        } catch {}
+      }
+
+      const projectPath = reader.getProjects()[project]?.path ?? ''
+      const sessionData: CWSession = {
+        project,
+        task: slug,
+        type: 'loop',
+        account: account ?? '',
+        model: model || undefined,
+        loop_prompt: prompt,
+        loop_interval: interval,
+        workflow: '',
+        worktree: projectPath,
+        notes: '',
+        status: 'active',
+        created: new Date().toISOString(),
+        last_opened: new Date().toISOString(),
+        opens: 0,
+        sessionDir: sessionDirName,
+        skipPermissions: skipPermissions ?? false,
+      }
+      pendingSessions.set(`${project}::${sessionDirName}`, sessionData)
       return c.json({ ok: true, session: sessionData })
     }
 
@@ -346,7 +392,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Directly update session.json for instant UI feedback
     const cwHome = reader.cwHome
-    const sessionDirName = sessionDir ?? (type === 'review' ? `review-pr-${task}` : `task-${task}`)
+    const sessionDirName = sessionDir ?? (type === 'review' ? `review-pr-${task}` : type === 'loop' ? `loop-${task}` : `task-${task}`)
     const sessionFile = join(cwHome, 'sessions', project, sessionDirName, 'session.json')
 
     let updated = false
@@ -363,7 +409,9 @@ export function cwRoutes(reader: CWReader): Hono {
     // Also spawn cw --done in background for worktree cleanup
     const args = type === 'review'
       ? ['review', project, task, '--done']
-      : ['work', project, task, '--done']
+      : type === 'loop'
+        ? ['loop', project, task, '--done']
+        : ['work', project, task, '--done']
     try {
       const child = spawn(cwBin, args, { detached: true, stdio: 'ignore' })
       child.unref()
