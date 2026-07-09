@@ -39,7 +39,7 @@ export const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
 export const LoopIntervalChip: FunctionComponent<{ interval?: string }> = ({ interval }) => (
   <span
     class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-    style={{ color: '#e11d48', backgroundColor: 'var(--forge-tint-rose-bg)', border: '1px solid var(--forge-tint-rose-border)' }}
+    style={{ color: getTypeStyle('loop').color, backgroundColor: 'var(--forge-tint-rose-bg)', border: '1px solid var(--forge-tint-rose-border)' }}
   >
     ⟳ {interval || 'auto'}
   </span>

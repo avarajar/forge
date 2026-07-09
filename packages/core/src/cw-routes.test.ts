@@ -29,6 +29,15 @@ describe('CW Routes', () => {
 
     writeFileSync(join(TEST_CW, 'sessions/testproj/task-mytask/TASK_NOTES.md'), '# My Task\nSome notes')
 
+    // Loop session read from disk without a `worktree` field (CW omits it).
+    // Regression fixture for the git-route worktree guard.
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-noworktree'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-noworktree/session.json'), JSON.stringify({
+      project: 'testproj', task: 'noworktree', type: 'loop', status: 'active',
+      account: 'default', notes: '', created: '2026-07-01T00:00:00Z',
+      last_opened: '2026-07-01T00:00:00Z', opens: 1
+    }))
+
     const reader = new CWReader(TEST_CW)
     app = new Hono()
     app.route('/api/cw', cwRoutes(reader))
@@ -402,6 +411,35 @@ describe('CW Routes', () => {
       })
       expect(res.status).toBe(400)
     }
+  })
+
+  it('GET /api/cw/git/status for a worktree-less loop session returns empty output, not the server repo\'s git state', async () => {
+    const res = await app.request('/api/cw/git/status/testproj/loop-noworktree')
+    expect(res.status).toBe(200)
+    const body = await res.json() as { output: string }
+    expect(body.output).toBe('')
+  })
+
+  it('POST /api/cw/done marks a loop session done using the loop-<task> sessionDir default', async () => {
+    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-donetest'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), JSON.stringify({
+      project: 'testproj', task: 'donetest', type: 'loop', status: 'active',
+      account: 'default', worktree: '', notes: '', created: '2026-07-01T00:00:00Z',
+      last_opened: '2026-07-01T00:00:00Z', opens: 1
+    }))
+
+    const res = await app.request('/api/cw/done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ project: 'testproj', task: 'donetest', type: 'loop' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok: boolean; updated: boolean }
+    expect(body.ok).toBe(true)
+    expect(body.updated).toBe(true)
+
+    const meta = JSON.parse(readFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), 'utf-8'))
+    expect(meta.status).toBe('done')
   })
 
   describe('GET /api/cw/browse-dirs', () => {

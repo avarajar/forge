@@ -119,11 +119,25 @@ export function cwRoutes(reader: CWReader): Hono {
     return c.json(reader.getTools(project))
   })
 
+  // Shared lookup for the git info routes below. Sessions read from disk
+  // (e.g. loop sessions, which CW may persist without a `worktree` field)
+  // can have an empty/undefined worktree. Running git with `cwd: undefined`
+  // would silently inherit the Forge server's own cwd and leak ITS repo's
+  // git state into the UI, so callers must check `worktree` before shelling
+  // out and return their own "empty" shape instead.
+  const loadGitSession = (project: string, sessionDir: string): { session: CWSession } | { error: true } | { empty: true } => {
+    const session = reader.getSession(project, sessionDir)
+    if (!session) return { error: true }
+    if (!session.worktree) return { empty: true }
+    return { session }
+  }
+
   app.get('/git/status/:project/:sessionDir', (c) => {
-    const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
-    if (!session) return c.json({ error: 'Session not found' }, 404)
+    const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
+    if ('error' in result) return c.json({ error: 'Session not found' }, 404)
+    if ('empty' in result) return c.json({ output: '' })
     try {
-      const output = execSync('git status --short', { cwd: session.worktree, encoding: 'utf-8', timeout: 5000 })
+      const output = execSync('git status --short', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 5000 })
       return c.json({ output })
     } catch {
       return c.json({ output: '' })
@@ -131,10 +145,11 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.get('/git/log/:project/:sessionDir', (c) => {
-    const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
-    if (!session) return c.json({ error: 'Session not found' }, 404)
+    const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
+    if ('error' in result) return c.json({ error: 'Session not found' }, 404)
+    if ('empty' in result) return c.json({ output: '' })
     try {
-      const output = execSync('git log --oneline -20', { cwd: session.worktree, encoding: 'utf-8', timeout: 5000 })
+      const output = execSync('git log --oneline -20', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 5000 })
       return c.json({ output })
     } catch {
       return c.json({ output: '' })
@@ -142,10 +157,11 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.get('/git/branch/:project/:sessionDir', (c) => {
-    const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
-    if (!session) return c.json({ error: 'Session not found' }, 404)
+    const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
+    if ('error' in result) return c.json({ error: 'Session not found' }, 404)
+    if ('empty' in result) return c.json({ branch: '' })
     try {
-      const output = execSync('git rev-parse --abbrev-ref HEAD', { cwd: session.worktree, encoding: 'utf-8', timeout: 5000 }).trim()
+      const output = execSync('git rev-parse --abbrev-ref HEAD', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 5000 }).trim()
       return c.json({ branch: output })
     } catch {
       return c.json({ branch: '' })
@@ -153,10 +169,11 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.get('/git/diff/:project/:sessionDir', (c) => {
-    const session = reader.getSession(c.req.param('project'), c.req.param('sessionDir'))
-    if (!session) return c.json({ error: 'Session not found' }, 404)
+    const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
+    if ('error' in result) return c.json({ error: 'Session not found' }, 404)
+    if ('empty' in result) return c.json({ output: '' })
     try {
-      const output = execSync('git diff HEAD~5..HEAD --stat 2>/dev/null || git diff --stat', { cwd: session.worktree, encoding: 'utf-8', timeout: 10000 })
+      const output = execSync('git diff HEAD~5..HEAD --stat 2>/dev/null || git diff --stat', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 10000 })
       return c.json({ output })
     } catch {
       return c.json({ output: '' })
@@ -254,6 +271,10 @@ export function cwRoutes(reader: CWReader): Hono {
         loop_prompt: prompt,
         loop_interval: interval,
         workflow: '',
+        // This in-memory pending session may carry the project path (used as
+        // the PTY's cwd), but it must never be persisted to CW's session.json —
+        // `cw clean` treats a persisted worktree as a stale-space candidate to
+        // rm -rf. CW itself writes 'worktree': '' when it creates the file.
         worktree: projectPath,
         notes: '',
         status: 'active',
