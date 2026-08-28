@@ -35,7 +35,7 @@ describe('PTY Routes', () => {
 
     const ptySession = manager.getOrCreate('testproj', 'task-mytask', session!)
     expect(ptySession).toBeDefined()
-    expect(ptySession.command).toContain('cw work testproj mytask')
+    expect(ptySession.command).toContain("cw work 'testproj' 'mytask'")
   })
 
   it('general session with skipPermissions passes flag directly to claude', () => {

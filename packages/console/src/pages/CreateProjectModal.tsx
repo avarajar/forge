@@ -174,14 +174,15 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
             {/* Directory */}
             <div>
               <label class="block text-sm font-medium mb-1">Directory</label>
-              <input
-                type="text"
+              <DirectoryPicker
+                key="dir-create"
                 value={directory}
-                onInput={(e) => setDirectory((e.target as HTMLInputElement).value)}
-                placeholder="~/Workspace/personal"
-                class="w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+                onChange={setDirectory}
+                requireGit={false}
               />
-              <p class="text-xs text-forge-muted mt-1">Where to create the project. Leave empty for CW default.</p>
+              <p class="text-xs text-forge-muted mt-1">
+                Browse to the parent folder, then click "Pick" to select it. Leave empty for CW default.
+              </p>
             </div>
 
             {/* Project name */}
@@ -254,6 +255,7 @@ export const CreateProjectModal: FunctionComponent<CreateProjectModalProps> = ({
                 Repository <span style={{ color: 'var(--forge-error)' }}>*</span>
               </label>
               <DirectoryPicker
+                key="dir-existing"
                 value={existingPath}
                 onChange={(path, isGit) => { setExistingPath(path); setExistingIsGit(isGit) }}
               />

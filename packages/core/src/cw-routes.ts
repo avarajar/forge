@@ -4,6 +4,7 @@ import { ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
 import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
+import type { Dirent } from 'node:fs'
 import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -543,28 +544,20 @@ export function cwRoutes(reader: CWReader): Hono {
       return c.json({ ok: false, error: 'Not a directory' }, 400)
     }
 
-    let entries: string[] = []
+    let entries: Dirent[] = []
     try {
-      entries = readdirSync(target)
+      entries = readdirSync(target, { withFileTypes: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       return c.json({ ok: false, error: `Cannot read directory: ${message}` }, 500)
     }
 
     const dirs = entries
-      .filter(name => !name.startsWith('.') || name === '.git')
-      .map(name => {
+      .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+      .map(({ name }) => {
         const full = join(target, name)
-        try {
-          const s = statSync(full)
-          if (!s.isDirectory()) return null
-          const isGitRepo = existsSync(join(full, '.git'))
-          return { name, path: full, isGitRepo }
-        } catch {
-          return null
-        }
+        return { name, path: full, isGitRepo: existsSync(join(full, '.git')) }
       })
-      .filter((d): d is { name: string; path: string; isGitRepo: boolean } => d !== null && d.name !== '.git')
       .sort((a, b) => a.name.localeCompare(b.name))
 
     const parent = dirname(target)
