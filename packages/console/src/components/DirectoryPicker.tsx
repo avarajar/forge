@@ -21,12 +21,15 @@ interface DirectoryPickerProps {
   value: string
   onChange: (path: string, isGitRepo: boolean) => void
   initialPath?: string
+  // Only allow picking git repos; off when picking a parent folder for a new project
+  requireGit?: boolean
 }
 
 export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
-  value, onChange, initialPath
+  value, onChange, initialPath, requireGit = true
 }) => {
   const [cwd, setCwd] = useState(initialPath ?? '~')
+  const [draft, setDraft] = useState(cwd)
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [parent, setParent] = useState<string | null>(null)
   const [home, setHome] = useState<string | null>(null)
@@ -67,7 +70,10 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
     return () => { cancelled = true }
   }, [cwd])
 
+  const navigate = (path: string) => { setCwd(path); setDraft(path) }
+
   const isSelected = value === resolvedPath
+  const blockedByGit = requireGit && !isCwdGitRepo
 
   const breadcrumb = (() => {
     if (!resolvedPath) return cwd
@@ -83,7 +89,7 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
         <button
           type="button"
           class="px-2 py-1 text-xs rounded text-forge-muted hover:text-forge-text disabled:opacity-40"
-          onClick={() => parent && setCwd(parent)}
+          onClick={() => parent && navigate(parent)}
           disabled={!parent || loading}
           title="Parent directory"
         >
@@ -92,16 +98,17 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
         <button
           type="button"
           class="px-2 py-1 text-xs rounded text-forge-muted hover:text-forge-text"
-          onClick={() => setCwd('~')}
+          onClick={() => navigate('~')}
           title="Home"
         >
           ~
         </button>
         <input
           type="text"
-          value={cwd}
-          onInput={(e) => setCwd((e.target as HTMLInputElement).value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') setCwd((e.target as HTMLInputElement).value) }}
+          value={draft}
+          onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
+          onBlur={() => setCwd(draft)}
+          onKeyDown={(e) => { if (e.key === 'Enter') setCwd(draft) }}
           class="flex-1 px-2 py-1 text-xs rounded bg-forge-bg border border-forge-border text-forge-text focus:border-forge-accent focus:outline-none font-mono"
           placeholder="~/workspace"
         />
@@ -135,8 +142,8 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
                 isSelected ? 'bg-forge-surface' : ''
               }`}
               onClick={() => onChange(resolvedPath, isCwdGitRepo)}
-              disabled={!isCwdGitRepo}
-              title={isCwdGitRepo ? 'Pick this folder' : 'Not a git repository'}
+              disabled={blockedByGit}
+              title={blockedByGit ? 'Not a git repository' : 'Pick this folder'}
             >
               <span class="font-mono truncate">
                 <span class="text-forge-muted mr-2">►</span>
@@ -144,9 +151,9 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
               </span>
               {isCwdGitRepo ? (
                 <span class="text-xs" style={{ color: 'var(--forge-accent)' }}>git ✓</span>
-              ) : (
+              ) : blockedByGit ? (
                 <span class="text-xs text-forge-muted">no .git</span>
-              )}
+              ) : null}
             </button>
             {entries.length === 0 ? (
               <div class="px-3 py-4 text-xs text-forge-muted">No subdirectories</div>
@@ -156,7 +163,7 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
                   key={entry.path}
                   type="button"
                   class="w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-forge-surface transition-colors font-mono"
-                  onClick={() => setCwd(entry.path)}
+                  onClick={() => navigate(entry.path)}
                 >
                   <span class="truncate">
                     <span class="text-forge-muted mr-2">📁</span>

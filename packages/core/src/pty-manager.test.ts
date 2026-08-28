@@ -81,15 +81,15 @@ describe('PTYManager', () => {
   it('builds correct command for task sessions', () => {
     const session = makeSession({ project: 'myapp', task: 'fix-login', account: 'work', workflow: 'bugfix' })
     const ptySession = manager.getOrCreate('myapp', 'task-fix-login', session)
-    expect(ptySession.command).toContain('cw work myapp fix-login')
-    expect(ptySession.command).toContain('--account work')
-    expect(ptySession.command).toContain('--workflow bugfix')
+    expect(ptySession.command).toContain("cw work 'myapp' 'fix-login'")
+    expect(ptySession.command).toContain("--account 'work'")
+    expect(ptySession.command).toContain("--workflow 'bugfix'")
   })
 
   it('builds correct command for review sessions', () => {
     const session = makeSession({ type: 'review', pr: '42', task: undefined })
     const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
-    expect(ptySession.command).toContain('cw review testproj 42')
+    expect(ptySession.command).toContain("cw review 'testproj' '42'")
   })
 
   it('passes source_url to CW for Linear tasks so CW uses Linear branchName', () => {
@@ -102,7 +102,7 @@ describe('PTYManager', () => {
       account: 'work',
     })
     const ptySession = manager.getOrCreate('myapp', 'task-ENG-123', session)
-    expect(ptySession.command).toContain(`cw work myapp ${url}`)
+    expect(ptySession.command).toContain(`cw work 'myapp' '${url}'`)
   })
 
   it('passes GitHub PR URL to CW so its init_prompt fetches the PR and uses the correct branch', () => {
@@ -115,7 +115,7 @@ describe('PTYManager', () => {
       account: 'work',
     })
     const ptySession = manager.getOrCreate('myapp', 'task-42', session)
-    expect(ptySession.command).toContain(`cw work myapp ${url}`)
+    expect(ptySession.command).toContain(`cw work 'myapp' '${url}'`)
   })
 
   it('passes source_url to CW for review sessions so CW uses correct PR branch', () => {
@@ -128,7 +128,7 @@ describe('PTYManager', () => {
       source_url: url,
     })
     const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
-    expect(ptySession.command).toContain(`cw review testproj ${url}`)
+    expect(ptySession.command).toContain(`cw review 'testproj' '${url}'`)
   })
 
   it('falls back to pr number when source_url is absent for review sessions', () => {
@@ -138,7 +138,7 @@ describe('PTYManager', () => {
       pr: '42',
     })
     const ptySession = manager.getOrCreate('testproj', 'review-pr-42', session)
-    expect(ptySession.command).toContain('cw review testproj 42')
+    expect(ptySession.command).toContain("cw review 'testproj' '42'")
   })
 
   it('builds correct command for create sessions', () => {
@@ -155,7 +155,29 @@ describe('PTYManager', () => {
     expect(ptySession.command).toContain('my-saas')
     expect(ptySession.command).toContain('A SaaS for team collaboration')
     expect(ptySession.command).toContain('--team')
-    expect(ptySession.command).toContain('--account work')
+    expect(ptySession.command).toContain("--account 'work'")
+  })
+
+  it('quotes create args that can contain spaces or apostrophes', () => {
+    const session = makeSession({
+      type: 'create',
+      project: '__creating',
+      task: "jose's saas",
+      notes: 'A SaaS',
+      account: 'my work',
+      worktree: '/Users/me/My Projects',
+    })
+    const ptySession = manager.getOrCreate('__creating', 'create-my-saas-456', session)
+    expect(ptySession.command).toContain("--dir '/Users/me/My Projects'")
+    expect(ptySession.command).toContain("--name 'jose'\\''s saas'")
+    expect(ptySession.command).toContain("--account 'my work'")
+  })
+
+  it('quotes the task argument for work sessions', () => {
+    const url = 'https://linear.app/team/issue/ENG-1?tab=a&b=c'
+    const session = makeSession({ task: undefined, source_url: url })
+    const ptySession = manager.getOrCreate('testproj', 'task-eng-1', session)
+    expect(ptySession.command).toContain(`'${url}'`)
   })
 
   it('cleanup kills idle sessions', () => {
@@ -191,11 +213,11 @@ describe('PTYManager', () => {
       account: 'work', model: 'sonnet', worktree: '/tmp/testproj',
     })
     const ptySession = manager.getOrCreate('testproj', 'loop-watch-tests', session)
-    expect(ptySession.command).toContain("cw loop testproj 'run tests and fix breakage'")
-    expect(ptySession.command).toContain('--name watch-tests')
-    expect(ptySession.command).toContain('--every 30m')
-    expect(ptySession.command).toContain('--account work')
-    expect(ptySession.command).toContain('--model sonnet')
+    expect(ptySession.command).toContain("cw loop 'testproj' 'run tests and fix breakage'")
+    expect(ptySession.command).toContain("--name 'watch-tests'")
+    expect(ptySession.command).toContain("--every '30m'")
+    expect(ptySession.command).toContain("--account 'work'")
+    expect(ptySession.command).toContain("--model 'sonnet'")
   })
 
   it('builds loop command without --every when self-paced', () => {
@@ -204,7 +226,7 @@ describe('PTYManager', () => {
       loop_prompt: 'triage new issues', loop_interval: '', account: '',
     })
     const ptySession = manager.getOrCreate('testproj', 'loop-triage', session)
-    expect(ptySession.command).toContain("cw loop testproj 'triage new issues' --name triage")
+    expect(ptySession.command).toContain("cw loop 'testproj' 'triage new issues' --name 'triage'")
     expect(ptySession.command).not.toContain('--every')
     expect(ptySession.command).not.toContain('--account')
   })

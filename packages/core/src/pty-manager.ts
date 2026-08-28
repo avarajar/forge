@@ -9,6 +9,9 @@ const SCROLLBACK_LIMIT = 5000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
+// Every value interpolated into buildCommand is shell-parsed by `sh -c`
+const shellQuote = (value: string): string => `'${value.replace(/'/g, "'\\''")}'`
+
 // npm install can strip execute permission from spawn-helper — fix it once at load
 function ensureSpawnHelperPermissions() {
   try {
@@ -54,45 +57,44 @@ export class PTYManager {
     const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
     if (session.type === 'general') {
       // cw launch passes extra args directly to claude via $@
-      let cmd = `cw launch ${session.account || ''}`
-      if (session.model) cmd += ` --model ${session.model}`
+      let cmd = 'cw launch'
+      if (session.account) cmd += ` ${shellQuote(session.account)}`
+      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
       if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
       return cmd
     }
     if (session.type === 'create') {
       const desc = session.notes || session.task || 'New project'
-      const quotedDesc = `'${desc.replace(/'/g, "'\\''")}'`
-      let cmd = `cw create ${quotedDesc} --team`
-      if (session.task) cmd += ` --name ${session.task}`
-      if (session.account) cmd += ` --account ${session.account}`
-      if (session.model) cmd += ` --model ${session.model}`
-      if (session.worktree) cmd += ` --dir ${session.worktree}`
+      let cmd = `cw create ${shellQuote(desc)} --team`
+      if (session.task) cmd += ` --name ${shellQuote(session.task)}`
+      if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
+      if (session.worktree) cmd += ` --dir ${shellQuote(session.worktree)}`
       return cmd
     }
     if (session.type === 'review') {
       const prArg = session.source_url || session.pr
-      let cmd = `${prefix} review ${session.project} ${prArg}`
-      if (session.account) cmd += ` --account ${session.account}`
-      if (session.model) cmd += ` --model ${session.model}`
+      let cmd = `${prefix} review ${shellQuote(session.project)} ${shellQuote(String(prArg ?? ''))}`
+      if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
       return cmd
     }
     if (session.type === 'loop') {
       const prompt = session.loop_prompt ?? ''
-      const quotedPrompt = `'${prompt.replace(/'/g, "'\\''")}'`
       const slug = session.sessionDir?.replace(/^loop-/, '') ?? session.task ?? ''
-      let cmd = `${prefix} loop ${session.project} ${quotedPrompt} --name ${slug}`
-      if (session.loop_interval) cmd += ` --every ${session.loop_interval}`
-      if (session.account) cmd += ` --account ${session.account}`
-      if (session.model) cmd += ` --model ${session.model}`
+      let cmd = `${prefix} loop ${shellQuote(session.project)} ${shellQuote(prompt)} --name ${shellQuote(slug)}`
+      if (session.loop_interval) cmd += ` --every ${shellQuote(session.loop_interval)}`
+      if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
       return cmd
     }
     // Pass source_url to CW for any URL-sourced task (linear, github, notion)
     // so CW's URL-aware init_prompt runs: fetches issue/PR context, uses correct branch
     const taskArg = session.source_url || session.task
-    let cmd = `${prefix} work ${session.project} ${taskArg}`
-    if (session.account) cmd += ` --account ${session.account}`
-    if (session.workflow) cmd += ` --workflow ${session.workflow}`
-    if (session.model) cmd += ` --model ${session.model}`
+    let cmd = `${prefix} work ${shellQuote(session.project)} ${shellQuote(taskArg ?? '')}`
+    if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+    if (session.workflow) cmd += ` --workflow ${shellQuote(session.workflow)}`
+    if (session.model) cmd += ` --model ${shellQuote(session.model)}`
     return cmd
   }
 
