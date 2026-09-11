@@ -57,9 +57,11 @@ Every shape below was produced by running CW 0.3.0, not copied from its spec.
 | Store an API key | `… --with-api-key -`, key on stdin — **codex only** |
 | Create an account on a harness | `cw account add <name> --harness <h> [--provider <p>] [--model <m>]` |
 
-Harness resolution, first match wins: `--harness`, the `CW_HARNESS` environment variable,
-the session's recorded harness, the project's `harness` in `projects.json`, the account's
-`harness` in `meta.json`, then `claude`.
+Harness resolution: a session always resumes on the harness recorded in its `session.json`,
+and a session with no `harness` field counts as `claude`. If `--harness` or `CW_HARNESS`
+names a different one, CW refuses. For a new session, the first match wins: `--harness`,
+the `CW_HARNESS` environment variable, the project's `harness` in `projects.json`, the
+account's `harness` in `meta.json`, then `claude`.
 
 ### What each harness supports
 
@@ -150,7 +152,7 @@ These are real CW messages. Each one exits 1 and launches nothing.
 
 | Situation | CW says |
 |---|---|
-| Resuming a session with a different `--harness` | `Session was created with <a>. Refusing to resume it with <b>.` |
+| Resuming a session with a different `--harness` or `CW_HARNESS` | `Session was created with <a>. Refusing to resume it with <b>.` |
 | `cw loop` on anything but claude | `cw loop drives Claude Code's /loop command, which <h> does not have.` |
 | `--no-browser` on claude, pi or opencode | `Harness '<h>' has no headless login cw can drive, so --no-browser cannot be honoured.` |
 | `--with-api-key` on claude, pi or opencode | `Harness '<h>' has no api-key import cw can drive.` |
@@ -176,9 +178,11 @@ These are real CW messages. Each one exits 1 and launches nothing.
 
    - Send `harness` in `POST /api/cw/start` and carry it on `CWSession` (`packages/core/src/cw-types.ts`).
 
-2. **Never pass `--harness` when resuming.** CW reads the harness from `session.json`. Passing
-   a different one is refused. Passing the same one is pointless. Only a new session gets
-   the flag.
+2. **Never pass `--harness`, or set `CW_HARNESS`, when resuming.** CW reads the harness from
+   `session.json`. A different one, from either, is refused. The same one is pointless. Only
+   a new session gets the flag. Forge spawns CW with its own environment, so a `CW_HARNESS`
+   exported in the shell that started Forge would reach every resume: remove it from the
+   environment of every command except General, which uses it to launch.
 
 3. **The Model field changes with the harness.** CW has no model catalogue. For claude, keep
    Forge's current list. For the others, default to the account's configured `model` from
