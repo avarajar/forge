@@ -9,6 +9,8 @@ import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-doctor.js'
 import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
+import { LoginManager } from './login-manager.js'
+import { importApiKey } from './api-key-login.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -22,17 +24,17 @@ const ACCOUNTS_PROJECT = '__accounts'
 const pendingSessions = new Map<string, CWSession>()
 export { pendingSessions }
 
-export function cwRoutes(reader: CWReader): Hono {
-  const app = new Hono()
+// An absolute path, because Forge is often started where ~/.cw/bin is not on PATH
+export function resolveCwBin(cwHome: string): string {
+  const candidate = join(cwHome, 'bin', 'cw')
+  return existsSync(candidate) ? candidate : 'cw'
+}
 
-  // Resolve `cw` to an absolute path so spawn() doesn't depend on PATH.
-  // Forge is often launched from contexts (Finder, a stripped-PATH shell,
-  // a CW-spawned subprocess) where ~/.cw/bin isn't on PATH and a bare
-  // `spawn('cw')` fails with ENOENT.
-  const cwBin = (() => {
-    const candidate = join(reader.cwHome, 'bin', 'cw')
-    return existsSync(candidate) ? candidate : 'cw'
-  })()
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager } = {}): Hono {
+  const app = new Hono()
+  const cwBin = resolveCwBin(reader.cwHome)
+  const logins = options.loginManager ?? new LoginManager(cwBin)
+  const knownAccount = (name: string) => ACCOUNT_NAME_RE.test(name) && reader.getAccounts().includes(name)
 
   const doctor = createDoctorClient(cwBin)
 
@@ -138,6 +140,42 @@ export function cwRoutes(reader: CWReader): Hono {
       const message = err instanceof Error ? err.message : 'Unknown error'
       return c.json({ ok: false, error: `Failed to remove account: ${message}` }, 500)
     }
+  })
+
+  app.post('/accounts/:name/login', async (c) => {
+    const name = c.req.param('name')
+    const { harness } = await c.req.json<{ harness?: string }>()
+    if (!knownAccount(name)) return c.json({ ok: false, error: 'Unknown account' }, 404)
+    if (!harness || !HARNESS_NAME_RE.test(harness)) return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    if (!supports(harness, 'headless_login')) {
+      return c.json({ ok: false, error: `${harness} has no headless login` }, 400)
+    }
+    return c.json({ ok: true, login: logins.start(name, harness) })
+  })
+
+  app.get('/accounts/:name/login/:harness', (c) => {
+    const login = logins.get(c.req.param('name'), c.req.param('harness'))
+    return login ? c.json({ ok: true, login }) : c.json({ ok: false, error: 'No login in progress' }, 404)
+  })
+
+  app.delete('/accounts/:name/login/:harness', (c) => {
+    logins.stop(c.req.param('name'), c.req.param('harness'))
+    return c.json({ ok: true })
+  })
+
+  app.post('/accounts/:name/api-key', async (c) => {
+    const name = c.req.param('name')
+    const { harness, apiKey } = await c.req.json<{ harness?: string; apiKey?: string }>()
+    if (!knownAccount(name)) return c.json({ ok: false, error: 'Unknown account' }, 404)
+    if (!harness || !HARNESS_NAME_RE.test(harness)) return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    if (!supports(harness, 'api_key_login')) {
+      return c.json({ ok: false, error: `${harness} has no API key login` }, 400)
+    }
+    if (!apiKey || /[\r\n]/.test(apiKey) || apiKey.length > 4096) {
+      return c.json({ ok: false, error: 'Invalid API key' }, 400)
+    }
+    const result = await importApiKey(cwBin, name, harness, apiKey)
+    return result.ok ? c.json({ ok: true }) : c.json({ ok: false, error: result.error }, 500)
   })
 
   app.get('/detect/:project', (c) => {

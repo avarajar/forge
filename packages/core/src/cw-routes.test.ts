@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
 import { cwRoutes } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
+import { LoginManager } from './login-manager.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -775,5 +776,98 @@ describe('POST /api/cw/accounts with a harness', () => {
       if (previous === undefined) delete process.env.CW_HARNESS
       else process.env.CW_HARNESS = previous
     }
+  })
+})
+
+describe('account login routes', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-logins')
+  let app: Hono
+  let logins: LoginManager
+
+  const post = (path: string, body: Record<string, unknown>) => app.request(path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+
+  beforeAll(() => {
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    mkdirSync(join(DIR, 'accounts/work'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), [
+      '#!/bin/sh',
+      'case "$*" in',
+      "  *--no-browser*) printf 'CW_LOGIN_URL=https://auth.openai.com/codex/device\\nCW_LOGIN_CODE=WXYZ-4821\\n'; sleep 30 ;;",
+      '  *--with-api-key*)',
+      '    read key',
+      `    printf '%s\\n' "$@" > '${join(DIR, 'args.txt')}'`,
+      `    printf '%s' "$key" > '${join(DIR, 'stdin.txt')}'`,
+      '    if [ "$key" = "sk-bad" ]; then echo "rejected key $key" >&2; exit 1; fi',
+      '    exit 0 ;;',
+      'esac',
+      '',
+    ].join('\n'))
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    logins = new LoginManager(join(DIR, 'bin/cw'))
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR), { loginManager: logins }))
+  })
+
+  afterAll(() => {
+    logins.dispose()
+    rmSync(DIR, { recursive: true, force: true })
+  })
+
+  it('starts a codex device login and exposes its URL and code', async () => {
+    const res = await post('/api/cw/accounts/work/login', { harness: 'codex' })
+    expect((await res.json() as { login: { status: string } }).login.status).toBe('running')
+
+    await vi.waitFor(async () => {
+      const state = await (await app.request('/api/cw/accounts/work/login/codex')).json() as { login: { url: string | null; code: string | null } }
+      expect(state.login).toMatchObject({ url: 'https://auth.openai.com/codex/device', code: 'WXYZ-4821' })
+    }, { timeout: 5000 })
+
+    const stopped = await app.request('/api/cw/accounts/work/login/codex', { method: 'DELETE' })
+    expect(stopped.status).toBe(200)
+    const after = await (await app.request('/api/cw/accounts/work/login/codex')).json() as { login: { status: string } }
+    expect(after.login.status).toBe('exited')
+  })
+
+  it('refuses a device login on a harness without one', async () => {
+    const res = await post('/api/cw/accounts/work/login', { harness: 'claude' })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 for an unknown account', async () => {
+    const res = await post('/api/cw/accounts/nobody/login', { harness: 'codex' })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 404 when no login is in progress', async () => {
+    const res = await app.request('/api/cw/accounts/work/login/opencode')
+    expect(res.status).toBe(404)
+  })
+
+  it('sends the API key on stdin only', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-good' })
+    expect(res.status).toBe(200)
+    expect(readFileSync(join(DIR, 'stdin.txt'), 'utf-8')).toBe('sk-good')
+    const args = readFileSync(join(DIR, 'args.txt'), 'utf-8').trim().split('\n')
+    expect(args).toEqual(['account', 'login', 'work', '--harness', 'codex', '--with-api-key', '-'])
+  })
+
+  it('redacts the key when cw rejects it', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-bad' })
+    expect(res.status).toBe(500)
+    const text = await res.text()
+    expect(text).toContain('rejected key ***')
+    expect(text).not.toContain('sk-bad')
+  })
+
+  it('refuses an API key on a harness without an API key login', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'opencode', apiKey: 'sk-good' })
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses a key with a newline', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-a\nsk-b' })
+    expect(res.status).toBe(400)
   })
 })
