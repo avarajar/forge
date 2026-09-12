@@ -104,7 +104,7 @@ interface TaskListProps {
   loading: boolean
   onNewTask: (type?: string) => void
   onCreateProject: () => void
-  onCreateAccount: () => void
+  onOpenAccounts: () => void
   onSelectTask: (session: CWSession) => void
   onRefresh: () => void
   projects: Record<string, { path: string; account: string }>
@@ -179,7 +179,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   loading: _loading,
   onNewTask,
   onCreateProject,
-  onCreateAccount,
+  onOpenAccounts,
   onSelectTask,
   onRefresh,
   projects,
@@ -236,9 +236,9 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           <button
             class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:bg-forge-surface"
             style={{ borderColor: 'var(--forge-ghost-border)' }}
-            onClick={onCreateAccount}
+            onClick={onOpenAccounts}
           >
-            + Account
+            Accounts
           </button>
           <button
             class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:bg-forge-surface"

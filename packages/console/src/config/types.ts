@@ -153,3 +153,6 @@ export const resolveHarness = (
 
 export const findCell = (doctor: CWDoctor, account: string, harness: string): CWDoctorCell | undefined =>
   doctor.accounts.find(a => a.name === account)?.harnesses.find(h => h.harness === harness)
+
+// Mirrors ACCOUNT_NAME_RE in @forge-dev/core, which the console does not import at runtime
+export const ACCOUNT_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
