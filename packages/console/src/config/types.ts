@@ -1,4 +1,4 @@
-import type { CWSession } from '@forge-dev/core'
+import type { CWDoctor, CWDoctorCell, CWSession } from '@forge-dev/core'
 
 /* ── Type visual config ── */
 
@@ -61,6 +61,15 @@ export const TYPE_STYLES: Record<string, TypeStyle> = {
     bgVar: 'var(--forge-tint-rose-bg)',
     borderVar: 'var(--forge-tint-rose-border)',
   },
+  login: {
+    label: 'LOGIN',
+    color: '#64748b',
+    bg: 'rgba(100,116,139,0.10)',
+    border: 'rgba(100,116,139,0.25)',
+    dotClass: 'bg-slate-500',
+    bgVar: 'var(--forge-ghost-bg)',
+    borderVar: 'var(--forge-ghost-border)',
+  },
 }
 
 export const getTypeStyle = (type: string): TypeStyle =>
@@ -85,6 +94,7 @@ export const sessionLabel = (s: CWSession) =>
   : s.type === 'general' ? `General (${s.account})`
   : s.type === 'create' ? `Create: ${s.task ?? 'project'}`
   : s.type === 'loop' ? `Loop: ${s.task ?? 'loop'}`
+  : s.type === 'login' ? `Login: ${s.account} · ${getHarnessStyle(s.harness).label}`
   : (s.task ?? 'unknown')
 
 export const timeAgo = (date: string): string => {
@@ -99,3 +109,47 @@ export const timeAgo = (date: string): string => {
   const months = Math.floor(days / 30)
   return `${months}mo ago`
 }
+
+/* ── Harness visual config ── */
+
+export interface HarnessStyle {
+  label: string
+  color: string
+  bg: string
+}
+
+export const HARNESS_STYLES: Record<string, HarnessStyle> = {
+  claude: { label: 'Claude Code', color: 'var(--forge-harness-claude)', bg: 'var(--forge-harness-claude-bg)' },
+  codex: { label: 'Codex', color: 'var(--forge-harness-codex)', bg: 'var(--forge-harness-codex-bg)' },
+  pi: { label: 'Pi', color: 'var(--forge-harness-pi)', bg: 'var(--forge-harness-pi-bg)' },
+  opencode: { label: 'OpenCode', color: 'var(--forge-harness-opencode)', bg: 'var(--forge-harness-opencode-bg)' },
+}
+
+export const getHarnessStyle = (harness?: string): HarnessStyle =>
+  HARNESS_STYLES[harness ?? 'claude'] ?? { label: harness ?? 'claude', color: 'var(--forge-muted)', bg: 'var(--forge-ghost-bg)' }
+
+export const harnessLabel = (s: Pick<CWSession, 'harness' | 'provider' | 'model'>): string => {
+  const label = getHarnessStyle(s.harness).label
+  return s.provider && s.provider !== 'native' ? `${label} · ${s.model || s.provider}` : label
+}
+
+export const CLAUDE_MODELS = [
+  { id: '', label: 'Default', description: 'Recommended model' },
+  { id: 'haiku', label: 'Haiku', description: 'Fast, simple tasks' },
+  { id: 'sonnet', label: 'Sonnet', description: 'Daily coding' },
+  { id: 'opus', label: 'Opus', description: 'Complex reasoning' },
+]
+
+// Same order CW uses for a new session: project, then account, then claude
+export const resolveHarness = (
+  project: string | undefined,
+  account: string,
+  projects: Record<string, { harness?: string }>,
+  doctor: CWDoctor,
+): string =>
+  (project ? projects[project]?.harness : undefined)
+  ?? doctor.accounts.find(a => a.name === account)?.default_harness
+  ?? 'claude'
+
+export const findCell = (doctor: CWDoctor, account: string, harness: string): CWDoctorCell | undefined =>
+  doctor.accounts.find(a => a.name === account)?.harnesses.find(h => h.harness === harness)

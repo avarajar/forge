@@ -28,6 +28,15 @@
   --forge-tint-rose-border: rgba(225,29,72,0.25);
   --forge-tint-accent-bg: rgba(99,102,241,0.1);
   --forge-tint-accent-border: rgba(99,102,241,0.3);
+  /* Harness colors */
+  --forge-harness-claude: #e08a68;
+  --forge-harness-claude-bg: rgba(224,138,104,0.16);
+  --forge-harness-codex: #2fbf97;
+  --forge-harness-codex-bg: rgba(47,191,151,0.16);
+  --forge-harness-pi: #6b9bff;
+  --forge-harness-pi-bg: rgba(107,155,255,0.16);
+  --forge-harness-opencode: #e8b44a;
+  --forge-harness-opencode-bg: rgba(232,180,74,0.16);
 }
 
 [data-theme="light"] {
@@ -53,6 +62,14 @@
   --forge-tint-rose-border: rgba(225,29,72,0.3);
   --forge-tint-accent-bg: rgba(99,102,241,0.1);
   --forge-tint-accent-border: rgba(99,102,241,0.25);
+  --forge-harness-claude: #c9633f;
+  --forge-harness-claude-bg: rgba(201,99,63,0.12);
+  --forge-harness-codex: #0f8f6f;
+  --forge-harness-codex-bg: rgba(15,143,111,0.12);
+  --forge-harness-pi: #2f6fe0;
+  --forge-harness-pi-bg: rgba(47,111,224,0.12);
+  --forge-harness-opencode: #c98a12;
+  --forge-harness-opencode-bg: rgba(201,138,18,0.14);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
