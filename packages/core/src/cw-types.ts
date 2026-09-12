@@ -5,6 +5,7 @@ export interface CWProject {
   path: string
   account: string
   type: string
+  harness?: string
   registered: string
 }
 
@@ -12,8 +13,11 @@ export interface CWSession {
   project: string
   task?: string
   pr?: string
-  type: 'task' | 'review' | 'general' | 'create' | 'loop'
+  type: 'task' | 'review' | 'general' | 'create' | 'loop' | 'login'
   account: string
+  harness?: string
+  harness_session_id?: string
+  provider?: string
   workflow?: string
   model?: string
   worktree: string
@@ -40,6 +44,61 @@ export interface CWConfig {
     chat?: string
     repo?: string
   }
+}
+
+export type HarnessStatus = 'connected' | 'not_logged_in' | 'not_installed' | 'local' | 'error'
+export type ProviderKind = 'native' | 'api' | 'local'
+
+export interface CWDoctorHarness {
+  name: string
+  installed: boolean
+  path: string | null
+  version: string | null
+  source: 'builtin' | 'user'
+}
+
+export interface CWLocalDetail {
+  endpoint: string
+  reachable: boolean
+  model_pulled: boolean
+}
+
+export interface CWDoctorCell {
+  harness: string
+  status: HarnessStatus
+  detail: null | string | CWLocalDetail
+  config_env: string
+  config_dir: string
+  provider: string
+  provider_kind: ProviderKind
+  model: string | null
+  unofficial: boolean
+  has_api_key: boolean
+}
+
+export interface CWDoctorAccount {
+  name: string
+  root: string
+  layout: 'split' | 'legacy' | 'none'
+  default_harness: string
+  harnesses: CWDoctorCell[]
+}
+
+export interface CWDoctorFinding {
+  code: string
+  message: string
+  count?: number
+}
+
+export interface CWDoctor {
+  schema: 1
+  cw_version: string
+  cw_home: string
+  generated: string
+  harnesses: CWDoctorHarness[]
+  accounts: CWDoctorAccount[]
+  issues: CWDoctorFinding[]
+  warnings: CWDoctorFinding[]
 }
 
 export interface StackDetection {

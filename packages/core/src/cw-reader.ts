@@ -2,6 +2,9 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CWProject, CWSession, SkillEntry, SkillDetail, StackDetection } from './cw-types.js'
 
+const withHarnessDefaults = (session: CWSession): CWSession =>
+  ({ ...session, harness: session.harness ?? 'claude', provider: session.provider ?? 'native' })
+
 export class CWReader {
   private cwDir: string
 
@@ -33,7 +36,7 @@ export class CWReader {
         try {
           const data = JSON.parse(readFileSync(absPath, 'utf-8')) as CWSession
           data.sessionDir = relPath
-          sessions.push(data)
+          sessions.push(withHarnessDefaults(data))
         } catch {
           // skip corrupt session files
         }
@@ -51,7 +54,7 @@ export class CWReader {
     try {
       const data = JSON.parse(readFileSync(path, 'utf-8')) as CWSession
       data.sessionDir = sessionDir
-      return data
+      return withHarnessDefaults(data)
     } catch {
       return null
     }
