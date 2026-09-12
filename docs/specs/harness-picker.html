@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Forge Harness Picker</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -227,17 +228,50 @@
   td.same { color: var(--codex); font-weight: 600; }
   .tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
   td code { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; }
+  .fp .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+  /* Accounts */
+  .acct-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .acct-head h3 { margin: 0; font-size: 16px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--text); white-space: nowrap; justify-self: start; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.ghost { color: var(--accent); border-color: var(--accent); background: var(--accent-bg); }
+  .matrix th { text-transform: none; letter-spacing: 0; }
+  .matrix th:not(:first-child), .matrix td:not(:first-child) { min-width: 160px; }
+  .matrix td { font-size: 13px; }
+  .acct { font-weight: 600; }
+  .acct small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .cell { display: grid; gap: 3px; justify-items: start; }
+  .cell .st { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12.5px; }
+  .cell .sub { color: var(--muted); font-size: 11.5px; }
+  .st.ok { color: var(--codex); }
+  .st.warn { color: var(--opencode); }
+  .st.busy { color: var(--accent); }
+  .st.off { color: var(--muted); font-weight: 500; }
+  .st i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .cell.busy { border: 1px dashed var(--accent); border-radius: 8px; padding: 6px 8px; background: var(--new-bg); }
+  .connect { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; padding: 16px; border-top: 1px solid var(--border); }
+  .panel { border: 1px solid var(--border); border-radius: 10px; padding: 14px; display: grid; gap: 10px; align-content: start; }
+  .panel h4 { margin: 0; font-size: 14px; }
+  .panel p { margin: 0; font-size: 13px; color: var(--muted); }
+  .panel p code { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .code { font-family: "IBM Plex Mono", monospace; font-size: 20px; letter-spacing: 0.12em; font-weight: 500; }
+  .row-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .or { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .term { margin: 0; font-size: 12px; background: var(--term-bg); color: var(--term-text); padding: 10px 12px; border-radius: 6px; overflow-x: auto; line-height: 1.55; }
+  .term .hl { color: #c0a8ff; }
+  .term .c { color: #7d7f96; }
 </style>
 
 <main>
   <header>
-    <h1>Elegir el harness al arrancar una task en Forge</h1>
-    <p><strong>Sin tocar nada, todo sigue igual:</strong> cada cuenta trae su harness por defecto y hoy ese es Claude Code. Lo nuevo es un selector en el formulario, un badge en cada sesión, y que CW recuerda con qué arrancó cada una.</p>
+    <h1>Choosing the harness when starting a task in Forge</h1>
+    <p><strong>Change nothing and everything stays the same:</strong> every account has a default harness, and today that is Claude Code. What's new is a selector in the form, a badge on every session, and CW remembering which harness each session started with.</p>
   </header>
 
   <section>
-    <h2>1 · El formulario New Task, después</h2>
-    <p class="lead">Es el mismo formulario de hoy. Se agrega un bloque <em>Harness</em> debajo de Account, y la lista de modelos cambia según el harness elegido.</p>
+    <h2>1 · The New Task form, after</h2>
+    <p class="lead">The same form as today. A <em>Harness</em> block is added below Account, and the model list changes with the chosen harness.</p>
     <div class="window">
       <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span> Forge <span class="url mono">localhost:4000 / New Task</span></div>
       <div class="form">
@@ -252,15 +286,15 @@
         </div>
 
         <div class="row new">
-          <span class="tag">nuevo</span>
-          <label>Harness <small>quién ejecuta la sesión</small></label>
+          <span class="tag">new</span>
+          <label>Harness <small>who runs the session</small></label>
           <div class="hpills">
-            <div class="hpill on"><b><i class="dot d-claude"></i>Claude Code</b><span>default de la cuenta</span></div>
-            <div class="hpill"><b><i class="dot d-codex"></i>Codex</b><span>codex 0.9 detectado</span></div>
-            <div class="hpill"><b><i class="dot d-pi"></i>Pi</b><span>pi 1.4 detectado</span></div>
-            <div class="hpill dim"><b><i class="dot d-opencode"></i>OpenCode</b><span>no instalado</span></div>
+            <div class="hpill on"><b><i class="dot d-claude"></i>Claude Code</b><span>account default</span></div>
+            <div class="hpill"><b><i class="dot d-codex"></i>Codex</b><span>codex 0.9 detected</span></div>
+            <div class="hpill"><b><i class="dot d-pi"></i>Pi</b><span>pi 1.4 detected</span></div>
+            <div class="hpill dim"><b><i class="dot d-opencode"></i>OpenCode</b><span>not installed</span></div>
           </div>
-          <div class="hint">Solo para esta task. El default de la cuenta se fija al crearla: <code>cw account add personal --harness codex</code>.</div>
+          <div class="hint">For this task only. The account default is set when the account is created: <code>cw account add personal --harness codex</code>.</div>
         </div>
 
         <div class="row">
@@ -274,50 +308,50 @@
         </div>
 
         <div class="row">
-          <label>Model <small>según harness</small></label>
+          <label>Model <small>depends on the harness</small></label>
           <div class="select">Default</div>
-          <div class="hint">Claude Code: Haiku · Sonnet · Opus &nbsp;|&nbsp; Codex, Pi, OpenCode: el modelo configurado en la cuenta, o escribe otro</div>
+          <div class="hint">Claude Code: Haiku · Sonnet · Opus &nbsp;|&nbsp; Codex, Pi, OpenCode: the model configured on the account, or type another</div>
         </div>
 
-        <div class="check"><i></i> Skip permissions <span style="opacity:.7">(solo aplica a Claude Code)</span></div>
+        <div class="check"><i></i> Skip permissions <span style="opacity:.7">(hidden when the harness does not support it)</span></div>
         <button class="cta">Start task</button>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>2 · Dónde vive la decisión</h2>
-    <p class="lead">Tres niveles, del más general al más puntual. El de abajo gana. Si no defines ninguno, es Claude Code, igual que hoy.</p>
+    <h2>2 · Where the decision lives</h2>
+    <p class="lead">Three levels, from the most general to the most specific. The lower one wins. If you set none, it is Claude Code, same as today.</p>
     <div class="levels">
       <div class="level">
-        <div class="k">Nivel 1</div>
-        <h3>Cuenta</h3>
-        <p>Cada cuenta tiene un harness por defecto, que se fija al crearla. La cuenta <em>work</em> puede ser Claude y la <em>personal</em> Codex.</p>
+        <div class="k">Level 1</div>
+        <h3>Account</h3>
+        <p>Every account has a default harness, set when the account is created. The <em>work</em> account can be Claude and <em>personal</em> can be Codex.</p>
         <code class="cmd mono">cw account add personal --harness codex</code>
       </div>
       <div class="level">
-        <div class="k">Nivel 2</div>
-        <h3>Proyecto</h3>
-        <p>Un proyecto puede forzar un harness distinto al de su cuenta. Útil si un repo funciona mejor con uno.</p>
+        <div class="k">Level 2</div>
+        <h3>Project</h3>
+        <p>A project can force a harness different from its account's. Useful when a repo works better with one.</p>
         <code class="cmd mono">cw project register ~/x --harness pi</code>
       </div>
       <div class="level">
-        <div class="k">Nivel 3</div>
-        <h3>Esta task</h3>
-        <p>Lo que eliges en el formulario de Forge, o el flag en la terminal. Aplica solo a esa sesión.</p>
+        <div class="k">Level 3</div>
+        <h3>This task</h3>
+        <p>What you pick in the Forge form, or the flag in the terminal. Applies to that session only.</p>
         <code class="cmd mono">cw work app SEI-214 --harness codex</code>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>3 · Qué pasa cuando le das Start con Codex</h2>
+    <h2>3 · What happens when you click Start with Codex</h2>
     <div class="flow">
       <div class="step">
         <div class="who">Forge</div>
         <div class="box">
-          <h4>Manda la elección al servidor</h4>
-          <p>El mismo POST de hoy con un campo más.</p>
+          <h4>Sends the choice to the server</h4>
+          <p>The same POST as today with one more field.</p>
           <pre class="mono">POST /api/cw/start
 { "project": "seimseim-reservas", "task": "SEI-214", <span class="hl">"harness": "codex"</span> }</pre>
         </div>
@@ -326,7 +360,7 @@
       <div class="step">
         <div class="who">Forge · PTY</div>
         <div class="box">
-          <h4>Abre la terminal y lanza CW</h4>
+          <h4>Opens the terminal and runs CW</h4>
           <pre class="mono">cw work seimseim-reservas SEI-214 <span class="hl">--harness codex</span></pre>
         </div>
       </div>
@@ -334,26 +368,26 @@
       <div class="step">
         <div class="who">CW</div>
         <div class="box">
-          <h4>Prepara el worktree y el contexto</h4>
-          <p>Crea el worktree en <span class="mono">.tasks/SEI-214</span> y enlaza los .env. Si hay <span class="mono">LINEAR_API_KEY</span>, trae el ticket de Linear y lo escribe en TASK_NOTES.md; si no, Codex arranca sin él, porque no tiene MCP.</p>
+          <h4>Prepares the worktree and the context</h4>
+          <p>Creates the worktree at <span class="mono">.tasks/SEI-214</span> and links the .env files. If <span class="mono">LINEAR_API_KEY</span> is set, it fetches the Linear ticket and writes it into TASK_NOTES.md; otherwise Codex starts without it, because it has no MCP.</p>
         </div>
       </div>
       <div class="connector"><i></i></div>
       <div class="step">
         <div class="who">CW · driver</div>
         <div class="box">
-          <h4>Delega en el driver de Codex</h4>
-          <p>Un archivo pequeño sabe cómo arrancar Codex, dónde están sus credenciales y qué soporta. Codex arranca ya dentro del worktree.</p>
+          <h4>Hands off to the Codex driver</h4>
+          <p>A small file knows how to start Codex, where its credentials live and what it supports. Codex starts already inside the worktree.</p>
           <pre class="mono">lib/harnesses/codex.sh
 CODEX_HOME=~/.cw/accounts/work/codex codex "$(cat init_prompt.txt)"</pre>
         </div>
       </div>
       <div class="connector"><i></i></div>
       <div class="step">
-        <div class="who">CW · sesión</div>
+        <div class="who">CW · session</div>
         <div class="box">
-          <h4>Recuerda con qué arrancó</h4>
-          <p>Cuando reanudes, aunque sea desde la terminal sin flags, vuelve a abrir Codex.</p>
+          <h4>Remembers what it started with</h4>
+          <p>When you resume, even from the terminal with no flags, it reopens Codex.</p>
           <pre class="mono">~/.cw/sessions/seimseim-reservas/task-SEI-214/session.json
 { "status": "active", "opens": 1, <span class="hl">"harness": "codex"</span> }</pre>
         </div>
@@ -362,42 +396,42 @@ CODEX_HOME=~/.cw/accounts/work/codex codex "$(cat init_prompt.txt)"</pre>
       <div class="step">
         <div class="who">Forge</div>
         <div class="box">
-          <h4>Lee el campo y pinta el badge</h4>
-          <p>La sesión de Codex se ve al lado de las de Claude en la misma lista y en las mismas pestañas.</p>
+          <h4>Reads the field and draws the badge</h4>
+          <p>The Codex session shows up next to the Claude ones, in the same list and the same tabs.</p>
         </div>
       </div>
     </div>
   </section>
 
   <section>
-    <h2>4 · La lista de tasks con sesiones mezcladas</h2>
+    <h2>4 · The task list with mixed sessions</h2>
     <div class="window">
       <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span> Forge <span class="url mono">localhost:4000 / Tasks</span></div>
       <div style="padding-top:12px">
         <div class="filters">
-          <span class="fp on">All</span><span class="fp">work</span><span class="fp">personal</span>
-          <span class="fp" style="margin-left:auto">Claude Code</span><span class="fp">Codex</span><span class="fp">Pi</span>
+          <span class="fp">All accounts ⌄</span><span class="fp">All projects ⌄</span><span class="fp">Dev</span><span class="fp">Review</span><span class="fp">Plan</span>
+          <span class="fp" style="margin-left:auto"><i class="dot d-claude"></i>Claude Code</span><span class="fp"><i class="dot d-codex"></i>Codex</span><span class="fp"><i class="dot d-pi"></i>Pi</span>
         </div>
         <div class="list">
           <div class="card">
             <div class="name">SEI-214 checkout-timeout <span class="badge b-type">dev</span></div>
             <div class="meta">seimseim-reservas · work · .tasks/SEI-214</div>
-            <div class="right"><span class="badge b-codex"><i class="dot d-codex"></i>Codex</span><span class="time">hace 2 min</span></div>
+            <div class="right"><span class="badge b-codex"><i class="dot d-codex"></i>Codex</span><span class="time">2 min ago</span></div>
           </div>
           <div class="card">
             <div class="name">PR #42 fix-auth-flow <span class="badge b-type">review</span></div>
-            <div class="meta">seimseim-reservas · work · sin worktree</div>
-            <div class="right"><span class="badge b-claude"><i class="dot d-claude"></i>Claude Code</span><span class="time">hace 40 min</span></div>
+            <div class="meta">seimseim-reservas · work · no worktree</div>
+            <div class="right"><span class="badge b-claude"><i class="dot d-claude"></i>Claude Code</span><span class="time">40 min ago</span></div>
           </div>
           <div class="card">
             <div class="name">poses-por-emocion <span class="badge b-type">dev</span></div>
             <div class="meta">character-shorts · personal · .tasks/poses-por-emocion</div>
-            <div class="right"><span class="badge b-pi"><i class="dot d-pi"></i>Pi</span><span class="time">ayer</span></div>
+            <div class="right"><span class="badge b-pi"><i class="dot d-pi"></i>Pi</span><span class="time">yesterday</span></div>
           </div>
           <div class="card">
             <div class="name">deploy-pwa <span class="badge b-type">plan</span></div>
-            <div class="meta">guia-terremoto-ve · personal · sin worktree</div>
-            <div class="right"><span class="badge b-claude"><i class="dot d-claude"></i>Claude Code</span><span class="time">hace 3 días</span></div>
+            <div class="meta">guia-terremoto-ve · personal · no worktree</div>
+            <div class="right"><span class="badge b-claude"><i class="dot d-claude"></i>Claude Code</span><span class="time">3 days ago</span></div>
           </div>
         </div>
       </div>
@@ -405,21 +439,107 @@ CODEX_HOME=~/.cw/accounts/work/codex codex "$(cat init_prompt.txt)"</pre>
   </section>
 
   <section>
-    <h2>5 · Qué sigue igual y qué cambia</h2>
+    <h2>5 · What stays the same and what changes</h2>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Situación</th><th>Comportamiento</th></tr></thead>
+        <thead><tr><th>Situation</th><th>Behavior</th></tr></thead>
         <tbody>
-          <tr><td>Arrancas una task sin elegir harness</td><td class="same">Igual que hoy: Claude Code</td></tr>
-          <tr><td>Sesiones que ya existen en <code>~/.cw/sessions</code></td><td class="same">Igual: sin campo <code>harness</code> se asume Claude Code</td></tr>
-          <tr><td>Reanudas una sesión</td><td>Abre con el mismo harness con que se creó, aunque no pases flags</td></tr>
-          <tr><td>Cuenta con harness distinto a Claude</td><td>El selector arranca en ese harness. Puedes cambiarlo para una task puntual</td></tr>
-          <tr><td>Harness no instalado en la máquina</td><td>Aparece apagado en el selector con el motivo. Nunca falla al arrancar</td></tr>
-          <tr><td>Hooks, skip permissions, agent teams</td><td>Solo se muestran y aplican cuando el harness es Claude Code</td></tr>
-          <tr><td>Task de tipo Loop</td><td>Solo con Claude Code: <code>/loop</code> es un comando suyo. El selector desactiva los demás harness</td></tr>
-          <tr><td>Ticket de Linear, GitHub o Notion como task</td><td>CW lo trae a TASK_NOTES.md antes de lanzar, para cualquier harness. GitHub siempre, vía <code>gh</code>; Linear y Notion solo con <code>LINEAR_API_KEY</code> / <code>NOTION_TOKEN</code>. Sin token, solo Claude Code lo lee, por MCP</td></tr>
+          <tr><td>You start a task without picking a harness</td><td class="same">Same as today: Claude Code</td></tr>
+          <tr><td>Sessions that already exist in <code>~/.cw/sessions</code></td><td class="same">Same: no <code>harness</code> field means Claude Code</td></tr>
+          <tr><td>You resume a session</td><td>Opens with the harness it was created with, even without flags</td></tr>
+          <tr><td>Account whose default is not Claude</td><td>The selector starts on that harness. You can change it for a single task</td></tr>
+          <tr><td>Harness not installed on the machine</td><td>Shown disabled in the selector with the reason. Never fails at start</td></tr>
+          <tr><td>Hooks, skip permissions, agent teams</td><td>Only shown and applied when the harness supports them, which today means Claude Code</td></tr>
+          <tr><td>Loop task</td><td>Claude Code only: <code>/loop</code> is one of its commands. The selector disables the other harnesses</td></tr>
+          <tr><td>A Linear, GitHub or Notion ticket as the task</td><td>CW writes it into TASK_NOTES.md before launching, for any harness. GitHub always, through <code>gh</code>; Linear and Notion only with <code>LINEAR_API_KEY</code> / <code>NOTION_TOKEN</code>. Without a token only Claude Code reads it, through MCP</td></tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>6 · The Accounts screen</h2>
+    <p class="lead">Replaces the <em>+ Account</em> modal. One row per account and one column per harness, all read from <span class="mono">cw doctor --json</span>. Each cell says what state that account is in on that harness and, when the login is missing, fixes it without typing a command.</p>
+    <div class="window">
+      <div class="titlebar"><span class="dots"><i></i><i></i><i></i></span> Forge <span class="url mono">localhost:4000 / Accounts</span></div>
+      <div class="acct-head">
+        <h3>Accounts</h3>
+        <div class="row-inline"><span class="btn">Refresh</span><span class="btn primary">+ Add account</span></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th><span class="badge b-claude"><i class="dot d-claude"></i>Claude Code</span></th>
+              <th><span class="badge b-codex"><i class="dot d-codex"></i>Codex</span></th>
+              <th><span class="badge b-pi"><i class="dot d-pi"></i>Pi</span></th>
+              <th><span class="badge b-opencode"><i class="dot d-opencode"></i>OpenCode</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="acct">work<small>default: Claude Code</small></td>
+              <td><div class="cell"><span class="st ok"><i></i>Connected</span></div></td>
+              <td><div class="cell busy"><span class="st busy"><i></i>Connecting…</span><span class="sub">use the code below</span></div></td>
+              <td><div class="cell"><span class="st off">Not installed</span><span class="sub">pi not found on PATH</span></div></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+            </tr>
+            <tr>
+              <td class="acct">personal<small>default: Codex</small></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+              <td><div class="cell"><span class="st ok"><i></i>API key</span><span class="sub">stored by cw</span></div></td>
+              <td><div class="cell"><span class="st off">Not installed</span><span class="sub">pi not found on PATH</span></div></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+            </tr>
+            <tr>
+              <td class="acct">glm<small>default: OpenCode · zai</small></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+              <td><div class="cell"><span class="st off">Not installed</span><span class="sub">pi not found on PATH</span></div></td>
+              <td><div class="cell"><span class="st ok"><i></i>API key</span><span class="sub">zai · glm-5.1</span></div></td>
+            </tr>
+            <tr>
+              <td class="acct">local<small>default: OpenCode · ollama</small></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+              <td><div class="cell"><span class="btn ghost">Connect</span><span class="sub">not logged in</span></div></td>
+              <td><div class="cell"><span class="st off">Not installed</span><span class="sub">pi not found on PATH</span></div></td>
+              <td><div class="cell"><span class="st warn"><i></i>Local</span><span class="sub">ollama · qwen3-coder:14b</span><span class="sub">Ollama reachable ✓ · model not pulled ✗</span></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="connect">
+        <div class="panel">
+          <h4>Connect on Codex: no terminal</h4>
+          <p>Forge runs <code>cw account login work --harness codex --no-browser</code> in the background and shows only what you need.</p>
+          <div class="row-inline"><span class="btn primary">Open login ↗</span><span class="code">WXYZ-4821</span><span class="btn">Copy</span></div>
+          <p>Checks every 3 s. The cell turns <strong>Connected</strong> on its own.</p>
+          <span class="or">or with an API key</span>
+          <div class="row-inline"><div class="input placeholder" style="flex:1;width:auto">sk-••••••••••••</div><span class="btn">Save</span></div>
+          <p>Sent over stdin to <code>--with-api-key -</code>. Forge never stores or shows it.</p>
+        </div>
+        <div class="panel">
+          <h4>Connect on Claude Code, Pi or OpenCode: visible terminal</h4>
+          <p>None of them has a login cw can drive without a screen. Forge opens a tab with the terminal and you finish the login there, including the API key for an OpenCode provider.</p>
+          <pre class="term mono">$ cw account login personal <span class="hl">--harness claude</span>
+<span class="c"># the harness's own login screen continues here</span></pre>
+          <p>While the tab is open, the cell reads <strong>Connecting…</strong> and Forge checks every 3 s.</p>
+        </div>
+      </div>
+    </div>
+    <div class="levels" style="margin-top:16px">
+      <div class="level">
+        <div class="k">Add account</div>
+        <h3>Create an account</h3>
+        <p>Name, default harness and, when that harness accepts providers, provider and model. The default harness cannot be changed later: cw has no <span class="mono">account set</span>.</p>
+        <code class="cmd mono">cw account add glm --harness opencode --provider zai --model glm-5.1</code>
+      </div>
+      <div class="level">
+        <div class="k">Limit</div>
+        <h3>Forge on another host</h3>
+        <p>Browser login redirects to localhost on the machine running the harness. If you open Forge from another computer, only the Codex code works, and the screen says so above the matrix.</p>
+      </div>
     </div>
   </section>
 </main>
