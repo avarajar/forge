@@ -43,15 +43,6 @@ export const TYPE_STYLES: Record<string, TypeStyle> = {
     bgVar: 'var(--forge-tint-purple-bg)',
     borderVar: 'var(--forge-tint-purple-border)',
   },
-  plan: {
-    label: 'PLAN',
-    color: '#0891b2',
-    bg: 'rgba(8,145,178,0.10)',
-    border: 'rgba(8,145,178,0.25)',
-    dotClass: 'bg-cyan-500',
-    bgVar: 'var(--forge-tint-cyan-bg)',
-    borderVar: 'var(--forge-tint-cyan-border)',
-  },
   general: {
     label: 'GENERAL',
     color: '#059669',
@@ -81,7 +72,6 @@ export const QUICK_TYPES = [
   { key: 'dev',     label: 'Dev',     style: TYPE_STYLES['task'] },
   { key: 'review',  label: 'Review',  style: TYPE_STYLES['review'] },
   { key: 'design',  label: 'Design',  style: TYPE_STYLES['design'] },
-  { key: 'plan',    label: 'Plan',    style: TYPE_STYLES['plan'] },
   { key: 'loop',    label: 'Loop',    style: TYPE_STYLES['loop'] },
   { key: 'general', label: 'General', style: TYPE_STYLES['general'] },
 ]

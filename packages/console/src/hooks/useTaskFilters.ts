@@ -50,7 +50,7 @@ export function useTaskFilters({ spaces, accounts, projects }: UseTaskFiltersOpt
       if (filterType) {
         if (filterType === 'dev' && s.type !== 'task') return false
         if (filterType === 'review' && s.type !== 'review') return false
-        if (filterType === 'design' || filterType === 'plan') return false
+        if (filterType === 'design') return false
       }
       if (!showDone && s.status === 'done') return false
       return true

@@ -96,7 +96,7 @@ pnpm test             # Run all tests
 - `GET /api/cw/tools?project=X` — MCPs + plugins for a project
 - `GET /api/cw/detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /api/cw/git/{status,log,diff}/:project/:sessionDir` — Git info
-- `POST /api/cw/start` — Start task/review/plan (spawns cw command)
+- `POST /api/cw/start` — Start a task, review, loop, general or create session (spawns cw command)
 - `POST /api/cw/done` — Mark session done (writes session.json + spawns cw --done)
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 

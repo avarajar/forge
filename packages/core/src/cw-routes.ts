@@ -340,9 +340,6 @@ export function cwRoutes(reader: CWReader): Hono {
       args.push('review', project, task)
       if (account) args.push('--account', account)
       if (model) args.push('--model', model)
-    } else if (type === 'plan') {
-      args.push('plan', project, description ?? task)
-      if (model) args.push('--model', model)
     } else {
       args.push('work', project, task)
       if (account) args.push('--account', account)
@@ -352,7 +349,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Pre-write description to TASK_NOTES.md so CW picks it up.
     // Uses ## Description section that CW extracts into the init_prompt.
-    if (description && type !== 'plan') {
+    if (description) {
       const notesDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
       mkdirSync(notesDir, { recursive: true })
       const notesFile = join(notesDir, type === 'review' ? 'REVIEW_NOTES.md' : 'TASK_NOTES.md')
