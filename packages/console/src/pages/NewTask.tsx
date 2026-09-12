@@ -16,7 +16,6 @@ interface NewTaskProps {
 
 const TYPES = [
   { id: 'dev', label: 'Dev', color: '#f59e0b' },
-  { id: 'design', label: 'Design', color: '#8b5cf6' },
   { id: 'review', label: 'Review', color: '#6366f1' },
   { id: 'loop', label: 'Loop', color: '#e11d48' },
   { id: 'general', label: 'General', color: '#059669' },

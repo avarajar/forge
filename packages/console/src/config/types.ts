@@ -71,7 +71,6 @@ export const getTypeStyle = (type: string): TypeStyle =>
 export const QUICK_TYPES = [
   { key: 'dev',     label: 'Dev',     style: TYPE_STYLES['task'] },
   { key: 'review',  label: 'Review',  style: TYPE_STYLES['review'] },
-  { key: 'design',  label: 'Design',  style: TYPE_STYLES['design'] },
   { key: 'loop',    label: 'Loop',    style: TYPE_STYLES['loop'] },
   { key: 'general', label: 'General', style: TYPE_STYLES['general'] },
 ]

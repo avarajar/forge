@@ -38,7 +38,7 @@
 
 Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw review`, `cw spaces` in the terminal, you get a web dashboard with:
 
-- **Task list** with filters by account, project, and type (dev/review/design/loop/general)
+- **Task list** with filters by account, project, and type (dev/review/loop/general)
 - **Multi-tab terminal sessions** — open multiple Claude Code sessions side by side
 - **Project info** — auto-detected stack, MCPs, plugins at a glance
 - **One-click actions** — start tasks, review PRs, mark done, create projects
