@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { PTYManager } from './pty-manager.js'
 import { CWReader } from './cw-reader.js'
-import { parseTerminalUpgradeUrl } from './pty-routes.js'
+import { parseTerminalUpgradeUrl, takeSession } from './pty-routes.js'
+import { pendingSessions } from './cw-routes.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -173,5 +174,25 @@ describe('PTY Routes — integration', () => {
 
     manager.kill(sessionId)
     expect(manager.has(sessionId)).toBe(false)
+  })
+})
+
+describe('takeSession', () => {
+  it('treats a pending session as new and consumes it', () => {
+    const reader = new CWReader(TEST_CW)
+    const pending = { ...reader.getSession('testproj', 'task-mytask')!, harness: 'codex' }
+    pendingSessions.set('testproj::task-mytask', pending)
+    expect(takeSession(reader, 'testproj', 'task-mytask')).toEqual({ session: pending, isNew: true })
+    expect(pendingSessions.has('testproj::task-mytask')).toBe(false)
+  })
+
+  it('treats a session read from disk as a resume', () => {
+    const taken = takeSession(new CWReader(TEST_CW), 'testproj', 'task-mytask')
+    expect(taken?.isNew).toBe(false)
+    expect(taken?.session.harness).toBe('claude')
+  })
+
+  it('returns null when the session exists nowhere', () => {
+    expect(takeSession(new CWReader(TEST_CW), 'testproj', 'task-missing')).toBeNull()
   })
 })

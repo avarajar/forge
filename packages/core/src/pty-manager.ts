@@ -4,12 +4,14 @@ import { existsSync, chmodSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import type { CWSession } from './cw-types.js'
+import { envWithoutHarness } from './cw-doctor.js'
+import { supports } from './harness-capabilities.js'
 
 const SCROLLBACK_LIMIT = 5000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
-// Every value interpolated into buildCommand is shell-parsed by `sh -c`
+// Every value interpolated into buildLaunch is shell-parsed by `sh -c`
 const shellQuote = (value: string): string => `'${value.replace(/'/g, "'\\''")}'`
 
 // npm install can strip execute permission from spawn-helper — fix it once at load
@@ -45,6 +47,66 @@ export interface PTYSession {
   onExitDisposable: pty.IDisposable
 }
 
+export interface Launch {
+  command: string
+  env: Record<string, string>
+}
+
+export function buildLaunch(session: CWSession, isNew: boolean): Launch {
+  const env = envWithoutHarness()
+  const harness = session.harness ?? 'claude'
+  const harnessFlag = isNew && session.harness ? ` --harness ${shellQuote(harness)}` : ''
+  const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
+
+  if (session.type === 'general') {
+    // cw launch forwards extra args verbatim to the harness binary
+    let cmd = 'cw launch'
+    if (session.account) cmd += ` ${shellQuote(session.account)}`
+    if (harness === 'claude') {
+      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
+      if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
+    }
+    if (isNew && session.harness) env.CW_HARNESS = harness
+    return { command: cmd, env }
+  }
+  if (session.type === 'login') {
+    return { command: `cw account login ${shellQuote(session.account)} --harness ${shellQuote(harness)}`, env }
+  }
+  if (session.type === 'create') {
+    const desc = session.notes || session.task || 'New project'
+    let cmd = `cw create ${shellQuote(desc)}`
+    if (supports(harness, 'agent_teams')) cmd += ' --team'
+    if (session.task) cmd += ` --name ${shellQuote(session.task)}`
+    if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+    if (session.model) cmd += ` --model ${shellQuote(session.model)}`
+    if (session.worktree) cmd += ` --dir ${shellQuote(session.worktree)}`
+    return { command: cmd + harnessFlag, env }
+  }
+  if (session.type === 'review') {
+    const prArg = session.source_url || session.pr
+    let cmd = `${prefix} review ${shellQuote(session.project)} ${shellQuote(String(prArg ?? ''))}`
+    if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+    if (session.model) cmd += ` --model ${shellQuote(session.model)}`
+    return { command: cmd + harnessFlag, env }
+  }
+  if (session.type === 'loop') {
+    const prompt = session.loop_prompt ?? ''
+    const slug = session.sessionDir?.replace(/^loop-/, '') ?? session.task ?? ''
+    let cmd = `${prefix} loop ${shellQuote(session.project)} ${shellQuote(prompt)} --name ${shellQuote(slug)}`
+    if (session.loop_interval) cmd += ` --every ${shellQuote(session.loop_interval)}`
+    if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+    if (session.model) cmd += ` --model ${shellQuote(session.model)}`
+    return { command: cmd + harnessFlag, env }
+  }
+  // CW's URL-aware init prompt needs the source URL for linear, github and notion tasks
+  const taskArg = session.source_url || session.task
+  let cmd = `${prefix} work ${shellQuote(session.project)} ${shellQuote(taskArg ?? '')}`
+  if (session.account) cmd += ` --account ${shellQuote(session.account)}`
+  if (session.workflow) cmd += ` --workflow ${shellQuote(session.workflow)}`
+  if (session.model) cmd += ` --model ${shellQuote(session.model)}`
+  return { command: cmd + harnessFlag, env }
+}
+
 export class PTYManager {
   private sessions = new Map<string, PTYSession>()
   private cleanupTimer: ReturnType<typeof setInterval> | null = null
@@ -53,65 +115,20 @@ export class PTYManager {
     this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS)
   }
 
-  private buildCommand(session: CWSession): string {
-    const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
-    if (session.type === 'general') {
-      // cw launch passes extra args directly to claude via $@
-      let cmd = 'cw launch'
-      if (session.account) cmd += ` ${shellQuote(session.account)}`
-      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
-      if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
-      return cmd
-    }
-    if (session.type === 'create') {
-      const desc = session.notes || session.task || 'New project'
-      let cmd = `cw create ${shellQuote(desc)} --team`
-      if (session.task) cmd += ` --name ${shellQuote(session.task)}`
-      if (session.account) cmd += ` --account ${shellQuote(session.account)}`
-      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
-      if (session.worktree) cmd += ` --dir ${shellQuote(session.worktree)}`
-      return cmd
-    }
-    if (session.type === 'review') {
-      const prArg = session.source_url || session.pr
-      let cmd = `${prefix} review ${shellQuote(session.project)} ${shellQuote(String(prArg ?? ''))}`
-      if (session.account) cmd += ` --account ${shellQuote(session.account)}`
-      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
-      return cmd
-    }
-    if (session.type === 'loop') {
-      const prompt = session.loop_prompt ?? ''
-      const slug = session.sessionDir?.replace(/^loop-/, '') ?? session.task ?? ''
-      let cmd = `${prefix} loop ${shellQuote(session.project)} ${shellQuote(prompt)} --name ${shellQuote(slug)}`
-      if (session.loop_interval) cmd += ` --every ${shellQuote(session.loop_interval)}`
-      if (session.account) cmd += ` --account ${shellQuote(session.account)}`
-      if (session.model) cmd += ` --model ${shellQuote(session.model)}`
-      return cmd
-    }
-    // Pass source_url to CW for any URL-sourced task (linear, github, notion)
-    // so CW's URL-aware init_prompt runs: fetches issue/PR context, uses correct branch
-    const taskArg = session.source_url || session.task
-    let cmd = `${prefix} work ${shellQuote(session.project)} ${shellQuote(taskArg ?? '')}`
-    if (session.account) cmd += ` --account ${shellQuote(session.account)}`
-    if (session.workflow) cmd += ` --workflow ${shellQuote(session.workflow)}`
-    if (session.model) cmd += ` --model ${shellQuote(session.model)}`
-    return cmd
-  }
-
   private makeKey(project: string, sessionDir: string): string {
     return `${project}::${sessionDir}`
   }
 
-  getOrCreate(project: string, sessionDir: string, session: CWSession): PTYSession | null {
+  getOrCreate(project: string, sessionDir: string, session: CWSession, options: { isNew?: boolean } = {}): PTYSession | null {
     const key = this.makeKey(project, sessionDir)
     const existing = this.sessions.get(key)
     if (existing) return existing
 
     const shell = process.env.SHELL || '/bin/zsh'
-    const command = this.buildCommand(session)
+    const { command, env } = buildLaunch(session, options.isNew ?? false)
     const cwd = session.worktree && existsSync(session.worktree)
       ? session.worktree
-      : (session.type === 'general' || session.type === 'create')
+      : (session.type === 'general' || session.type === 'create' || session.type === 'login')
         ? (process.env.HOME ?? process.cwd())
         : process.cwd()
 
@@ -122,7 +139,7 @@ export class PTYManager {
         cols: 120,
         rows: 40,
         cwd,
-        env: { ...process.env } as Record<string, string>
+        env
       })
     } catch (err) {
       console.error(`[pty] Failed to spawn for ${key}: ${err}`)
