@@ -17,7 +17,7 @@ export type { HarnessStatus, ProviderKind, CWDoctor, CWDoctorHarness, CWDoctorAc
 export { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 export type { Capability } from './harness-capabilities.js'
 export type { SkillScope, SkillEntry, SkillDetail, ExploreResult } from './cw-types.js'
-export { ACCOUNT_NAME_RE } from './cw-types.js'
+export { ACCOUNT_NAME_RE, HARNESS_NAME_RE } from './cw-types.js'
 export { PTYManager } from './pty-manager.js'
 export type { PTYSession, PTYClient } from './pty-manager.js'
 export { createTerminalWss } from './pty-routes.js'

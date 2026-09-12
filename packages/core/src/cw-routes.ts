@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import { ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
+import { ACCOUNT_NAME_RE, HARNESS_NAME_RE, type CWSession } from './cw-types.js'
 import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
@@ -15,6 +15,7 @@ const execFileAsync = promisify(execFile)
 // Sentinel project names for sessions not tied to a registered project
 const GENERAL_PROJECT = '__general'
 const CREATING_PROJECT = '__creating'
+const ACCOUNTS_PROJECT = '__accounts'
 
 // Sessions created via /api/cw/start that don't exist on disk yet.
 // PTY routes check here when reader.getSession() returns null.
@@ -195,9 +196,38 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/start', async (c) => {
-    const { type, project, task, description, workflow, account, directory, skipPermissions, model, loopPrompt, loopInterval, name } = await c.req.json<{
-      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string; loopPrompt?: string; loopInterval?: string; name?: string
+    const { type, project, task, description, workflow, account, directory, skipPermissions, model, loopPrompt, loopInterval, name, harness } = await c.req.json<{
+      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string; loopPrompt?: string; loopInterval?: string; name?: string; harness?: string
     }>()
+
+    if (harness !== undefined && !HARNESS_NAME_RE.test(harness)) {
+      return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    }
+
+    if (type === 'login') {
+      if (!account || !ACCOUNT_NAME_RE.test(account) || !reader.getAccounts().includes(account)) {
+        return c.json({ ok: false, error: 'Unknown account' }, 400)
+      }
+      if (!harness) return c.json({ ok: false, error: 'Harness is required' }, 400)
+      const sessionDirName = `login-${account}-${harness}`
+      const now = new Date().toISOString()
+      const sessionData: CWSession = {
+        project: ACCOUNTS_PROJECT,
+        type: 'login',
+        account,
+        harness,
+        workflow: '',
+        worktree: '',
+        notes: '',
+        status: 'active',
+        created: now,
+        last_opened: now,
+        opens: 0,
+        sessionDir: sessionDirName,
+      }
+      pendingSessions.set(`${ACCOUNTS_PROJECT}::${sessionDirName}`, sessionData)
+      return c.json({ ok: true, session: sessionData })
+    }
 
     // General sessions: no project or task required, just an account
     if (type === 'general') {
@@ -209,6 +239,7 @@ export function cwRoutes(reader: CWReader): Hono {
         project: projectName,
         type: 'general',
         account: acct,
+        harness: harness || undefined,
         model: model || undefined,
         workflow: '',
         worktree: projectPath ?? '',
@@ -233,6 +264,7 @@ export function cwRoutes(reader: CWReader): Hono {
         task: name,
         type: 'create',
         account: account ?? '',
+        harness: harness || undefined,
         model: model || undefined,
         workflow: '',
         worktree: directory ?? '',
@@ -250,6 +282,9 @@ export function cwRoutes(reader: CWReader): Hono {
 
     if (type === 'loop') {
       if (!project) return c.json({ ok: false, error: 'Project is required' }, 400)
+      if (harness && harness !== 'claude') {
+        return c.json({ ok: false, error: 'Loop runs on Claude Code only' }, 400)
+      }
       const prompt = (loopPrompt ?? '').trim()
       if (!prompt) return c.json({ ok: false, error: 'Loop prompt is required' }, 400)
       const interval = (loopInterval ?? '').trim()
@@ -281,6 +316,7 @@ export function cwRoutes(reader: CWReader): Hono {
         task: slug,
         type: 'loop',
         account: account ?? '',
+        harness: harness || undefined,
         model: model || undefined,
         loop_prompt: prompt,
         loop_interval: interval,
@@ -359,6 +395,7 @@ export function cwRoutes(reader: CWReader): Hono {
       if (workflow) args.push('--workflow', workflow)
       if (model) args.push('--model', model)
     }
+    if (harness) args.push('--harness', harness)
 
     // Pre-write description to TASK_NOTES.md so CW picks it up.
     // Uses ## Description section that CW extracts into the init_prompt.
@@ -403,6 +440,7 @@ export function cwRoutes(reader: CWReader): Hono {
       pr: type === 'review' ? taskSlug : undefined,
       type: type === 'review' ? 'review' : 'task',
       account: account ?? '',
+      harness: harness || undefined,
       workflow: workflow ?? '',
       model: model || undefined,
       source: taskSource,

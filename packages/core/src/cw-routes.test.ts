@@ -585,6 +585,62 @@ describe('CW Routes', () => {
       expect(body.error).toContain('already registered')
     })
   })
+
+  const start = (body: Record<string, unknown>) => app.request('/api/cw/start', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+
+  it('POST /api/cw/start stores the harness on a task and in the command', async () => {
+    const res = await start({ type: 'dev', project: 'testproj', task: 'harness-task', account: 'default', harness: 'codex' })
+    const body = await res.json() as { ok: boolean; session: { harness?: string }; command: string }
+    expect(body.ok).toBe(true)
+    expect(body.session.harness).toBe('codex')
+    expect(body.command).toContain('--harness codex')
+  })
+
+  it('POST /api/cw/start stores the harness on a general session', async () => {
+    const res = await start({ type: 'general', account: 'default', harness: 'codex' })
+    const body = await res.json() as { session: { harness?: string } }
+    expect(body.session.harness).toBe('codex')
+  })
+
+  it('POST /api/cw/start rejects an invalid harness', async () => {
+    const res = await start({ type: 'dev', project: 'testproj', task: 'bad-harness', harness: 'Codex!' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid harness')
+  })
+
+  it('POST /api/cw/start rejects a loop on a harness other than claude', async () => {
+    const res = await start({ type: 'loop', project: 'testproj', loopPrompt: 'run tests', name: 'harness-loop', harness: 'codex' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Loop runs on Claude Code only')
+  })
+
+  it('POST /api/cw/start accepts a loop on claude', async () => {
+    const res = await start({ type: 'loop', project: 'testproj', loopPrompt: 'run tests', name: 'harness-loop', harness: 'claude' })
+    const body = await res.json() as { ok: boolean; session: { harness?: string } }
+    expect(body.ok).toBe(true)
+    expect(body.session.harness).toBe('claude')
+  })
+
+  it('POST /api/cw/start type=login returns an account login session', async () => {
+    const res = await start({ type: 'login', account: 'default', harness: 'opencode' })
+    const body = await res.json() as { ok: boolean; session: Record<string, unknown> }
+    expect(body.ok).toBe(true)
+    expect(body.session).toMatchObject({
+      project: '__accounts', type: 'login', account: 'default', harness: 'opencode', sessionDir: 'login-default-opencode',
+    })
+  })
+
+  it('POST /api/cw/start type=login rejects an unknown account', async () => {
+    const res = await start({ type: 'login', account: 'nobody', harness: 'codex' })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/start type=login requires a harness', async () => {
+    const res = await start({ type: 'login', account: 'default' })
+    expect(res.status).toBe(400)
+  })
 })
 
 describe('GET /api/cw/harnesses', () => {
