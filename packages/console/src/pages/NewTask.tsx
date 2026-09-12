@@ -117,7 +117,11 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   useEffect(() => {
     if (!canSkipPermissions) setSkipPermissions(false)
     setModel(usesClaudeModels ? '' : (cell?.model ?? ''))
-  }, [harness, selectedAccount])
+  }, [harness])
+
+  useEffect(() => {
+    if (!usesClaudeModels) setModel(cell?.model ?? '')
+  }, [selectedAccount])
 
   const ticketSource = /linear\.app/.test(task) ? 'linear' : /notion\.(so|site)/.test(task) ? 'notion' : null
   const missingTicketToken = Boolean(

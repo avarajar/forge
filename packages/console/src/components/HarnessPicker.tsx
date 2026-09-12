@@ -42,10 +42,12 @@ export const HarnessPicker: FunctionComponent<HarnessPickerProps> = ({
             role="button"
             tabIndex={reason ? -1 : 0}
             aria-disabled={Boolean(reason)}
-            class={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg border text-sm transition-colors ${
-              selected ? '' : 'border-forge-border bg-forge-surface'
-            } ${reason ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            style={selected ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' } : undefined}
+            class={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+              reason ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            }`}
+            style={selected
+              ? { backgroundColor: 'var(--forge-tint-accent-bg)', border: '1px solid var(--forge-accent)' }
+              : { backgroundColor: 'var(--forge-surface)', border: '1px solid var(--forge-ghost-border)' }}
             onClick={() => { if (!reason) onChange(h.name) }}
             onKeyDown={(e: KeyboardEvent) => { if (!reason && (e.key === 'Enter' || e.key === ' ')) onChange(h.name) }}
           >
@@ -59,6 +61,7 @@ export const HarnessPicker: FunctionComponent<HarnessPickerProps> = ({
                 type="button"
                 class="text-[11px] text-forge-accent underline"
                 onClick={(e: Event) => { e.stopPropagation(); onOpenAccounts() }}
+                onKeyDown={(e: KeyboardEvent) => e.stopPropagation()}
               >
                 Connect
               </button>
