@@ -7,6 +7,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync
 import type { Dirent } from 'node:fs'
 import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
+import { createDoctorClient, readContextTokens } from './cw-doctor.js'
+import { HARNESS_CAPABILITIES } from './harness-capabilities.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,6 +32,17 @@ export function cwRoutes(reader: CWReader): Hono {
     const candidate = join(reader.cwHome, 'bin', 'cw')
     return existsSync(candidate) ? candidate : 'cw'
   })()
+
+  const doctor = createDoctorClient(cwBin)
+
+  app.get('/harnesses', async (c) => {
+    const result = await doctor.get(c.req.query('fresh') === '1')
+    if (!result.available) return c.json(result)
+    const capabilities = Object.fromEntries(
+      result.doctor.harnesses.map(h => [h.name, [...(HARNESS_CAPABILITIES[h.name] ?? [])]])
+    )
+    return c.json({ ...result, capabilities, contextTokens: readContextTokens(reader.cwHome) })
+  })
 
   app.get('/projects', (c) => {
     return c.json(reader.getProjects())

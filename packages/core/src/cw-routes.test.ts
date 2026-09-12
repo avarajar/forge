@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Hono } from 'hono'
 import { cwRoutes } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
-import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -584,5 +584,40 @@ describe('CW Routes', () => {
       expect(body.ok).toBe(false)
       expect(body.error).toContain('already registered')
     })
+  })
+})
+
+describe('GET /api/cw/harnesses', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-harnesses')
+  const FIXTURE = join(import.meta.dirname, '__fixtures__/cw-0.3.0/doctor-two-accounts.json')
+  let app: Hono
+  let previousLinear: string | undefined
+
+  beforeAll(() => {
+    previousLinear = process.env.LINEAR_API_KEY
+    delete process.env.LINEAR_API_KEY
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), `#!/bin/sh\ncat '${FIXTURE}'\n`)
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    writeFileSync(join(DIR, 'tokens.env'), 'NOTION_TOKEN=secret-notion\n')
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR)))
+  })
+
+  afterAll(() => {
+    if (previousLinear !== undefined) process.env.LINEAR_API_KEY = previousLinear
+    rmSync(DIR, { recursive: true, force: true })
+  })
+
+  it('returns doctor, capabilities per harness and token presence only', async () => {
+    const res = await app.request('/api/cw/harnesses')
+    const text = await res.text()
+    const body = JSON.parse(text) as { available: boolean; capabilities: Record<string, string[]>; contextTokens: unknown; doctor: { accounts: unknown[] } }
+    expect(body.available).toBe(true)
+    expect(body.doctor.accounts).toHaveLength(2)
+    expect(body.capabilities.codex).toContain('headless_login')
+    expect(body.capabilities.pi).toEqual(['model_flag'])
+    expect(body.contextTokens).toEqual({ linear: false, notion: true })
+    expect(text).not.toContain('secret-notion')
   })
 })
