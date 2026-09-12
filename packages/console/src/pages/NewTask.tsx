@@ -2,9 +2,12 @@ import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, Badge, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
+import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness } from '../config/types.js'
+import { harnesses, loadHarnesses, supportsIn } from '../hooks/useHarnesses.js'
+import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
 
 interface NewTaskProps {
-  projects: Record<string, { path: string; account: string }>
+  projects: Record<string, { path: string; account: string; harness?: string }>
   accounts: string[]
   initialType?: string
   initialAccount?: string
@@ -12,6 +15,7 @@ interface NewTaskProps {
   onBack: () => void
   onCreated: (session?: CWSession) => void
   onStartPrototype?: (project: string) => void
+  onOpenAccounts?: () => void
 }
 
 const TYPES = [
@@ -21,16 +25,8 @@ const TYPES = [
   { id: 'general', label: 'General', color: '#059669' },
 ]
 
-const MODELS = [
-  { id: '', label: 'Default', description: 'Recommended model' },
-  { id: 'haiku', label: 'Haiku', description: 'Fast, simple tasks' },
-  { id: 'sonnet', label: 'Sonnet', description: 'Daily coding' },
-  { id: 'opus', label: 'Opus', description: 'Complex reasoning' },
-]
-
-
 export const NewTask: FunctionComponent<NewTaskProps> = ({
-  projects, accounts, initialType, initialAccount, initialProject, onBack, onCreated, onStartPrototype
+  projects, accounts, initialType, initialAccount, initialProject, onBack, onCreated, onStartPrototype, onOpenAccounts
 }) => {
   const [type, setType] = useState(initialType ?? 'dev')
   const [selectedAccount, setSelectedAccount] = useState('')
@@ -44,6 +40,12 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const [detection, setDetection] = useState<Record<string, unknown> | null>(null)
   const [loopPrompt, setLoopPrompt] = useState('')
   const [loopInterval, setLoopInterval] = useState('')
+  const [harness, setHarness] = useState('claude')
+
+  useEffect(() => { loadHarnesses() }, [])
+
+  const response = harnesses.value
+  const doctor = response?.available ? response.doctor : null
 
   const projectNames = Object.keys(projects)
   const isGeneral = type === 'general'
@@ -100,7 +102,30 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     }
   }, [project, isGeneral])
 
+  useEffect(() => {
+    if (!doctor || !selectedAccount) return
+    setHarness(isLoop ? 'claude' : resolveHarness(project || undefined, selectedAccount, projects, doctor))
+  }, [response?.available, selectedAccount, project, isLoop])
+
+  const cell = doctor ? findCell(doctor, selectedAccount, harness) : undefined
+  const canSkipPermissions = !doctor || supportsIn(response, harness, 'skip_permissions')
+  const usesClaudeModels = !doctor || harness === 'claude'
+  const showModel = !(isGeneral && !usesClaudeModels)
+  const harnessBlocked = doctor ? harnessUnavailableReason(harness, cell, isLoop) : null
+  const harnessName = getHarnessStyle(harness).label
+
+  useEffect(() => {
+    if (!canSkipPermissions) setSkipPermissions(false)
+    setModel(usesClaudeModels ? '' : (cell?.model ?? ''))
+  }, [harness, selectedAccount])
+
+  const ticketSource = /linear\.app/.test(task) ? 'linear' : /notion\.(so|site)/.test(task) ? 'notion' : null
+  const missingTicketToken = Boolean(
+    response?.available && ticketSource && !supportsIn(response, harness, 'mcp') && !response.contextTokens[ticketSource]
+  )
+
   const handleStart = async () => {
+    if (harnessBlocked) return
     if (!isGeneral && !isLoop && !task.trim()) return
     if (isLoop && (!loopPrompt.trim() || !loopIntervalValid)) return
 
@@ -116,6 +141,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         account: selectedAccount || undefined,
         skipPermissions: skipPermissions || undefined,
       }
+      if (doctor) body.harness = harness
       if (isLoop) {
         body.project = project
         body.loopPrompt = loopPrompt.trim()
@@ -128,7 +154,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
       } else if (project) {
         body.project = project
       }
-      body.model = model || undefined
+      body.model = showModel ? (model || undefined) : undefined
 
       const res = await fetch('/api/cw/start', {
         method: 'POST',
@@ -197,6 +223,18 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
               ))}
             </select>
           </div>
+        )}
+
+        {doctor && (
+          <HarnessPicker
+            doctor={doctor}
+            account={selectedAccount}
+            value={harness}
+            defaultHarness={resolveHarness(project || undefined, selectedAccount, projects, doctor)}
+            isLoop={isLoop}
+            onChange={setHarness}
+            onOpenAccounts={onOpenAccounts}
+          />
         )}
 
         {/* Project selector — optional for general, required for others */}
@@ -311,42 +349,54 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         )}
 
         {/* Skip permissions toggle */}
-        <label class="flex items-center gap-2 mb-4 cursor-pointer text-sm text-forge-muted">
-          <input
-            type="checkbox"
-            checked={skipPermissions}
-            onChange={(e) => setSkipPermissions((e.target as HTMLInputElement).checked)}
-          />
-          Bypass permissions
-          <span class="text-[11px] opacity-60">(--skip-permissions)</span>
-        </label>
+        {canSkipPermissions && (
+          <label class="flex items-center gap-2 mb-4 cursor-pointer text-sm text-forge-muted">
+            <input
+              type="checkbox"
+              checked={skipPermissions}
+              onChange={(e) => setSkipPermissions((e.target as HTMLInputElement).checked)}
+            />
+            Bypass permissions
+            <span class="text-[11px] opacity-60">(--skip-permissions)</span>
+          </label>
+        )}
 
         {/* Model selector */}
-        <div class="mb-4">
-          <label class="block text-sm font-medium mb-1">
-            Model <span class="text-forge-muted font-normal">(claude default if not set)</span>
-          </label>
-          <div class="flex flex-wrap gap-2">
-            {MODELS.map(m => (
-              <button
-                key={m.id}
-                class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                  model === m.id
-                    ? 'text-forge-accent'
-                    : 'border-forge-border bg-forge-surface text-forge-muted'
-                }`}
-                style={model === m.id
-                  ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
-                  : undefined
-                }
-                onClick={() => setModel(m.id)}
-                title={m.description}
-              >
-                {m.label}
-              </button>
-            ))}
+        {showModel && (
+          <div class="mb-4">
+            <label class="block text-sm font-medium mb-1">
+              Model{' '}
+              <span class="text-forge-muted font-normal">
+                {usesClaudeModels ? '(claude default if not set)' : "(the account's model if empty)"}
+              </span>
+            </label>
+            {usesClaudeModels ? (
+              <div class="flex flex-wrap gap-2">
+                {CLAUDE_MODELS.map(m => (
+                  <button
+                    key={m.id}
+                    class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                      model === m.id ? 'text-forge-accent' : 'border-forge-border bg-forge-surface text-forge-muted'
+                    }`}
+                    style={model === m.id ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' } : undefined}
+                    onClick={() => setModel(m.id)}
+                    title={m.description}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={model}
+                onInput={(e) => setModel((e.target as HTMLInputElement).value)}
+                placeholder="the model configured on the account"
+                class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+              />
+            )}
           </div>
-        </div>
+        )}
 
         {/* Stack detection — hidden for general */}
         {!isGeneral && detection && (
@@ -360,22 +410,33 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           </div>
         )}
 
+        {missingTicketToken && (
+          <div
+            class="text-xs rounded-lg px-3 py-2 mb-4 text-forge-text"
+            style={{ backgroundColor: 'var(--forge-tint-amber-bg)', border: '1px solid var(--forge-tint-amber-border)' }}
+          >
+            {harnessName} has no MCP and CW has no {ticketSource === 'linear' ? 'LINEAR_API_KEY' : 'NOTION_TOKEN'}, so
+            the ticket will not reach TASK_NOTES.md. The task still starts, without the ticket.
+          </div>
+        )}
+
         {/* Start button */}
         <ActionButton
           label={starting ? 'Starting...' : isGeneral ? 'Launch Session ▶' : isLoop ? 'Start Loop ▶' : 'Start Task ▶'}
           variant="primary"
           loading={starting}
-          disabled={(!isGeneral && !isLoop && !task.trim()) || (isLoop && (!loopPrompt.trim() || !loopIntervalValid))}
+          disabled={(!isGeneral && !isLoop && !task.trim()) || (isLoop && (!loopPrompt.trim() || !loopIntervalValid)) || Boolean(harnessBlocked)}
           onClick={handleStart}
         />
+        {harnessBlocked && <div class="text-xs mt-2" style={{ color: 'var(--forge-error)' }}>{harnessBlocked}</div>}
         <div class="text-xs text-forge-muted mt-2">
           {isGeneral
             ? project
-              ? `Opens Claude in "${project}" for account "${selectedAccount || accountList[0] || 'default'}"`
-              : `Opens Claude for account "${selectedAccount || accountList[0] || 'default'}"`
+              ? `Opens ${harnessName} in "${project}" for account "${selectedAccount || accountList[0] || 'default'}"`
+              : `Opens ${harnessName} for account "${selectedAccount || accountList[0] || 'default'}"`
             : isLoop
               ? `Runs a recurring Claude loop in "${project}" — ${loopInterval.trim() ? `every ${loopInterval.trim()}` : 'self-paced'}`
-              : `Opens a CW session in your terminal for ${project}`
+              : `Opens a CW session on ${harnessName} for ${project}`
           }
         </div>
       </div>
