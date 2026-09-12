@@ -242,6 +242,9 @@ function App() {
               onFilterProject={filters.setFilterProject}
               filterType={filters.filterType}
               onFilterType={filters.setFilterType}
+              harnessNames={filters.harnessNames}
+              filterHarness={filters.filterHarness}
+              onFilterHarness={filters.setFilterHarness}
               showDone={filters.showDone}
               onShowDone={filters.setShowDone}
               openTabKeys={tabs.openTabKeys}

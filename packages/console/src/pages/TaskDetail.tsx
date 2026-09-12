@@ -3,6 +3,7 @@ import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { TYPE_STYLES } from '../config/types.js'
+import { HarnessBadge } from '../components/HarnessBadge.js'
 
 /* ── Types ── */
 
@@ -105,6 +106,8 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
           >
             {typeCfg.label}
           </span>
+
+          <HarnessBadge session={session} />
 
           {/* Branch (click to copy) */}
           {branch && (
