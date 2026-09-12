@@ -7,8 +7,8 @@ const fakeProcess = () => {
   let onData: (data: string) => void = () => {}
   let onExit: (e: { exitCode: number; signal?: number }) => void = () => {}
   return {
-    onData: (cb: (data: string) => void) => { onData = cb; return { dispose() {} } },
-    onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { onExit = cb; return { dispose() {} } },
+    onData: (cb: (data: string) => void) => { onData = cb; return { dispose() { onData = () => {} } } },
+    onExit: (cb: (e: { exitCode: number; signal?: number }) => void) => { onExit = cb; return { dispose() { onExit = () => {} } } },
     kill: vi.fn(),
     emit: (data: string) => onData(data),
     exit: (exitCode: number) => onExit({ exitCode }),
@@ -110,6 +110,16 @@ describe('LoginManager', () => {
     expect(manager.get('work', 'codex')?.status).toBe('exited')
     manager.dispose()
     expect(manager.get('work', 'codex')).toBeUndefined()
+  })
+
+  it('leaves no subscriptions or timers behind after dispose', () => {
+    vi.useFakeTimers()
+    const { proc, manager } = setup()
+    manager.start('work', 'codex')
+    manager.dispose()
+    proc.exit(0)
+    expect(manager.get('work', 'codex')).toBeUndefined()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
 

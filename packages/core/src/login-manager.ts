@@ -21,6 +21,7 @@ interface Entry {
   proc: LoginProcess
   partial: string
   timer: ReturnType<typeof setTimeout> | null
+  subscriptions: { dispose(): void }[]
 }
 
 const OUTPUT_LINES = 50
@@ -53,10 +54,10 @@ export class LoginManager {
       cwd: process.env.HOME ?? process.cwd(),
       env: envWithoutHarness(),
     })
-    const entry: Entry = { state, proc, partial: '', timer: null }
+    const entry: Entry = { state, proc, partial: '', timer: null, subscriptions: [] }
     this.entries.set(key, entry)
-    proc.onData((data) => this.ingest(entry, data))
-    proc.onExit(({ exitCode }) => this.finish(key, entry, exitCode))
+    entry.subscriptions.push(proc.onData((data) => this.ingest(entry, data)))
+    entry.subscriptions.push(proc.onExit(({ exitCode }) => this.finish(key, entry, exitCode)))
     entry.timer = setTimeout(() => this.stop(account, harness), MAX_RUNNING_MS)
     return state
   }
@@ -75,6 +76,7 @@ export class LoginManager {
 
   dispose(): void {
     for (const [key, entry] of this.entries) {
+      for (const sub of entry.subscriptions) sub.dispose()
       if (entry.state.status === 'running') {
         try { entry.proc.kill() } catch {}
       }
