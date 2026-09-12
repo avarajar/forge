@@ -4,6 +4,12 @@ export const ACCOUNT_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
 /** Valid harness name: lowercase alphanumeric, then alphanumeric/hyphen/underscore, max 32 chars */
 export const HARNESS_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
 
+/** Valid provider name: lowercase alphanumeric, then alphanumeric/hyphen/underscore/dot, max 64 chars */
+export const PROVIDER_NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,63}$/
+
+/** Valid model name: alphanumeric, then alphanumeric/hyphen/underscore/dot/colon/slash, max 128 chars */
+export const MODEL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/
+
 export interface CWProject {
   path: string
   account: string

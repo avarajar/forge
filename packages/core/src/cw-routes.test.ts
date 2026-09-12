@@ -677,3 +677,83 @@ describe('GET /api/cw/harnesses', () => {
     expect(text).not.toContain('secret-notion')
   })
 })
+
+describe('POST /api/cw/accounts with a harness', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-accounts')
+  const ARGS = join(DIR, 'args.txt')
+  let app: Hono
+
+  const add = (body: Record<string, unknown>) => app.request('/api/cw/accounts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  const recordedArgs = () => readFileSync(ARGS, 'utf-8').trim().split('\n')
+
+  beforeAll(() => {
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    mkdirSync(join(DIR, 'accounts'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), [
+      '#!/bin/sh',
+      '[ -n "$CW_HARNESS" ] && exit 3',
+      'if [ "$3" = "fail" ]; then echo "Account \'fail\' already exists" >&2; echo "second line" >&2; exit 1; fi',
+      `printf '%s\\n' "$@" > '${ARGS}'`,
+      '',
+    ].join('\n'))
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR)))
+  })
+
+  afterAll(() => rmSync(DIR, { recursive: true, force: true }))
+
+  it('passes harness, provider and model to cw account add', async () => {
+    const res = await add({ name: 'glm', harness: 'opencode', provider: 'zai', model: 'glm-5.1' })
+    expect(res.status).toBe(200)
+    expect(recordedArgs()).toEqual(['account', 'add', 'glm', '--harness', 'opencode', '--provider', 'zai', '--model', 'glm-5.1'])
+  })
+
+  it('keeps today\'s arguments for a name alone', async () => {
+    await add({ name: 'plain' })
+    expect(recordedArgs()).toEqual(['account', 'add', 'plain'])
+  })
+
+  it('treats empty optional fields as absent', async () => {
+    await add({ name: 'empty-fields', harness: '', provider: '', model: '' })
+    expect(recordedArgs()).toEqual(['account', 'add', 'empty-fields'])
+  })
+
+  it('rejects a provider on a harness without custom providers', async () => {
+    const res = await add({ name: 'nope', provider: 'zai' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('claude cannot use a provider')
+  })
+
+  it('rejects an invalid harness', async () => {
+    const res = await add({ name: 'nope', harness: 'Open Code' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid harness')
+  })
+
+  it('rejects an invalid model', async () => {
+    const res = await add({ name: 'nope', harness: 'codex', model: 'bad model' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid model')
+  })
+
+  it('reports the first line cw printed on failure', async () => {
+    const res = await add({ name: 'fail' })
+    expect(res.status).toBe(500)
+    const { error } = await res.json() as { error: string }
+    expect(error).toBe("Failed to create account: Account 'fail' already exists")
+  })
+
+  it('never passes CW_HARNESS to cw', async () => {
+    const previous = process.env.CW_HARNESS
+    process.env.CW_HARNESS = 'pi'
+    try {
+      expect((await add({ name: 'no-env' })).status).toBe(200)
+    } finally {
+      if (previous === undefined) delete process.env.CW_HARNESS
+      else process.env.CW_HARNESS = previous
+    }
+  })
+})

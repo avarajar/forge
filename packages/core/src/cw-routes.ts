@@ -1,14 +1,14 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import { ACCOUNT_NAME_RE, HARNESS_NAME_RE, type CWSession } from './cw-types.js'
+import { ACCOUNT_NAME_RE, HARNESS_NAME_RE, PROVIDER_NAME_RE, MODEL_NAME_RE, type CWSession } from './cw-types.js'
 import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
-import { createDoctorClient, readContextTokens } from './cw-doctor.js'
-import { HARNESS_CAPABILITIES } from './harness-capabilities.js'
+import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-doctor.js'
+import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -72,26 +72,47 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/accounts', async (c) => {
-    const { name } = await c.req.json<{ name: string }>()
+    const body = await c.req.json<{ name: string; harness?: string; provider?: string; model?: string }>()
+    const harness = body.harness || undefined
+    const provider = body.provider || undefined
+    const model = body.model || undefined
 
-    if (!name || !name.trim()) {
+    if (!body.name || !body.name.trim()) {
       return c.json({ ok: false, error: 'Account name is required' }, 400)
     }
 
-    const trimmed = name.trim()
+    const trimmed = body.name.trim()
     if (!ACCOUNT_NAME_RE.test(trimmed)) {
       return c.json({ ok: false, error: 'Name must start with a letter or number and contain only letters, numbers, hyphens, and underscores (max 64 chars)' }, 400)
+    }
+    if (harness && !HARNESS_NAME_RE.test(harness)) {
+      return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    }
+    if (provider && !PROVIDER_NAME_RE.test(provider)) {
+      return c.json({ ok: false, error: 'Invalid provider' }, 400)
+    }
+    if (provider && !supports(harness, 'custom_provider')) {
+      return c.json({ ok: false, error: `${harness ?? 'claude'} cannot use a provider` }, 400)
+    }
+    if (model && !MODEL_NAME_RE.test(model)) {
+      return c.json({ ok: false, error: 'Invalid model' }, 400)
     }
 
     if (reader.getAccounts().includes(trimmed)) {
       return c.json({ ok: false, error: `Account "${trimmed}" already exists` }, 409)
     }
 
+    const args = ['account', 'add', trimmed]
+    if (harness) args.push('--harness', harness)
+    if (provider) args.push('--provider', provider)
+    if (model) args.push('--model', model)
+
     try {
-      await execFileAsync(cwBin, ['account', 'add', trimmed], { encoding: 'utf-8', timeout: 10000 })
+      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 10000, env: envWithoutHarness() })
       return c.json({ ok: true, name: trimmed })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
+      const stderr = (err as { stderr?: string }).stderr?.trim().split('\n')[0]
+      const message = stderr || (err instanceof Error ? err.message : 'Unknown error')
       return c.json({ ok: false, error: `Failed to create account: ${message}` }, 500)
     }
   })
