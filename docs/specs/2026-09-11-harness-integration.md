@@ -127,14 +127,9 @@ read, so a pre-0.3.0 session shows as Claude Code. Forge never writes these fiel
 Forge keeps reading `session.json` directly and does not use `cw spaces --json`, which omits
 loop sessions.
 
-Fixtures live in `packages/core/src/__fixtures__/cw-0.3.0/`:
-
-| File | Origin |
-|---|---|
-| `doctor-two-accounts.json` | Captured from CW 0.3.0, paths scrubbed |
-| `doctor-local-provider.json` | Hand-built from the brief's shape; marked as such in the test |
-| `session-codex.json` | Hand-built from the brief's shape |
-| `session-legacy.json` | A real pre-0.3.0 `session.json`, paths scrubbed |
+`packages/core/src/__fixtures__/cw-0.3.0/doctor-two-accounts.json` holds that capture with paths
+scrubbed. Tests write session files inline: one shaped like a real pre-0.3.0 `session.json`, one
+with the 0.3.0 fields. A `local` cell has no fixture until one can be captured (§9).
 
 ## 4. Capabilities in Forge
 
@@ -369,8 +364,9 @@ Connect:
   `DELETE`, which ends the process if it is still running.
 - **Harness with `api_key_login`** (codex): the same panel has a password input; Save posts to
   `…/api-key`, then refreshes and watches.
-- **Any other harness**: `POST /api/cw/start` with `type: 'login'`, open the tab, and watch the
-  cell. Closing the tab triggers a fresh load.
+- **Any other harness**: `POST /api/cw/start` with `type: 'login'` and open the tab. Opening a
+  tab unmounts the Accounts screen, and returning to it runs a fresh doctor call, so this path
+  needs no watcher.
 
 Add account: name (`ACCOUNT_NAME_RE`), harness pills, and provider and model inputs shown only
 for a harness with `custom_provider`. A hint says the default harness cannot be changed later.
