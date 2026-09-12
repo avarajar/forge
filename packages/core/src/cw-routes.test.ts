@@ -756,4 +756,24 @@ describe('POST /api/cw/accounts with a harness', () => {
       else process.env.CW_HARNESS = previous
     }
   })
+
+  it('never passes CW_HARNESS to cw when registering a project', async () => {
+    const repoDir = join(DIR, 'repo')
+    mkdirSync(join(repoDir, '.git'), { recursive: true })
+    mkdirSync(join(DIR, 'accounts/reg-acct'), { recursive: true })
+
+    const previous = process.env.CW_HARNESS
+    process.env.CW_HARNESS = 'pi'
+    try {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: repoDir, account: 'reg-acct' }),
+      })
+      expect(res.status).toBe(200)
+      expect(recordedArgs()).toEqual(['project', 'register', repoDir, '--account', 'reg-acct'])
+    } finally {
+      if (previous === undefined) delete process.env.CW_HARNESS
+      else process.env.CW_HARNESS = previous
+    }
+  })
 })

@@ -508,7 +508,7 @@ export function cwRoutes(reader: CWReader): Hono {
         ? ['loop', project, task, '--done']
         : ['work', project, task, '--done']
     try {
-      const child = spawn(cwBin, args, { detached: true, stdio: 'ignore' })
+      const child = spawn(cwBin, args, { detached: true, stdio: 'ignore', env: envWithoutHarness() })
       child.unref()
     } catch {}
 
@@ -560,7 +560,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Unregister from CW
     try {
-      execFileSync(cwBin, ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+      execFileSync(cwBin, ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe', env: envWithoutHarness() })
     } catch {
       // May not be registered, continue anyway
     }
@@ -680,7 +680,7 @@ export function cwRoutes(reader: CWReader): Hono {
     if (type?.trim()) args.push('--type', type.trim())
 
     try {
-      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 30000 })
+      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 30000, env: envWithoutHarness() })
       return c.json({ ok: true, project: projectName })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
