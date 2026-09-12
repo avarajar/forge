@@ -35,6 +35,7 @@ fails), Forge behaves exactly as it does today: no selector, no harness sent, Cl
 | D15 | Harness filter pills sit next to the type pills. The account and project selects stay. | Review |
 | D16 | A non-blocking notice in the form when a Linear or Notion ticket goes to a harness without MCP and CW has no token. | Brief 6 |
 | D17 | A notice on the Accounts screen when Forge is not opened on localhost. | Brief 7 |
+| D18 | Forge drops the Plan task type. It was unused and launched `cw work` anyway, so the brief's Plan row does not apply. | Review |
 
 D11 departs from the earlier suggestion to reuse `PTYManager`. `PTYManager` streams output to
 WebSocket clients attached to tabs; a device login needs parsed state that the Accounts screen
@@ -190,7 +191,7 @@ The body gains `harness?: string`.
 - `harness` must match `^[a-z0-9][a-z0-9_-]{0,31}$`, else 400 `Invalid harness`.
 - For `type: 'loop'`, a `harness` other than `claude` returns 400
   `Loop runs on Claude Code only`.
-- Every pending session stores `harness` (task, review, plan, loop, create, general).
+- Every pending session stores `harness` (task, review, loop, create, general).
 - New `type: 'login'` requires an existing `account` and a `harness`. It stores
   `{ project: '__accounts', type: 'login', account, harness, sessionDir: 'login-<account>-<harness>', worktree: '' }`
   and returns it. No 409: reopening the same key reattaches the running PTY.
@@ -433,14 +434,7 @@ The brief's gaps 1–7, plus:
 
 8. `cw doctor --json` does not expose per-harness capabilities, so Forge copies the table.
 
-## 11. Open for review
-
-- **Plan launches `cw work` today.** `POST /start` stores `type: 'task'` for a Plan request and
-  `buildCommand` has no plan branch, so the PTY runs `cw work <project> <task>`. The brief expects
-  `cw plan … --harness <h>`. Recommendation: fix it as a separate change before this work,
-  because it changes what Plan does on every harness.
-
-## 12. Out of scope
+## 11. Out of scope
 
 The module SDK and plugin ecosystem, team mode, CW bash work, `cw spaces --json`, changing an
 account's default harness, model lists for non-claude harnesses, and a console test setup.
