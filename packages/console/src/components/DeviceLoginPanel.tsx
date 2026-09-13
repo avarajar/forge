@@ -83,6 +83,7 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
       cancelled = true
       if (poll) clearInterval(poll)
       stopWatching()
+      fetch(stateUrl, { method: 'DELETE' }).catch(() => {})
     }
   }, [account, harness, attempt])
 

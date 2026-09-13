@@ -21,7 +21,7 @@ export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ respons
 
   const trimmed = name.trim()
   const valid = ACCOUNT_NAME_RE.test(trimmed)
-  const harnessNames = response?.available ? response.doctor.harnesses.map(h => h.name) : []
+  const harnessNames = response?.available ? response.doctor.harnesses.map(h => h.name).filter(name => name !== 'claude') : []
   const acceptsProvider = Boolean(harness) && supportsIn(response, harness, 'custom_provider')
 
   const create = async () => {
