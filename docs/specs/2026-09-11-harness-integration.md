@@ -413,22 +413,39 @@ The brief's acceptance criteria are walked manually with real sessions at the en
 
 - The exact `CW_LOGIN_URL` / `CW_LOGIN_CODE` lines codex prints through `cw account login
   --no-browser`, and whether the login needs a TTY or would work over pipes.
+  Verified through a PTY: CW prints both lines and the login completed from the Accounts screen.
+  CW truncates the code — codex printed a nine-character code and `CW_LOGIN_CODE` carried
+  eight (gap 9). Pipes were not tried.
 - Whether a `done` task restarted from Forge with `--harness` is refused when its `session.json`
-  records a different harness.
+  records a different harness. Not verified.
 - `cw account login <acct> --harness claude` inside Forge's embedded terminal reaches a usable
-  login screen.
-- OpenCode's own API-provider login works in the embedded terminal.
+  login screen. Verified: the tab showed Claude Code's onboarding screen. The login was not
+  completed; opening it was enough for doctor to report the cell as connected (gap 10).
+- OpenCode's own API-provider login works in the embedded terminal. Not verified: OpenCode is not
+  installed.
 - The `detail` object of a `local` cell, which could not be captured without an Ollama-backed
-  account.
-- What CW older than 0.3.0 does with `cw doctor --json` (expected: unavailable).
+  account. Not verified: no Ollama-backed account.
+- What CW older than 0.3.0 does with `cw doctor --json` (expected: unavailable). Not verified:
+  only CW 0.3.0 is installed.
 - `cw account add --provider` on codex and opencode produces the cell doctor then reports.
-- `codex resume --last` scoping, before relying on resume across tabs (brief gap 7).
+  Partly verified: `cw account add <name> --harness codex` without a provider produced a
+  `not_logged_in` codex cell that turned `connected` after the device login. The provider path
+  was not tried.
+- `codex resume --last` scoping, before relying on resume across tabs (brief gap 7). Partly
+  verified: reopening a codex task from Forge resumed codex in the task's own worktree with no
+  `--harness`. Resume from the shared project root was not tried.
 
 ## 10. CW gaps to file
 
 The brief's gaps 1–7, plus:
 
 8. `cw doctor --json` does not expose per-harness capabilities, so Forge copies the table.
+9. `cw account login … --no-browser` truncates the device code in `CW_LOGIN_CODE`: codex printed
+   a nine-character code and CW emitted eight, so the code Forge shows is rejected. The full code
+   is still visible in the panel's Output.
+10. `cw doctor --json` reports claude `connected` for an account whose login was never completed:
+    opening Claude Code in the account's config directory writes `.claude.json`, and doctor treats
+    that file as authentication. The account's `layout` also changes from `none` to `legacy`.
 
 ## 11. Out of scope
 

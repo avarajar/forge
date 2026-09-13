@@ -161,7 +161,7 @@ pnpm dev
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (137 tests) |
+| Tests | Vitest (228 tests) |
 | Language | TypeScript (strict) |
 
 ### Monorepo Structure
