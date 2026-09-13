@@ -7,7 +7,7 @@ import { NewTask } from './pages/NewTask.js'
 import { Skills } from './pages/Skills.js'
 import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
-import { CreateAccountModal } from './pages/CreateAccountModal.js'
+import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
@@ -81,12 +81,11 @@ function App() {
   const [loading, setLoading] = useState(true)
 
   // Sub-views within list
-  const [listView, setListView] = useState<'list' | 'new-task' | 'skills'>('list')
+  const [listView, setListView] = useState<'list' | 'new-task' | 'skills' | 'accounts'>('list')
   const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
-  // Create Project / Account modals
+  // Create Project modal
   const [showCreateProject, setShowCreateProject] = useState(false)
-  const [showCreateAccount, setShowCreateAccount] = useState(false)
 
   const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
 
@@ -230,7 +229,7 @@ function App() {
               loading={loading}
               onNewTask={handleNewTask}
               onCreateProject={() => setShowCreateProject(true)}
-              onCreateAccount={() => setShowCreateAccount(true)}
+              onOpenAccounts={() => setListView('accounts')}
               onSelectTask={tabs.openTab}
               onRefresh={() => fetchData()}
               projects={projects}
@@ -242,6 +241,9 @@ function App() {
               onFilterProject={filters.setFilterProject}
               filterType={filters.filterType}
               onFilterType={filters.setFilterType}
+              harnessNames={filters.harnessNames}
+              filterHarness={filters.filterHarness}
+              onFilterHarness={filters.setFilterHarness}
               showDone={filters.showDone}
               onShowDone={filters.setShowDone}
               openTabKeys={tabs.openTabKeys}
@@ -253,11 +255,6 @@ function App() {
               accounts={filters.accountNames}
               onClose={() => setShowCreateProject(false)}
               onCreated={(session) => { setShowCreateProject(false); if (session) tabs.openTab(session); refreshAfterAction() }}
-            />
-            <CreateAccountModal
-              open={showCreateAccount}
-              onClose={() => setShowCreateAccount(false)}
-              onCreated={(session) => { setShowCreateAccount(false); if (session) tabs.openTab(session); refreshAfterAction() }}
             />
           </>
         ) : prototypeProject ? (
@@ -279,6 +276,13 @@ function App() {
               refreshAfterAction()
             }}
             onStartPrototype={handleStartPrototype}
+            onOpenAccounts={() => setListView('accounts')}
+          />
+        ) : listView === 'accounts' ? (
+          <Accounts
+            onBack={() => setListView('list')}
+            onOpenSession={tabs.openTab}
+            onAccountsChanged={() => { fetchData() }}
           />
         ) : listView === 'skills' ? (
           <Skills

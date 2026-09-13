@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
 import { cwRoutes } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
-import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
+import { LoginManager } from './login-manager.js'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -14,6 +15,12 @@ describe('CW Routes', () => {
   beforeAll(() => {
     mkdirSync(join(TEST_CW, 'sessions/testproj/task-mytask'), { recursive: true })
     mkdirSync(join(TEST_CW, 'accounts/default'), { recursive: true })
+    mkdirSync(join(TEST_CW, 'bin'), { recursive: true })
+
+    // resolveCwBin falls back to PATH when bin/cw is missing, which would
+    // otherwise spawn the real cw on the host running these tests.
+    writeFileSync(join(TEST_CW, 'bin/cw'), '#!/bin/sh\nexit 0\n')
+    chmodSync(join(TEST_CW, 'bin/cw'), 0o755)
 
     writeFileSync(join(TEST_CW, 'projects.json'), JSON.stringify({
       testproj: { path: '/tmp/testproj', account: 'default', type: 'fullstack', registered: '2026-01-01T00:00:00Z' }
@@ -584,5 +591,308 @@ describe('CW Routes', () => {
       expect(body.ok).toBe(false)
       expect(body.error).toContain('already registered')
     })
+  })
+
+  const start = (body: Record<string, unknown>) => app.request('/api/cw/start', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+
+  it('POST /api/cw/start stores the harness on a task and in the command', async () => {
+    const res = await start({ type: 'dev', project: 'testproj', task: 'harness-task', account: 'default', harness: 'codex' })
+    const body = await res.json() as { ok: boolean; session: { harness?: string }; command: string }
+    expect(body.ok).toBe(true)
+    expect(body.session.harness).toBe('codex')
+    expect(body.command).toContain('--harness codex')
+  })
+
+  it('POST /api/cw/start stores the harness on a general session', async () => {
+    const res = await start({ type: 'general', account: 'default', harness: 'codex' })
+    const body = await res.json() as { session: { harness?: string } }
+    expect(body.session.harness).toBe('codex')
+  })
+
+  it('POST /api/cw/start rejects an invalid harness', async () => {
+    const res = await start({ type: 'dev', project: 'testproj', task: 'bad-harness', harness: 'Codex!' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid harness')
+  })
+
+  it('POST /api/cw/start rejects a loop on a harness other than claude', async () => {
+    const res = await start({ type: 'loop', project: 'testproj', loopPrompt: 'run tests', name: 'harness-loop', harness: 'codex' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Loop runs on Claude Code only')
+  })
+
+  it('POST /api/cw/start accepts a loop on claude', async () => {
+    const res = await start({ type: 'loop', project: 'testproj', loopPrompt: 'run tests', name: 'harness-loop', harness: 'claude' })
+    const body = await res.json() as { ok: boolean; session: { harness?: string } }
+    expect(body.ok).toBe(true)
+    expect(body.session.harness).toBe('claude')
+  })
+
+  it('POST /api/cw/start type=login returns an account login session', async () => {
+    const res = await start({ type: 'login', account: 'default', harness: 'opencode' })
+    const body = await res.json() as { ok: boolean; session: Record<string, unknown> }
+    expect(body.ok).toBe(true)
+    expect(body.session).toMatchObject({
+      project: '__accounts', type: 'login', account: 'default', harness: 'opencode', sessionDir: 'login-default-opencode',
+    })
+  })
+
+  it('POST /api/cw/start type=login rejects an unknown account', async () => {
+    const res = await start({ type: 'login', account: 'nobody', harness: 'codex' })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /api/cw/start type=login requires a harness', async () => {
+    const res = await start({ type: 'login', account: 'default' })
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/cw/harnesses', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-harnesses')
+  const FIXTURE = join(import.meta.dirname, '__fixtures__/cw-0.3.0/doctor-two-accounts.json')
+  let app: Hono
+  let previousLinear: string | undefined
+
+  beforeAll(() => {
+    previousLinear = process.env.LINEAR_API_KEY
+    delete process.env.LINEAR_API_KEY
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), `#!/bin/sh\ncat '${FIXTURE}'\n`)
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    writeFileSync(join(DIR, 'tokens.env'), 'NOTION_TOKEN=secret-notion\n')
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR)))
+  })
+
+  afterAll(() => {
+    if (previousLinear !== undefined) process.env.LINEAR_API_KEY = previousLinear
+    rmSync(DIR, { recursive: true, force: true })
+  })
+
+  it('returns doctor, capabilities per harness and token presence only', async () => {
+    const res = await app.request('/api/cw/harnesses')
+    const text = await res.text()
+    const body = JSON.parse(text) as { available: boolean; capabilities: Record<string, string[]>; contextTokens: unknown; doctor: { accounts: unknown[] } }
+    expect(body.available).toBe(true)
+    expect(body.doctor.accounts).toHaveLength(2)
+    expect(body.capabilities.codex).toContain('headless_login')
+    expect(body.capabilities.pi).toEqual(['model_flag'])
+    expect(body.contextTokens).toEqual({ linear: false, notion: true })
+    expect(text).not.toContain('secret-notion')
+  })
+})
+
+describe('POST /api/cw/accounts with a harness', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-accounts')
+  const ARGS = join(DIR, 'args.txt')
+  let app: Hono
+
+  const add = (body: Record<string, unknown>) => app.request('/api/cw/accounts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  const recordedArgs = () => readFileSync(ARGS, 'utf-8').trim().split('\n')
+
+  beforeAll(() => {
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    mkdirSync(join(DIR, 'accounts'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), [
+      '#!/bin/sh',
+      '[ -n "$CW_HARNESS" ] && exit 3',
+      'if [ "$3" = "fail" ]; then echo "Account \'fail\' already exists" >&2; echo "second line" >&2; exit 1; fi',
+      `printf '%s\\n' "$@" > '${ARGS}'`,
+      '',
+    ].join('\n'))
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR)))
+  })
+
+  afterAll(() => rmSync(DIR, { recursive: true, force: true }))
+
+  it('passes harness, provider and model to cw account add', async () => {
+    const res = await add({ name: 'glm', harness: 'opencode', provider: 'zai', model: 'glm-5.1' })
+    expect(res.status).toBe(200)
+    expect(recordedArgs()).toEqual(['account', 'add', 'glm', '--harness', 'opencode', '--provider', 'zai', '--model', 'glm-5.1'])
+  })
+
+  it('keeps today\'s arguments for a name alone', async () => {
+    await add({ name: 'plain' })
+    expect(recordedArgs()).toEqual(['account', 'add', 'plain'])
+  })
+
+  it('treats empty optional fields as absent', async () => {
+    await add({ name: 'empty-fields', harness: '', provider: '', model: '' })
+    expect(recordedArgs()).toEqual(['account', 'add', 'empty-fields'])
+  })
+
+  it('rejects a provider on a harness without custom providers', async () => {
+    const res = await add({ name: 'nope', provider: 'zai' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('claude cannot use a provider')
+  })
+
+  it('rejects an invalid harness', async () => {
+    const res = await add({ name: 'nope', harness: 'Open Code' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid harness')
+  })
+
+  it('rejects an invalid model', async () => {
+    const res = await add({ name: 'nope', harness: 'codex', model: 'bad model' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid model')
+  })
+
+  it('reports the first line cw printed on failure', async () => {
+    const res = await add({ name: 'fail' })
+    expect(res.status).toBe(500)
+    const { error } = await res.json() as { error: string }
+    expect(error).toBe("Failed to create account: Account 'fail' already exists")
+  })
+
+  it('never passes CW_HARNESS to cw', async () => {
+    const previous = process.env.CW_HARNESS
+    process.env.CW_HARNESS = 'pi'
+    try {
+      expect((await add({ name: 'no-env' })).status).toBe(200)
+    } finally {
+      if (previous === undefined) delete process.env.CW_HARNESS
+      else process.env.CW_HARNESS = previous
+    }
+  })
+
+  it('never passes CW_HARNESS to cw when registering a project', async () => {
+    const repoDir = join(DIR, 'repo')
+    mkdirSync(join(repoDir, '.git'), { recursive: true })
+    mkdirSync(join(DIR, 'accounts/reg-acct'), { recursive: true })
+
+    const previous = process.env.CW_HARNESS
+    process.env.CW_HARNESS = 'pi'
+    try {
+      const res = await app.request('/api/cw/register-project', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: repoDir, account: 'reg-acct' }),
+      })
+      expect(res.status).toBe(200)
+      expect(recordedArgs()).toEqual(['project', 'register', repoDir, '--account', 'reg-acct'])
+    } finally {
+      if (previous === undefined) delete process.env.CW_HARNESS
+      else process.env.CW_HARNESS = previous
+    }
+  })
+})
+
+describe('account login routes', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-logins')
+  let app: Hono
+  let logins: LoginManager
+
+  const post = (path: string, body: Record<string, unknown>) => app.request(path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+
+  beforeAll(() => {
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    mkdirSync(join(DIR, 'accounts/work'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), [
+      '#!/bin/sh',
+      '[ -n "$CW_HARNESS" ] && exit 3',
+      'case "$*" in',
+      "  *--no-browser*) printf 'CW_LOGIN_URL=https://auth.openai.com/codex/device\\nCW_LOGIN_CODE=WXYZ-4821\\n'; sleep 30 ;;",
+      '  *--with-api-key*)',
+      '    read key',
+      `    printf '%s\\n' "$@" > '${join(DIR, 'args.txt')}'`,
+      `    printf '%s' "$key" > '${join(DIR, 'stdin.txt')}'`,
+      '    if [ "$key" = "sk-badkey" ]; then echo "rejected key $key" >&2; exit 1; fi',
+      '    exit 0 ;;',
+      'esac',
+      '',
+    ].join('\n'))
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    logins = new LoginManager(join(DIR, 'bin/cw'))
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR), { loginManager: logins }))
+  })
+
+  afterAll(() => {
+    logins.dispose()
+    rmSync(DIR, { recursive: true, force: true })
+  })
+
+  it('starts a codex device login and exposes its URL and code', async () => {
+    const res = await post('/api/cw/accounts/work/login', { harness: 'codex' })
+    expect((await res.json() as { login: { status: string } }).login.status).toBe('running')
+
+    await vi.waitFor(async () => {
+      const state = await (await app.request('/api/cw/accounts/work/login/codex')).json() as { login: { url: string | null; code: string | null } }
+      expect(state.login).toMatchObject({ url: 'https://auth.openai.com/codex/device', code: 'WXYZ-4821' })
+    }, { timeout: 5000 })
+
+    const stopped = await app.request('/api/cw/accounts/work/login/codex', { method: 'DELETE' })
+    expect(stopped.status).toBe(200)
+    const after = await (await app.request('/api/cw/accounts/work/login/codex')).json() as { login: { status: string } }
+    expect(after.login.status).toBe('exited')
+  })
+
+  it('refuses a device login on a harness without one', async () => {
+    const res = await post('/api/cw/accounts/work/login', { harness: 'claude' })
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 404 for an unknown account', async () => {
+    const res = await post('/api/cw/accounts/nobody/login', { harness: 'codex' })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 404 when no login is in progress', async () => {
+    const res = await app.request('/api/cw/accounts/work/login/opencode')
+    expect(res.status).toBe(404)
+  })
+
+  it('sends the API key on stdin only', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-goodkey' })
+    expect(res.status).toBe(200)
+    expect(readFileSync(join(DIR, 'stdin.txt'), 'utf-8')).toBe('sk-goodkey')
+    const args = readFileSync(join(DIR, 'args.txt'), 'utf-8').trim().split('\n')
+    expect(args).toEqual(['account', 'login', 'work', '--harness', 'codex', '--with-api-key', '-'])
+  })
+
+  it('redacts the key when cw rejects it', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-badkey' })
+    expect(res.status).toBe(500)
+    const text = await res.text()
+    expect(text).toContain('rejected key ***')
+    expect(text).not.toContain('sk-badkey')
+  })
+
+  it('refuses an API key on a harness without an API key login', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'opencode', apiKey: 'sk-goodkey' })
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses a key with a newline', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-a\nsk-b' })
+    expect(res.status).toBe(400)
+  })
+
+  it('refuses a key shorter than 8 characters', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-1234' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid API key')
+  })
+
+  it('never passes CW_HARNESS to cw when importing an API key', async () => {
+    const previous = process.env.CW_HARNESS
+    process.env.CW_HARNESS = 'pi'
+    try {
+      const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-goodkey' })
+      expect(res.status).toBe(200)
+    } finally {
+      if (previous === undefined) delete process.env.CW_HARNESS
+      else process.env.CW_HARNESS = previous
+    }
   })
 })

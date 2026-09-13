@@ -2,6 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, sessionLabel, timeAgo } from '../config/types.js'
+import { HarnessBadge } from './HarnessBadge.js'
 
 /* ── Small UI pieces ── */
 
@@ -116,6 +117,7 @@ export const TaskCard: FunctionComponent<{
       </div>
 
       <div class="shrink-0 flex items-center gap-4">
+        <HarnessBadge session={session} />
         <span class="text-xs text-forge-muted whitespace-nowrap">
           {timeAgo(session.last_opened)}
         </span>
@@ -181,6 +183,7 @@ export const DoneTaskRow: FunctionComponent<{
         )}
       </div>
       <div class="shrink-0 flex items-center gap-3">
+        <HarnessBadge session={session} muted />
         <span class="text-[11px] text-forge-muted">
           {session.opens} session{session.opens !== 1 ? 's' : ''}
         </span>

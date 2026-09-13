@@ -38,7 +38,9 @@
 
 Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw review`, `cw spaces` in the terminal, you get a web dashboard with:
 
-- **Task list** with filters by account, project, and type (dev/review/design/plan)
+- **Task list** with filters by account, project, and type (dev/review/loop/general)
+- **Any harness** — run a task on Claude Code, Codex, Pi or OpenCode and see which one each session uses (needs CW 0.3.0)
+- **Accounts** — an account × harness matrix with one-click Connect; Codex logs in with a device code, no terminal
 - **Multi-tab terminal sessions** — open multiple Claude Code sessions side by side
 - **Project info** — auto-detected stack, MCPs, plugins at a glance
 - **One-click actions** — start tasks, review PRs, mark done, create projects
@@ -159,7 +161,7 @@ pnpm dev
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (137 tests) |
+| Tests | Vitest (228 tests) |
 | Language | TypeScript (strict) |
 
 ### Monorepo Structure

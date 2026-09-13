@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import { PTYManager } from './pty-manager.js'
 import type { CWSession } from './cw-types.js'
+import { mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 
 const makeSession = (overrides?: Partial<CWSession>): CWSession => ({
   project: 'testproj',
@@ -14,6 +16,24 @@ const makeSession = (overrides?: Partial<CWSession>): CWSession => ({
   last_opened: '2026-04-02T00:00:00Z',
   opens: 1,
   ...overrides
+})
+
+// buildLaunch runs `sh -c "cw …"`, which resolves cw from PATH. Put a fake
+// one first so this never spawns the real, host-installed cw.
+const FAKE_CW_DIR = join(import.meta.dirname, '../.test-fake-cw-pty-manager')
+let originalPath: string | undefined
+
+beforeAll(() => {
+  mkdirSync(FAKE_CW_DIR, { recursive: true })
+  writeFileSync(join(FAKE_CW_DIR, 'cw'), '#!/bin/sh\nexit 0\n')
+  chmodSync(join(FAKE_CW_DIR, 'cw'), 0o755)
+  originalPath = process.env.PATH
+  process.env.PATH = `${FAKE_CW_DIR}:${originalPath ?? ''}`
+})
+
+afterAll(() => {
+  process.env.PATH = originalPath
+  rmSync(FAKE_CW_DIR, { recursive: true, force: true })
 })
 
 describe('PTYManager', () => {

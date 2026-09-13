@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useState, useMemo } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { TYPE_STYLES, QUICK_TYPES, sessionKey, type TypeStyle } from '../config/types.js'
+import { TYPE_STYLES, QUICK_TYPES, sessionKey, getHarnessStyle, type TypeStyle } from '../config/types.js'
 import { TaskCard, DoneTaskRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
 
@@ -104,7 +104,7 @@ interface TaskListProps {
   loading: boolean
   onNewTask: (type?: string) => void
   onCreateProject: () => void
-  onCreateAccount: () => void
+  onOpenAccounts: () => void
   onSelectTask: (session: CWSession) => void
   onRefresh: () => void
   projects: Record<string, { path: string; account: string }>
@@ -116,6 +116,9 @@ interface TaskListProps {
   onFilterProject: (p: string | null) => void
   filterType: string | null
   onFilterType: (t: string | null) => void
+  harnessNames: string[]
+  filterHarness: string | null
+  onFilterHarness: (h: string | null) => void
   showDone: boolean
   onShowDone: (v: boolean) => void
   openTabKeys?: Set<string>
@@ -176,7 +179,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   loading: _loading,
   onNewTask,
   onCreateProject,
-  onCreateAccount,
+  onOpenAccounts,
   onSelectTask,
   onRefresh,
   projects,
@@ -188,6 +191,9 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   onFilterProject,
   filterType,
   onFilterType,
+  harnessNames,
+  filterHarness,
+  onFilterHarness,
   showDone,
   onShowDone,
   openTabKeys,
@@ -207,7 +213,14 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
     return projects[filterProject]?.account ?? spaces.find(s => s.project === filterProject)?.account
   }, [filterProject, projects, spaces])
 
-  const hasActiveFilters = filterAccount !== null || filterProject !== null || filterType !== null
+  const hasActiveFilters = filterAccount !== null || filterProject !== null || filterType !== null || filterHarness !== null
+
+  const clearFilters = () => {
+    onFilterAccount(null)
+    onFilterProject(null)
+    onFilterType(null)
+    onFilterHarness(null)
+  }
 
   return (
     <div>
@@ -230,9 +243,9 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           <button
             class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:bg-forge-surface"
             style={{ borderColor: 'var(--forge-ghost-border)' }}
-            onClick={onCreateAccount}
+            onClick={onOpenAccounts}
           >
-            + Account
+            Accounts
           </button>
           <button
             class="px-3 py-2 text-xs rounded-lg border transition-all text-forge-muted hover:text-forge-text hover:bg-forge-surface"
@@ -304,6 +317,29 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           ))}
         </div>
 
+        {harnessNames.length > 1 && (
+          <div class="flex items-center gap-1.5 ml-1">
+            {harnessNames.map(h => {
+              const style = getHarnessStyle(h)
+              const active = filterHarness === h
+              return (
+                <button
+                  key={h}
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all"
+                  style={active
+                    ? { backgroundColor: style.bg, borderColor: style.color, color: style.color }
+                    : { backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)', color: 'var(--forge-muted)' }
+                  }
+                  onClick={() => onFilterHarness(active ? null : h)}
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.color }} />
+                  {style.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         <div class="flex-1" />
 
         <button
@@ -321,7 +357,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           <button
             class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
             style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-            onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
+            onClick={clearFilters}
           >
             ✕ Clear filters
           </button>
@@ -379,7 +415,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             <button
               class="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
               style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-              onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null) }}
+              onClick={clearFilters}
             >
               ✕ Clear filters
             </button>

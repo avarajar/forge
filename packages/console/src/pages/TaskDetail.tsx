@@ -3,6 +3,7 @@ import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { TYPE_STYLES } from '../config/types.js'
+import { HarnessBadge } from '../components/HarnessBadge.js'
 
 /* ── Types ── */
 
@@ -28,6 +29,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
 
   const sessionDir = session.sessionDir ?? (session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`)
   const typeCfg = TYPE_STYLES[session.type] ?? TYPE_STYLES.task
+  const isLogin = session.type === 'login'
 
   // Branch-style task names (e.g. `task/form-header`) become sessionDirs like
   // `task-task/form-header`. Encode each segment so the slash doesn't split the path.
@@ -53,7 +55,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
     }
   }
 
-  useEffect(() => { fetchData() }, [session])
+  useEffect(() => { if (!isLogin) fetchData() }, [session])
 
   const markDone = async () => {
     try {
@@ -106,6 +108,8 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
             {typeCfg.label}
           </span>
 
+          <HarnessBadge session={session} />
+
           {/* Branch (click to copy) */}
           {branch && (
             <button
@@ -140,7 +144,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
             {ptyExited && (
               <ActionButton label="Restart" variant="secondary" onClick={handleRestart} />
             )}
-            {session.status === 'active' && (
+            {session.status === 'active' && !isLogin && (
               <ActionButton label="Done" variant="secondary" onClick={markDone} />
             )}
           </div>
