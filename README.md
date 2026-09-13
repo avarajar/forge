@@ -113,6 +113,12 @@ cw forge                   # If you have CW installed
 npx @forge-dev/platform    # No install needed
 ```
 
+### Remote access
+
+Forge listens on `127.0.0.1` and only answers requests from your own machine, because its API starts agents, logs accounts in, imports API keys and can delete project files. A page on another site can't call it, and neither can another computer on your network.
+
+To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 pnpm start`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust. From a remote browser, only Codex's device code can connect an account; the other harnesses' browser logins redirect to `localhost` on the machine running Forge.
+
 ### Development
 
 To work on Forge itself:

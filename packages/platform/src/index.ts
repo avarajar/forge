@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 async function main() {
-  const { ensureForgeDir, createForgeServer, createDatabase } = await import('@forge-dev/core')
+  const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions } = await import('@forge-dev/core')
   const { forgeDir, created } = ensureForgeDir()
 
   if (created) {
@@ -15,6 +15,7 @@ async function main() {
   const dbUrl = process.env.FORGE_DB_URL
   const authToken = process.env.FORGE_AUTH_TOKEN
   const isTeam = !!dbUrl
+  const { host, localOnly } = resolveListenOptions(isTeam)
 
   const db = await createDatabase({
     mode: isTeam ? 'team' : 'local',
@@ -26,7 +27,8 @@ async function main() {
     dataDir: forgeDir,
     port,
     db,
-    authToken: isTeam ? authToken : undefined
+    authToken: isTeam ? authToken : undefined,
+    localOnly
   })
 
   const { serveStatic } = await import('@hono/node-server/serve-static')
@@ -40,7 +42,7 @@ async function main() {
   }
 
   const { serve } = await import('@hono/node-server')
-  const httpServer = serve({ fetch: server.app.fetch, port })
+  const httpServer = serve({ fetch: server.app.fetch, port, hostname: host })
   server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
   console.log(`

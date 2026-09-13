@@ -70,6 +70,7 @@ App (app.tsx)
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
 - `packages/core/src/login-manager.ts` — Hidden PTYs for headless logins
+- `packages/core/src/origin-guard.ts` — Same-machine check for HTTP and terminal WebSockets, `FORGE_HOST` bind address
 
 ### Console
 - `packages/console/src/app.tsx` — Root component, tab/filter orchestration
@@ -143,6 +144,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - Do not skip tests
 - Do not store secrets in config files
 - Do not break the `npx @forge-dev/platform` zero-config experience
+- Do not open local mode to other origins or hosts — routes go through `origin-guard.ts`; remote access is `FORGE_HOST`
 
 ## Related Projects
 

@@ -15,6 +15,11 @@
 - New sessions pass `--harness`; resumed sessions never do.
 - The task list's "+ Account" button is now "Accounts"; creating an account no longer opens a terminal.
 
+### Security
+
+- In local mode Forge listens on `127.0.0.1` and answers 403 to requests and terminal WebSockets from other sites or other hosts. The API no longer sends CORS headers there.
+- `FORGE_HOST` sets the listen address for access from another computer, which turns the same-machine check off. Team mode keeps listening on every interface with its bearer token.
+
 ### Removed
 
 - The Plan task type, which launched `cw work`.
@@ -22,4 +27,4 @@
 
 ### Known limits
 
-- Browser OAuth redirects to localhost on the machine running the harness. From a remote host only Codex's device code works.
+- Browser OAuth redirects to localhost on the machine running the harness. From a remote host (with `FORGE_HOST`) only Codex's device code works.

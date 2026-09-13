@@ -31,7 +31,8 @@ export function consoleCommand() {
 
       console.log(`Starting Forge Console (${isTeam ? 'team' : 'local'} mode) on http://localhost:${port}`)
 
-      const { createForgeServer, createDatabase } = await import('@forge-dev/core')
+      const { createForgeServer, createDatabase, resolveListenOptions } = await import('@forge-dev/core')
+      const { host, localOnly } = resolveListenOptions(isTeam)
 
       const db = await createDatabase({
         mode: isTeam ? 'team' : 'local',
@@ -43,7 +44,8 @@ export function consoleCommand() {
         dataDir: forgeDir,
         port,
         db,
-        authToken: isTeam ? authToken : undefined
+        authToken: isTeam ? authToken : undefined,
+        localOnly
       })
 
       const { serveStatic } = await import('@hono/node-server/serve-static')
@@ -57,7 +59,7 @@ export function consoleCommand() {
       }
 
       const { serve } = await import('@hono/node-server')
-      const httpServer = serve({ fetch: server.app.fetch, port })
+      const httpServer = serve({ fetch: server.app.fetch, port, hostname: host })
       server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
       console.log(`Forge Console running at http://localhost:${port}`)
