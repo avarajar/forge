@@ -21,7 +21,7 @@ export const Accounts: FunctionComponent<AccountsProps> = ({ onBack, onOpenSessi
   const [deviceLogin, setDeviceLogin] = useState<{ account: string; harness: string } | null>(null)
   const [adding, setAdding] = useState(false)
 
-  useEffect(() => { loadHarnesses(true) }, [])
+  useEffect(() => { loadHarnesses() }, [])
 
   const response = harnesses.value
   const remote = !LOCAL_HOSTS.has(window.location.hostname)

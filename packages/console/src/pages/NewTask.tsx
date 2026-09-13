@@ -102,15 +102,17 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     }
   }, [project, isGeneral])
 
+  const defaultHarness = doctor ? resolveHarness(project || undefined, selectedAccount, projects, doctor) : 'claude'
+
   useEffect(() => {
     if (!doctor || !selectedAccount) return
-    setHarness(isLoop ? 'claude' : resolveHarness(project || undefined, selectedAccount, projects, doctor))
+    setHarness(isLoop ? 'claude' : defaultHarness)
   }, [response?.available, selectedAccount, project, isLoop])
 
   const cell = doctor ? findCell(doctor, selectedAccount, harness) : undefined
   const canSkipPermissions = !doctor || supportsIn(response, harness, 'skip_permissions')
   const usesClaudeModels = !doctor || harness === 'claude'
-  const showModel = !(isGeneral && !usesClaudeModels)
+  const showModel = usesClaudeModels || !isGeneral
   const harnessBlocked = doctor ? harnessUnavailableReason(harness, cell, isLoop) : null
   const harnessName = getHarnessStyle(harness).label
 
@@ -234,7 +236,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
             doctor={doctor}
             account={selectedAccount}
             value={harness}
-            defaultHarness={resolveHarness(project || undefined, selectedAccount, projects, doctor)}
+            defaultHarness={defaultHarness}
             isLoop={isLoop}
             onChange={setHarness}
             onOpenAccounts={onOpenAccounts}

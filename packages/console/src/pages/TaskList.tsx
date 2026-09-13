@@ -215,6 +215,13 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
 
   const hasActiveFilters = filterAccount !== null || filterProject !== null || filterType !== null || filterHarness !== null
 
+  const clearFilters = () => {
+    onFilterAccount(null)
+    onFilterProject(null)
+    onFilterType(null)
+    onFilterHarness(null)
+  }
+
   return (
     <div>
       {/* Header row */}
@@ -350,7 +357,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           <button
             class="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
             style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-            onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null); onFilterHarness(null) }}
+            onClick={clearFilters}
           >
             ✕ Clear filters
           </button>
@@ -408,7 +415,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             <button
               class="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
               style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-              onClick={() => { onFilterAccount(null); onFilterProject(null); onFilterType(null); onFilterHarness(null) }}
+              onClick={clearFilters}
             >
               ✕ Clear filters
             </button>
