@@ -230,22 +230,27 @@ A General session has no `session.json`, so it is always new on its first connec
 - `model`: `^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$` (covers `qwen/qwen3-coder:free`).
 - A non-zero exit returns 500 with the first line of stderr.
 
-**`POST /api/cw/accounts/:name/login`** takes `{ harness }`. It requires an existing account and
-`supports(harness, 'headless_login')`, else 400. It starts a device login, or returns the one
-already running for that account and harness.
+**`POST /api/cw/accounts/:name/login`** takes `{ harness }`. An unknown account returns 404; a
+harness without `supports(harness, 'headless_login')` returns 400. It starts a device login, or
+returns the one already running for that account and harness.
 
 **`GET /api/cw/accounts/:name/login/:harness`** returns the login state, or 404.
 **`DELETE /api/cw/accounts/:name/login/:harness`** kills it.
 
 **`POST /api/cw/accounts/:name/api-key`** takes `{ harness, apiKey }`.
 
+- An unknown account returns 404.
 - Requires `supports(harness, 'api_key_login')`, else 400.
-- `apiKey` is non-empty, has no newline and is at most 4096 characters.
+- `apiKey` is non-empty, has no newline, is at least 8 characters and at most 4096 characters.
 - Runs `spawn(cwBin, ['account', 'login', name, '--harness', harness, '--with-api-key', '-'])`
   with piped stdio, writes `apiKey + '\n'`, closes stdin, and waits up to 60 s.
 - Exit 0 returns `{ ok: true }`. Otherwise 500 with the output, every occurrence of the key
   replaced by `***`.
 - The key is never logged, stored, or placed in argv.
+
+The device-login panel treats a device login that exits with code 0 as "checking" rather than
+failed, and calls a fresh `GET /api/cw/harnesses?fresh=1` to confirm the cell is `connected`
+before showing success; only a non-zero or missing exit code shows the failure with Retry.
 
 `packages/core/src/login-manager.ts`:
 
@@ -417,7 +422,9 @@ The brief's acceptance criteria are walked manually with real sessions at the en
   CW truncates the code — codex printed a nine-character code and `CW_LOGIN_CODE` carried
   eight (gap 9). Pipes were not tried.
 - Whether a `done` task restarted from Forge with `--harness` is refused when its `session.json`
-  records a different harness. Not verified.
+  records a different harness. Resolved from the CW 0.3.0 source: `cmd_work` and `cmd_review`
+  delete a done session's `session.json` before resolving the harness, so restarting a done task
+  with another harness is accepted; an active session is refused by Forge's 409 first.
 - `cw account login <acct> --harness claude` inside Forge's embedded terminal reaches a usable
   login screen. Verified: the tab showed Claude Code's onboarding screen. The login was not
   completed; opening it was enough for doctor to report the cell as connected (gap 10).
