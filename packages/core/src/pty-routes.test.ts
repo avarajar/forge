@@ -3,10 +3,15 @@ import { PTYManager } from './pty-manager.js'
 import { CWReader } from './cw-reader.js'
 import { parseTerminalUpgradeUrl, takeSession } from './pty-routes.js'
 import { pendingSessions } from './cw-routes.js'
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 const TEST_CW = join(import.meta.dirname, '../.test-pty-routes')
+
+// buildLaunch runs `sh -c "cw …"`, which resolves cw from PATH. Put a fake
+// one first so this never spawns the real, host-installed cw.
+const FAKE_CW_DIR = join(import.meta.dirname, '../.test-fake-cw-pty-routes')
+let originalPath: string | undefined
 
 let manager: PTYManager
 
@@ -20,12 +25,21 @@ beforeAll(() => {
     worktree: '/tmp/testproj/.tasks/mytask', notes: '',
     status: 'active', created: '2026-04-01T10:00:00Z', last_opened: '2026-04-02T15:00:00Z', opens: 2
   }))
+
+  mkdirSync(FAKE_CW_DIR, { recursive: true })
+  writeFileSync(join(FAKE_CW_DIR, 'cw'), '#!/bin/sh\nexit 0\n')
+  chmodSync(join(FAKE_CW_DIR, 'cw'), 0o755)
+  originalPath = process.env.PATH
+  process.env.PATH = `${FAKE_CW_DIR}:${originalPath ?? ''}`
+
   manager = new PTYManager()
 })
 
 afterAll(() => {
   manager.dispose()
   rmSync(TEST_CW, { recursive: true, force: true })
+  process.env.PATH = originalPath
+  rmSync(FAKE_CW_DIR, { recursive: true, force: true })
 })
 
 describe('PTY Routes', () => {

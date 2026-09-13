@@ -15,6 +15,12 @@ describe('CW Routes', () => {
   beforeAll(() => {
     mkdirSync(join(TEST_CW, 'sessions/testproj/task-mytask'), { recursive: true })
     mkdirSync(join(TEST_CW, 'accounts/default'), { recursive: true })
+    mkdirSync(join(TEST_CW, 'bin'), { recursive: true })
+
+    // resolveCwBin falls back to PATH when bin/cw is missing, which would
+    // otherwise spawn the real cw on the host running these tests.
+    writeFileSync(join(TEST_CW, 'bin/cw'), '#!/bin/sh\nexit 0\n')
+    chmodSync(join(TEST_CW, 'bin/cw'), 0o755)
 
     writeFileSync(join(TEST_CW, 'projects.json'), JSON.stringify({
       testproj: { path: '/tmp/testproj', account: 'default', type: 'fullstack', registered: '2026-01-01T00:00:00Z' }
@@ -793,13 +799,14 @@ describe('account login routes', () => {
     mkdirSync(join(DIR, 'accounts/work'), { recursive: true })
     writeFileSync(join(DIR, 'bin/cw'), [
       '#!/bin/sh',
+      '[ -n "$CW_HARNESS" ] && exit 3',
       'case "$*" in',
       "  *--no-browser*) printf 'CW_LOGIN_URL=https://auth.openai.com/codex/device\\nCW_LOGIN_CODE=WXYZ-4821\\n'; sleep 30 ;;",
       '  *--with-api-key*)',
       '    read key',
       `    printf '%s\\n' "$@" > '${join(DIR, 'args.txt')}'`,
       `    printf '%s' "$key" > '${join(DIR, 'stdin.txt')}'`,
-      '    if [ "$key" = "sk-bad" ]; then echo "rejected key $key" >&2; exit 1; fi',
+      '    if [ "$key" = "sk-badkey" ]; then echo "rejected key $key" >&2; exit 1; fi',
       '    exit 0 ;;',
       'esac',
       '',
@@ -846,28 +853,46 @@ describe('account login routes', () => {
   })
 
   it('sends the API key on stdin only', async () => {
-    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-good' })
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-goodkey' })
     expect(res.status).toBe(200)
-    expect(readFileSync(join(DIR, 'stdin.txt'), 'utf-8')).toBe('sk-good')
+    expect(readFileSync(join(DIR, 'stdin.txt'), 'utf-8')).toBe('sk-goodkey')
     const args = readFileSync(join(DIR, 'args.txt'), 'utf-8').trim().split('\n')
     expect(args).toEqual(['account', 'login', 'work', '--harness', 'codex', '--with-api-key', '-'])
   })
 
   it('redacts the key when cw rejects it', async () => {
-    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-bad' })
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-badkey' })
     expect(res.status).toBe(500)
     const text = await res.text()
     expect(text).toContain('rejected key ***')
-    expect(text).not.toContain('sk-bad')
+    expect(text).not.toContain('sk-badkey')
   })
 
   it('refuses an API key on a harness without an API key login', async () => {
-    const res = await post('/api/cw/accounts/work/api-key', { harness: 'opencode', apiKey: 'sk-good' })
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'opencode', apiKey: 'sk-goodkey' })
     expect(res.status).toBe(400)
   })
 
   it('refuses a key with a newline', async () => {
     const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-a\nsk-b' })
     expect(res.status).toBe(400)
+  })
+
+  it('refuses a key shorter than 8 characters', async () => {
+    const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-1234' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toBe('Invalid API key')
+  })
+
+  it('never passes CW_HARNESS to cw when importing an API key', async () => {
+    const previous = process.env.CW_HARNESS
+    process.env.CW_HARNESS = 'pi'
+    try {
+      const res = await post('/api/cw/accounts/work/api-key', { harness: 'codex', apiKey: 'sk-goodkey' })
+      expect(res.status).toBe(200)
+    } finally {
+      if (previous === undefined) delete process.env.CW_HARNESS
+      else process.env.CW_HARNESS = previous
+    }
   })
 })

@@ -171,7 +171,7 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     if (!supports(harness, 'api_key_login')) {
       return c.json({ ok: false, error: `${harness} has no API key login` }, 400)
     }
-    if (!apiKey || /[\r\n]/.test(apiKey) || apiKey.length > 4096) {
+    if (!apiKey || /[\r\n]/.test(apiKey) || apiKey.length < 8 || apiKey.length > 4096) {
       return c.json({ ok: false, error: 'Invalid API key' }, 400)
     }
     const result = await importApiKey(cwBin, name, harness, apiKey)
