@@ -3,8 +3,9 @@ import type { Server } from 'node:http'
 import type { PTYManager } from './pty-manager.js'
 import type { CWReader } from './cw-reader.js'
 import { pendingSessions } from './cw-routes.js'
+import { isLocalRequest } from './origin-guard.js'
 
-export function createTerminalWss(manager: PTYManager, reader: CWReader) {
+export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true }: { localOnly?: boolean } = {}) {
   const wss = new WebSocketServer({ noServer: true })
 
   function wireWs(ws: WebSocket, sessionId: string, project: string, sessionDir: string) {
@@ -76,6 +77,10 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader) {
 
   function attachToServer(server: Server) {
     server.on('upgrade', (request, socket, head) => {
+      if (localOnly && !isLocalRequest(request.headers.host, request.headers.origin)) {
+        socket.destroy()
+        return
+      }
       const url = new URL(request.url ?? '/', 'http://localhost')
       const parsed = parseTerminalUpgradeUrl(url.pathname)
 

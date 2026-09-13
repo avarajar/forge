@@ -111,6 +111,8 @@ cw forge                   # If you have CW installed
 npx @forge-dev/platform    # No install needed
 ```
 
+Forge listens on `127.0.0.1` and only answers requests from your own machine, because its API starts agents and can delete project files. To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 pnpm start`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust.
+
 ### Development
 
 To work on Forge itself:

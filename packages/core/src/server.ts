@@ -9,6 +9,7 @@ import { join, basename, resolve } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
+import { localOriginGuard } from './origin-guard.js'
 import { CWReader } from './cw-reader.js'
 import { cwRoutes } from './cw-routes.js'
 import { skillRoutes } from './skill-routes.js'
@@ -23,10 +24,11 @@ interface ServerOptions {
   port?: number
   db?: IForgeDB
   authToken?: string
+  localOnly?: boolean
 }
 
 export function createForgeServer(options: ServerOptions) {
-  const { dataDir, db: externalDb, authToken } = options
+  const { dataDir, db: externalDb, authToken, localOnly = true } = options
   const dbPath = join(dataDir, 'forge.db')
   const modulesDir = join(dataDir, 'modules')
 
@@ -37,7 +39,8 @@ export function createForgeServer(options: ServerOptions) {
   loader.discover()
 
   const app = new Hono()
-  app.use('*', cors())
+  // The API starts agents and deletes files, so a local server only answers its own machine
+  app.use('*', localOnly ? localOriginGuard() : cors())
 
   if (authToken) {
     app.use('/api/*', bearerAuth(authToken))
@@ -48,7 +51,7 @@ export function createForgeServer(options: ServerOptions) {
   app.route('/api/skills', skillRoutes(cwReader))
 
   const ptyManager = new PTYManager()
-  const terminalWss = createTerminalWss(ptyManager, cwReader)
+  const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly })
 
   const sandboxManager = new SandboxManager({
     templateDir: join(import.meta.dirname, '../sandbox-template'),
