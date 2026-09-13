@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import { findCell, getHarnessStyle } from '../config/types.js'
 import { loadHarnesses, watchUntil } from '../hooks/useHarnesses.js'
@@ -26,6 +26,7 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
   account, harness, canUseApiKey, onConnected, onClose,
 }) => {
   const [login, setLogin] = useState<LoginState | null>(null)
+  const [checking, setChecking] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [apiKey, setApiKey] = useState('')
   const [savingKey, setSavingKey] = useState(false)
@@ -34,19 +35,48 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
   const accountUrl = `/api/cw/accounts/${encodeURIComponent(account)}`
   const stateUrl = `${accountUrl}/login/${encodeURIComponent(harness)}`
 
+  // Guards so a success (from the poll or the doctor watcher) and the
+  // cleanup's DELETE each run at most once, even if both paths fire.
+  const handledRef = useRef(false)
+  const exitedRef = useRef(false)
+
   useEffect(() => {
     let cancelled = false
     let poll: ReturnType<typeof setInterval> | null = null
     setLogin(null)
+    setChecking(false)
+    handledRef.current = false
+    exitedRef.current = false
+
+    const handleSuccess = () => {
+      if (handledRef.current) return
+      handledRef.current = true
+      fetch(stateUrl, { method: 'DELETE' }).catch(() => {})
+      showToast(`${account} is connected to ${label}`, 'success')
+      onConnected()
+    }
 
     const read = async () => {
       const res = await fetch(stateUrl).catch(() => null)
       if (!res?.ok || cancelled) return
       const { login: next } = await res.json() as { login: LoginState }
       setLogin(next)
-      if (next.status === 'exited' && poll) {
+      if (next.status !== 'exited') return
+      exitedRef.current = true
+      if (poll) {
         clearInterval(poll)
         poll = null
+      }
+      if (next.exitCode !== 0) return
+      // codex exits 0 on a successful login; confirm against a fresh
+      // doctor read before deciding it actually connected.
+      setChecking(true)
+      const result = await loadHarnesses(true)
+      if (cancelled) return
+      if (result.available && findCell(result.doctor, account, harness)?.status === 'connected') {
+        handleSuccess()
+      } else {
+        setChecking(false)
       }
     }
 
@@ -69,21 +99,14 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
 
     const stopWatching = watchUntil(
       doctor => findCell(doctor, account, harness)?.status === 'connected',
-      {
-        onDone: (matched) => {
-          if (!matched) return
-          fetch(stateUrl, { method: 'DELETE' }).catch(() => {})
-          showToast(`${account} is connected to ${label}`, 'success')
-          onConnected()
-        },
-      },
+      { onDone: (matched) => { if (matched) handleSuccess() } },
     )
 
     return () => {
       cancelled = true
       if (poll) clearInterval(poll)
       stopWatching()
-      fetch(stateUrl, { method: 'DELETE' }).catch(() => {})
+      if (!exitedRef.current) fetch(stateUrl, { method: 'DELETE' }).catch(() => {})
     }
   }, [account, harness, attempt])
 
@@ -154,13 +177,20 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
               </>
             )}
           </div>
+          {login.code && (
+            <p class="text-[11px] text-forge-muted">If the code is rejected, use the one shown in Output.</p>
+          )}
           <p class="text-xs text-forge-muted">
             {login.url || login.code ? 'Checks every 3 s. The cell turns Connected on its own.' : 'Waiting for the login URL…'}
           </p>
         </>
       )}
 
-      {exited && (
+      {exited && checking && (
+        <p class="text-xs text-forge-muted">Checking the connection…</p>
+      )}
+
+      {exited && !checking && (
         <div class="flex items-center gap-3 text-xs">
           <span style={{ color: 'var(--forge-error)' }}>The login ended before connecting.</span>
           <button class="underline text-forge-text" onClick={() => setAttempt(n => n + 1)}>Retry</button>

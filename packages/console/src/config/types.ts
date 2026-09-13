@@ -140,7 +140,7 @@ export const CLAUDE_MODELS = [
   { id: 'opus', label: 'Opus', description: 'Complex reasoning' },
 ]
 
-// Same order CW uses for a new session: project, then account, then claude
+// Same order CW uses for a new work, review, loop or create session
 export const resolveHarness = (
   project: string | undefined,
   account: string,
