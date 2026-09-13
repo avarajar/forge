@@ -11,11 +11,12 @@ import type { IForgeDB } from './db-interface.js'
 import { bearerAuth } from './auth.js'
 import { localOriginGuard } from './origin-guard.js'
 import { CWReader } from './cw-reader.js'
-import { cwRoutes } from './cw-routes.js'
+import { cwRoutes, resolveCwBin } from './cw-routes.js'
 import { skillRoutes } from './skill-routes.js'
 import { PTYManager } from './pty-manager.js'
 import { createTerminalWss } from './pty-routes.js'
 import { SandboxManager } from './sandbox-manager.js'
+import { LoginManager } from './login-manager.js'
 import { prototypeRoutes } from './prototype-routes.js'
 import { tmpdir } from 'node:os'
 
@@ -47,7 +48,8 @@ export function createForgeServer(options: ServerOptions) {
   }
 
   const cwReader = new CWReader()
-  app.route('/api/cw', cwRoutes(cwReader))
+  const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
+  app.route('/api/cw', cwRoutes(cwReader, { loginManager }))
   app.route('/api/skills', skillRoutes(cwReader))
 
   const ptyManager = new PTYManager()
@@ -260,6 +262,6 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); sandboxManager.dispose(); db.close() }
+    close: () => { ptyManager.dispose(); loginManager.dispose(); sandboxManager.dispose(); db.close() }
   }
 }

@@ -293,3 +293,36 @@ description: A project-scoped skill
     expect(detail).toBeNull()
   })
 })
+
+describe('CWReader harness fields', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-harness')
+
+  beforeAll(() => {
+    mkdirSync(join(DIR, 'sessions/app/task-legacy'), { recursive: true })
+    mkdirSync(join(DIR, 'sessions/app/task-codex'), { recursive: true })
+    writeFileSync(join(DIR, 'sessions/app/task-legacy/session.json'), JSON.stringify({
+      project: 'app', task: 'legacy', type: 'task', account: 'work', worktree: '', notes: '',
+      status: 'active', created: '2026-07-02T21:33:18Z', last_opened: '2026-07-03T20:40:54Z', opens: 2,
+    }))
+    writeFileSync(join(DIR, 'sessions/app/task-codex/session.json'), JSON.stringify({
+      project: 'app', task: 'codex', type: 'task', account: 'glm', harness: 'opencode',
+      harness_session_id: 'ses_123', provider: 'zai', model: 'glm-5.1', worktree: '', notes: '',
+      status: 'active', created: '2026-09-11T18:25:59Z', last_opened: '2026-09-11T18:25:59Z', opens: 1,
+    }))
+  })
+
+  afterAll(() => rmSync(DIR, { recursive: true, force: true }))
+
+  it('reads a pre-0.3.0 session as claude on the native provider', () => {
+    const session = new CWReader(DIR).getSession('app', 'task-legacy')
+    expect(session?.harness).toBe('claude')
+    expect(session?.provider).toBe('native')
+  })
+
+  it('keeps the harness fields CW recorded', () => {
+    const spaces = new CWReader(DIR).getSpaces('app')
+    const codex = spaces.find(s => s.task === 'codex')
+    expect(codex).toMatchObject({ harness: 'opencode', harness_session_id: 'ses_123', provider: 'zai', model: 'glm-5.1' })
+    expect(spaces.find(s => s.task === 'legacy')?.harness).toBe('claude')
+  })
+})

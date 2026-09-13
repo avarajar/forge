@@ -2,8 +2,21 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'node:http'
 import type { PTYManager } from './pty-manager.js'
 import type { CWReader } from './cw-reader.js'
+import type { CWSession } from './cw-types.js'
 import { pendingSessions } from './cw-routes.js'
 import { isLocalRequest } from './origin-guard.js'
+
+// A session still in pendingSessions was just created by /start; anything else is a resume
+export function takeSession(reader: CWReader, project: string, sessionDir: string): { session: CWSession; isNew: boolean } | null {
+  const sessionId = `${project}::${sessionDir}`
+  const pending = pendingSessions.get(sessionId)
+  if (pending) {
+    pendingSessions.delete(sessionId)
+    return { session: pending, isNew: true }
+  }
+  const session = reader.getSession(project, sessionDir)
+  return session ? { session, isNew: false } : null
+}
 
 export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true }: { localOnly?: boolean } = {}) {
   const wss = new WebSocketServer({ noServer: true })
@@ -52,19 +65,16 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
       return
     }
 
-    // Prefer pendingSessions (freshly created via /api/cw/start, has source_url)
-    // over disk session (may be stale/done from a previous run, missing source_url)
-    const session = pendingSessions.get(sessionId) ?? reader.getSession(project, sessionDir)
-    if (session) pendingSessions.delete(sessionId)
+    const taken = takeSession(reader, project, sessionDir)
 
-    if (!session) {
+    if (!taken) {
       console.log(`[pty-ws] Session not found: ${project}/${sessionDir}`)
       ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
       ws.close()
       return
     }
 
-    const ptySession = manager.getOrCreate(project, sessionDir, session)
+    const ptySession = manager.getOrCreate(project, sessionDir, taken.session, { isNew: taken.isNew })
     if (!ptySession) {
       console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
       ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal for ${project}/${sessionDir}` }))

@@ -1,35 +1,51 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import { ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
+import { ACCOUNT_NAME_RE, HARNESS_NAME_RE, PROVIDER_NAME_RE, MODEL_NAME_RE, type CWSession } from './cw-types.js'
 import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
+import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-doctor.js'
+import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
+import { LoginManager } from './login-manager.js'
+import { importApiKey } from './api-key-login.js'
 
 const execFileAsync = promisify(execFile)
 
 // Sentinel project names for sessions not tied to a registered project
 const GENERAL_PROJECT = '__general'
 const CREATING_PROJECT = '__creating'
+const ACCOUNTS_PROJECT = '__accounts'
 
 // Sessions created via /api/cw/start that don't exist on disk yet.
 // PTY routes check here when reader.getSession() returns null.
 const pendingSessions = new Map<string, CWSession>()
 export { pendingSessions }
 
-export function cwRoutes(reader: CWReader): Hono {
-  const app = new Hono()
+// An absolute path, because Forge is often started where ~/.cw/bin is not on PATH
+export function resolveCwBin(cwHome: string): string {
+  const candidate = join(cwHome, 'bin', 'cw')
+  return existsSync(candidate) ? candidate : 'cw'
+}
 
-  // Resolve `cw` to an absolute path so spawn() doesn't depend on PATH.
-  // Forge is often launched from contexts (Finder, a stripped-PATH shell,
-  // a CW-spawned subprocess) where ~/.cw/bin isn't on PATH and a bare
-  // `spawn('cw')` fails with ENOENT.
-  const cwBin = (() => {
-    const candidate = join(reader.cwHome, 'bin', 'cw')
-    return existsSync(candidate) ? candidate : 'cw'
-  })()
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager } = {}): Hono {
+  const app = new Hono()
+  const cwBin = resolveCwBin(reader.cwHome)
+  const logins = options.loginManager ?? new LoginManager(cwBin)
+  const knownAccount = (name: string) => ACCOUNT_NAME_RE.test(name) && reader.getAccounts().includes(name)
+
+  const doctor = createDoctorClient(cwBin)
+
+  app.get('/harnesses', async (c) => {
+    const result = await doctor.get(c.req.query('fresh') === '1')
+    if (!result.available) return c.json(result)
+    const capabilities = Object.fromEntries(
+      result.doctor.harnesses.map(h => [h.name, [...(HARNESS_CAPABILITIES[h.name] ?? [])]])
+    )
+    return c.json({ ...result, capabilities, contextTokens: readContextTokens(reader.cwHome) })
+  })
 
   app.get('/projects', (c) => {
     return c.json(reader.getProjects())
@@ -58,26 +74,47 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/accounts', async (c) => {
-    const { name } = await c.req.json<{ name: string }>()
+    const body = await c.req.json<{ name: string; harness?: string; provider?: string; model?: string }>()
+    const harness = body.harness || undefined
+    const provider = body.provider || undefined
+    const model = body.model || undefined
 
-    if (!name || !name.trim()) {
+    if (!body.name || !body.name.trim()) {
       return c.json({ ok: false, error: 'Account name is required' }, 400)
     }
 
-    const trimmed = name.trim()
+    const trimmed = body.name.trim()
     if (!ACCOUNT_NAME_RE.test(trimmed)) {
       return c.json({ ok: false, error: 'Name must start with a letter or number and contain only letters, numbers, hyphens, and underscores (max 64 chars)' }, 400)
+    }
+    if (harness && !HARNESS_NAME_RE.test(harness)) {
+      return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    }
+    if (provider && !PROVIDER_NAME_RE.test(provider)) {
+      return c.json({ ok: false, error: 'Invalid provider' }, 400)
+    }
+    if (provider && !supports(harness, 'custom_provider')) {
+      return c.json({ ok: false, error: `${harness ?? 'claude'} cannot use a provider` }, 400)
+    }
+    if (model && !MODEL_NAME_RE.test(model)) {
+      return c.json({ ok: false, error: 'Invalid model' }, 400)
     }
 
     if (reader.getAccounts().includes(trimmed)) {
       return c.json({ ok: false, error: `Account "${trimmed}" already exists` }, 409)
     }
 
+    const args = ['account', 'add', trimmed]
+    if (harness) args.push('--harness', harness)
+    if (provider) args.push('--provider', provider)
+    if (model) args.push('--model', model)
+
     try {
-      await execFileAsync(cwBin, ['account', 'add', trimmed], { encoding: 'utf-8', timeout: 10000 })
+      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 10000, env: envWithoutHarness() })
       return c.json({ ok: true, name: trimmed })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
+      const stderr = (err as { stderr?: string }).stderr?.trim().split('\n')[0]
+      const message = stderr || (err instanceof Error ? err.message : 'Unknown error')
       return c.json({ ok: false, error: `Failed to create account: ${message}` }, 500)
     }
   })
@@ -103,6 +140,42 @@ export function cwRoutes(reader: CWReader): Hono {
       const message = err instanceof Error ? err.message : 'Unknown error'
       return c.json({ ok: false, error: `Failed to remove account: ${message}` }, 500)
     }
+  })
+
+  app.post('/accounts/:name/login', async (c) => {
+    const name = c.req.param('name')
+    const { harness } = await c.req.json<{ harness?: string }>()
+    if (!knownAccount(name)) return c.json({ ok: false, error: 'Unknown account' }, 404)
+    if (!harness || !HARNESS_NAME_RE.test(harness)) return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    if (!supports(harness, 'headless_login')) {
+      return c.json({ ok: false, error: `${harness} has no headless login` }, 400)
+    }
+    return c.json({ ok: true, login: logins.start(name, harness) })
+  })
+
+  app.get('/accounts/:name/login/:harness', (c) => {
+    const login = logins.get(c.req.param('name'), c.req.param('harness'))
+    return login ? c.json({ ok: true, login }) : c.json({ ok: false, error: 'No login in progress' }, 404)
+  })
+
+  app.delete('/accounts/:name/login/:harness', (c) => {
+    logins.stop(c.req.param('name'), c.req.param('harness'))
+    return c.json({ ok: true })
+  })
+
+  app.post('/accounts/:name/api-key', async (c) => {
+    const name = c.req.param('name')
+    const { harness, apiKey } = await c.req.json<{ harness?: string; apiKey?: string }>()
+    if (!knownAccount(name)) return c.json({ ok: false, error: 'Unknown account' }, 404)
+    if (!harness || !HARNESS_NAME_RE.test(harness)) return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    if (!supports(harness, 'api_key_login')) {
+      return c.json({ ok: false, error: `${harness} has no API key login` }, 400)
+    }
+    if (!apiKey || /[\r\n]/.test(apiKey) || apiKey.length < 8 || apiKey.length > 4096) {
+      return c.json({ ok: false, error: 'Invalid API key' }, 400)
+    }
+    const result = await importApiKey(cwBin, name, harness, apiKey)
+    return result.ok ? c.json({ ok: true }) : c.json({ ok: false, error: result.error }, 500)
   })
 
   app.get('/detect/:project', (c) => {
@@ -182,9 +255,38 @@ export function cwRoutes(reader: CWReader): Hono {
   })
 
   app.post('/start', async (c) => {
-    const { type, project, task, description, workflow, account, directory, skipPermissions, model, loopPrompt, loopInterval, name } = await c.req.json<{
-      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string; loopPrompt?: string; loopInterval?: string; name?: string
+    const { type, project, task, description, workflow, account, directory, skipPermissions, model, loopPrompt, loopInterval, name, harness } = await c.req.json<{
+      type: string; project?: string; task?: string; description?: string; workflow?: string; account?: string; directory?: string; skipPermissions?: boolean; model?: string; loopPrompt?: string; loopInterval?: string; name?: string; harness?: string
     }>()
+
+    if (harness !== undefined && !HARNESS_NAME_RE.test(harness)) {
+      return c.json({ ok: false, error: 'Invalid harness' }, 400)
+    }
+
+    if (type === 'login') {
+      if (!account || !ACCOUNT_NAME_RE.test(account) || !reader.getAccounts().includes(account)) {
+        return c.json({ ok: false, error: 'Unknown account' }, 400)
+      }
+      if (!harness) return c.json({ ok: false, error: 'Harness is required' }, 400)
+      const sessionDirName = `login-${account}-${harness}`
+      const now = new Date().toISOString()
+      const sessionData: CWSession = {
+        project: ACCOUNTS_PROJECT,
+        type: 'login',
+        account,
+        harness,
+        workflow: '',
+        worktree: '',
+        notes: '',
+        status: 'active',
+        created: now,
+        last_opened: now,
+        opens: 0,
+        sessionDir: sessionDirName,
+      }
+      pendingSessions.set(`${ACCOUNTS_PROJECT}::${sessionDirName}`, sessionData)
+      return c.json({ ok: true, session: sessionData })
+    }
 
     // General sessions: no project or task required, just an account
     if (type === 'general') {
@@ -196,6 +298,7 @@ export function cwRoutes(reader: CWReader): Hono {
         project: projectName,
         type: 'general',
         account: acct,
+        harness: harness || undefined,
         model: model || undefined,
         workflow: '',
         worktree: projectPath ?? '',
@@ -220,6 +323,7 @@ export function cwRoutes(reader: CWReader): Hono {
         task: name,
         type: 'create',
         account: account ?? '',
+        harness: harness || undefined,
         model: model || undefined,
         workflow: '',
         worktree: directory ?? '',
@@ -237,6 +341,9 @@ export function cwRoutes(reader: CWReader): Hono {
 
     if (type === 'loop') {
       if (!project) return c.json({ ok: false, error: 'Project is required' }, 400)
+      if (harness && harness !== 'claude') {
+        return c.json({ ok: false, error: 'Loop runs on Claude Code only' }, 400)
+      }
       const prompt = (loopPrompt ?? '').trim()
       if (!prompt) return c.json({ ok: false, error: 'Loop prompt is required' }, 400)
       const interval = (loopInterval ?? '').trim()
@@ -268,6 +375,7 @@ export function cwRoutes(reader: CWReader): Hono {
         task: slug,
         type: 'loop',
         account: account ?? '',
+        harness: harness || undefined,
         model: model || undefined,
         loop_prompt: prompt,
         loop_interval: interval,
@@ -340,19 +448,17 @@ export function cwRoutes(reader: CWReader): Hono {
       args.push('review', project, task)
       if (account) args.push('--account', account)
       if (model) args.push('--model', model)
-    } else if (type === 'plan') {
-      args.push('plan', project, description ?? task)
-      if (model) args.push('--model', model)
     } else {
       args.push('work', project, task)
       if (account) args.push('--account', account)
       if (workflow) args.push('--workflow', workflow)
       if (model) args.push('--model', model)
     }
+    if (harness) args.push('--harness', harness)
 
     // Pre-write description to TASK_NOTES.md so CW picks it up.
     // Uses ## Description section that CW extracts into the init_prompt.
-    if (description && type !== 'plan') {
+    if (description) {
       const notesDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
       mkdirSync(notesDir, { recursive: true })
       const notesFile = join(notesDir, type === 'review' ? 'REVIEW_NOTES.md' : 'TASK_NOTES.md')
@@ -393,6 +499,7 @@ export function cwRoutes(reader: CWReader): Hono {
       pr: type === 'review' ? taskSlug : undefined,
       type: type === 'review' ? 'review' : 'task',
       account: account ?? '',
+      harness: harness || undefined,
       workflow: workflow ?? '',
       model: model || undefined,
       source: taskSource,
@@ -439,7 +546,7 @@ export function cwRoutes(reader: CWReader): Hono {
         ? ['loop', project, task, '--done']
         : ['work', project, task, '--done']
     try {
-      const child = spawn(cwBin, args, { detached: true, stdio: 'ignore' })
+      const child = spawn(cwBin, args, { detached: true, stdio: 'ignore', env: envWithoutHarness() })
       child.unref()
     } catch {}
 
@@ -491,7 +598,7 @@ export function cwRoutes(reader: CWReader): Hono {
 
     // Unregister from CW
     try {
-      execFileSync(cwBin, ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe' })
+      execFileSync(cwBin, ['project', 'remove', project, '--yes'], { encoding: 'utf-8', timeout: 10000, stdio: 'pipe', env: envWithoutHarness() })
     } catch {
       // May not be registered, continue anyway
     }
@@ -611,7 +718,7 @@ export function cwRoutes(reader: CWReader): Hono {
     if (type?.trim()) args.push('--type', type.trim())
 
     try {
-      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 30000 })
+      await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 30000, env: envWithoutHarness() })
       return c.json({ ok: true, project: projectName })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'

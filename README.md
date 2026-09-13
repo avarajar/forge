@@ -38,7 +38,9 @@
 
 Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw review`, `cw spaces` in the terminal, you get a web dashboard with:
 
-- **Task list** with filters by account, project, and type (dev/review/design/plan)
+- **Task list** with filters by account, project, and type (dev/review/loop/general)
+- **Any harness** — run a task on Claude Code, Codex, Pi or OpenCode and see which one each session uses (needs CW 0.3.0)
+- **Accounts** — an account × harness matrix with one-click Connect; Codex logs in with a device code, no terminal
 - **Multi-tab terminal sessions** — open multiple Claude Code sessions side by side
 - **Project info** — auto-detected stack, MCPs, plugins at a glance
 - **One-click actions** — start tasks, review PRs, mark done, create projects
@@ -111,7 +113,11 @@ cw forge                   # If you have CW installed
 npx @forge-dev/platform    # No install needed
 ```
 
-Forge listens on `127.0.0.1` and only answers requests from your own machine, because its API starts agents and can delete project files. To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 pnpm start`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust.
+### Remote access
+
+Forge listens on `127.0.0.1` and only answers requests from your own machine, because its API starts agents, logs accounts in, imports API keys and can delete project files. A page on another site can't call it, and neither can another computer on your network.
+
+To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 pnpm start`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust. From a remote browser, only Codex's device code can connect an account; the other harnesses' browser logins redirect to `localhost` on the machine running Forge.
 
 ### Development
 
@@ -161,7 +167,7 @@ pnpm dev
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (137 tests) |
+| Tests | Vitest (228 tests) |
 | Language | TypeScript (strict) |
 
 ### Monorepo Structure

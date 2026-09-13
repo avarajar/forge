@@ -13,7 +13,7 @@ Forge is the web dashboard for CW (Claude Workspace Manager). It reads `~/.cw/` 
 | Terminal | xterm.js + node-pty (WebSocket) |
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | Build | Turborepo |
-| Tests | Vitest (137 tests) |
+| Tests | Vitest (228 tests) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -67,6 +67,10 @@ App (app.tsx)
 - `packages/core/src/pty-routes.ts` — WebSocket server for terminal sessions
 - `packages/core/src/db.ts` — SQLite database layer
 - `packages/core/src/runner.ts` — Command execution with streaming
+- `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
+- `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
+- `packages/core/src/login-manager.ts` — Hidden PTYs for headless logins
+- `packages/core/src/origin-guard.ts` — Same-machine check for HTTP and terminal WebSockets, `FORGE_HOST` bind address
 
 ### Console
 - `packages/console/src/app.tsx` — Root component, tab/filter orchestration
@@ -78,6 +82,8 @@ App (app.tsx)
 - `packages/console/src/components/TabBar.tsx` — Tab bar with add menu
 - `packages/console/src/pages/TaskList.tsx` — Main task list page
 - `packages/console/src/pages/TaskDetail.tsx` — Terminal + git stats + MCP info
+- `packages/console/src/hooks/useHarnesses.ts` — Shared harness store, 3 s polling
+- `packages/console/src/pages/Accounts.tsx` — Account × harness matrix and Connect flows
 
 ## Development
 
@@ -96,7 +102,11 @@ pnpm test             # Run all tests
 - `GET /api/cw/tools?project=X` — MCPs + plugins for a project
 - `GET /api/cw/detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /api/cw/git/{status,log,diff}/:project/:sessionDir` — Git info
-- `POST /api/cw/start` — Start task/review/plan (spawns cw command)
+- `POST /api/cw/start` — Start a task, review, loop, general or create session (spawns cw command)
+- `GET /api/cw/harnesses` — `cw doctor --json`, per-harness capabilities, Linear/Notion token presence
+- `POST /api/cw/accounts` — Create an account (optional harness, provider, model)
+- `POST /api/cw/accounts/:name/login`, `GET|DELETE /api/cw/accounts/:name/login/:harness` — Headless device login (codex)
+- `POST /api/cw/accounts/:name/api-key` — Import an API key over stdin (codex)
 - `POST /api/cw/done` — Mark session done (writes session.json + spawns cw --done)
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 
@@ -134,6 +144,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - Do not skip tests
 - Do not store secrets in config files
 - Do not break the `npx @forge-dev/platform` zero-config experience
+- Do not open local mode to other origins or hosts — routes go through `origin-guard.ts`; remote access is `FORGE_HOST`
 
 ## Related Projects
 
