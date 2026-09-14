@@ -41,12 +41,14 @@ Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw revie
 - **Task list** with filters by account, project, and type (dev/review/loop/general)
 - **Any harness** — run a task on Claude Code, Codex, Pi or OpenCode and see which one each session uses (needs CW 0.3.0)
 - **Accounts** — an account × harness matrix with one-click Connect; Codex logs in with a device code, no terminal
-- **Multi-tab terminal sessions** — open multiple Claude Code sessions side by side
+- **Multi-tab terminal sessions** — open multiple agent sessions side by side
 - **Project info** — auto-detected stack, MCPs, plugins at a glance
-- **One-click actions** — start tasks, review PRs, mark done, create projects
+- **One-click actions** — start tasks, review PRs, mark done, create, register, move and delete projects
+- **Skills** — browse and edit global, account and project skills, install from skills.sh, or start a session that writes one
+- **Prototypes** — a sandbox with its own dev server to try an idea, share it as a PR or graduate it to a dev task
 - **Keyboard shortcuts** — Cmd+1..5, Cmd+W, Cmd+L for tab navigation
 
-It reads from `~/.cw/` (sessions, projects, accounts) and from `~/.claude/` (MCPs, plugins, settings).
+It reads from `~/.cw/` (sessions, projects, accounts, skills) and from `~/.claude/` (MCPs, plugins, settings).
 
 <br />
 
@@ -79,8 +81,8 @@ Filter by project to see detected stack, MCPs, and plugins. Manage or delete pro
 | **pnpm** | >= 11 | `corepack enable && corepack prepare pnpm@latest --activate` |
 | **Python 3** | >= 3.9 | Required by CW for session management |
 | **Git** | any recent | Worktree support required |
-| **Claude Code** | latest | `npm i -g @anthropic-ai/claude-code` |
-| **[CW](https://github.com/avarajar/cw)** | latest | `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
+| **A harness** | latest | At least one of Claude Code (`npm i -g @anthropic-ai/claude-code`), Codex, Pi or OpenCode |
+| **[CW](https://github.com/avarajar/cw)** | >= 0.3.0 | `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
 
 ### CW Setup
 
@@ -88,11 +90,11 @@ CW must be initialized before Forge can read your workspace:
 
 ```bash
 cw init                          # Initialize ~/.cw/
-cw account add <name>            # Add a Claude Code account
+cw account add <name>            # Add an account (or use the Accounts screen in Forge)
 cw open <project>                # Register a project (or cw project register)
 ```
 
-Once you have at least one project registered, Forge will show it in the dashboard.
+Once you have at least one project registered, Forge will show it in the dashboard. You can also register an existing repo from Forge's Create Project dialog.
 
 ### Launch
 
@@ -141,20 +143,25 @@ pnpm dev
 ┌───────────────────────┼──────────────────────────────┐
 │              FORGE SERVER (Hono)                       │
 │                                                       │
-│   CW Reader    PTY Manager    Module Loader           │
-│   (sessions,   (node-pty,     (forge-module.json      │
-│    projects,    xterm.js)      manifests)              │
+│   Origin guard (same machine) · bearer auth (team)    │
+│                                                       │
+│   CW Reader    PTY Manager    Login Manager           │
+│   (sessions,   (node-pty,     (device code,           │
+│    projects,    xterm.js)      API key import)        │
 │    MCPs)                                              │
+│                                                       │
+│   Skills       Sandboxes      Module Loader           │
+│   (skills.sh)  (prototypes)   (forge-module.json)     │
 │                                                       │
 │   SQLite (local) ──── or ──── PostgreSQL (team)       │
 └───────────────────────┬───────────────────────────────┘
                         │
           ┌─────────────┼─────────────┐
           │             │             │
-     ~/.cw/        ~/.claude/     Claude Code
-     sessions      settings       (spawned via
-     projects      plugins        cw work/review)
-     accounts      MCPs
+     ~/.cw/        ~/.claude/     Harness: Claude Code,
+     sessions      settings       Codex, Pi, OpenCode
+     projects      plugins        (spawned via cw work,
+     accounts      MCPs           review, launch)
 ```
 
 ### Tech Stack
@@ -167,20 +174,21 @@ pnpm dev
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (228 tests) |
+| Tests | Vitest (248 tests in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ### Monorepo Structure
 
 ```
 packages/
-  core/       → Hono server, CW reader, PTY manager, DB
+  core/       → Hono server, CW reader, PTY manager, harness logins, skills, prototypes, DB
   console/    → Preact dashboard (app, pages, components, hooks)
   ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
-  cli/        → CLI commands (forge init/console/run)
+  cli/        → CLI commands (forge init/console/doctor/module/project/run)
   platform/   → Entry point (npx @forge-dev/platform)
 modules/
+  mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
   mod-scaffold/   — Project creation wizard
   mod-planning/   — Linear + Notion + diagrams
@@ -199,16 +207,19 @@ The dashboard is a Preact SPA with this component structure:
 ```
 App
 ├── useTabManager (tab state, sessionStorage, keyboard shortcuts)
-├── useTaskFilters (account/project/type filters, derived data)
+├── useTaskFilters (account/project/type/harness filters, derived data)
+├── useHarnesses (shared `cw doctor` store, 3 s polling)
 │
 ├── List view
 │   ├── OpenTabsBanner (shows tabs open in background)
 │   ├── TaskList
-│   │   ├── FilterBar (account, project, type pills)
-│   │   ├── TaskCard / DoneTaskRow
+│   │   ├── Filter pills (account, project, type, harness)
+│   │   ├── TaskCard / DoneTaskRow (with harness badge)
 │   │   └── ProjectBanner (stack, MCPs, plugins, delete)
-│   ├── NewTask
-│   └── CreateProjectModal
+│   ├── NewTask (harness picker) → PrototypePanel
+│   ├── CreateProjectModal (directory picker)
+│   ├── Accounts (account × harness matrix, device login)
+│   └── Skills
 │
 └── Tabs view
     ├── TabBar (tab bar + add menu)
@@ -220,6 +231,8 @@ Shared config lives in `config/types.ts` (type colors, labels, helpers).
 <br />
 
 ## Modules
+
+> The server loads module manifests from `~/.forge/modules` (`forge module add`) and runs their actions through `/api/actions`. The dashboard does not render module panels today: they were dropped when the console became a CW task launcher.
 
 Forge supports extensible modules via `forge-module.json` manifests. Each module declares panels, actions, and detectors:
 
@@ -250,12 +263,24 @@ pnpm build            # Build all
 pnpm test             # Run all tests
 ```
 
+`pnpm dev` runs the package watchers and the Vite dashboard on `http://localhost:5173`, but not the API server. Vite proxies `/api` and `/ws` to port 3000, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` in another terminal after `pnpm build`.
+
 ### Run specific package
 
 ```bash
-cd packages/core && pnpm vitest        # Core tests
+cd packages/core && pnpm vitest        # Core tests (the only package with tests)
 cd packages/console && pnpm vite       # Dashboard dev server
 ```
+
+### Environment
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `FORGE_PORT` | `3000` | Listen port |
+| `FORGE_HOST` | `127.0.0.1` | Listen address; any other value turns off the same-machine check |
+| `FORGE_DB_URL` | — | PostgreSQL URL for team mode |
+| `FORGE_AUTH_TOKEN` | — | Bearer token for team mode |
+| `FORGE_NO_OPEN` | — | `1` skips opening the browser |
 
 <br />
 
@@ -265,8 +290,9 @@ cd packages/console && pnpm vite       # Dashboard dev server
 |-------|--------|------|
 | **0: Foundation** | Done | Core server, dashboard shell, module system, CLI, UI kit |
 | **1: CW Integration** | Done | CW reader, sessions, PTY terminals, multi-tab |
-| **2: Full Ecosystem** | Done | All 7 modules, team mode (PostgreSQL + auth) |
+| **2: Full Ecosystem** | Done | 7 module manifests, team mode (PostgreSQL + auth) |
 | **3: Polish** | In progress | UX improvements, error handling, performance |
+| **Harness integration** | Done | Claude Code, Codex, Pi and OpenCode sessions, Accounts screen, same-machine API |
 
 <br />
 

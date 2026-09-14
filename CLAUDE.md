@@ -2,7 +2,7 @@
 
 ## What is this
 
-Forge is the web dashboard for CW (Claude Workspace Manager). It reads `~/.cw/` and `~/.claude/` to show worktree sessions, tasks, PR reviews, MCPs, and plugins in a visual UI with interactive terminals.
+Forge is the web dashboard for CW (Claude Workspace Manager). It reads `~/.cw/` and `~/.claude/` to show worktree sessions, tasks, PR reviews, accounts, skills, MCPs, and plugins in a visual UI with interactive terminals. Sessions can run on any harness CW supports (Claude Code, Codex, Pi, OpenCode; needs CW 0.3.0).
 
 ## Stack
 
@@ -12,21 +12,23 @@ Forge is the web dashboard for CW (Claude Workspace Manager). It reads `~/.cw/` 
 | Dashboard | Preact + UnoCSS + Vite |
 | Terminal | xterm.js + node-pty (WebSocket) |
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
+| CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (228 tests) |
+| Tests | Vitest (248 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
 
 ```
 packages/
-  core/       → Hono server, CW reader, PTY manager, DB, action runner
+  core/       → Hono server, CW reader, PTY manager, harness logins, skills, prototype sandboxes, DB, action runner
   console/    → Preact dashboard
   ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
-  cli/        → CLI commands
+  cli/        → CLI commands (forge init/console/doctor/module/project/run)
   platform/   → Entry point (npx @forge-dev/platform)
 modules/
+  mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
   mod-scaffold/   — Project creation wizard
   mod-planning/   — Linear + Notion + diagrams
@@ -34,81 +36,120 @@ modules/
   mod-qa/         — Tests, security, load, visual
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
+skills/prototype/ — Skill used by prototype generation
+tests/integration/ — Cross-package tests (not wired, see Development)
 ```
+
+Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`), not from the repo's `modules/`, and runs their actions through `/api/actions`. The console has not rendered module panels since its rewrite as a CW task launcher: there is no panel registry.
 
 ## Console Architecture
 
 ```
 App (app.tsx)
 ├── useTabManager    → tab state, sessionStorage, keyboard shortcuts
-├── useTaskFilters   → account/project/type filters, derived data
+├── useTaskFilters   → account/project/type/harness filters, derived data
+├── useHarnesses     → shared `cw doctor` store, 3 s polling
 ├── config/types.ts  → shared TYPE_STYLES, QUICK_TYPES, helpers
 │
-├── List view
+├── List view (listView: list | new-task | accounts | skills)
 │   ├── OpenTabsBanner
 │   ├── TaskList (pages/TaskList.tsx)
 │   │   ├── FilterPill
-│   │   ├── TaskCard, DoneTaskRow (components/TaskCard.tsx)
+│   │   ├── TaskCard, DoneTaskRow → HarnessBadge (components/TaskCard.tsx)
 │   │   └── ProjectBanner (components/ProjectBanner.tsx)
-│   ├── NewTask, CreateProjectModal
+│   ├── CreateProjectModal → DirectoryPicker
+│   ├── NewTask → HarnessPicker
+│   │   └── PrototypePanel (usePrototype) → InputSelector, PrototypePreview, ShareModal, GraduateModal
+│   ├── Accounts → AccountCell, AddAccountForm, DeviceLoginPanel
+│   └── Skills
 │
 └── Tabs view
     ├── TabBar (components/TabBar.tsx)
-    └── TaskDetail (pages/TaskDetail.tsx) → xterm.js terminal
+    └── TaskDetail (pages/TaskDetail.tsx) → xterm.js terminal, HarnessBadge
 ```
 
 ## Key Files
 
 ### Core
-- `packages/core/src/server.ts` — Main Hono app, all API routes
-- `packages/core/src/cw-reader.ts` — Reads ~/.cw/ (sessions, projects, MCPs, stack detection)
-- `packages/core/src/cw-routes.ts` — CW API endpoints (spaces, start, done, delete, git)
+- `packages/core/src/server.ts` — Main Hono app, mounts every route group and the guard/auth middleware
+- `packages/core/src/cw-reader.ts` — Reads ~/.cw/ (sessions, projects, accounts, skills, MCPs, stack detection)
+- `packages/core/src/cw-routes.ts` — CW API endpoints (spaces, start, done, accounts, logins, projects, git)
 - `packages/core/src/pty-manager.ts` — node-pty session manager with idle cleanup
 - `packages/core/src/pty-routes.ts` — WebSocket server for terminal sessions
-- `packages/core/src/db.ts` — SQLite database layer
+- `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
+- `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`)
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
 - `packages/core/src/login-manager.ts` — Hidden PTYs for headless logins
+- `packages/core/src/api-key-login.ts` — API key import over stdin
 - `packages/core/src/origin-guard.ts` — Same-machine check for HTTP and terminal WebSockets, `FORGE_HOST` bind address
+- `packages/core/src/auth.ts` — Bearer token middleware (team mode)
+- `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install
+- `packages/core/src/sandbox-manager.ts` / `prototype-routes.ts` — Prototype sandboxes (Vite dev server per sandbox, ports from 51000, idle cleanup)
 
 ### Console
-- `packages/console/src/app.tsx` — Root component, tab/filter orchestration
+- `packages/console/src/app.tsx` — Root component, tab/filter/view orchestration
 - `packages/console/src/config/types.ts` — Shared type styles, helpers (single source of truth)
 - `packages/console/src/hooks/useTabManager.ts` — Tab state, persistence, keyboard shortcuts
 - `packages/console/src/hooks/useTaskFilters.ts` — Filter state, derived data
+- `packages/console/src/hooks/useHarnesses.ts` — Shared harness store, 3 s polling
 - `packages/console/src/components/TaskCard.tsx` — TaskCard, DoneTaskRow, TypeBadge
 - `packages/console/src/components/ProjectBanner.tsx` — Project info (stack, MCPs, delete)
 - `packages/console/src/components/TabBar.tsx` — Tab bar with add menu
+- `packages/console/src/components/HarnessPicker.tsx` — Harness selector and unavailable reasons
 - `packages/console/src/pages/TaskList.tsx` — Main task list page
+- `packages/console/src/pages/NewTask.tsx` — New task form (type, account, project, harness)
 - `packages/console/src/pages/TaskDetail.tsx` — Terminal + git stats + MCP info
-- `packages/console/src/hooks/useHarnesses.ts` — Shared harness store, 3 s polling
 - `packages/console/src/pages/Accounts.tsx` — Account × harness matrix and Connect flows
+- `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
+- `packages/console/src/pages/PrototypePanel.tsx` — Prototype sandbox flow (generate, preview, share, graduate to a dev task)
 
 ## Development
 
 ```bash
-pnpm start            # Install + build + launch (one command)
-pnpm dev              # Dev mode (all packages)
+pnpm start            # Install + build + launch on http://localhost:3000 (one command)
+pnpm dev              # Watchers: tsc --watch for packages, Vite for console (no API server)
 pnpm build            # Build all
-pnpm test             # Run all tests
+pnpm test             # Run all tests (only packages/core has a test script)
 ```
+
+`pnpm dev` does not start the API. Vite serves the console on `:5173` and proxies `/api` and `/ws` to `:3000`, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` alongside it and restart that after core changes.
+
+`tests/integration/` is not run by any script, and running it directly fails because the root has no `hono` dependency.
+
+### Environment
+
+- `FORGE_PORT` — listen port (default 3000)
+- `FORGE_HOST` — listen address; setting it turns the same-machine check off (see `origin-guard.ts`)
+- `FORGE_DB_URL`, `FORGE_AUTH_TOKEN` — team mode (PostgreSQL + bearer token)
+- `FORGE_NO_OPEN=1` — do not open the browser on start
 
 ## API Endpoints
 
-- `GET /api/cw/spaces` — List all sessions (sorted by last_opened)
-- `GET /api/cw/projects` — List registered CW projects
-- `GET /api/cw/accounts` — List CW accounts
-- `GET /api/cw/tools?project=X` — MCPs + plugins for a project
-- `GET /api/cw/detect/:project` — Stack detection (framework, test runner, tools)
-- `GET /api/cw/git/{status,log,diff}/:project/:sessionDir` — Git info
-- `POST /api/cw/start` — Start a task, review, loop, general or create session (spawns cw command)
-- `GET /api/cw/harnesses` — `cw doctor --json`, per-harness capabilities, Linear/Notion token presence
-- `POST /api/cw/accounts` — Create an account (optional harness, provider, model)
-- `POST /api/cw/accounts/:name/login`, `GET|DELETE /api/cw/accounts/:name/login/:harness` — Headless device login (codex)
-- `POST /api/cw/accounts/:name/api-key` — Import an API key over stdin (codex)
-- `POST /api/cw/done` — Mark session done (writes session.json + spawns cw --done)
+### CW (`/api/cw`)
+- `GET /spaces` — List all sessions (sorted by last_opened)
+- `GET /session/:project/:sessionDir`, `GET /notes/:project/:sessionDir` — One session, its notes
+- `GET /projects` — List registered CW projects
+- `POST /register-project`, `POST /move-project`, `POST /delete-project`, `GET /browse-dirs` — Project management
+- `GET /accounts` — List CW accounts
+- `POST /accounts` — Create an account (optional harness, provider, model)
+- `DELETE /accounts/:name` — Delete an account
+- `POST /accounts/:name/login`, `GET|DELETE /accounts/:name/login/:harness` — Headless device login (codex)
+- `POST /accounts/:name/api-key` — Import an API key over stdin (codex)
+- `GET /harnesses` — `cw doctor --json`, per-harness capabilities, Linear/Notion token presence
+- `GET /tools?project=X`, `GET /mcps` — MCPs + plugins for a project
+- `GET /detect/:project` — Stack detection (framework, test runner, tools)
+- `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info
+- `POST /start` — Start a task, review, loop, general or create session (spawns cw command)
+- `POST /done` — Mark session done (writes session.json + spawns cw --done)
+- `POST /terminal/kill` — Kill a session's PTY
+
+### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
+- `/api/skills` — `GET /`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`
+- `/api/prototype` — `create`, `list`, `:id`, `start-server`, `generate`, `regenerate`, `update-state`, `share`, `archive`, `DELETE :id`
+- `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB
 
 ## MCP Reading
 
@@ -133,6 +174,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - UI components go in `@forge-dev/ui`, not in individual modules
 - Shared console config in `config/types.ts` — never duplicate TYPE_STYLES
 - Commit messages: `feat(scope):`, `fix(scope):`, `refactor:`, `test:`, `docs:`
+- Update `CHANGELOG.md` (Unreleased) for user-visible changes
 
 ## Do NOT
 

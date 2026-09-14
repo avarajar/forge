@@ -509,19 +509,18 @@ interface ToggleSwitchProps {
 
 ## 8. Registering in the Console
 
+> **Current state:** the console no longer renders module panels. It was rewritten as a CW task launcher (commit `13a572a`, April 2026), which removed `packages/console/src/panels/registry.ts` and `registerPanels`, so Steps 2–4 describe the earlier console and do not work today. The server still loads `forge-module.json` manifests from `~/.forge/modules` (installed with `forge module add`) and runs their actions through `POST /api/actions/:module/:action`.
+
 After creating your module, add it to the console panel registry so the dashboard can render your panels.
 
 ### Step 1 — Add to workspace
 
-If your module is inside the monorepo, ensure its directory is listed in the root `package.json` workspaces array:
+If your module is inside the monorepo, check that `pnpm-workspace.yaml` includes it:
 
-```json
-{
-  "workspaces": [
-    "packages/*",
-    "modules/*"
-  ]
-}
+```yaml
+packages:
+  - "packages/*"
+  - "modules/*"
 ```
 
 Modules placed under `modules/` are automatically included. Run `pnpm install` after adding a new package.

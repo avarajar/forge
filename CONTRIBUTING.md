@@ -41,24 +41,27 @@ pnpm install
 pnpm dev
 ```
 
-This starts all packages in parallel with hot-reload:
+This runs every package's watcher: `tsc --watch` for `core`, `ui`, `sdk`, `cli` and `platform`, and the Vite dashboard for `console` on `http://localhost:5173`. It does not start the API server. Vite proxies `/api` and `/ws` to `http://localhost:3000`, so build once and run the server in a second terminal:
 
-- `packages/core` — Hono API server on `http://localhost:3000`
-- `packages/console` — Vite dashboard on `http://localhost:5173`
+```bash
+pnpm build
+FORGE_NO_OPEN=1 node packages/platform/dist/index.js
+```
 
-Open `http://localhost:5173` in your browser to see the dashboard.
+Restart the server after a change under `packages/core` so it loads the rebuilt `dist/`. Then open `http://localhost:5173`.
+
+`pnpm start` is the quickest check of a full build: it installs, builds and serves the built dashboard on `http://localhost:3000`.
+
+The server only answers requests from the same machine (`packages/core/src/origin-guard.ts`). Set `FORGE_HOST` to reach it from another computer.
 
 ### Run a single package
 
 ```bash
-# Dashboard only
+# Dashboard only (needs the server on :3000)
 cd packages/console && pnpm vite
 
-# Core server only
-cd packages/core && pnpm tsx src/server.ts
-
-# CLI from source
-cd packages/cli && pnpm tsx src/index.ts
+# CLI (after pnpm build)
+node packages/cli/dist/index.js --help
 ```
 
 ---
@@ -71,30 +74,25 @@ cd packages/cli && pnpm tsx src/index.ts
 pnpm test
 ```
 
-Turborepo runs tests across every package in parallel, respecting the dependency graph.
+Turborepo builds first, then runs `test` in every package that has one. Today only `packages/core` does (248 tests).
 
 ### Single package
 
 ```bash
-# Core tests
-cd packages/core && pnpm vitest
-
-# SDK tests
-cd packages/sdk && pnpm vitest
-
-# A specific module
-cd modules/mod-qa && pnpm vitest
+cd packages/core && pnpm vitest run
 ```
 
 ### Watch mode
 
 ```bash
-pnpm vitest --watch
+cd packages/core && pnpm vitest
 ```
 
 ### Vitest integration
 
-Every package uses Vitest. There is no Jest. Test files follow the convention `*.test.ts` or `*.test.tsx` and sit next to the source files or in a `tests/` subdirectory.
+Every package uses Vitest. There is no Jest. Test files follow the convention `*.test.ts` or `*.test.tsx` and sit next to the source files.
+
+`tests/integration/` holds older cross-package tests. No script runs them, and running them directly fails with `Cannot find package 'hono'` because the workspace root does not depend on it.
 
 All tests must pass before a PR can be merged. If you add a feature, add tests first (see [TDD convention](#test-driven-development-tdd) below).
 
@@ -105,13 +103,14 @@ All tests must pass before a PR can be merged. If you add a feature, add tests f
 ```
 forge/
   packages/
-    core/       → @forge-dev/core      — Hono server, SQLite/PostgreSQL, module loader, action runner
+    core/       → @forge-dev/core      — Hono server, CW reader, PTY terminals, harness logins, skills, prototypes, DB, module loader, action runner
     console/    → @forge-dev/console   — Preact dashboard (Vite)
     ui/         → @forge-dev/ui        — Shared UI components
     sdk/        → @forge-dev/sdk       — Module SDK (definePanel, types)
-    cli/        → @forge-dev/cli       — CLI commands (forge init/console/run/etc.)
+    cli/        → @forge-dev/cli       — CLI commands (forge init/console/doctor/module/project/run)
     platform/   → @forge-dev/platform  — Entry point (npx @forge-dev/platform)
   modules/
+    mod-hello/      — Minimal example manifest
     mod-dev/        — Git worktrees and Claude Code sessions
     mod-scaffold/   — Project creation wizard
     mod-planning/   — Linear, Notion, diagrams
@@ -129,15 +128,21 @@ forge/
 
 | File | Purpose |
 |------|---------|
-| `packages/core/src/server.ts` | Main Hono app — all API routes |
-| `packages/core/src/db.ts` | SQLite/PostgreSQL database layer |
-| `packages/core/src/modules.ts` | Module discovery and manifest loading |
+| `packages/core/src/server.ts` | Main Hono app — mounts every route group and the guard/auth middleware |
+| `packages/core/src/cw-reader.ts` | Reads `~/.cw/` and `~/.claude/` (sessions, projects, accounts, skills, MCPs) |
+| `packages/core/src/cw-routes.ts` | CW API (`/api/cw`): start, done, accounts, logins, projects, git |
+| `packages/core/src/pty-manager.ts` / `pty-routes.ts` | node-pty sessions and the terminal WebSocket |
+| `packages/core/src/origin-guard.ts` | Same-machine check and `FORGE_HOST` bind address |
+| `packages/core/src/db.ts` | SQLite database layer (`db-postgres.ts` for team mode) |
+| `packages/core/src/modules.ts` | Module discovery from `~/.forge/modules` |
 | `packages/core/src/runner.ts` | Command execution with SSE streaming |
-| `packages/console/src/app.tsx` | Dashboard entry point |
-| `packages/console/src/shell.tsx` | Dashboard layout (sidebar, topbar) |
-| `packages/console/src/panels/registry.ts` | Maps module IDs to panel components |
+| `packages/console/src/app.tsx` | Dashboard root: list view, tabs view, sub-views |
+| `packages/console/src/shell.tsx` | Dashboard layout |
+| `packages/console/src/config/types.ts` | Shared task type styles and helpers |
 | `packages/sdk/src/types.ts` | Shared TypeScript types (PanelProps, ModuleManifest, etc.) |
 | `packages/sdk/src/define.ts` | definePanel helper |
+
+`CLAUDE.md` has the full list of key files and API endpoints.
 
 ---
 
@@ -148,24 +153,28 @@ forge/
 | Server | Hono (Node.js) | ~14KB, runs all API endpoints under `/api/` |
 | Dashboard | Preact + UnoCSS + Vite | ~80KB gzipped, dark/light themes |
 | Database | better-sqlite3 / PostgreSQL | SQLite locally, PostgreSQL in team mode (`--team`) |
-| CLI | Commander.js | `forge init`, `forge console`, `forge run`, etc. |
+| CLI | Commander.js | `forge init`, `forge console`, `forge doctor`, `forge module`, `forge project`, `forge run` |
 | Build | Turborepo | Parallel builds and tests across all packages |
-| Tests | Vitest | Used in all packages — no Jest |
+| Tests | Vitest | No Jest; only `packages/core` has tests today |
 
 ### How it fits together
 
 ```
 FORGE CONSOLE (Preact + UnoCSS)
-        │ HTTP + SSE
+        │ HTTP + SSE, WebSocket for terminals
 FORGE SERVER (Hono)
-  ├── Module Registry   — reads forge-module.json files
+  ├── Origin guard      — same-machine check in local mode, bearer token in team mode
+  ├── CW routes         — spawn cw work/review/launch, accounts, harness logins, git
+  ├── PTY manager       — node-pty sessions streamed to xterm.js
+  ├── Skills, prototypes — skill files, sandboxes with their own dev server
+  ├── Module Registry   — reads forge-module.json files from ~/.forge/modules
   ├── Action Runner     — spawns child processes, streams via SSE
   └── DB layer          — SQLite (local) or PostgreSQL (team)
         │
-  External CLIs, Claude Code, CW
+  CW → harness (Claude Code, Codex, Pi, OpenCode)
 ```
 
-Modules communicate with the server only through the REST API (`/api/actions/{moduleId}/{actionId}`). Panels make `fetch()` calls from the browser; the server executes the shell commands defined in `forge-module.json` and returns the output.
+Modules communicate with the server only through the REST API (`/api/actions/{moduleId}/{actionId}`). The server executes the shell commands defined in `forge-module.json` and returns the output. The console does not render module panels today (see the note in the [Module Authoring Guide](docs/module-authoring.md#8-registering-in-the-console)).
 
 ---
 
@@ -289,7 +298,7 @@ The short version:
 
 1. Create `modules/mod-<name>/` with a `forge-module.json` and `package.json`.
 2. Add panels under `panels/` using `definePanel` from `@forge-dev/sdk`.
-3. Register the panels in `packages/console/src/panels/registry.ts`.
+3. Install it into `~/.forge/modules` with `forge module add` so the server loads its actions. The console does not render module panels today (there is no panel registry), see the guide's note.
 4. Add tests and make sure `pnpm test` passes.
 5. Open a PR.
 
