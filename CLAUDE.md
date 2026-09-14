@@ -2,7 +2,7 @@
 
 ## What is this
 
-Forge is the web dashboard for CW (Claude Workspace Manager). It reads `~/.cw/` and `~/.claude/` to show worktree sessions, tasks, PR reviews, accounts, skills, MCPs, and plugins in a visual UI with interactive terminals. Sessions can run on any harness CW supports (Claude Code, Codex, Pi, OpenCode; needs CW 0.3.0).
+Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.claude/` to show worktree sessions, tasks, PR reviews, accounts, skills, MCPs, and plugins in a visual UI with interactive terminals. Sessions can run on any harness CW supports (Claude Code, Codex, Pi, OpenCode; needs CW 0.3.0).
 
 ## Stack
 
@@ -190,4 +190,4 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 
 ## Related Projects
 
-- **CW (Claude Workspace Manager)** — The CLI tool Forge wraps. Source at `/Users/joselito/Workspace/personal/cw-repo/`. Pure Bash script (~4300 lines). Forge spawns CW commands like `cw work`, `cw review`, `cw launch` via PTY.
+- **CW (Coding Workspace)** — The CLI tool Forge wraps. Source at `/Users/joselito/workspace/personal/cw/`. Bash script (~6200 lines) plus one driver per harness in `lib/harnesses/`. `install.sh` copies it into `~/.cw`, so re-run it after changing CW. Forge spawns CW commands like `cw work`, `cw review`, `cw launch` via PTY.

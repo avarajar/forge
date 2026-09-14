@@ -22,7 +22,7 @@
 
 <br />
 
-**Forge** is a visual dashboard for [CW (Claude Workspace Manager)](https://github.com/avarajar/cw) — manage worktree sessions, tasks, PR reviews, and Claude Code integrations from a single web UI.
+**Forge** is a visual dashboard for [CW (Coding Workspace)](https://github.com/avarajar/cw) — manage worktree sessions, tasks, PR reviews, accounts and coding-agent harnesses from a single web UI.
 
 [Getting Started](#-getting-started) &bull; [Screenshots](#-screenshots) &bull; [Architecture](#-architecture) &bull; [Modules](#-modules) &bull; [Roadmap](#-roadmap)
 
