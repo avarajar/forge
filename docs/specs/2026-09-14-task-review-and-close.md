@@ -185,7 +185,7 @@ Returns `TaskReviewState`. `404` for an unknown session. Cached per `project::se
 
 ### 5.4 Git routes
 
-`/git/status`, `/git/log` and `/git/branch` keep their responses and move to `execFile`. `/git/diff` returns `git diff --stat <base>` with the base from D3, and `{ output: '' }` when no base resolves.
+`/git/status`, `/git/log` and `/git/branch` keep their responses and move to `execFile`. `/git/diff` returns `git diff --stat <base>` with the base from D3 minus the pull request step, so it never calls `gh`, and `{ output: '' }` when no base resolves.
 
 ## 6. Console
 
@@ -259,8 +259,7 @@ Core, Vitest:
 - `editors.test.ts`: detection with injected lookups, and `open-in-editor` returning `403` when not `localOnly`.
 - `cw-routes.test.ts`:
   - `review-state` returns `404` for an unknown session, and `workspace: 'none'` for a loop;
-  - `done` waits for a fake `cw` script written to `TEST_CW/bin/cw` that exits 0, then 1, and returns the output on failure.
-  - The existing `done` tests also get the fake: today `resolveCwBin` falls back to the `cw` on `PATH` when `TEST_CW/bin/cw` does not exist.
+  - `done` waits for the fake `cw` script the suite already writes to `TEST_CW/bin/cw`; a variant that exits 1 makes it return the output. The existing loop `done` test stops expecting Forge to write `session.json` (D8).
 
 CW, bats: section 3.
 
