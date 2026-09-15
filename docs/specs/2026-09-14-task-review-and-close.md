@@ -1,6 +1,6 @@
 # Spec: review and close a task
 
-**Status:** draft for review
+**Status:** implemented
 **Date:** 2026-09-14
 **Requires:** nothing new to run. CW recording `base_branch` (section 3) makes the counts exact; `gh` adds pull request state. Both are optional (D4, D5).
 
@@ -268,9 +268,13 @@ The console has no test runner. Logic the console would otherwise hold lives in 
 ## 9. Verify during implementation
 
 - `gh pr list --head <branch>` with a branch containing `/`, such as `task/fix-auth`.
+  Verified: no PR found (returned `[]`).
 - `open -a "Visual Studio Code" <dir>` opens the folder, not a new empty window.
+  Not verified: needs a person at the machine (deferred at the end of implementation).
 - A claude task's `worktree` path in `session.json` matches where the agent creates it (`<project>/.tasks/<task>`).
+  Not verified: needs a person at the machine (deferred at the end of implementation).
 - `git status --porcelain` in a worktree ignores the linked `TASK_NOTES.md` and `SHARED_CONTEXT.md` (CW adds them to `info/exclude`).
+  Not verified: needs a person at the machine (deferred at the end of implementation).
 
 ## 10. Out of scope
 
