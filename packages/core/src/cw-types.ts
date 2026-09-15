@@ -149,6 +149,7 @@ export interface SkillDetail {
 export interface ExploreResult {
   name: string
   slug: string
+  skillId: string
   installs: number
   source: 'skills.sh'
   url: string

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
 import { skillRoutes } from './skill-routes.js'
 import { CWReader } from './cw-reader.js'
@@ -209,5 +209,107 @@ describe('Skill Routes', () => {
     const body = await res.json() as { name: string; scope: string }
     expect(body.name).toBe('Test Account Skill')
     expect(body.scope).toBe('account')
+  })
+})
+
+describe('Skill registry routes', () => {
+  const HOME = join(import.meta.dirname, '../.test-skill-registry-home')
+  const CW = join(import.meta.dirname, '../.test-skill-registry-cw')
+  const PROJECT = join(HOME, 'my-project')
+  const OK = { code: 0, stdout: '[{"name":"skill","status":"installed"}]', stderr: '' }
+  const calls: Array<{ bin: string; args: string[]; cwd: string; configDir: string | undefined }> = []
+  let cliResult = OK
+  let app: Hono
+
+  const install = (body: Record<string, unknown>) => app.request('/api/skills/install', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  beforeAll(() => {
+    process.env.HOME = HOME
+    mkdirSync(PROJECT, { recursive: true })
+    mkdirSync(join(CW, 'accounts', 'work'), { recursive: true })
+    writeFileSync(join(CW, 'projects.json'), JSON.stringify({ web: { path: PROJECT, account: 'work' } }))
+    app = new Hono()
+    app.route('/api/skills', skillRoutes(new CWReader(CW), {
+      runnerFor: (env) => async (bin, args, cwd) => {
+        calls.push({ bin, args, cwd, configDir: env.CLAUDE_CONFIG_DIR })
+        return cliResult
+      },
+    }))
+  })
+
+  beforeEach(() => {
+    calls.length = 0
+    cliResult = OK
+  })
+
+  afterAll(() => {
+    vi.restoreAllMocks()
+    rmSync(HOME, { recursive: true, force: true })
+    rmSync(CW, { recursive: true, force: true })
+  })
+
+  it('GET /explore maps the skills.sh search response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(Response.json({
+      skills: [{ id: 'vercel-labs/agent-skills/react-best', skillId: 'react-best', name: 'react-best', installs: 12, source: 'vercel-labs/agent-skills' }],
+    }))
+    const res = await app.request('/api/skills/explore?q=react')
+    const body = await res.json() as { results: unknown[] }
+    expect(body.results).toEqual([{
+      name: 'react-best',
+      slug: 'vercel-labs/agent-skills/react-best',
+      skillId: 'react-best',
+      installs: 12,
+      source: 'skills.sh',
+      url: 'https://skills.sh/vercel-labs/agent-skills/react-best',
+      repo: 'vercel-labs/agent-skills',
+    }])
+  })
+
+  it('POST /install installs a global skill into ~/.claude/skills', async () => {
+    const res = await install({ repo: 'vercel-labs/agent-skills', skill: 'react-best', scope: 'global' })
+    expect(res.status).toBe(200)
+    expect(calls).toEqual([{
+      bin: 'npx',
+      args: ['--yes', 'skills', 'add', 'vercel-labs/agent-skills', '--skill', 'react-best', '--agent', 'claude-code', '--yes', '--json', '--global'],
+      cwd: HOME,
+      configDir: join(HOME, '.claude'),
+    }])
+  })
+
+  it('POST /install installs an account skill into the account directory', async () => {
+    const res = await install({ repo: 'owner/repo', skill: 'skill', scope: 'account', scopeRef: 'work' })
+    expect(res.status).toBe(200)
+    expect(calls[0]?.configDir).toBe(join(CW, 'accounts', 'work'))
+    expect(calls[0]?.args).toContain('--global')
+  })
+
+  it('POST /install installs a project skill from the project directory', async () => {
+    const res = await install({ repo: 'owner/repo', skill: 'skill', scope: 'project', scopeRef: 'web' })
+    expect(res.status).toBe(200)
+    expect(calls[0]?.cwd).toBe(PROJECT)
+    expect(calls[0]?.args).not.toContain('--global')
+  })
+
+  it('POST /install rejects a request without a skill', async () => {
+    const res = await install({ repo: 'owner/repo', scope: 'global' })
+    expect(res.status).toBe(400)
+    expect(calls).toEqual([])
+  })
+
+  it('POST /install rejects an unregistered project', async () => {
+    const res = await install({ repo: 'owner/repo', skill: 'skill', scope: 'project', scopeRef: '/tmp' })
+    expect(res.status).toBe(404)
+    expect(calls).toEqual([])
+  })
+
+  it('POST /install reports why the CLI skipped the skill', async () => {
+    cliResult = { code: 1, stdout: '[{"name":"skill","status":"skipped","reason":"No matching skill found in source"}]', stderr: '' }
+    const res = await install({ repo: 'owner/repo', skill: 'skill', scope: 'global' })
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Failed to install skill: No matching skill found in source' })
   })
 })

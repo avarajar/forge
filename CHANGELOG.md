@@ -22,6 +22,11 @@
 - `POST /api/cw/done` waits for `cw --done` and returns its error; a failed close leaves the task active. Forge no longer writes `session.json` itself.
 - `/api/cw/git/diff` compares against the task's base branch instead of the last five commits, and every git route runs git without a shell.
 
+### Fixed
+
+- Installing a skill from Explore failed with "slug is required": Forge reads the current skills.sh search response and installs into `~/.claude/skills` with `skills add <repo> --skill <name> --agent claude-code`, even when Forge runs inside a CW session.
+- `POST /api/skills/install` takes `repo` and `skill` instead of `slug`, installs account and project skills with the skills CLI instead of guessing a GitHub raw URL, answers 404 for an unknown account or project, and returns the CLI's reason when it cannot install a skill.
+
 ### Security
 
 - In local mode Forge listens on `127.0.0.1` and answers 403 to requests and terminal WebSockets from other sites or other hosts. The API no longer sends CORS headers there.
