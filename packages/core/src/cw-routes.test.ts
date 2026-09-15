@@ -6,6 +6,8 @@ import { LoginManager } from './login-manager.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import type { Runner } from './task-review.js'
+import type { TaskReviewState } from './cw-types.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
 
@@ -647,6 +649,50 @@ describe('CW Routes', () => {
   it('POST /api/cw/start type=login requires a harness', async () => {
     const res = await start({ type: 'login', account: 'default' })
     expect(res.status).toBe(400)
+  })
+
+  describe('GET /api/cw/review-state', () => {
+    const notRepo = join(tmpdir(), `forge-review-route-${Date.now()}`)
+    let calls = 0
+    let reviewApp: Hono
+
+    beforeAll(() => {
+      mkdirSync(notRepo, { recursive: true })
+      mkdirSync(join(TEST_CW, 'sessions/testproj/task-reviewed'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'sessions/testproj/task-reviewed/session.json'), JSON.stringify({
+        project: 'testproj', task: 'reviewed', type: 'task', account: 'default', worktree: notRepo, notes: '',
+        status: 'active', created: '2026-09-14T00:00:00Z', last_opened: '2026-09-14T00:00:00Z', opens: 1,
+      }))
+      const runner: Runner = async () => { calls++; return { code: 128, stdout: '', stderr: 'not a git repository' } }
+      reviewApp = new Hono()
+      reviewApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { runner }))
+    })
+
+    afterAll(() => { rmSync(notRepo, { recursive: true, force: true }) })
+
+    it('returns 404 for an unknown session', async () => {
+      const res = await reviewApp.request('/api/cw/review-state/testproj/task-nope')
+      expect(res.status).toBe(404)
+    })
+
+    it('returns workspace none for a loop session', async () => {
+      const res = await reviewApp.request('/api/cw/review-state/testproj/loop-noworktree')
+      expect(res.status).toBe(200)
+      expect((await res.json() as TaskReviewState).workspace).toBe('none')
+    })
+
+    it('caches a session for 30 s and refreshes with fresh=1', async () => {
+      const first = await reviewApp.request('/api/cw/review-state/testproj/task-reviewed')
+      expect((await first.json() as TaskReviewState).closeWarnings).toEqual(['state-unknown'])
+      const afterFirst = calls
+      expect(afterFirst).toBeGreaterThan(0)
+
+      await reviewApp.request('/api/cw/review-state/testproj/task-reviewed')
+      expect(calls).toBe(afterFirst)
+
+      await reviewApp.request('/api/cw/review-state/testproj/task-reviewed?fresh=1')
+      expect(calls).toBeGreaterThan(afterFirst)
+    })
   })
 })
 

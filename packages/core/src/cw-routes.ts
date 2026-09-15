@@ -11,6 +11,8 @@ import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-d
 import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 import { LoginManager } from './login-manager.js'
 import { importApiKey } from './api-key-login.js'
+import { buildTaskReviewState, createLimiter, runCommand, type Runner } from './task-review.js'
+import type { TaskReviewState } from './cw-types.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,10 +32,14 @@ export function resolveCwBin(cwHome: string): string {
   return existsSync(candidate) ? candidate : 'cw'
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
+  const run = options.runner ?? runCommand
+  const limitGh = createLimiter(4)
+  const REVIEW_TTL_MS = 30_000
+  const reviewCache = new Map<string, { at: number; value: Promise<TaskReviewState> }>()
   const knownAccount = (name: string) => ACCOUNT_NAME_RE.test(name) && reader.getAccounts().includes(name)
 
   const doctor = createDoctorClient(cwBin)
@@ -252,6 +258,24 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     } catch {
       return c.json({ output: '' })
     }
+  })
+
+  app.get('/review-state/:project/:sessionDir', async (c) => {
+    const project = c.req.param('project')
+    const sessionDir = c.req.param('sessionDir')
+    const session = reader.getSession(project, sessionDir)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    const key = `${project}::${sessionDir}`
+    const cached = reviewCache.get(key)
+    if (c.req.query('fresh') !== '1' && cached && Date.now() - cached.at < REVIEW_TTL_MS) {
+      return c.json(await cached.value)
+    }
+    const projectPath = reader.getProjects()[project]?.path ?? null
+    const value = buildTaskReviewState(session, projectPath, { run, limitGh, exists: existsSync })
+    reviewCache.set(key, { at: Date.now(), value })
+    value.catch(() => reviewCache.delete(key))
+    return c.json(await value)
   })
 
   app.post('/start', async (c) => {

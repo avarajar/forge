@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import type { ChecksSummary, CloseWarning, DiffStat, GitHubLink, PullRequestInfo, TaskReviewState } from './cw-types.js'
+import type { ChecksSummary, CloseWarning, CWSession, DiffStat, GitHubLink, PullRequestInfo, TaskReviewState } from './cw-types.js'
 
 export interface GitHubRepo { owner: string; repo: string }
 
@@ -224,6 +224,65 @@ export async function readPullRequestByNumber(run: Runner, cwd: string, number: 
     return typeof raw?.number === 'number' ? toPullRequestInfo(raw) : UNEXPECTED
   } catch {
     return UNEXPECTED
+  }
+}
+
+export interface ReviewDeps {
+  run: Runner
+  limitGh: <T>(fn: () => Promise<T>) => Promise<T>
+  exists: (path: string) => boolean
+}
+
+const NOT_GITHUB: PullRequestInfo = { status: 'unavailable', reason: 'origin is not a GitHub repository' }
+
+function idleState(workspace: TaskReviewState['workspace']): TaskReviewState {
+  return {
+    workspace, branch: null, base: null, uncommitted: 0, commits: null, upstream: null, unpushed: null,
+    diff: null, pr: { status: 'none' }, github: null, closeWarnings: [],
+  }
+}
+
+async function buildReviewSessionState(session: CWSession, projectPath: string | null, deps: ReviewDeps): Promise<TaskReviewState> {
+  if (!projectPath || !deps.exists(projectPath)) return idleState('none')
+  const remote = await deps.run('git', ['remote', 'get-url', 'origin'], projectPath)
+  const repo = remote.code === 0 ? parseGitHubRemote(remote.stdout) : null
+  const prNumber = session.pr
+  const pr: PullRequestInfo = !repo ? NOT_GITHUB
+    : prNumber ? await deps.limitGh(() => readPullRequestByNumber(deps.run, projectPath, prNumber))
+    : { status: 'none' }
+  const github = githubLink({ repo, kind: 'review', prNumber, pr, branch: null, base: null, upstream: null, commits: null, uncommitted: 0 })
+  return { ...idleState('none'), pr, github }
+}
+
+export async function buildTaskReviewState(session: CWSession, projectPath: string | null, deps: ReviewDeps): Promise<TaskReviewState> {
+  if (session.type === 'review') return buildReviewSessionState(session, projectPath, deps)
+  if (session.type !== 'task') return idleState('none')
+  const worktree = session.worktree
+  if (!worktree || !deps.exists(worktree)) return idleState('missing')
+
+  let snapshot: GitSnapshot
+  try {
+    snapshot = await readGitSnapshot(deps.run, worktree)
+  } catch {
+    return { ...idleState('ready'), pr: { status: 'unavailable', reason: 'Could not read git state' }, closeWarnings: ['state-unknown'] }
+  }
+
+  const { branch, repo, uncommitted, upstream, unpushed } = snapshot
+  const pr: PullRequestInfo = !repo ? NOT_GITHUB
+    : branch ? await deps.limitGh(() => readPullRequestForBranch(deps.run, worktree, branch))
+    : { status: 'none' }
+  const base = await resolveBase(deps.run, worktree, [
+    pr.status === 'found' ? `origin/${pr.baseRefName}` : null,
+    session.base_branch,
+    'origin/HEAD',
+    'origin/main',
+  ])
+  const { commits, diff } = await readBaseCounts(deps.run, worktree, base)
+
+  return {
+    workspace: 'ready', branch, base, uncommitted, commits, upstream, unpushed, diff, pr,
+    github: githubLink({ repo, kind: 'task', pr, branch, base, upstream, commits, uncommitted }),
+    closeWarnings: closeWarningsFor({ workspace: 'ready', uncommitted, commits, base, upstream, unpushed, pr, gitFailed: false }),
   }
 }
 

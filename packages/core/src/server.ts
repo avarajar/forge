@@ -49,7 +49,7 @@ export function createForgeServer(options: ServerOptions) {
 
   const cwReader = new CWReader()
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
-  app.route('/api/cw', cwRoutes(cwReader, { loginManager }))
+  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
   app.route('/api/skills', skillRoutes(cwReader))
 
   const ptyManager = new PTYManager()
