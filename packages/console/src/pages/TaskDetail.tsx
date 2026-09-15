@@ -17,7 +17,7 @@ interface TaskDetailProps {
   session: CWSession
   active: boolean
   onClose: () => void
-  onDone: () => void
+  onDone: () => void | Promise<void>
 }
 
 /* ── Component ── */
@@ -57,25 +57,6 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   }
 
   useEffect(() => { if (!isLogin) fetchData() }, [session])
-
-  const markDone = async () => {
-    try {
-      await fetch('/api/cw/done', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: session.project,
-          task: session.type === 'review' ? session.pr : session.task,
-          type: session.type,
-          sessionDir
-        })
-      })
-      showToast('Task closed', 'info')
-      onDone()
-    } catch {
-      showToast('Failed to close task', 'error')
-    }
-  }
 
   const handleRestart = () => {
     setPtyExited(false)
@@ -144,7 +125,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
               <ActionButton label="Restart" variant="secondary" onClick={handleRestart} />
             )}
             {session.status === 'active' && !isLogin && (
-              <ActionButton label="Done" variant="secondary" onClick={markDone} />
+              <ActionButton label="Done" variant="secondary" onClick={onDone} />
             )}
           </div>
         </div>

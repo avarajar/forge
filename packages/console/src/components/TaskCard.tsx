@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, sessionLabel, timeAgo } from '../config/types.js'
 import { HarnessBadge } from './HarnessBadge.js'
+import { reviewEntries, reviewKeyOf, useTaskReview } from '../hooks/useTaskReview.js'
 
 /* ── Small UI pieces ── */
 
@@ -66,6 +67,35 @@ const SourceLink: FunctionComponent<{ source?: string; url?: string }> = ({ sour
   return <span class="text-[11px] text-forge-muted">{label}</span>
 }
 
+/* ── Pull request chip ── */
+
+const PR_CHIP_STYLES = {
+  OPEN: { color: 'var(--forge-success)', bg: 'var(--forge-tint-emerald-bg)' },
+  DRAFT: { color: 'var(--forge-muted)', bg: 'var(--forge-ghost-bg)' },
+  MERGED: { color: '#a855f7', bg: 'var(--forge-tint-purple-bg)' },
+  CLOSED: { color: 'var(--forge-error)', bg: 'var(--forge-tint-rose-bg)' },
+} as const
+
+const CHECKS_MARK = { passing: ' ✓', failing: ' ✗', pending: ' …', none: '' } as const
+
+// its own component so only task and review cards fetch review state
+const PrChip: FunctionComponent<{ session: CWSession }> = ({ session }) => {
+  const entry = useTaskReview(session)
+  const pr = entry?.state?.pr
+  if (!pr || pr.status !== 'found') return null
+  const kind = pr.state === 'OPEN' && pr.isDraft ? 'DRAFT' : pr.state
+  const style = PR_CHIP_STYLES[kind]
+  return (
+    <span
+      class="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
+      style={{ color: style.color, backgroundColor: style.bg }}
+      title={pr.url}
+    >
+      PR #{pr.number}{pr.state === 'MERGED' ? ' merged' : ''}{CHECKS_MARK[pr.checks]}
+    </span>
+  )
+}
+
 /* ── Active task card ── */
 
 export const TaskCard: FunctionComponent<{
@@ -77,6 +107,9 @@ export const TaskCard: FunctionComponent<{
 }> = ({ session, showAccount, isOpenInTab, onSelect, onMarkDone }) => {
   const style = getTypeStyle(session.type)
   const [hovered, setHovered] = useState(false)
+  const reviewed = session.type === 'task' || session.type === 'review'
+  const reviewPr = reviewEntries.value[reviewKeyOf(session)]?.state?.pr
+  const merged = reviewPr?.status === 'found' && reviewPr.state === 'MERGED'
   return (
     <div
       class="group relative flex items-center gap-4 p-4 rounded-xl bg-forge-surface cursor-pointer transition-all"
@@ -113,6 +146,7 @@ export const TaskCard: FunctionComponent<{
             </span>
           )}
           <SourceLink source={session.source} url={session.source_url} />
+          {reviewed && <PrChip session={session} />}
         </div>
       </div>
 
@@ -123,7 +157,7 @@ export const TaskCard: FunctionComponent<{
         </span>
         {onMarkDone && (
           <button
-            class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-forge-muted hover:text-forge-success opacity-0 group-hover:opacity-100"
+            class={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-forge-muted hover:text-forge-success ${merged ? '' : 'opacity-0 group-hover:opacity-100'}`}
             style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
             onClick={(e: Event) => { e.stopPropagation(); onMarkDone() }}
             title="Mark as done"
