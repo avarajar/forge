@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
-import { cwRoutes } from './cw-routes.js'
+import { cwRoutes, tailOutput } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
 import { LoginManager } from './login-manager.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import type { Runner } from './task-review.js'
 import type { TaskReviewState } from './cw-types.js'
 import type { DetectedEditor } from './editors.js'
+import { makeFixtureRepo, type FixtureRepo } from './test-git.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
 
@@ -430,26 +431,88 @@ describe('CW Routes', () => {
     expect(body.output).toBe('')
   })
 
-  it('POST /api/cw/done marks a loop session done using the loop-<task> sessionDir default', async () => {
-    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-donetest'), { recursive: true })
-    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), JSON.stringify({
-      project: 'testproj', task: 'donetest', type: 'loop', status: 'active',
-      account: 'default', worktree: '', notes: '', created: '2026-07-01T00:00:00Z',
-      last_opened: '2026-07-01T00:00:00Z', opens: 1
-    }))
-
-    const res = await app.request('/api/cw/done', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: 'testproj', task: 'donetest', type: 'loop' }),
+  describe('POST /api/cw/done', () => {
+    const cwScript = () => join(TEST_CW, 'bin/cw')
+    const argsLog = () => join(TEST_CW, 'done-args.log')
+    const writeCw = (body: string) => {
+      writeFileSync(cwScript(), `#!/bin/sh\n${body}\n`)
+      chmodSync(cwScript(), 0o755)
+    }
+    const done = (body: Record<string, string>) => app.request('/api/cw/done', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
-    expect(res.status).toBe(200)
-    const body = await res.json() as { ok: boolean; updated: boolean }
-    expect(body.ok).toBe(true)
-    expect(body.updated).toBe(true)
 
-    const meta = JSON.parse(readFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), 'utf-8'))
-    expect(meta.status).toBe('done')
+    afterAll(() => writeCw('exit 0'))
+
+    it('runs cw loop --done and waits for it', async () => {
+      writeCw(`echo "$@" > "${argsLog()}"\nexit 0`)
+      const res = await done({ project: 'testproj', task: 'donetest', type: 'loop' })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true })
+      expect(readFileSync(argsLog(), 'utf-8').trim()).toBe('loop testproj donetest --done')
+    })
+
+    it('runs cw work --done for a task', async () => {
+      writeCw(`echo "$@" > "${argsLog()}"\nexit 0`)
+      await done({ project: 'testproj', task: 'mytask', type: 'task' })
+      expect(readFileSync(argsLog(), 'utf-8').trim()).toBe('work testproj mytask --done')
+    })
+
+    it('returns the tail of cw output without ANSI codes when it fails', async () => {
+      writeCw(`echo "Closing task: mytask"\nprintf '\\033[31mError:\\033[0m worktree is locked\\n' >&2\nexit 3`)
+      const res = await done({ project: 'testproj', task: 'mytask', type: 'task' })
+      expect(res.status).toBe(500)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+      expect(body.error).toBe('Closing task: mytask\nError: worktree is locked')
+    })
+  })
+
+  describe('tailOutput', () => {
+    it('keeps the last lines and strips ANSI codes', () => {
+      const text = Array.from({ length: 25 }, (_, i) => `\x1b[2mline ${i + 1}\x1b[0m`).join('\n')
+      const tail = tailOutput(text).split('\n')
+      expect(tail).toHaveLength(20)
+      expect(tail[0]).toBe('line 6')
+      expect(tail[19]).toBe('line 25')
+    })
+  })
+
+  describe('git routes on a real worktree', () => {
+    let repo: FixtureRepo
+
+    beforeAll(() => {
+      repo = makeFixtureRepo()
+      repo.git('switch', '-q', '-c', 'fix-diff')
+      writeFileSync(join(repo.work, 'a.txt'), 'one\n')
+      repo.git('add', 'a.txt')
+      repo.git('commit', '-q', '-m', 'a')
+      mkdirSync(join(TEST_CW, 'sessions/testproj/task-fix-diff'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'sessions/testproj/task-fix-diff/session.json'), JSON.stringify({
+        project: 'testproj', task: 'fix-diff', type: 'task', account: 'default', worktree: repo.work,
+        base_branch: 'origin/main', notes: '', status: 'active',
+        created: '2026-09-14T00:00:00Z', last_opened: '2026-09-14T00:00:00Z', opens: 1,
+      }))
+    })
+
+    afterAll(() => { rmSync(repo.root, { recursive: true, force: true }) })
+
+    it('reads the branch', async () => {
+      const res = await app.request('/api/cw/git/branch/testproj/task-fix-diff')
+      expect(await res.json()).toEqual({ branch: 'fix-diff' })
+    })
+
+    it('diffs against the base branch instead of HEAD~5', async () => {
+      const res = await app.request('/api/cw/git/diff/testproj/task-fix-diff')
+      const body = await res.json() as { output: string }
+      expect(body.output).toContain('a.txt')
+      expect(body.output).toContain('1 file changed')
+    })
+
+    it('reads a clean status as empty output', async () => {
+      const res = await app.request('/api/cw/git/status/testproj/task-fix-diff')
+      expect(await res.json()).toEqual({ output: '' })
+    })
   })
 
   describe('GET /api/cw/browse-dirs', () => {
