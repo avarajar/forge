@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
 import { ACCOUNT_NAME_RE, HARNESS_NAME_RE, PROVIDER_NAME_RE, MODEL_NAME_RE, type CWSession } from './cw-types.js'
-import { execSync, execFileSync, execFile, spawn } from 'node:child_process'
+import { execFileSync, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
 import type { Dirent } from 'node:fs'
@@ -11,6 +11,9 @@ import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-d
 import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 import { LoginManager } from './login-manager.js'
 import { importApiKey } from './api-key-login.js'
+import { buildTaskReviewState, createLimiter, resolveBase, runCommand, type Runner, type RunResult } from './task-review.js'
+import type { TaskReviewState } from './cw-types.js'
+import { detectEditors, openInEditor, systemProbe, type DetectedEditor } from './editors.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -30,10 +33,46 @@ export function resolveCwBin(cwHome: string): string {
   return existsSync(candidate) ? candidate : 'cw'
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager } = {}): Hono {
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g
+
+export function tailOutput(text: string, max = 20): string {
+  return text.replace(ANSI_RE, '').split('\n').map(line => line.trimEnd()).filter(line => line.length > 0).slice(-max).join('\n')
+}
+
+const CW_DONE_TIMEOUT_MS = 60_000
+
+export function cwDoneTimeoutMessage(ms: number): string {
+  return `cw --done timed out after ${ms % 1000 === 0 ? `${ms / 1000} s` : `${ms} ms`}`
+}
+
+async function runCw(bin: string, args: string[], timeoutMs: number): Promise<RunResult & { timedOut: boolean }> {
+  const pending = execFileAsync(bin, args, { env: envWithoutHarness(), timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 })
+  // nobody answers a prompt here, so cw sees end of input instead of waiting for the timeout
+  pending.child.stdin?.end()
+  try {
+    const { stdout, stderr } = await pending
+    return { code: 0, stdout: String(stdout), stderr: String(stderr), timedOut: false }
+  } catch (err) {
+    const e = err as { code?: number | string | null; killed?: boolean; signal?: string | null; stdout?: string; stderr?: string; message: string }
+    // a maxBuffer overflow also kills the child, but reports a string code
+    if (e.killed && e.signal === 'SIGTERM' && typeof e.code !== 'string') {
+      return { code: 124, stdout: e.stdout ?? '', stderr: e.stderr ?? '', timedOut: true }
+    }
+    return { code: typeof e.code === 'number' ? e.code : 1, stdout: e.stdout ?? '', stderr: e.stderr || e.message, timedOut: false }
+  }
+}
+
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
+  const run = options.runner ?? runCommand
+  const localOnly = options.localOnly ?? true
+  const editors = options.editors ?? detectEditors(systemProbe)
+  const cwDoneTimeoutMs = options.cwDoneTimeoutMs ?? CW_DONE_TIMEOUT_MS
+  const limitGh = createLimiter(4)
+  const REVIEW_TTL_MS = 30_000
+  const reviewCache = new Map<string, { at: number; value: Promise<TaskReviewState> }>()
   const knownAccount = (name: string) => ACCOUNT_NAME_RE.test(name) && reader.getAccounts().includes(name)
 
   const doctor = createDoctorClient(cwBin)
@@ -206,51 +245,81 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     return { session }
   }
 
-  app.get('/git/status/:project/:sessionDir', (c) => {
+  app.get('/git/status/:project/:sessionDir', async (c) => {
     const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
     if ('error' in result) return c.json({ error: 'Session not found' }, 404)
     if ('empty' in result) return c.json({ output: '' })
-    try {
-      const output = execSync('git status --short', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 5000 })
-      return c.json({ output })
-    } catch {
-      return c.json({ output: '' })
-    }
+    const status = await run('git', ['status', '--short'], result.session.worktree)
+    return c.json({ output: status.code === 0 ? status.stdout : '' })
   })
 
-  app.get('/git/log/:project/:sessionDir', (c) => {
+  app.get('/git/log/:project/:sessionDir', async (c) => {
     const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
     if ('error' in result) return c.json({ error: 'Session not found' }, 404)
     if ('empty' in result) return c.json({ output: '' })
-    try {
-      const output = execSync('git log --oneline -20', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 5000 })
-      return c.json({ output })
-    } catch {
-      return c.json({ output: '' })
-    }
+    const log = await run('git', ['log', '--oneline', '-20'], result.session.worktree)
+    return c.json({ output: log.code === 0 ? log.stdout : '' })
   })
 
-  app.get('/git/branch/:project/:sessionDir', (c) => {
+  app.get('/git/branch/:project/:sessionDir', async (c) => {
     const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
     if ('error' in result) return c.json({ error: 'Session not found' }, 404)
     if ('empty' in result) return c.json({ branch: '' })
-    try {
-      const output = execSync('git rev-parse --abbrev-ref HEAD', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 5000 }).trim()
-      return c.json({ branch: output })
-    } catch {
-      return c.json({ branch: '' })
-    }
+    const head = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], result.session.worktree)
+    return c.json({ branch: head.code === 0 ? head.stdout.trim() : '' })
   })
 
-  app.get('/git/diff/:project/:sessionDir', (c) => {
+  app.get('/git/diff/:project/:sessionDir', async (c) => {
     const result = loadGitSession(c.req.param('project'), c.req.param('sessionDir'))
     if ('error' in result) return c.json({ error: 'Session not found' }, 404)
     if ('empty' in result) return c.json({ output: '' })
+    const worktree = result.session.worktree
+    // D3 without the pull request step, so this route never calls gh
+    const base = await resolveBase(run, worktree, [result.session.base_branch, 'origin/HEAD', 'origin/main'])
+    if (!base) return c.json({ output: '' })
+    const diff = await run('git', ['diff', '--stat', base], worktree)
+    return c.json({ output: diff.code === 0 ? diff.stdout : '' })
+  })
+
+  app.get('/review-state/:project/:sessionDir', async (c) => {
+    const project = c.req.param('project')
+    const sessionDir = c.req.param('sessionDir')
+    const session = reader.getSession(project, sessionDir)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    const key = `${project}::${sessionDir}`
+    const cached = reviewCache.get(key)
+    if (c.req.query('fresh') !== '1' && cached && Date.now() - cached.at < REVIEW_TTL_MS) {
+      return c.json(await cached.value)
+    }
+    const projectPath = reader.getProjects()[project]?.path ?? null
+    const value = buildTaskReviewState(session, projectPath, { run, limitGh, exists: existsSync })
+    reviewCache.set(key, { at: Date.now(), value })
+    value.catch(() => reviewCache.delete(key))
+    return c.json(await value)
+  })
+
+  app.get('/editors', (c) => c.json({
+    enabled: localOnly,
+    editors: localOnly ? editors.map(({ id, label }) => ({ id, label })) : [],
+  }))
+
+  app.post('/open-in-editor', async (c) => {
+    if (!localOnly) {
+      return c.json({ ok: false, error: 'Opening an editor only works on the machine running Forge' }, 403)
+    }
+    const { project, sessionDir, editor } = await c.req.json<{ project: string; sessionDir: string; editor: string }>()
+    const target = editors.find(e => e.id === editor)
+    if (!target) return c.json({ ok: false, error: `Editor not available: ${editor}` }, 400)
+    const session = reader.getSession(project, sessionDir)
+    if (!session?.worktree || !existsSync(session.worktree)) {
+      return c.json({ ok: false, error: 'This task has no workspace on disk yet' }, 404)
+    }
     try {
-      const output = execSync('git diff HEAD~5..HEAD --stat 2>/dev/null || git diff --stat', { cwd: result.session.worktree, encoding: 'utf-8', timeout: 10000 })
-      return c.json({ output })
-    } catch {
-      return c.json({ output: '' })
+      await openInEditor(target, session.worktree)
+      return c.json({ ok: true })
+    } catch (err) {
+      return c.json({ ok: false, error: `Could not start ${target.label}: ${(err as Error).message}` }, 500)
     }
   })
 
@@ -522,35 +591,20 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
   app.post('/done', async (c) => {
     const { project, task, type, sessionDir } = await c.req.json<{ project: string; task: string; type: string; sessionDir?: string }>()
-
-    // Directly update session.json for instant UI feedback
-    const cwHome = reader.cwHome
     const sessionDirName = sessionDir ?? (type === 'review' ? `review-pr-${task}` : type === 'loop' ? `loop-${task}` : `task-${task}`)
-    const sessionFile = join(cwHome, 'sessions', project, sessionDirName, 'session.json')
-
-    let updated = false
-    if (existsSync(sessionFile)) {
-      try {
-        const meta = JSON.parse(readFileSync(sessionFile, 'utf-8'))
-        meta.status = 'done'
-        meta.closed = new Date().toISOString()
-        writeFileSync(sessionFile, JSON.stringify(meta, null, 2))
-        updated = true
-      } catch {}
-    }
-
-    // Also spawn cw --done in background for worktree cleanup
     const args = type === 'review'
       ? ['review', project, task, '--done']
       : type === 'loop'
         ? ['loop', project, task, '--done']
         : ['work', project, task, '--done']
-    try {
-      const child = spawn(cwBin, args, { detached: true, stdio: 'ignore', env: envWithoutHarness() })
-      child.unref()
-    } catch {}
 
-    return c.json({ ok: true, updated })
+    reviewCache.delete(`${project}::${sessionDirName}`)
+    // CW closes the session itself; a failed close leaves it active so nothing is lost silently
+    const result = await runCw(cwBin, args, cwDoneTimeoutMs)
+    if (result.code === 0) return c.json({ ok: true })
+    const output = tailOutput(`${result.stdout}\n${result.stderr}`)
+    const error = result.timedOut ? [cwDoneTimeoutMessage(cwDoneTimeoutMs), output].filter(Boolean).join('\n') : output || 'cw --done failed'
+    return c.json({ ok: false, error }, 500)
   })
 
   app.post('/move-project', async (c) => {

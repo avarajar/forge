@@ -2,8 +2,10 @@ import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { TYPE_STYLES } from '../config/types.js'
+import { TYPE_STYLES, sessionDirOf } from '../config/types.js'
 import { HarnessBadge } from '../components/HarnessBadge.js'
+import { ReviewSummary } from '../components/ReviewSummary.js'
+import { useTaskReview } from '../hooks/useTaskReview.js'
 
 /* ── Types ── */
 
@@ -13,21 +15,22 @@ interface ToolsInfo { mcps: ToolsMcp[]; plugins: ToolsPlugin[] }
 
 interface TaskDetailProps {
   session: CWSession
+  active: boolean
   onClose: () => void
-  onDone: () => void
+  onDone: () => void | Promise<void>
 }
 
 /* ── Component ── */
 
-export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClose, onDone }) => {
-  const [gitStatus, setGitStatus] = useState<string>('')
+export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active, onClose, onDone }) => {
   const [branch, setBranch] = useState<string>('')
   const [ptyExited, setPtyExited] = useState(false)
   const [connected, setConnected] = useState(false)
   const [wsKey, setWsKey] = useState(0)
   const [tools, setTools] = useState<ToolsInfo | null>(null)
 
-  const sessionDir = session.sessionDir ?? (session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`)
+  const sessionDir = sessionDirOf(session)
+  const review = useTaskReview(session, { poll: active && session.type === 'task' })
   const typeCfg = TYPE_STYLES[session.type] ?? TYPE_STYLES.task
   const isLogin = session.type === 'login'
 
@@ -40,12 +43,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
   const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${projectEnc}/${sessionDirEnc}?k=${wsKey}`
 
   const fetchData = async () => {
-    const [statusRes, toolsRes, branchRes] = await Promise.all([
-      fetch(`/api/cw/git/status/${projectEnc}/${sessionDirEnc}`).catch(() => null),
+    const [toolsRes, branchRes] = await Promise.all([
       fetch(`/api/cw/tools?project=${projectEnc}`).catch(() => null),
       fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`).catch(() => null),
     ])
-    if (statusRes) setGitStatus((await statusRes.json() as { output: string }).output)
     if (toolsRes) setTools(await toolsRes.json() as ToolsInfo)
     if (branchRes) {
       const data = await branchRes.json() as { branch: string }
@@ -57,31 +58,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
 
   useEffect(() => { if (!isLogin) fetchData() }, [session])
 
-  const markDone = async () => {
-    try {
-      await fetch('/api/cw/done', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project: session.project,
-          task: session.type === 'review' ? session.pr : session.task,
-          type: session.type,
-          sessionDir
-        })
-      })
-      showToast('Task closed', 'info')
-      onDone()
-    } catch {
-      showToast('Failed to close task', 'error')
-    }
-  }
-
   const handleRestart = () => {
     setPtyExited(false)
     setWsKey(k => k + 1)
   }
-
-  const filesChanged = gitStatus ? gitStatus.split('\n').filter(Boolean).length : 0
 
   const mcpList = tools?.mcps ?? []
   const pluginList = tools?.plugins ?? []
@@ -131,10 +111,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
           <span class="w-px h-3 shrink-0" style={{ backgroundColor: 'var(--forge-ghost-border)' }} />
 
           {/* Stats */}
-          <div class="flex items-center gap-2.5 text-[11px] text-forge-muted">
-            <span>{filesChanged} file{filesChanged !== 1 ? 's' : ''}</span>
+          <div class="flex items-center gap-2.5 text-[11px] text-forge-muted min-w-0">
+            {!isLogin && <ReviewSummary session={session} entry={review} />}
             <span style={{ opacity: 0.3 }}>&middot;</span>
-            <span>{session.opens} session{session.opens !== 1 ? 's' : ''}</span>
+            <span class="shrink-0">{session.opens} session{session.opens !== 1 ? 's' : ''}</span>
           </div>
 
           <span class="flex-1" />
@@ -145,7 +125,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, onClos
               <ActionButton label="Restart" variant="secondary" onClick={handleRestart} />
             )}
             {session.status === 'active' && !isLogin && (
-              <ActionButton label="Done" variant="secondary" onClick={markDone} />
+              <ActionButton label="Done" variant="secondary" onClick={onDone} />
             )}
           </div>
         </div>

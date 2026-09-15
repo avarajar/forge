@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
-import { cwRoutes } from './cw-routes.js'
+import { cwRoutes, cwDoneTimeoutMessage, tailOutput } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
 import { LoginManager } from './login-manager.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import type { Runner } from './task-review.js'
+import type { TaskReviewState } from './cw-types.js'
+import type { DetectedEditor } from './editors.js'
+import { makeFixtureRepo, type FixtureRepo } from './test-git.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
 
@@ -427,26 +431,117 @@ describe('CW Routes', () => {
     expect(body.output).toBe('')
   })
 
-  it('POST /api/cw/done marks a loop session done using the loop-<task> sessionDir default', async () => {
-    mkdirSync(join(TEST_CW, 'sessions/testproj/loop-donetest'), { recursive: true })
-    writeFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), JSON.stringify({
-      project: 'testproj', task: 'donetest', type: 'loop', status: 'active',
-      account: 'default', worktree: '', notes: '', created: '2026-07-01T00:00:00Z',
-      last_opened: '2026-07-01T00:00:00Z', opens: 1
-    }))
-
-    const res = await app.request('/api/cw/done', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: 'testproj', task: 'donetest', type: 'loop' }),
+  describe('POST /api/cw/done', () => {
+    const cwScript = () => join(TEST_CW, 'bin/cw')
+    const argsLog = () => join(TEST_CW, 'done-args.log')
+    const writeCw = (body: string) => {
+      writeFileSync(cwScript(), `#!/bin/sh\n${body}\n`)
+      chmodSync(cwScript(), 0o755)
+    }
+    const done = (body: Record<string, string>) => app.request('/api/cw/done', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
-    expect(res.status).toBe(200)
-    const body = await res.json() as { ok: boolean; updated: boolean }
-    expect(body.ok).toBe(true)
-    expect(body.updated).toBe(true)
 
-    const meta = JSON.parse(readFileSync(join(TEST_CW, 'sessions/testproj/loop-donetest/session.json'), 'utf-8'))
-    expect(meta.status).toBe('done')
+    afterAll(() => writeCw('exit 0'))
+
+    it('runs cw loop --done and waits for it', async () => {
+      writeCw(`echo "$@" > "${argsLog()}"\nexit 0`)
+      const res = await done({ project: 'testproj', task: 'donetest', type: 'loop' })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true })
+      expect(readFileSync(argsLog(), 'utf-8').trim()).toBe('loop testproj donetest --done')
+    })
+
+    it('runs cw work --done for a task', async () => {
+      writeCw(`echo "$@" > "${argsLog()}"\nexit 0`)
+      await done({ project: 'testproj', task: 'mytask', type: 'task' })
+      expect(readFileSync(argsLog(), 'utf-8').trim()).toBe('work testproj mytask --done')
+    })
+
+    it('returns the tail of cw output without ANSI codes when it fails', async () => {
+      writeCw(`echo "Closing task: mytask"\nprintf '\\033[31mError:\\033[0m worktree is locked\\n' >&2\nexit 3`)
+      const res = await done({ project: 'testproj', task: 'mytask', type: 'task' })
+      expect(res.status).toBe(500)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.ok).toBe(false)
+      expect(body.error).toBe('Closing task: mytask\nError: worktree is locked')
+    })
+
+    it('closes stdin so a prompt from cw cannot wait for the timeout', async () => {
+      const quickApp = new Hono()
+      quickApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { cwDoneTimeoutMs: 3000 }))
+      writeCw(`read answer || exit 0\nexit 5`)
+      const res = await quickApp.request('/api/cw/done', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: 'testproj', task: 'mytask', type: 'task' }),
+      })
+      expect(await res.json()).toEqual({ ok: true })
+    })
+
+    it('says cw --done timed out when it is killed by the timeout', async () => {
+      const slowApp = new Hono()
+      slowApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { cwDoneTimeoutMs: 300 }))
+      writeCw(`echo "Closing task: mytask"\nexec sleep 5`)
+      const res = await slowApp.request('/api/cw/done', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: 'testproj', task: 'mytask', type: 'task' }),
+      })
+      expect(res.status).toBe(500)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.error.split('\n')[0]).toBe('cw --done timed out after 300 ms')
+      expect(body.error).toContain('Closing task: mytask')
+    })
+
+    it('words the default timeout in seconds', () => {
+      expect(cwDoneTimeoutMessage(60_000)).toBe('cw --done timed out after 60 s')
+    })
+  })
+
+  describe('tailOutput', () => {
+    it('keeps the last lines and strips ANSI codes', () => {
+      const text = Array.from({ length: 25 }, (_, i) => `\x1b[2mline ${i + 1}\x1b[0m`).join('\n')
+      const tail = tailOutput(text).split('\n')
+      expect(tail).toHaveLength(20)
+      expect(tail[0]).toBe('line 6')
+      expect(tail[19]).toBe('line 25')
+    })
+  })
+
+  describe('git routes on a real worktree', () => {
+    let repo: FixtureRepo
+
+    beforeAll(() => {
+      repo = makeFixtureRepo()
+      repo.git('switch', '-q', '-c', 'fix-diff')
+      writeFileSync(join(repo.work, 'a.txt'), 'one\n')
+      repo.git('add', 'a.txt')
+      repo.git('commit', '-q', '-m', 'a')
+      mkdirSync(join(TEST_CW, 'sessions/testproj/task-fix-diff'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'sessions/testproj/task-fix-diff/session.json'), JSON.stringify({
+        project: 'testproj', task: 'fix-diff', type: 'task', account: 'default', worktree: repo.work,
+        base_branch: 'origin/main', notes: '', status: 'active',
+        created: '2026-09-14T00:00:00Z', last_opened: '2026-09-14T00:00:00Z', opens: 1,
+      }))
+    })
+
+    afterAll(() => { rmSync(repo.root, { recursive: true, force: true }) })
+
+    it('reads the branch', async () => {
+      const res = await app.request('/api/cw/git/branch/testproj/task-fix-diff')
+      expect(await res.json()).toEqual({ branch: 'fix-diff' })
+    })
+
+    it('diffs against the base branch instead of HEAD~5', async () => {
+      const res = await app.request('/api/cw/git/diff/testproj/task-fix-diff')
+      const body = await res.json() as { output: string }
+      expect(body.output).toContain('a.txt')
+      expect(body.output).toContain('1 file changed')
+    })
+
+    it('reads a clean status as empty output', async () => {
+      const res = await app.request('/api/cw/git/status/testproj/task-fix-diff')
+      expect(await res.json()).toEqual({ output: '' })
+    })
   })
 
   describe('GET /api/cw/browse-dirs', () => {
@@ -647,6 +742,102 @@ describe('CW Routes', () => {
   it('POST /api/cw/start type=login requires a harness', async () => {
     const res = await start({ type: 'login', account: 'default' })
     expect(res.status).toBe(400)
+  })
+
+  describe('GET /api/cw/review-state', () => {
+    const notRepo = join(tmpdir(), `forge-review-route-${Date.now()}`)
+    let calls = 0
+    let reviewApp: Hono
+
+    beforeAll(() => {
+      mkdirSync(notRepo, { recursive: true })
+      mkdirSync(join(TEST_CW, 'sessions/testproj/task-reviewed'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'sessions/testproj/task-reviewed/session.json'), JSON.stringify({
+        project: 'testproj', task: 'reviewed', type: 'task', account: 'default', worktree: notRepo, notes: '',
+        status: 'active', created: '2026-09-14T00:00:00Z', last_opened: '2026-09-14T00:00:00Z', opens: 1,
+      }))
+      const runner: Runner = async () => { calls++; return { code: 128, stdout: '', stderr: 'not a git repository' } }
+      reviewApp = new Hono()
+      reviewApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { runner }))
+    })
+
+    afterAll(() => { rmSync(notRepo, { recursive: true, force: true }) })
+
+    it('returns 404 for an unknown session', async () => {
+      const res = await reviewApp.request('/api/cw/review-state/testproj/task-nope')
+      expect(res.status).toBe(404)
+    })
+
+    it('returns workspace none for a loop session', async () => {
+      const res = await reviewApp.request('/api/cw/review-state/testproj/loop-noworktree')
+      expect(res.status).toBe(200)
+      expect((await res.json() as TaskReviewState).workspace).toBe('none')
+    })
+
+    it('caches a session for 30 s and refreshes with fresh=1', async () => {
+      const first = await reviewApp.request('/api/cw/review-state/testproj/task-reviewed')
+      expect((await first.json() as TaskReviewState).closeWarnings).toEqual(['state-unknown'])
+      const afterFirst = calls
+      expect(afterFirst).toBeGreaterThan(0)
+
+      await reviewApp.request('/api/cw/review-state/testproj/task-reviewed')
+      expect(calls).toBe(afterFirst)
+
+      await reviewApp.request('/api/cw/review-state/testproj/task-reviewed?fresh=1')
+      expect(calls).toBeGreaterThan(afterFirst)
+    })
+  })
+
+  describe('editors', () => {
+    const workspace = join(tmpdir(), `forge-editor-route-${Date.now()}`)
+    const editors: DetectedEditor[] = [{ id: 'vscode', label: 'VS Code', bin: '/bin/sh', args: ['-c', 'exit 0'] }]
+    let localApp: Hono
+    let remoteApp: Hono
+
+    beforeAll(() => {
+      mkdirSync(workspace, { recursive: true })
+      mkdirSync(join(TEST_CW, 'sessions/testproj/task-editable'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'sessions/testproj/task-editable/session.json'), JSON.stringify({
+        project: 'testproj', task: 'editable', type: 'task', account: 'default', worktree: workspace, notes: '',
+        status: 'active', created: '2026-09-14T00:00:00Z', last_opened: '2026-09-14T00:00:00Z', opens: 1,
+      }))
+      localApp = new Hono()
+      localApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { editors, localOnly: true }))
+      remoteApp = new Hono()
+      remoteApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { editors, localOnly: false }))
+    })
+
+    afterAll(() => { rmSync(workspace, { recursive: true, force: true }) })
+
+    const open = (target: Hono, body: Record<string, string>) => target.request('/api/cw/open-in-editor', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+
+    it('lists detected editors in local mode and none remotely', async () => {
+      expect(await (await localApp.request('/api/cw/editors')).json()).toEqual({ enabled: true, editors: [{ id: 'vscode', label: 'VS Code' }] })
+      expect(await (await remoteApp.request('/api/cw/editors')).json()).toEqual({ enabled: false, editors: [] })
+    })
+
+    it('refuses to open an editor remotely', async () => {
+      const res = await open(remoteApp, { project: 'testproj', sessionDir: 'task-editable', editor: 'vscode' })
+      expect(res.status).toBe(403)
+    })
+
+    it('rejects an editor that was not detected', async () => {
+      const res = await open(localApp, { project: 'testproj', sessionDir: 'task-editable', editor: 'zed' })
+      expect(res.status).toBe(400)
+    })
+
+    it('returns 404 when the task has no workspace on disk', async () => {
+      const res = await open(localApp, { project: 'testproj', sessionDir: 'task-mytask', editor: 'vscode' })
+      expect(res.status).toBe(404)
+    })
+
+    it('opens the worktree', async () => {
+      const res = await open(localApp, { project: 'testproj', sessionDir: 'task-editable', editor: 'vscode' })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true })
+    })
   })
 })
 

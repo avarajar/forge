@@ -89,6 +89,9 @@ export const QUICK_TYPES = [
 export const sessionKey = (s: CWSession) =>
   s.sessionDir ? `${s.project}::${s.sessionDir}` : `${s.project}::${s.task ?? s.pr}`
 
+export const sessionDirOf = (s: CWSession): string =>
+  s.sessionDir ?? (s.type === 'review' ? `review-pr-${s.pr}` : s.type === 'loop' ? `loop-${s.task}` : `task-${s.task}`)
+
 export const sessionLabel = (s: CWSession) =>
   s.type === 'review' ? `PR #${s.pr}`
   : s.type === 'general' ? `General (${s.account})`

@@ -9,11 +9,13 @@ import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
+import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { TYPE_STYLES, sessionKey, sessionLabel } from './config/types.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
+import { loadReviewState, refreshReviewStates } from './hooks/useTaskReview.js'
 import './styles/theme.css'
 import 'virtual:uno.css'
 
@@ -99,6 +101,7 @@ function App() {
       setSpaces(await spacesRes.json() as CWSession[])
       setProjects(await projectsRes.json() as Record<string, { path: string; account: string }>)
       setAccounts(await accountsRes.json() as string[])
+      refreshReviewStates()
     } catch {
       showToast('Failed to connect to server', 'error')
     } finally {
@@ -125,7 +128,9 @@ function App() {
     setListView('new-task')
   }
 
-  const handleMarkDone = useCallback(async (session: CWSession) => {
+  const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
+
+  const performClose = useCallback(async (session: CWSession, onClosed?: () => void) => {
     try {
       const res = await fetch('/api/cw/done', {
         method: 'POST',
@@ -134,20 +139,52 @@ function App() {
           project: session.project,
           task: session.type === 'review' ? session.pr : session.task,
           type: session.type,
-          sessionDir: session.sessionDir
-        })
+          sessionDir: session.sessionDir,
+        }),
       })
       const result = await res.json() as { ok: boolean; error?: string }
       if (result.ok) {
         showToast('Task closed', 'info')
+        onClosed?.()
         refreshAfterAction()
       } else {
-        showToast(result.error ?? 'Failed to mark task as done', 'error')
+        const error = result.error ?? 'cw --done failed'
+        console.error(`[forge] closing ${session.project}/${session.task ?? session.pr} failed:\n${error}`)
+        showToast(error.split('\n')[0], 'error')
       }
     } catch {
-      showToast('Failed to mark task as done', 'error')
+      showToast('Failed to close the task', 'error')
     }
   }, [refreshAfterAction])
+
+  // checks the task first and only asks when closing could lose work or cut a review short
+  const requestClose = useCallback(async (session: CWSession, onClosed?: () => void) => {
+    const entry = await loadReviewState(session, true)
+    if (entry.state && entry.state.closeWarnings.length === 0) {
+      await performClose(session, onClosed)
+      return
+    }
+    setCloseRequest({ session, state: entry.state, error: entry.error, onClosed })
+  }, [performClose])
+
+  const handleMarkDone = useCallback((session: CWSession) => requestClose(session), [requestClose])
+
+  const closeDialog = (
+    <CloseTaskDialog
+      request={closeRequest}
+      onCancel={() => setCloseRequest(null)}
+      onConfirm={async () => {
+        const request = closeRequest
+        if (!request) return
+        // the dialog stays open until cw --done settles, so Close task shows its spinner
+        try {
+          await performClose(request.session, request.onClosed)
+        } finally {
+          setCloseRequest(null)
+        }
+      }}
+    />
+  )
 
   const handleGoToList = useCallback(() => {
     tabs.goToList()
@@ -292,6 +329,7 @@ function App() {
             onCreateWithAI={handleCreateSkillWithAI}
           />
         ) : null}
+        {closeDialog}
       </Shell>
     )
   }
@@ -328,14 +366,16 @@ function App() {
               >
                 <TaskDetail
                   session={session}
+                  active={isActive}
                   onClose={() => tabs.closeTab(i)}
-                  onDone={() => { tabs.closeTab(i); refreshAfterAction() }}
+                  onDone={() => requestClose(session, () => { void tabs.closeTabByKey(sessionKey(session)) })}
                 />
               </div>
             )
           })}
         </div>
       </div>
+      {closeDialog}
     </Shell>
   )
 }

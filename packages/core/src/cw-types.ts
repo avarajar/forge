@@ -30,6 +30,7 @@ export interface CWSession {
   workflow?: string
   model?: string
   worktree: string
+  base_branch?: string
   notes: string
   source?: string
   source_url?: string
@@ -152,4 +153,44 @@ export interface ExploreResult {
   source: 'skills.sh'
   url: string
   repo: string
+}
+
+export type ChecksSummary = 'passing' | 'failing' | 'pending' | 'none'
+
+export type PullRequestInfo =
+  | {
+      status: 'found'
+      number: number
+      url: string
+      state: 'OPEN' | 'MERGED' | 'CLOSED'
+      isDraft: boolean
+      baseRefName: string
+      headRefOid: string
+      checks: ChecksSummary
+      review: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null
+    }
+  | { status: 'none' }
+  | { status: 'unavailable'; reason: string }
+
+export type CloseWarning = 'uncommitted' | 'unpushed' | 'pr-open' | 'state-unknown'
+
+export interface DiffStat { files: number; insertions: number; deletions: number }
+
+export type GitHubLink =
+  | { url: string; label: 'View PR on GitHub' | 'View on GitHub' }
+  | { url: null; reason: string }
+  | null
+
+export interface TaskReviewState {
+  workspace: 'ready' | 'missing' | 'none'
+  branch: string | null
+  base: string | null
+  uncommitted: number
+  commits: number | null
+  upstream: string | null
+  unpushed: number | null
+  diff: DiffStat | null
+  pr: PullRequestInfo
+  github: GitHubLink
+  closeWarnings: CloseWarning[]
 }

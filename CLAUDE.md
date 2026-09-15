@@ -2,7 +2,7 @@
 
 ## What is this
 
-Forge is the web dashboard for CW (Claude Workspace Manager). It reads `~/.cw/` and `~/.claude/` to show worktree sessions, tasks, PR reviews, accounts, skills, MCPs, and plugins in a visual UI with interactive terminals. Sessions can run on any harness CW supports (Claude Code, Codex, Pi, OpenCode; needs CW 0.3.0).
+Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.claude/` to show worktree sessions, tasks, PR reviews, accounts, skills, MCPs, and plugins in a visual UI with interactive terminals. Sessions can run on any harness CW supports (Claude Code, Codex, Pi, OpenCode; needs CW 0.3.0).
 
 ## Stack
 
@@ -55,17 +55,18 @@ App (app.tsx)
 │   ├── OpenTabsBanner
 │   ├── TaskList (pages/TaskList.tsx)
 │   │   ├── FilterPill
-│   │   ├── TaskCard, DoneTaskRow → HarnessBadge (components/TaskCard.tsx)
+│   │   ├── TaskCard, DoneTaskRow → HarnessBadge, PrChip (components/TaskCard.tsx)
 │   │   └── ProjectBanner (components/ProjectBanner.tsx)
 │   ├── CreateProjectModal → DirectoryPicker
 │   ├── NewTask → HarnessPicker
 │   │   └── PrototypePanel (usePrototype) → InputSelector, PrototypePreview, ShareModal, GraduateModal
 │   ├── Accounts → AccountCell, AddAccountForm, DeviceLoginPanel
-│   └── Skills
+│   ├── Skills
+│   └── CloseTaskDialog (shared by TaskCard and TaskDetail Done)
 │
 └── Tabs view
     ├── TabBar (components/TabBar.tsx)
-    └── TaskDetail (pages/TaskDetail.tsx) → xterm.js terminal, HarnessBadge
+    └── TaskDetail (pages/TaskDetail.tsx) → xterm.js terminal, HarnessBadge, ReviewSummary
 ```
 
 ## Key Files
@@ -87,6 +88,9 @@ App (app.tsx)
 - `packages/core/src/auth.ts` — Bearer token middleware (team mode)
 - `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install
 - `packages/core/src/sandbox-manager.ts` / `prototype-routes.ts` — Prototype sandboxes (Vite dev server per sandbox, ports from 51000, idle cleanup)
+- `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
+- `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
+- `packages/core/src/test-git.ts` — Fixture repositories for tests, isolated from the global git config (not built)
 
 ### Console
 - `packages/console/src/app.tsx` — Root component, tab/filter/view orchestration
@@ -104,6 +108,9 @@ App (app.tsx)
 - `packages/console/src/pages/Accounts.tsx` — Account × harness matrix and Connect flows
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
 - `packages/console/src/pages/PrototypePanel.tsx` — Prototype sandbox flow (generate, preview, share, graduate to a dev task)
+- `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
+- `packages/console/src/components/ReviewSummary.tsx` — Change summary, View on GitHub, Open in editor
+- `packages/console/src/components/CloseTaskDialog.tsx` — Confirmation before closing a task that could lose work
 
 ## Development
 
@@ -142,7 +149,9 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `GET /detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info
 - `POST /start` — Start a task, review, loop, general or create session (spawns cw command)
-- `POST /done` — Mark session done (writes session.json + spawns cw --done)
+- `POST /done` — Runs `cw <work|review|loop> --done` and waits; `500 { error }` when CW fails
+- `GET /review-state/:project/:sessionDir` — Changes, pull request, GitHub link and close warnings (30 s cache, `?fresh=1`)
+- `GET /editors`, `POST /open-in-editor` — Detected editors and opening a worktree (local mode only)
 - `POST /terminal/kill` — Kill a session's PTY
 
 ### Other
@@ -190,4 +199,4 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 
 ## Related Projects
 
-- **CW (Claude Workspace Manager)** — The CLI tool Forge wraps. Source at `/Users/joselito/Workspace/personal/cw-repo/`. Pure Bash script (~4300 lines). Forge spawns CW commands like `cw work`, `cw review`, `cw launch` via PTY.
+- **CW (Coding Workspace)** — The CLI tool Forge wraps. Source at `/Users/joselito/workspace/personal/cw/`. Bash script (~6200 lines) plus one driver per harness in `lib/harnesses/`. `install.sh` copies it into `~/.cw`, so re-run it after changing CW. Forge spawns CW commands like `cw work`, `cw review`, `cw launch` via PTY.

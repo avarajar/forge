@@ -122,7 +122,7 @@ interface TaskListProps {
   showDone: boolean
   onShowDone: (v: boolean) => void
   openTabKeys?: Set<string>
-  onMarkDone?: (session: CWSession) => void
+  onMarkDone?: (session: CWSession) => void | Promise<void>
   onSkills?: () => void
 }
 
