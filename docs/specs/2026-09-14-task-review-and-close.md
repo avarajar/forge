@@ -56,7 +56,7 @@ export type ChecksSummary = 'passing' | 'failing' | 'pending' | 'none'
 
 export type PullRequestInfo =
   | { status: 'found'; number: number; url: string; state: 'OPEN' | 'MERGED' | 'CLOSED'; isDraft: boolean
-      baseRefName: string; checks: ChecksSummary; review: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null }
+      baseRefName: string; headRefOid: string; checks: ChecksSummary; review: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null }
   | { status: 'none' }
   | { status: 'unavailable'; reason: string }
 
@@ -66,10 +66,10 @@ export interface TaskReviewState {
   workspace: 'ready' | 'missing' | 'none'  // none: the session type has no worktree
   branch: string | null
   base: string | null                      // e.g. "origin/main"
-  uncommitted: number                      // lines of `git status --porcelain`, untracked included
+  uncommitted: number                      // lines of `git status --porcelain --untracked-files=all`, without CW's linked symlinks
   commits: number | null                   // base..HEAD; null when base is unknown
-  upstream: string | null                  // e.g. "origin/fix-auth"; null when the branch has none
-  unpushed: number | null                  // upstream..HEAD; null without upstream
+  upstream: string | null                  // "origin/<branch>" when that remote ref exists, otherwise null
+  unpushed: number | null                  // origin/<branch>..HEAD, or 0 when the pull request head contains HEAD; otherwise null
   diff: { files: number; insertions: number; deletions: number } | null  // base to working tree
   pr: PullRequestInfo
   github: { url: string; label: 'View PR on GitHub' | 'View on GitHub' } | { url: null; reason: string } | null
@@ -88,11 +88,11 @@ For a `task` session whose `worktree` directory exists (`workspace: 'ready'`):
 | Field | Command in the worktree |
 |---|---|
 | `branch` | `git rev-parse --abbrev-ref HEAD` |
-| `uncommitted` | `git status --porcelain` |
+| `uncommitted` | `git status --porcelain --untracked-files=all`, skipping untracked `.claude`, `.env`, `TASK_NOTES.md` and `SHARED_CONTEXT.md` at the worktree root when they are symbolic links (CW links them from the project; a `.claude/` ignore pattern does not match a link) |
 | `base` | D3; each candidate checked with `git rev-parse --verify --quiet <ref>^{commit}`; `origin/HEAD` read with `git symbolic-ref --quiet refs/remotes/origin/HEAD` |
 | `commits` | `git rev-list --count <base>..HEAD` |
-| `upstream` | `git rev-parse --abbrev-ref --symbolic-full-name @{u}` (non-zero exit: none) |
-| `unpushed` | `git rev-list --count @{u}..HEAD` |
+| `upstream` | `origin/<branch>` when `git rev-parse --verify --quiet refs/remotes/origin/<branch>` succeeds, otherwise none. Never `@{u}`: CW branches from `origin/main`, which makes `@{u}` point at `origin/main` |
+| `unpushed` | `git rev-list --count origin/<branch>..HEAD` when `upstream` exists; set to `0` when a pull request is found and HEAD is contained in its `headRefOid` (`git merge-base --is-ancestor HEAD <headRefOid>`), so a merged pull request whose branch was deleted counts as pushed |
 | `diff` | `git diff --shortstat <base>` |
 | GitHub remote | `git remote get-url origin`, parsed by `parseGitHubRemote` |
 
@@ -104,10 +104,10 @@ A `review` session is `workspace: 'none'`. The remote comes from the project's p
 
 ### 4.3 Pull request
 
-Run in the project's path, with the harness environment untouched:
+Run with the harness environment untouched; a task runs `gh` in its worktree, a review in the project's path:
 
-- task: `gh pr list --head <branch> --state all --limit 1 --json number,state,url,isDraft,baseRefName,reviewDecision,statusCheckRollup`; an empty array is `none`.
-- review: `gh pr view <number> --json` with the same fields.
+- task: `gh pr list --head <branch> --state all --limit 1 --json number,state,url,isDraft,baseRefName,headRefOid,reviewDecision,statusCheckRollup`; an empty array is `none`. Branch names are reused, so the pull request counts only when its head and HEAD share history: `git merge-base --is-ancestor <headRefOid> HEAD` or `git merge-base --is-ancestor HEAD <headRefOid>` exits 0. Otherwise, including a head that is not present locally, it is `none`.
+- review: `gh pr view <number> --json` with the same fields. A review `pr` that is not all digits (CW can store a Linear ID there) is not looked up: `pr` is `none` and `github` is `null`.
 
 `ENOENT` → `unavailable: "gh is not installed"`. A non-zero exit → `unavailable` with the first line of stderr. A remote that is not GitHub → `unavailable: "origin is not a GitHub repository"`, without calling `gh`.
 
@@ -133,21 +133,21 @@ Run in the project's path, with the harness environment untouched:
 | Remote not GitHub | `null` |
 | Pull request found | `{ url: <pr url>/files, label: 'View PR on GitHub' }`; a review session uses `<pr url>` |
 | Review session, pull request not read (`gh` unavailable) | `{ url: https://github.com/o/r/pull/<number>, label: 'View PR on GitHub' }` |
-| Task, upstream exists, base known | `{ url: https://github.com/o/r/compare/<base without origin/>...<branch>, label: 'View on GitHub' }` |
+| Task, upstream (`origin/<branch>`) exists, base known | `{ url: https://github.com/o/r/compare/<base without origin/>...<branch>, label: 'View on GitHub' }` |
 | Task, upstream exists, base unknown | `{ url: https://github.com/o/r/tree/<branch>, label: 'View on GitHub' }` |
 | Task with commits or uncommitted changes, no upstream | `{ url: null, reason: 'Push the branch first' }` |
 | Anything else | `null` |
 
 Refs and branch names in these URLs go through `encodeURIComponent`.
 
-`closeWarnings`, in this order:
+`closeWarnings`, in this order, only for a `ready` workspace (review sessions and other worktree-less sessions never warn):
 
 | Warning | When |
 |---|---|
 | `uncommitted` | `uncommitted > 0` |
-| `unpushed` | `upstream` is null and `commits > 0`, or `unpushed > 0` |
+| `unpushed` | `unpushed > 0` when `unpushed` is known; otherwise `commits > 0` |
 | `pr-open` | `pr.status === 'found'` and `pr.state === 'OPEN'` |
-| `state-unknown` | for a `ready` workspace: reading git failed, or neither the base nor an upstream resolves, so unpushed work cannot be ruled out |
+| `state-unknown` | reading git failed, or `base` and `unpushed` are both null, so unpushed work cannot be ruled out |
 
 ## 5. Server
 
@@ -274,7 +274,7 @@ The console has no test runner. Logic the console would otherwise hold lives in 
 - A claude task's `worktree` path in `session.json` matches where the agent creates it (`<project>/.tasks/<task>`).
   Not verified: needs a person at the machine (deferred at the end of implementation).
 - `git status --porcelain` in a worktree ignores the linked `TASK_NOTES.md` and `SHARED_CONTEXT.md` (CW adds them to `info/exclude`).
-  Not verified: needs a person at the machine (deferred at the end of implementation).
+  Verified on a CW-shaped fixture worktree: the notes files are excluded, but the linked `.claude` and `.env` show as untracked, so Forge filters those symlinks (4.2).
 
 ## 10. Out of scope
 
@@ -282,3 +282,4 @@ The console has no test runner. Logic the console would otherwise hold lives in 
 - The blocked-agent notice and sessions that survive a Forge restart. Each gets its own spec.
 - Hosts other than GitHub.
 - Rendering diffs in Forge.
+- CW excluding linked `.claude`/`.env` symlinks from worktree status; Forge filters them instead.
