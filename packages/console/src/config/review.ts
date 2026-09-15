@@ -1,8 +1,8 @@
 import type { TaskReviewState } from '@forge-dev/core'
 
-// commits that exist only on this machine: ahead of the upstream, or every task commit when there is none
+// commits that exist only on this machine: the server's count when it knows one, or every task commit
 export const unpushedCount = (s: TaskReviewState): number =>
-  s.upstream ? (s.unpushed ?? 0) : (s.commits ?? 0)
+  s.unpushed ?? s.commits ?? 0
 
 const PR_STATE_LABEL = { OPEN: 'open', MERGED: 'merged', CLOSED: 'closed' } as const
 const CHECKS_MARK = { passing: '✓', failing: '✗', pending: '…', none: '' } as const

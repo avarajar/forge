@@ -167,7 +167,7 @@ function App() {
     setCloseRequest({ session, state: entry.state, error: entry.error, onClosed })
   }, [performClose])
 
-  const handleMarkDone = useCallback((session: CWSession) => { void requestClose(session) }, [requestClose])
+  const handleMarkDone = useCallback((session: CWSession) => requestClose(session), [requestClose])
 
   const closeDialog = (
     <CloseTaskDialog
@@ -175,8 +175,13 @@ function App() {
       onCancel={() => setCloseRequest(null)}
       onConfirm={async () => {
         const request = closeRequest
-        setCloseRequest(null)
-        if (request) await performClose(request.session, request.onClosed)
+        if (!request) return
+        // the dialog stays open until cw --done settles, so Close task shows its spinner
+        try {
+          await performClose(request.session, request.onClosed)
+        } finally {
+          setCloseRequest(null)
+        }
       }}
     />
   )
@@ -363,7 +368,7 @@ function App() {
                   session={session}
                   active={isActive}
                   onClose={() => tabs.closeTab(i)}
-                  onDone={() => requestClose(session, () => tabs.closeTab(i))}
+                  onDone={() => requestClose(session, () => { void tabs.closeTabByKey(sessionKey(session)) })}
                 />
               </div>
             )

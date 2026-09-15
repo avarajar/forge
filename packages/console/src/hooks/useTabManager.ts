@@ -15,6 +15,9 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
   const [activeTabIndex, setActiveTabIndex] = useState(0)
   const [showList, setShowList] = useState(true)
   const restoredRef = useRef(false)
+  // the latest tabs, for closes that finish after other tabs opened or closed
+  const openTabsRef = useRef(openTabs)
+  openTabsRef.current = openTabs
 
   // Restore tabs after initial data load — runs once
   // Tabs are restored but we always start on the list view.
@@ -62,8 +65,8 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
     setShowList(false)
   }, [openTabs])
 
-  const closeTab = useCallback(async (index: number) => {
-    const session = openTabs[index]
+  const closeTabByKey = useCallback(async (key: string) => {
+    const session = openTabsRef.current.find(t => sessionKey(t) === key)
     if (!session) return
 
     const sessionDir = session.sessionDir ?? (session.type === 'review' ? `review-pr-${session.pr}` : `task-${session.task}`)
@@ -75,17 +78,25 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
       })
     } catch {}
 
-    const newTabs = openTabs.filter((_, i) => i !== index)
-    setOpenTabs(newTabs)
+    const index = openTabsRef.current.findIndex(t => sessionKey(t) === key)
+    if (index < 0) return
+    const remaining = openTabsRef.current.length - 1
+    setOpenTabs(prev => prev.filter(t => sessionKey(t) !== key))
 
-    if (newTabs.length === 0) {
+    if (remaining === 0) {
       setShowList(true)
       setActiveTabIndex(0)
       onFetchData()
     } else {
-      setActiveTabIndex(Math.min(index, newTabs.length - 1))
+      // keep the active tab when another one closes
+      setActiveTabIndex(prev => prev > index ? prev - 1 : Math.min(prev, remaining - 1))
     }
-  }, [openTabs, onFetchData])
+  }, [onFetchData])
+
+  const closeTab = useCallback((index: number) => {
+    const session = openTabs[index]
+    return session ? closeTabByKey(sessionKey(session)) : Promise.resolve()
+  }, [openTabs, closeTabByKey])
 
   const goToList = useCallback(() => {
     setShowList(true)
@@ -145,6 +156,7 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
     showList,
     openTab,
     closeTab,
+    closeTabByKey,
     goToList,
     switchToTab,
     openTabKeys,

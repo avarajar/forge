@@ -103,10 +103,21 @@ export const TaskCard: FunctionComponent<{
   showAccount: boolean
   isOpenInTab: boolean
   onSelect: () => void
-  onMarkDone?: () => void
+  onMarkDone?: () => void | Promise<void>
 }> = ({ session, showAccount, isOpenInTab, onSelect, onMarkDone }) => {
   const style = getTypeStyle(session.type)
   const [hovered, setHovered] = useState(false)
+  const [closing, setClosing] = useState(false)
+  // closing waits for cw --done, so the button stays busy and cannot send a second close
+  const markDone = async () => {
+    if (!onMarkDone || closing) return
+    setClosing(true)
+    try {
+      await onMarkDone()
+    } finally {
+      setClosing(false)
+    }
+  }
   const reviewed = session.type === 'task' || session.type === 'review'
   const reviewPr = reviewEntries.value[reviewKeyOf(session)]?.state?.pr
   const merged = reviewPr?.status === 'found' && reviewPr.state === 'MERGED'
@@ -157,12 +168,13 @@ export const TaskCard: FunctionComponent<{
         </span>
         {onMarkDone && (
           <button
-            class={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-forge-muted hover:text-forge-success ${merged ? '' : 'opacity-0 group-hover:opacity-100'}`}
+            class={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-forge-muted hover:text-forge-success disabled:cursor-wait ${merged || closing ? '' : 'opacity-0 group-hover:opacity-100'}`}
             style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-            onClick={(e: Event) => { e.stopPropagation(); onMarkDone() }}
+            onClick={(e: Event) => { e.stopPropagation(); void markDone() }}
+            disabled={closing}
             title="Mark as done"
           >
-            ✓ Done
+            {closing ? 'Closing…' : '✓ Done'}
           </button>
         )}
         {isOpenInTab ? (
