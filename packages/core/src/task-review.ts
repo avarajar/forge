@@ -97,10 +97,10 @@ export type Runner = (bin: string, args: string[], cwd: string) => Promise<RunRe
 
 const COMMAND_TIMEOUT_MS = 10_000
 
-// env is for tests that must not see the developer's git config; production uses the inherited environment
-export function createRunner(env?: NodeJS.ProcessEnv): Runner {
+// env replaces the inherited environment, e.g. for tests that must not see the developer's git config
+export function createRunner(env?: NodeJS.ProcessEnv, timeoutMs = COMMAND_TIMEOUT_MS): Runner {
   return (bin, args, cwd) => new Promise((resolve) => {
-    execFile(bin, args, { cwd, env, timeout: COMMAND_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(bin, args, { cwd, env, timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (!err) return resolve({ code: 0, stdout: String(stdout), stderr: String(stderr) })
       const { code } = err as NodeJS.ErrnoException & { code?: number | string }
       if (code === 'ENOENT') return resolve({ code: 127, stdout: '', stderr: 'ENOENT' })

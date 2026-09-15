@@ -257,22 +257,18 @@ export class CWReader {
     return { frontmatter, body }
   }
 
+  // directory whose skills/ holds a scope's skills; an unregistered project ref is used as a path
+  getSkillConfigDir(scope: 'global' | 'account' | 'project', scopeRef: string): string {
+    if (scope === 'global') return join(process.env.HOME ?? '', '.claude')
+    if (scope === 'account') return join(this.cwDir, 'accounts', scopeRef)
+    return join(this.getProjects()[scopeRef]?.path ?? scopeRef, '.claude')
+  }
+
   getSkillDir(scope: 'global' | 'account' | 'project', scopeRef: string, name: string): string {
-    const home = process.env.HOME ?? ''
-    if (scope === 'global') {
-      return join(home, '.claude', 'skills', name)
-    }
-    if (scope === 'account') {
-      return join(this.cwDir, 'accounts', scopeRef, 'skills', name)
-    }
-    // project
-    const projects = this.getProjects()
-    const projPath = projects[scopeRef]?.path ?? scopeRef
-    return join(projPath, '.claude', 'skills', name)
+    return join(this.getSkillConfigDir(scope, scopeRef), 'skills', name)
   }
 
   getSkills(account?: string, project?: string): SkillEntry[] {
-    const home = process.env.HOME ?? ''
     const results: SkillEntry[] = []
 
     const scanDir = (dir: string, scope: SkillEntry['scope'], scopeRef: string) => {
@@ -306,17 +302,9 @@ export class CWReader {
       }
     }
 
-    scanDir(join(home, '.claude', 'skills'), 'global', 'global')
-
-    if (account) {
-      scanDir(join(this.cwDir, 'accounts', account, 'skills'), 'account', account)
-    }
-
-    if (project) {
-      const projects = this.getProjects()
-      const projPath = projects[project]?.path ?? project
-      scanDir(join(projPath, '.claude', 'skills'), 'project', project)
-    }
+    scanDir(join(this.getSkillConfigDir('global', 'global'), 'skills'), 'global', 'global')
+    if (account) scanDir(join(this.getSkillConfigDir('account', account), 'skills'), 'account', account)
+    if (project) scanDir(join(this.getSkillConfigDir('project', project), 'skills'), 'project', project)
 
     return results
   }

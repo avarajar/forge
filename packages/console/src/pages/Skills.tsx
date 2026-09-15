@@ -471,13 +471,13 @@ const SkillExploreView: FunctionComponent<{
     }
   }
 
-  const handleInstall = async (slug: string) => {
-    setInstalling(slug)
+  const handleInstall = async (skill: ExploreResult) => {
+    setInstalling(skill.slug)
     try {
       const res = await fetch('/api/skills/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, scope: 'global' }),
+        body: JSON.stringify({ repo: skill.repo, skill: skill.skillId, scope: 'global' }),
       })
       const result = await res.json() as { ok: boolean; error?: string }
       if (result.ok) showToast('Skill installed', 'success')
@@ -535,7 +535,7 @@ const SkillExploreView: FunctionComponent<{
               label={installing === r.slug ? 'Installing...' : 'Install'}
               variant="secondary"
               loading={installing === r.slug}
-              onClick={() => handleInstall(r.slug)}
+              onClick={() => handleInstall(r)}
             />
           </div>
         ))}

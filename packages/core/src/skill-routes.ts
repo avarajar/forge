@@ -2,13 +2,24 @@ import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
 import type { ExploreResult, SkillScope } from './cw-types.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { dirname, join } from 'node:path'
+import { envWithoutHarness } from './cw-doctor.js'
+import { createRunner, type Runner, type RunResult } from './task-review.js'
 
-const execFileAsync = promisify(execFile)
+const INSTALL_TIMEOUT_MS = 120_000
 
-export function skillRoutes(reader: CWReader): Hono {
+// the CLI prints one JSON entry per requested skill; a non-installed one carries the reason
+function installFailure(result: RunResult): string {
+  try {
+    const entries = JSON.parse(result.stdout) as Array<{ status?: string; reason?: string }>
+    const reason = entries.find(e => e.status !== 'installed')?.reason
+    if (reason) return reason
+  } catch {}
+  return result.stderr.trim().split('\n').pop() || `skills CLI exited with code ${result.code}`
+}
+
+export function skillRoutes(reader: CWReader, options: { runnerFor?: (env: NodeJS.ProcessEnv) => Runner } = {}): Hono {
+  const runnerFor = options.runnerFor ?? ((env) => createRunner(env, INSTALL_TIMEOUT_MS))
   const app = new Hono()
 
   app.get('/', (c) => {
@@ -166,22 +177,17 @@ export function skillRoutes(reader: CWReader): Hono {
         return c.json({ results: [] })
       }
       const data = await res.json() as {
-        skills?: Array<{
-          name?: string
-          slug?: string
-          installs?: number
-          repo?: string
-          url?: string
-        }>
+        skills?: Array<{ id?: string; skillId?: string; name?: string; installs?: number; source?: string }>
       }
-      const results: ExploreResult[] = (data.skills ?? []).map(s => ({
-        name: s.name ?? s.slug ?? '',
-        slug: s.slug ?? '',
+      const results: ExploreResult[] = (data.skills ?? []).flatMap(s => s.id ? [{
+        name: s.name ?? s.id,
+        slug: s.id,
+        skillId: s.skillId ?? '',
         installs: s.installs ?? 0,
         source: 'skills.sh' as const,
-        url: s.url ?? `https://skills.sh/${s.slug ?? ''}`,
-        repo: s.repo ?? '',
-      }))
+        url: `https://skills.sh/${s.id}`,
+        repo: s.source ?? '',
+      }] : [])
       return c.json({ results })
     } catch {
       return c.json({ results: [] })
@@ -189,60 +195,32 @@ export function skillRoutes(reader: CWReader): Hono {
   })
 
   app.post('/install', async (c) => {
-    const { slug, scope, scopeRef } = await c.req.json<{
-      slug: string
+    const { repo, skill, scope, scopeRef } = await c.req.json<{
+      repo: string
+      skill: string
       scope: SkillScope
       scopeRef?: string
     }>()
 
-    if (!slug) {
-      return c.json({ error: 'slug is required' }, 400)
+    if (!repo || !skill) {
+      return c.json({ error: 'repo and skill are required' }, 400)
+    }
+    const ref = scope === 'global' ? 'global' : (scopeRef ?? '')
+    const known = scope === 'global' || (scope === 'account' ? reader.getAccounts().includes(ref) : ref in reader.getProjects())
+    if (!known) {
+      return c.json({ error: `Unknown ${scope}: ${ref}` }, 404)
     }
 
-    try {
-      if (scope === 'global') {
-        await execFileAsync('npx', ['skills', 'add', slug, '--global', '--yes', '--agent', 'claude'], {
-          encoding: 'utf-8',
-          timeout: 60000,
-        })
-        return c.json({ ok: true })
-      }
-
-      // For account/project: fetch raw SKILL.md from GitHub and write locally
-      const ref = scopeRef ?? ''
-      if (!ref) {
-        return c.json({ error: 'scopeRef is required for account/project scope' }, 400)
-      }
-
-      // slug format: "owner/repo/skill-name" or just "skill-name"
-      // Determine repo and skill name from slug
-      const parts = slug.split('/')
-      let repo: string
-      let skillName: string
-      if (parts.length >= 3) {
-        repo = `${parts[0]}/${parts[1]}`
-        skillName = parts.slice(2).join('/')
-      } else {
-        // Assume skills-sh org
-        repo = `skills-sh/${slug}`
-        skillName = slug
-      }
-
-      const rawUrl = `https://raw.githubusercontent.com/${repo}/main/${skillName}/SKILL.md`
-      const rawRes = await globalThis.fetch(rawUrl)
-      if (!rawRes.ok) {
-        return c.json({ error: `Failed to fetch SKILL.md from ${rawUrl}` }, 502)
-      }
-
-      const content = await rawRes.text()
-      const dir = reader.getSkillDir(scope, ref, skillName)
-      mkdirSync(dir, { recursive: true })
-      writeFileSync(join(dir, 'SKILL.md'), content, 'utf-8')
-      return c.json({ ok: true, dir })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      return c.json({ error: `Failed to install skill: ${message}` }, 500)
+    // the skills CLI writes Claude Code skills into $CLAUDE_CONFIG_DIR/skills, where the reader lists them
+    const configDir = reader.getSkillConfigDir(scope, ref)
+    const args = ['--yes', 'skills', 'add', repo, '--skill', skill, '--agent', 'claude-code', '--yes', '--json']
+    if (scope !== 'project') args.push('--global')
+    const run = runnerFor({ ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir })
+    const result = await run('npx', args, dirname(configDir))
+    if (result.code !== 0) {
+      return c.json({ error: `Failed to install skill: ${installFailure(result)}` }, 500)
     }
+    return c.json({ ok: true })
   })
 
   return app
