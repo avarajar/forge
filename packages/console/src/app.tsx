@@ -328,6 +328,7 @@ function App() {
               >
                 <TaskDetail
                   session={session}
+                  active={isActive}
                   onClose={() => tabs.closeTab(i)}
                   onDone={() => { tabs.closeTab(i); refreshAfterAction() }}
                 />
