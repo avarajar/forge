@@ -13,6 +13,7 @@ import { LoginManager } from './login-manager.js'
 import { importApiKey } from './api-key-login.js'
 import { buildTaskReviewState, createLimiter, runCommand, type Runner } from './task-review.js'
 import type { TaskReviewState } from './cw-types.js'
+import { detectEditors, openInEditor, systemProbe, type DetectedEditor } from './editors.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -32,11 +33,13 @@ export function resolveCwBin(cwHome: string): string {
   return existsSync(candidate) ? candidate : 'cw'
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[] } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
   const run = options.runner ?? runCommand
+  const localOnly = options.localOnly ?? true
+  const editors = options.editors ?? detectEditors(systemProbe)
   const limitGh = createLimiter(4)
   const REVIEW_TTL_MS = 30_000
   const reviewCache = new Map<string, { at: number; value: Promise<TaskReviewState> }>()
@@ -276,6 +279,30 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     reviewCache.set(key, { at: Date.now(), value })
     value.catch(() => reviewCache.delete(key))
     return c.json(await value)
+  })
+
+  app.get('/editors', (c) => c.json({
+    enabled: localOnly,
+    editors: localOnly ? editors.map(({ id, label }) => ({ id, label })) : [],
+  }))
+
+  app.post('/open-in-editor', async (c) => {
+    if (!localOnly) {
+      return c.json({ ok: false, error: 'Opening an editor only works on the machine running Forge' }, 403)
+    }
+    const { project, sessionDir, editor } = await c.req.json<{ project: string; sessionDir: string; editor: string }>()
+    const target = editors.find(e => e.id === editor)
+    if (!target) return c.json({ ok: false, error: `Editor not available: ${editor}` }, 400)
+    const session = reader.getSession(project, sessionDir)
+    if (!session?.worktree || !existsSync(session.worktree)) {
+      return c.json({ ok: false, error: 'This task has no workspace on disk yet' }, 404)
+    }
+    try {
+      await openInEditor(target, session.worktree)
+      return c.json({ ok: true })
+    } catch (err) {
+      return c.json({ ok: false, error: `Could not start ${target.label}: ${(err as Error).message}` }, 500)
+    }
   })
 
   app.post('/start', async (c) => {

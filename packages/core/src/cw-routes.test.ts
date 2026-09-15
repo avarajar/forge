@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Runner } from './task-review.js'
 import type { TaskReviewState } from './cw-types.js'
+import type { DetectedEditor } from './editors.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
 
@@ -692,6 +693,58 @@ describe('CW Routes', () => {
 
       await reviewApp.request('/api/cw/review-state/testproj/task-reviewed?fresh=1')
       expect(calls).toBeGreaterThan(afterFirst)
+    })
+  })
+
+  describe('editors', () => {
+    const workspace = join(tmpdir(), `forge-editor-route-${Date.now()}`)
+    const editors: DetectedEditor[] = [{ id: 'vscode', label: 'VS Code', bin: '/bin/sh', args: ['-c', 'exit 0'] }]
+    let localApp: Hono
+    let remoteApp: Hono
+
+    beforeAll(() => {
+      mkdirSync(workspace, { recursive: true })
+      mkdirSync(join(TEST_CW, 'sessions/testproj/task-editable'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'sessions/testproj/task-editable/session.json'), JSON.stringify({
+        project: 'testproj', task: 'editable', type: 'task', account: 'default', worktree: workspace, notes: '',
+        status: 'active', created: '2026-09-14T00:00:00Z', last_opened: '2026-09-14T00:00:00Z', opens: 1,
+      }))
+      localApp = new Hono()
+      localApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { editors, localOnly: true }))
+      remoteApp = new Hono()
+      remoteApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { editors, localOnly: false }))
+    })
+
+    afterAll(() => { rmSync(workspace, { recursive: true, force: true }) })
+
+    const open = (target: Hono, body: Record<string, string>) => target.request('/api/cw/open-in-editor', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+
+    it('lists detected editors in local mode and none remotely', async () => {
+      expect(await (await localApp.request('/api/cw/editors')).json()).toEqual({ enabled: true, editors: [{ id: 'vscode', label: 'VS Code' }] })
+      expect(await (await remoteApp.request('/api/cw/editors')).json()).toEqual({ enabled: false, editors: [] })
+    })
+
+    it('refuses to open an editor remotely', async () => {
+      const res = await open(remoteApp, { project: 'testproj', sessionDir: 'task-editable', editor: 'vscode' })
+      expect(res.status).toBe(403)
+    })
+
+    it('rejects an editor that was not detected', async () => {
+      const res = await open(localApp, { project: 'testproj', sessionDir: 'task-editable', editor: 'zed' })
+      expect(res.status).toBe(400)
+    })
+
+    it('returns 404 when the task has no workspace on disk', async () => {
+      const res = await open(localApp, { project: 'testproj', sessionDir: 'task-mytask', editor: 'vscode' })
+      expect(res.status).toBe(404)
+    })
+
+    it('opens the worktree', async () => {
+      const res = await open(localApp, { project: 'testproj', sessionDir: 'task-editable', editor: 'vscode' })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true })
     })
   })
 })
