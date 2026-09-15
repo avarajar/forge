@@ -166,3 +166,80 @@ export async function readBaseCounts(run: Runner, cwd: string, base: string | nu
     diff: stat.code === 0 ? parseShortstat(stat.stdout) : null,
   }
 }
+
+const PR_FIELDS = 'number,state,url,isDraft,baseRefName,reviewDecision,statusCheckRollup'
+const PR_STATES = new Set(['OPEN', 'MERGED', 'CLOSED'])
+const REVIEW_DECISIONS = new Set(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED'])
+
+interface RawPullRequest {
+  number: number
+  state: string
+  url: string
+  isDraft: boolean
+  baseRefName: string
+  reviewDecision: string
+  statusCheckRollup: unknown
+}
+
+function toPullRequestInfo(raw: RawPullRequest): PullRequestInfo {
+  return {
+    status: 'found',
+    number: raw.number,
+    url: raw.url,
+    state: (PR_STATES.has(raw.state) ? raw.state : 'CLOSED') as 'OPEN' | 'MERGED' | 'CLOSED',
+    isDraft: Boolean(raw.isDraft),
+    baseRefName: raw.baseRefName,
+    checks: summarizeChecks(raw.statusCheckRollup),
+    review: REVIEW_DECISIONS.has(raw.reviewDecision)
+      ? raw.reviewDecision as 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED'
+      : null,
+  }
+}
+
+function ghUnavailable(result: RunResult): PullRequestInfo {
+  if (result.code === 127 && result.stderr === 'ENOENT') return { status: 'unavailable', reason: 'gh is not installed' }
+  const firstLine = result.stderr.split('\n').map(line => line.trim()).find(line => line.length > 0)
+  return { status: 'unavailable', reason: firstLine ?? 'gh failed' }
+}
+
+const UNEXPECTED: PullRequestInfo = { status: 'unavailable', reason: 'gh returned unexpected output' }
+
+export async function readPullRequestForBranch(run: Runner, cwd: string, branch: string): Promise<PullRequestInfo> {
+  const result = await run('gh', ['pr', 'list', '--head', branch, '--state', 'all', '--limit', '1', '--json', PR_FIELDS], cwd)
+  if (result.code !== 0) return ghUnavailable(result)
+  try {
+    const list = JSON.parse(result.stdout) as RawPullRequest[]
+    if (!Array.isArray(list)) return UNEXPECTED
+    return list.length === 0 ? { status: 'none' } : toPullRequestInfo(list[0])
+  } catch {
+    return UNEXPECTED
+  }
+}
+
+export async function readPullRequestByNumber(run: Runner, cwd: string, number: string): Promise<PullRequestInfo> {
+  const result = await run('gh', ['pr', 'view', number, '--json', PR_FIELDS], cwd)
+  if (result.code !== 0) return ghUnavailable(result)
+  try {
+    const raw = JSON.parse(result.stdout) as RawPullRequest
+    return typeof raw?.number === 'number' ? toPullRequestInfo(raw) : UNEXPECTED
+  } catch {
+    return UNEXPECTED
+  }
+}
+
+export function createLimiter(max: number): <T>(fn: () => Promise<T>) => Promise<T> {
+  let active = 0
+  const waiting: Array<() => void> = []
+  // a finishing task hands its slot straight to the next waiter, so a new caller can never slip in between
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    if (active >= max) await new Promise<void>(resolve => waiting.push(resolve))
+    else active++
+    try {
+      return await fn()
+    } finally {
+      const next = waiting.shift()
+      if (next) next()
+      else active--
+    }
+  }
+}
