@@ -165,6 +165,7 @@ export type PullRequestInfo =
       state: 'OPEN' | 'MERGED' | 'CLOSED'
       isDraft: boolean
       baseRefName: string
+      headRefOid: string
       checks: ChecksSummary
       review: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null
     }

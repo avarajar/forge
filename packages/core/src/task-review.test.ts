@@ -4,7 +4,7 @@ import type { PullRequestInfo } from './cw-types.js'
 
 const openPr: PullRequestInfo = {
   status: 'found', number: 41, url: 'https://github.com/o/r/pull/41', state: 'OPEN', isDraft: false,
-  baseRefName: 'main', checks: 'passing', review: null,
+  baseRefName: 'main', headRefOid: 'a'.repeat(40), checks: 'passing', review: null,
 }
 
 describe('parseGitHubRemote', () => {
@@ -108,7 +108,7 @@ describe('githubLink', () => {
 
 describe('closeWarningsFor', () => {
   const clean: WarningInput = {
-    workspace: 'ready', uncommitted: 0, commits: 0, base: 'origin/main', upstream: null, unpushed: null,
+    workspace: 'ready', uncommitted: 0, commits: 0, base: 'origin/main', unpushed: null,
     pr: { status: 'none' }, gitFailed: false,
   }
 
@@ -120,18 +120,20 @@ describe('closeWarningsFor', () => {
     expect(closeWarningsFor({ ...clean, uncommitted: 2, commits: 3, pr: openPr })).toEqual(['uncommitted', 'unpushed', 'pr-open'])
   })
 
-  it('warns about unpushed commits on a branch with an upstream', () => {
-    expect(closeWarningsFor({ ...clean, commits: 3, upstream: 'origin/x', unpushed: 1 })).toEqual(['unpushed'])
-    expect(closeWarningsFor({ ...clean, commits: 3, upstream: 'origin/x', unpushed: 0 })).toEqual([])
+  it('counts unpushed commits when known, and every task commit otherwise', () => {
+    expect(closeWarningsFor({ ...clean, commits: 3, unpushed: 1 })).toEqual(['unpushed'])
+    expect(closeWarningsFor({ ...clean, commits: 3, unpushed: 0 })).toEqual([])
+    expect(closeWarningsFor({ ...clean, commits: 3, unpushed: null })).toEqual(['unpushed'])
   })
 
   it('does not warn about a merged or closed pull request', () => {
     expect(closeWarningsFor({ ...clean, pr: { ...openPr, state: 'MERGED' } })).toEqual([])
   })
 
-  it('is state-unknown when git failed or neither base nor upstream resolves', () => {
+  it('is state-unknown when git failed or neither the base nor the unpushed count is known', () => {
     expect(closeWarningsFor({ ...clean, gitFailed: true })).toEqual(['state-unknown'])
     expect(closeWarningsFor({ ...clean, base: null, commits: null })).toEqual(['state-unknown'])
+    expect(closeWarningsFor({ ...clean, base: null, commits: null, unpushed: 0 })).toEqual([])
   })
 
   it('never warns for a missing or worktree-less workspace', () => {

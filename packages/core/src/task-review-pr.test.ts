@@ -10,11 +10,11 @@ const fakeRunner = (result: RunResult, calls: Call[] = []): Runner => async (bin
 
 const rawPr = {
   number: 41, state: 'OPEN', url: 'https://github.com/o/r/pull/41', isDraft: true, baseRefName: 'develop',
-  reviewDecision: 'CHANGES_REQUESTED',
+  headRefOid: 'b'.repeat(40), reviewDecision: 'CHANGES_REQUESTED',
   statusCheckRollup: [{ __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'FAILURE' }],
 }
 
-const FIELDS = 'number,state,url,isDraft,baseRefName,reviewDecision,statusCheckRollup'
+const FIELDS = 'number,state,url,isDraft,baseRefName,headRefOid,reviewDecision,statusCheckRollup'
 
 describe('readPullRequestForBranch', () => {
   it('lists pull requests for the branch in every state and maps the newest', async () => {
@@ -22,7 +22,7 @@ describe('readPullRequestForBranch', () => {
     const run = fakeRunner({ code: 0, stdout: JSON.stringify([rawPr]), stderr: '' }, calls)
     expect(await readPullRequestForBranch(run, '/repo', 'task/fix-auth')).toEqual({
       status: 'found', number: 41, url: 'https://github.com/o/r/pull/41', state: 'OPEN', isDraft: true,
-      baseRefName: 'develop', checks: 'failing', review: 'CHANGES_REQUESTED',
+      baseRefName: 'develop', headRefOid: 'b'.repeat(40), checks: 'failing', review: 'CHANGES_REQUESTED',
     })
     expect(calls).toEqual([{
       bin: 'gh', cwd: '/repo',
