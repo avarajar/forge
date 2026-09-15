@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
-import { cwRoutes, tailOutput } from './cw-routes.js'
+import { cwRoutes, cwDoneTimeoutMessage, tailOutput } from './cw-routes.js'
 import { CWReader } from './cw-reader.js'
 import { LoginManager } from './login-manager.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
@@ -465,6 +465,35 @@ describe('CW Routes', () => {
       const body = await res.json() as { ok: boolean; error: string }
       expect(body.ok).toBe(false)
       expect(body.error).toBe('Closing task: mytask\nError: worktree is locked')
+    })
+
+    it('closes stdin so a prompt from cw cannot wait for the timeout', async () => {
+      const quickApp = new Hono()
+      quickApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { cwDoneTimeoutMs: 3000 }))
+      writeCw(`read answer || exit 0\nexit 5`)
+      const res = await quickApp.request('/api/cw/done', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: 'testproj', task: 'mytask', type: 'task' }),
+      })
+      expect(await res.json()).toEqual({ ok: true })
+    })
+
+    it('says cw --done timed out when it is killed by the timeout', async () => {
+      const slowApp = new Hono()
+      slowApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { cwDoneTimeoutMs: 300 }))
+      writeCw(`echo "Closing task: mytask"\nexec sleep 5`)
+      const res = await slowApp.request('/api/cw/done', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project: 'testproj', task: 'mytask', type: 'task' }),
+      })
+      expect(res.status).toBe(500)
+      const body = await res.json() as { ok: boolean; error: string }
+      expect(body.error.split('\n')[0]).toBe('cw --done timed out after 300 ms')
+      expect(body.error).toContain('Closing task: mytask')
+    })
+
+    it('words the default timeout in seconds', () => {
+      expect(cwDoneTimeoutMessage(60_000)).toBe('cw --done timed out after 60 s')
     })
   })
 

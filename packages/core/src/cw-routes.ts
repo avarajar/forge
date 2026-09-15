@@ -41,23 +41,35 @@ export function tailOutput(text: string, max = 20): string {
 
 const CW_DONE_TIMEOUT_MS = 60_000
 
-async function runCw(bin: string, args: string[]): Promise<RunResult> {
+export function cwDoneTimeoutMessage(ms: number): string {
+  return `cw --done timed out after ${ms % 1000 === 0 ? `${ms / 1000} s` : `${ms} ms`}`
+}
+
+async function runCw(bin: string, args: string[], timeoutMs: number): Promise<RunResult & { timedOut: boolean }> {
+  const pending = execFileAsync(bin, args, { env: envWithoutHarness(), timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 })
+  // nobody answers a prompt here, so cw sees end of input instead of waiting for the timeout
+  pending.child.stdin?.end()
   try {
-    const { stdout, stderr } = await execFileAsync(bin, args, { env: envWithoutHarness(), timeout: CW_DONE_TIMEOUT_MS, maxBuffer: 5 * 1024 * 1024 })
-    return { code: 0, stdout: String(stdout), stderr: String(stderr) }
+    const { stdout, stderr } = await pending
+    return { code: 0, stdout: String(stdout), stderr: String(stderr), timedOut: false }
   } catch (err) {
-    const e = err as { code?: number | string; stdout?: string; stderr?: string; message: string }
-    return { code: typeof e.code === 'number' ? e.code : 1, stdout: e.stdout ?? '', stderr: e.stderr || e.message }
+    const e = err as { code?: number | string | null; killed?: boolean; signal?: string | null; stdout?: string; stderr?: string; message: string }
+    // a maxBuffer overflow also kills the child, but reports a string code
+    if (e.killed && e.signal === 'SIGTERM' && typeof e.code !== 'string') {
+      return { code: 124, stdout: e.stdout ?? '', stderr: e.stderr ?? '', timedOut: true }
+    }
+    return { code: typeof e.code === 'number' ? e.code : 1, stdout: e.stdout ?? '', stderr: e.stderr || e.message, timedOut: false }
   }
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[] } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
   const run = options.runner ?? runCommand
   const localOnly = options.localOnly ?? true
   const editors = options.editors ?? detectEditors(systemProbe)
+  const cwDoneTimeoutMs = options.cwDoneTimeoutMs ?? CW_DONE_TIMEOUT_MS
   const limitGh = createLimiter(4)
   const REVIEW_TTL_MS = 30_000
   const reviewCache = new Map<string, { at: number; value: Promise<TaskReviewState> }>()
@@ -588,9 +600,11 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
     reviewCache.delete(`${project}::${sessionDirName}`)
     // CW closes the session itself; a failed close leaves it active so nothing is lost silently
-    const result = await runCw(cwBin, args)
+    const result = await runCw(cwBin, args, cwDoneTimeoutMs)
     if (result.code === 0) return c.json({ ok: true })
-    return c.json({ ok: false, error: tailOutput(`${result.stdout}\n${result.stderr}`) || 'cw --done failed' }, 500)
+    const output = tailOutput(`${result.stdout}\n${result.stderr}`)
+    const error = result.timedOut ? [cwDoneTimeoutMessage(cwDoneTimeoutMs), output].filter(Boolean).join('\n') : output || 'cw --done failed'
+    return c.json({ ok: false, error }, 500)
   })
 
   app.post('/move-project', async (c) => {
