@@ -27,7 +27,7 @@ export const PrototypePreview: FunctionComponent<{ port: number | null; state: s
     <div class="flex-1 grid place-items-center min-h-0 overflow-auto" style={{ padding: '24px' }}>
       <div
         class="grid place-items-center overflow-hidden"
-        style={{ width: 'min(100%, 1100px)', aspectRatio: '16 / 10', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)' }}
+        style={{ width: 'min(100%, 780px)', aspectRatio: '16 / 10', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)' }}
       >
         {showIframe ? (
           <iframe

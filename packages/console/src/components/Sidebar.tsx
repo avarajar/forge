@@ -131,13 +131,14 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
       })}
     </nav>
 
-    <div class="flex flex-col sb-section" style={{ gap: '2px' }}>
-      <div class="flex items-center justify-between" style={{ padding: '0 9px 4px' }}>
+    <div class="flex flex-col sb-section" style={{ gap: '2px', flex: '0 1 auto', minHeight: '96px' }}>
+      <div class="flex items-center justify-between shrink-0" style={{ padding: '0 9px 4px' }}>
         <Label>Projects</Label>
         <button type="button" aria-label="Add project" class="grid place-items-center cursor-pointer" style={{ border: 0, background: 'none', color: 'var(--blue)', padding: '0 2px' }} onClick={onAddProject}>
           <span class="i-lucide-plus" style={{ width: '14px', height: '14px' }} />
         </button>
       </div>
+      <div class="flex flex-col overflow-y-auto min-h-0" style={{ gap: '2px', overscrollBehavior: 'contain' }}>
       {projects.map(p => {
         const on = selectedProject === p.name
         return (
@@ -145,7 +146,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
             key={p.name}
             type="button"
             aria-pressed={on}
-            class={rowBase}
+            class={`${rowBase} shrink-0`}
             style={{ ...selectedRow(on), boxShadow: 'none', gap: '9px', height: '29px', padding: '0 9px', fontSize: '13px' }}
             onClick={() => onSelectProject(p.name)}
           >
@@ -155,6 +156,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
           </button>
         )
       })}
+      </div>
     </div>
 
     <div class="flex flex-col" style={{ marginTop: 'auto', flex: 'none', gap: '8px' }}>

@@ -205,7 +205,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
             <span class="flex-1" />
             <span class="mono" style={{ fontSize: '11px', color: connected ? '#30d158' : '#8a8a92' }}>{connected ? 'connected' : ptyExited ? 'exited' : 'offline'}</span>
           </div>
-          <div class="relative flex-1 min-h-0" style={{ padding: '6px 0 0 8px' }}>
+          <div class="relative flex-1 min-h-0" style={{ padding: '12px 6px 6px 14px' }}>
             <ForgeTerminal
               wsUrl={wsUrl}
               theme={theme.value}
