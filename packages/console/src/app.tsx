@@ -16,7 +16,8 @@ import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { sessionKey } from './config/types.js'
+import { QUICK_TYPES, sessionKey, type QuickType } from './config/types.js'
+import { typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
 import { loadReviewState, refreshReviewStates } from './hooks/useTaskReview.js'
@@ -33,12 +34,10 @@ function App() {
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   const [skillCount, setSkillCount] = useState<number | null>(null)
   const [prototypeCount, setPrototypeCount] = useState<number | null>(null)
-  const [newTaskType, setNewTaskType] = useState<string | undefined>()
 
   // Create Project modal
   const [showCreateProject, setShowCreateProject] = useState(false)
 
-  const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
 
   useEffect(() => {
     void loadHarnesses()
@@ -78,7 +77,7 @@ function App() {
   const hasProjects = Object.keys(projects).length > 0
 
   const handleNewTask = (type?: string) => {
-    setNewTaskType(type)
+    if (type && QUICK_TYPES.some(t => t.key === type)) typeOverride.value = type as QuickType
     setNewTaskOpen(true)
   }
 
@@ -148,6 +147,8 @@ function App() {
 
   const handleGoToList = useCallback(() => navigate('list'), [navigate])
 
+  const closeNewTask = useCallback(() => setNewTaskOpen(false), [])
+
   const selectProject = useCallback((project: string) => {
     filters.setFilterProject(filters.filterProject === project ? null : project)
     navigate('list')
@@ -212,10 +213,6 @@ function App() {
     }
   }, [accounts, openSession])
 
-  const handleStartPrototype = useCallback((project: string) => {
-    setPrototypeProject(project)
-    navigate('prototypes')
-  }, [navigate])
 
   const activeSessions = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
 
@@ -230,10 +227,15 @@ function App() {
     live: live.some(l => l.session.project === name),
   })), [filters.projectNames, activeSessions, live])
 
+  // the project a quick start runs on: the filtered one, else the most recent task's
+  const startProject = filters.filterProject
+    ?? filters.filteredSpaces.find(s => s.status === 'active' && projects[s.project])?.project
+    ?? Object.keys(projects)[0] ?? ''
+
   const doctor = harnesses.value?.available ? harnesses.value.doctor : null
   const detailShown = !tabs.showList && tabs.openTabs.length > 0
   const sidebarView: View = detailShown ? 'list' : view
-  const prototypeTarget = prototypeProject ?? filters.filterProject ?? Object.keys(projects)[0] ?? null
+  const prototypeTarget = filters.filterProject ?? Object.keys(projects)[0] ?? null
 
   const closeTab = useCallback((index: number) => {
     const session = tabs.openTabs[index]
@@ -294,6 +296,7 @@ function App() {
       onNewTask={() => handleNewTask()}
       onCreateProject={() => setShowCreateProject(true)}
       onRefresh={() => fetchData()}
+      startProject={startProject}
       onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
     />
   ) : view === 'prototypes' ? (
@@ -374,23 +377,19 @@ function App() {
       )}
 
       {newTaskOpen && (
-        <div class="fixed inset-0 z-50 overflow-auto" style={{ background: 'var(--bg)', padding: '18px 22px 40px' }}>
-          <NewTask
-            projects={projects}
-            accounts={filters.accountNames}
-            initialType={newTaskType}
-            initialAccount={filters.filterAccount ?? undefined}
-            initialProject={filters.filterProject ?? undefined}
-            onBack={() => setNewTaskOpen(false)}
-            onCreated={(session) => {
-              setNewTaskOpen(false)
-              if (session) openSession(session)
-              refreshAfterAction()
-            }}
-            onStartPrototype={handleStartPrototype}
-            onOpenAccounts={() => navigate('accounts')}
-          />
-        </div>
+        <NewTask
+          projects={projects}
+          accounts={filters.accountNames}
+          initialAccount={filters.filterAccount ?? undefined}
+          initialProject={startProject || undefined}
+          onClose={closeNewTask}
+          onCreated={(session) => {
+            setNewTaskOpen(false)
+            if (session) openSession(session)
+            refreshAfterAction()
+          }}
+          onOpenAccounts={() => navigate('accounts')}
+        />
       )}
 
       <CreateProjectModal

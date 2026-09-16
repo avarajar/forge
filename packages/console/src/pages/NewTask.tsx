@@ -1,48 +1,73 @@
-import { type FunctionComponent } from 'preact'
-import { useState, useEffect } from 'preact/hooks'
-import { ActionButton, Badge, showToast } from '@forge-dev/ui'
+import { type FunctionComponent, type ComponentChildren } from 'preact'
+import { useState, useEffect, useRef } from 'preact/hooks'
+import { ActionButton, CloseButton, Tabs, ToggleSwitch, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness } from '../config/types.js'
+import { effectiveType, slugOf } from '../config/inference.js'
+import { startInput, setStartInput, typeOverride } from '../state/startTask.js'
 import { harnesses, loadHarnesses, supportsIn } from '../hooks/useHarnesses.js'
 import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
+import { InferenceLine, TypeSegmented, type ProjectMap } from '../components/StartCard.js'
 
 interface NewTaskProps {
-  projects: Record<string, { path: string; account: string; harness?: string }>
+  projects: ProjectMap
   accounts: string[]
-  initialType?: string
   initialAccount?: string
   initialProject?: string
-  onBack: () => void
+  onClose: () => void
   onCreated: (session?: CWSession) => void
-  onStartPrototype?: (project: string) => void
   onOpenAccounts?: () => void
 }
 
-const TYPES = [
-  { id: 'dev', label: 'Dev', color: '#f59e0b' },
-  { id: 'review', label: 'Review', color: '#6366f1' },
-  { id: 'loop', label: 'Loop', color: '#e11d48' },
-  { id: 'general', label: 'General', color: '#059669' },
-]
+const TITLES = { dev: 'New dev task', review: 'Review a pull request', loop: 'New loop', general: 'New session' }
+
+const HELP = {
+  dev: 'A worktree session that ends in a pull request. Paste a Linear or Notion link and the ticket lands in TASK_NOTES.md first.',
+  review: 'Opens a pull request in a review worktree and walks the agent through the diff.',
+  loop: 'A recurring Claude Code /loop on one project — babysit PRs, fix failing tests, work a backlog.',
+  general: 'A plain agent session on an account, optionally inside a project. No worktree.',
+}
+
+const NAME_LABEL = { dev: 'Task name or ticket URL', review: 'Pull request number or URL', loop: 'Loop prompt', general: '' }
+const NAME_HINT = { dev: 'fix-auth or https://linear.app/…', review: '42 or https://github.com/…/pull/42', loop: 'Babysit my open PRs…', general: '' }
+
+const WORKFLOWS = [{ id: '', label: 'Auto' }, { id: 'feature', label: 'feature' }, { id: 'bugfix', label: 'bugfix' }, { id: 'refactor', label: 'refactor' }]
+
+const fieldStyle = {
+  height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)',
+  background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none', boxShadow: 'var(--shadow-s)', width: '100%',
+}
+
+const Field: FunctionComponent<{ label: ComponentChildren; children: ComponentChildren }> = ({ label, children }) => (
+  <label class="flex flex-col min-w-0" style={{ gap: '5px' }}>
+    <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{label}</span>
+    {children}
+  </label>
+)
+
+const quote = (s: string) => (/^[\w./:#-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`)
 
 export const NewTask: FunctionComponent<NewTaskProps> = ({
-  projects, accounts, initialType, initialAccount, initialProject, onBack, onCreated, onStartPrototype, onOpenAccounts
+  projects, accounts, initialAccount, initialProject, onClose, onCreated, onOpenAccounts,
 }) => {
-  const [type, setType] = useState(initialType ?? 'dev')
+  const type = effectiveType(startInput.value, typeOverride.value)
   const [selectedAccount, setSelectedAccount] = useState('')
   const [project, setProject] = useState('')
-  const [task, setTask] = useState('')
   const [description, setDescription] = useState('')
   const [workflow, setWorkflow] = useState('')
   const [model, setModel] = useState('')
   const [skipPermissions, setSkipPermissions] = useState(false)
   const [starting, setStarting] = useState(false)
-  const [detection, setDetection] = useState<Record<string, unknown> | null>(null)
-  const [loopPrompt, setLoopPrompt] = useState('')
   const [loopInterval, setLoopInterval] = useState('')
   const [harness, setHarness] = useState('claude')
 
   useEffect(() => { loadHarnesses() }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const response = harnesses.value
   const doctor = response?.available ? response.doctor : null
@@ -51,38 +76,39 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const isGeneral = type === 'general'
   const isReview = type === 'review'
   const isLoop = type === 'loop'
+  const task = startInput.value
   const loopIntervalValid = !loopInterval.trim() || /^\d+[smh]$/.test(loopInterval.trim())
 
-  // Derive accounts from projects if not provided
   const accountList = accounts.length > 0
     ? accounts
     : Array.from(new Set(Object.values(projects).map(p => p.account).filter(Boolean))).sort()
 
-  // Filter projects by selected account
   const filteredProjectNames = selectedAccount
     ? projectNames.filter(n => projects[n]?.account === selectedAccount)
     : projectNames
 
   // On mount: set initial account and project (runs once)
   useEffect(() => {
-    // If a project is pre-selected, derive account from it when not explicitly set
     const derivedAccount = initialProject && !initialAccount && projects[initialProject]
       ? projects[initialProject].account
       : undefined
-    const acc = (initialAccount ?? derivedAccount) && accountList.includes((initialAccount ?? derivedAccount)!)
-      ? (initialAccount ?? derivedAccount)!
-      : accountList.length > 0 ? accountList[0] : ''
+    const wanted = initialAccount ?? derivedAccount
+    const acc = wanted && accountList.includes(wanted) ? wanted : accountList[0] ?? ''
     setSelectedAccount(acc)
-    const projs = acc
-      ? projectNames.filter(n => projects[n]?.account === acc)
-      : projectNames
+    const projs = acc ? projectNames.filter(n => projects[n]?.account === acc) : projectNames
     const proj = initialProject && projs.includes(initialProject)
       ? initialProject
       : (!isGeneral && projs.length > 0) ? projs[0] : ''
     if (proj) setProject(proj)
   }, [])
 
-  // When account changes (user interaction), update project list
+  // a general session may run outside any project; the others need one
+  const mounted = useRef(false)
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return }
+    if (!isGeneral && !project && filteredProjectNames.length > 0) setProject(filteredProjectNames[0])
+  }, [isGeneral])
+
   const handleAccountChange = (acc: string) => {
     setSelectedAccount(acc)
     const projs = projectNames.filter(n => projects[n]?.account === acc)
@@ -92,15 +118,6 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
       setProject('')
     }
   }
-
-  useEffect(() => {
-    if (project && !isGeneral) {
-      fetch(`/api/cw/detect/${encodeURIComponent(project)}`)
-        .then(r => r.json())
-        .then(d => setDetection(d as Record<string, unknown>))
-        .catch(() => setDetection(null))
-    }
-  }, [project, isGeneral])
 
   const defaultHarness = doctor ? resolveHarness(project || undefined, selectedAccount, projects, doctor) : 'claude'
 
@@ -130,27 +147,22 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     response?.available && ticketSource && !supportsIn(response, harness, 'mcp') && !response.contextTokens[ticketSource]
   )
 
+  const missingInput = (!isGeneral && !task.trim()) || (isLoop && !loopIntervalValid) || (!isGeneral && !project)
+  const disabled = missingInput || Boolean(harnessBlocked)
+
   const handleStart = async () => {
-    if (harnessBlocked) return
-    if (!isGeneral && !isLoop && !task.trim()) return
-    if (isLoop && (!loopPrompt.trim() || !loopIntervalValid)) return
-
-    if (type === 'design' && onStartPrototype) {
-      onStartPrototype(project)
-      return
-    }
-
+    if (disabled) return
     setStarting(true)
     try {
       const body: Record<string, unknown> = {
-        type: type === 'design' ? 'dev' : type,
+        type,
         account: selectedAccount || undefined,
         skipPermissions: skipPermissions || undefined,
       }
       if (doctor) body.harness = harness
       if (isLoop) {
         body.project = project
-        body.loopPrompt = loopPrompt.trim()
+        body.loopPrompt = task.trim()
         body.loopInterval = loopInterval.trim() || undefined
       } else if (!isGeneral) {
         body.project = project
@@ -170,6 +182,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
       const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
       if (result.ok) {
         showToast(isGeneral ? 'Session started' : isLoop ? 'Loop started' : 'Task started', 'success')
+        if (!isGeneral) setStartInput('')
         onCreated(result.session)
       } else {
         showToast(result.error ?? 'Failed to start', 'error')
@@ -181,271 +194,165 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     }
   }
 
+  const acct = selectedAccount || accountList[0] || 'default'
+  const command = isGeneral ? `cw launch ${quote(acct)}`
+    : isLoop ? `cw loop ${project || '<project>'} ${quote(task.trim() || '<prompt>')}${loopInterval.trim() ? ` --every ${loopInterval.trim()}` : ''}`
+    : isReview ? `cw review ${project || '<project>'} ${quote(task.trim() || '<pr>')}`
+    : `cw work ${project || '<project>'} ${task.trim() ? quote(slugOf(task)) : '<task>'}`
+
   return (
-    <div>
-      <button
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 mb-4 text-xs font-medium rounded-lg border transition-colors text-forge-muted hover:text-forge-text"
-        style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-        onClick={onBack}
+    <div
+      class="fixed inset-0 z-50 flex justify-end"
+      style={{ background: 'rgba(0,0,0,.38)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+      onClick={onClose}
+    >
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={TITLES[type]}
+        class="new-task-drawer flex flex-col h-full overflow-auto"
+        style={{ width: 'min(492px, 100%)', background: 'var(--bg-2)', borderLeft: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)', animation: 'slideIn .3s var(--ease) both' }}
+        onClick={(e) => e.stopPropagation()}
       >
-        ← Back to tasks
-      </button>
-
-      <h2 class="text-xl font-bold mb-6">{isGeneral ? 'New Session' : isLoop ? 'New Loop' : 'New Task'}</h2>
-
-      <div class="max-w-lg">
-        {/* Type selector */}
-        <div class="flex flex-wrap gap-2 mb-6">
-          {TYPES.map(t => (
-            <button
-              key={t.id}
-              class={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                type === t.id
-                  ? 'text-forge-accent'
-                  : 'border-forge-border bg-forge-surface text-forge-muted hover:text-forge-text'
-              }`}
-              style={type === t.id
-                ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' }
-                : undefined
-              }
-              onClick={() => { setType(t.id); setModel(''); if (t.id === 'general') setProject('') }}
-            >
-              {t.label}
-            </button>
-          ))}
+        <div class="glass flex items-center sticky top-0 z-1" style={{ gap: '10px', padding: '14px 18px', borderBottom: '1px solid var(--hair)' }}>
+          <h2 style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em' }}>{TITLES[type]}</h2>
+          <span class="flex-1" />
+          <CloseButton onClick={onClose} />
         </div>
 
-        {/* Account selector — always shown for general, conditional for others */}
-        {(isGeneral || accountList.length > 1) && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">Account</label>
-            <select
-              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-              value={selectedAccount}
-              onChange={(e) => handleAccountChange((e.target as HTMLSelectElement).value)}
-            >
-              {accountList.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </div>
-        )}
+        <div class="flex flex-col" style={{ padding: '16px 18px 24px', gap: '14px' }}>
+          <TypeSegmented fill />
+          <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', lineHeight: 1.5 }}>{HELP[type]}</p>
 
-        {doctor && (
-          <HarnessPicker
-            doctor={doctor}
-            account={selectedAccount}
-            value={harness}
-            defaultHarness={defaultHarness}
-            isLoop={isLoop}
-            onChange={setHarness}
-            onOpenAccounts={onOpenAccounts}
-          />
-        )}
-
-        {/* Project selector — optional for general, required for others */}
-        {(!isGeneral || filteredProjectNames.length > 0) && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">
-              Project{isGeneral && <span class="font-normal text-forge-muted"> (optional)</span>}
-            </label>
-            <select
-              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-              value={project}
-              onChange={(e) => setProject((e.target as HTMLSelectElement).value)}
-            >
-              {isGeneral && <option value="">— none —</option>}
-              {filteredProjectNames.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-            {project && projects[project] && (
-              <div class="text-xs text-forge-muted mt-1">{(projects[project] as { path: string }).path}</div>
-            )}
-          </div>
-        )}
-
-        {/* Task name / PR number — hidden for general */}
-        {!isGeneral && !isLoop && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">
-              {isReview ? 'PR Number or URL' : 'Task Name or URL'}
-            </label>
-            <input
-              type="text"
-              value={task}
-              onInput={(e) => setTask((e.target as HTMLInputElement).value)}
-              placeholder={isReview ? '42 or https://github.com/...' : 'fix-auth or https://linear.app/...'}
-              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-            />
-          </div>
-        )}
-
-        {/* Description — hidden for general */}
-        {!isGeneral && !isLoop && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">Description (optional)</label>
-            <textarea
-              value={description}
-              onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-              placeholder="Describe the task..."
-              rows={3}
-              class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
-            />
-          </div>
-        )}
-
-        {/* Loop prompt + interval */}
-        {isLoop && (
-          <>
-            <div class="mb-4">
-              <label class="block text-sm font-medium mb-1">Loop prompt</label>
-              <textarea
-                value={loopPrompt}
-                onInput={(e) => setLoopPrompt((e.target as HTMLTextAreaElement).value)}
-                placeholder={'e.g. "Babysit my open PRs — check for new review comments and address them", "Run the test suite and fix what breaks", "Work through the TODO backlog one item at a time"'}
-                rows={3}
-                class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
-              />
+          {!isGeneral && (
+            <div class="flex flex-col" style={{ gap: '5px' }}>
+              <Field label={NAME_LABEL[type]}>
+                <input
+                  class="field"
+                  style={{ ...fieldStyle, fontSize: '14px' }}
+                  placeholder={NAME_HINT[type]}
+                  value={task}
+                  autoFocus
+                  onInput={(e) => {
+                    const value = (e.target as HTMLInputElement).value
+                    // a loop prompt is free text, so typing it keeps the loop pick
+                    if (isLoop) startInput.value = value
+                    else setStartInput(value)
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleStart() }}
+                />
+              </Field>
+              {!isLoop && <InferenceLine project={project} harness={harness} size="sm" />}
             </div>
-            <div class="mb-4">
-              <label class="block text-sm font-medium mb-1">
-                Interval <span class="font-normal text-forge-muted">(optional)</span>
-              </label>
+          )}
+
+          <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <Field label="Account">
+              <select class="field" style={fieldStyle} value={selectedAccount} onChange={(e) => handleAccountChange((e.target as HTMLSelectElement).value)}>
+                {accountList.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </Field>
+            <Field label={isGeneral ? 'Project · optional' : 'Project'}>
+              <select class="field" style={fieldStyle} value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
+                {isGeneral && <option value="">— none —</option>}
+                {filteredProjectNames.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          {isLoop && (
+            <Field label="Interval · optional">
               <input
-                type="text"
+                class="field mono"
+                style={{ ...fieldStyle, borderColor: loopIntervalValid ? 'var(--hair)' : 'var(--red)' }}
                 value={loopInterval}
-                onInput={(e) => setLoopInterval((e.target as HTMLInputElement).value)}
                 placeholder="auto — Claude decides the pace"
-                class={`w-full px-3 py-2 rounded-lg bg-forge-surface border text-forge-text text-sm focus:outline-none ${
-                  loopIntervalValid ? 'border-forge-border focus:border-forge-accent' : 'border-red-500'
-                }`}
+                onInput={(e) => setLoopInterval((e.target as HTMLInputElement).value)}
               />
-              {!loopIntervalValid && (
-                <div class="text-xs text-red-500 mt-1">Use forms like 30s, 5m, 2h — or leave empty for self-paced</div>
+              {!loopIntervalValid && <span style={{ fontSize: '12px', color: 'var(--red)' }}>Use forms like 30s, 5m, 2h — or leave it empty to self-pace</span>}
+            </Field>
+          )}
+
+          {(type === 'dev' || isReview) && (
+            <Field label="Description (optional)">
+              <textarea
+                class="field"
+                rows={3}
+                style={{ ...fieldStyle, height: 'auto', padding: '10px 12px', resize: 'none' }}
+                placeholder="Context the agent reads first…"
+                value={description}
+                onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
+              />
+            </Field>
+          )}
+
+          {doctor && (
+            <HarnessPicker
+              doctor={doctor}
+              account={selectedAccount}
+              value={harness}
+              defaultHarness={defaultHarness}
+              isLoop={isLoop}
+              onChange={setHarness}
+              onOpenAccounts={onOpenAccounts}
+            />
+          )}
+
+          {showModel && (
+            <div class="grid" style={{ gridTemplateColumns: type === 'dev' ? '1fr 1fr' : '1fr', gap: '10px' }}>
+              <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>Model</span>
+                  {usesClaudeModels ? (
+                    <Tabs fill size="sm" label="Model" tabs={CLAUDE_MODELS.map(m => ({ id: m.id, label: m.label }))} active={model} onChange={setModel} />
+                  ) : (
+                    <input
+                      class="field mono"
+                      style={{ ...fieldStyle, height: '32px', fontSize: '12.5px' }}
+                      value={model}
+                      placeholder="the account's model"
+                      aria-label="Model"
+                      onInput={(e) => setModel((e.target as HTMLInputElement).value)}
+                    />
+                  )}
+              </div>
+              {type === 'dev' && (
+                <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>Workflow</span>
+                  <Tabs fill size="sm" label="Workflow" tabs={WORKFLOWS} active={workflow} onChange={setWorkflow} />
+                </div>
               )}
             </div>
-          </>
-        )}
+          )}
 
-        {/* Workflow (dev only) */}
-        {type === 'dev' && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">Workflow</label>
-            <div class="flex gap-2">
-              {['', 'feature', 'bugfix', 'refactor'].map(w => (
-                <button
-                  key={w}
-                  class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                    workflow === w
-                      ? 'text-forge-accent'
-                      : 'border-forge-border bg-forge-surface text-forge-muted'
-                  }`}
-                  style={workflow === w
-                    ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' }
-                    : undefined
-                  }
-                  onClick={() => setWorkflow(w)}
-                >
-                  {w || 'Auto'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Skip permissions toggle */}
-        {canSkipPermissions && (
-          <label class="flex items-center gap-2 mb-4 cursor-pointer text-sm text-forge-muted">
-            <input
-              type="checkbox"
-              checked={skipPermissions}
-              onChange={(e) => setSkipPermissions((e.target as HTMLInputElement).checked)}
-            />
-            Bypass permissions
-            <span class="text-[11px] opacity-60">(--skip-permissions)</span>
-          </label>
-        )}
-
-        {/* Model selector */}
-        {showModel && (
-          <div class="mb-4">
-            <label class="block text-sm font-medium mb-1">
-              Model{' '}
-              <span class="text-forge-muted font-normal">
-                {usesClaudeModels ? '(claude default if not set)' : "(the account's model if empty)"}
+          {canSkipPermissions && (
+            <div class="flex items-center" style={{ gap: '10px', padding: '10px 12px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)' }}>
+              <span class="flex-1" style={{ fontSize: '13px' }}>
+                Bypass permissions <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>--skip-permissions</span>
               </span>
-            </label>
-            {usesClaudeModels ? (
-              <div class="flex flex-wrap gap-2">
-                {CLAUDE_MODELS.map(m => (
-                  <button
-                    key={m.id}
-                    class={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                      model === m.id ? 'text-forge-accent' : 'border-forge-border bg-forge-surface text-forge-muted'
-                    }`}
-                    style={model === m.id ? { backgroundColor: 'rgba(99,102,241,0.1)', borderColor: 'var(--forge-accent)' } : undefined}
-                    onClick={() => setModel(m.id)}
-                    title={m.description}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <input
-                type="text"
-                value={model}
-                onInput={(e) => setModel((e.target as HTMLInputElement).value)}
-                placeholder="the model configured on the account"
-                class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
-              />
-            )}
-          </div>
-        )}
+              <ToggleSwitch checked={skipPermissions} onChange={setSkipPermissions} label="Bypass permissions" />
+            </div>
+          )}
 
-        {/* Stack detection — hidden for general */}
-        {!isGeneral && detection && (
-          <div class="flex flex-wrap gap-2 mb-6">
-            {detection.framework && <Badge label={String(detection.framework)} color="var(--forge-accent)" />}
-            {detection.testRunner && <Badge label={String(detection.testRunner)} color="var(--forge-success)" />}
-            {detection.hasTailwind && <Badge label="Tailwind" color="var(--forge-accent)" />}
-            {detection.hasShadcn && <Badge label="shadcn" color="var(--forge-accent)" />}
-            {detection.hasPlaywright && <Badge label="Playwright" color="var(--forge-success)" />}
-            {detection.hasDockerfile && <Badge label="Docker" color="var(--forge-warning)" />}
-          </div>
-        )}
+          {missingTicketToken && (
+            <p style={{ fontSize: '12.5px', padding: '10px 12px', borderRadius: '12px', background: 'color-mix(in srgb, var(--orange) 18%, transparent)', color: 'var(--ink)' }}>
+              {harnessName} has no MCP and CW has no {ticketSource === 'linear' ? 'LINEAR_API_KEY' : 'NOTION_TOKEN'}, so
+              the ticket will not reach TASK_NOTES.md. The task still starts, without the ticket.
+            </p>
+          )}
 
-        {missingTicketToken && (
-          <div
-            class="text-xs rounded-lg px-3 py-2 mb-4 text-forge-text"
-            style={{ backgroundColor: 'var(--forge-tint-amber-bg)', border: '1px solid var(--forge-tint-amber-border)' }}
-          >
-            {harnessName} has no MCP and CW has no {ticketSource === 'linear' ? 'LINEAR_API_KEY' : 'NOTION_TOKEN'}, so
-            the ticket will not reach TASK_NOTES.md. The task still starts, without the ticket.
-          </div>
-        )}
-
-        {/* Start button */}
-        <ActionButton
-          label={starting ? 'Starting...' : isGeneral ? 'Launch Session ▶' : isLoop ? 'Start Loop ▶' : 'Start Task ▶'}
-          variant="primary"
-          loading={starting}
-          disabled={(!isGeneral && !isLoop && !task.trim()) || (isLoop && (!loopPrompt.trim() || !loopIntervalValid)) || Boolean(harnessBlocked)}
-          onClick={handleStart}
-        />
-        {harnessBlocked && <div class="text-xs mt-2" style={{ color: 'var(--forge-error)' }}>{harnessBlocked}</div>}
-        <div class="text-xs text-forge-muted mt-2">
-          {isGeneral
-            ? project
-              ? `Opens ${harnessName} in "${project}" for account "${selectedAccount || accountList[0] || 'default'}"`
-              : `Opens ${harnessName} for account "${selectedAccount || accountList[0] || 'default'}"`
-            : isLoop
-              ? `Runs a recurring Claude loop in "${project}" — ${loopInterval.trim() ? `every ${loopInterval.trim()}` : 'self-paced'}`
-              : `Opens a CW session on ${harnessName} for ${project}`
-          }
+          <ActionButton
+            label={starting ? 'Starting…' : isGeneral ? 'Launch session' : isLoop ? 'Start loop' : isReview ? 'Start review' : 'Start task'}
+            variant="primary"
+            size="lg"
+            block
+            loading={starting}
+            disabled={disabled}
+            onClick={handleStart}
+          />
+          {harnessBlocked && <p style={{ fontSize: '12px', color: 'var(--red)', textAlign: 'center' }}>{harnessBlocked}</p>}
+          <p class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)', textAlign: 'center', overflowWrap: 'anywhere' }}>{command}</p>
         </div>
-      </div>
+      </aside>
     </div>
   )
 }

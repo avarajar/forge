@@ -32,6 +32,7 @@ interface TaskListProps {
   onCreateProject: () => void
   onRefresh: () => void
   onStarted: (session?: CWSession) => void
+  startProject: string
 }
 
 const DONE_LIMIT = 10
@@ -75,7 +76,7 @@ const GroupCard: FunctionComponent<{
 export const TaskList: FunctionComponent<TaskListProps> = ({
   spaces, allSpaces, projects, accountNames, filterAccount, filterProject, onFilterProject,
   filterType, onFilterType, harnessNames, filterHarness, onFilterHarness, showDone, onShowDone,
-  openTabKeys, onSelectTask, onMarkDone, onNewTask, onCreateProject, onRefresh, onStarted,
+  openTabKeys, onSelectTask, onMarkDone, onNewTask, onCreateProject, onRefresh, onStarted, startProject,
 }) => {
   const active = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
   const done = useMemo(() => spaces.filter(s => s.status === 'done'), [spaces])
@@ -102,7 +103,6 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
     return Array.from(byProject, ([project, sessions]) => ({ project, sessions }))
   }, [active])
 
-  const startProject = filterProject ?? active[0]?.project ?? Object.keys(projects)[0] ?? ''
   const projectAccount = filterProject ? projects[filterProject]?.account ?? active[0]?.account : undefined
 
   const subtitle = filterProject
