@@ -1,5 +1,6 @@
-import { type FunctionComponent, type ComponentChildren } from 'preact'
+import { type FunctionComponent } from 'preact'
 import type { CWDoctorCell } from '@forge-dev/core'
+import { soft } from '../config/types.js'
 
 export type CellView =
   | { kind: 'connecting' }
@@ -27,80 +28,70 @@ export const cellView = (cell: CWDoctorCell, connecting: boolean): CellView => {
   return { kind: 'connect' }
 }
 
-const Status: FunctionComponent<{ color: string; label: string }> = ({ color, label }) => (
-  <span class="inline-flex items-center gap-1.5 font-semibold" style={{ color }}>
-    <span class="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+// the grey line between the harness name and its status
+export const cellDetailLine = (view: CellView, version: string | null, headless: boolean, cell: CWDoctorCell): string => {
+  const parts: string[] = []
+  switch (view.kind) {
+    case 'connecting': parts.push('Waiting for the login to finish'); break
+    case 'not_installed': parts.push(view.detail || 'Not on PATH'); break
+    case 'error': parts.push(view.detail || 'cw doctor reported an error'); break
+    case 'local': {
+      const checks = [
+        view.reachable === null ? null : view.reachable ? 'reachable' : 'unreachable',
+        view.pulled === null ? null : view.pulled ? 'model pulled' : 'model not pulled',
+      ].filter(Boolean).join(', ')
+      parts.push(...[view.providerModel, checks].filter(Boolean))
+      break
+    }
+    case 'api_key': parts.push(...[view.providerModel, 'stored by cw'].filter((p): p is string => Boolean(p))); break
+    case 'connected': parts.push(...[cell.model, version].filter((p): p is string => Boolean(p))); if (parts.length === 0) parts.push('Signed in'); break
+    case 'connect': parts.push(headless ? 'Not logged in — device code, no terminal needed' : 'Not logged in'); break
+  }
+  if (cell.unofficial) parts.push('unofficial')
+  return parts.join(' · ')
+}
+
+const Pill: FunctionComponent<{ token: string | null; label: string }> = ({ token, label }) => (
+  <span
+    class="inline-flex items-center shrink-0 whitespace-nowrap"
+    style={{
+      gap: '6px', padding: '3px 10px', borderRadius: '99px', fontSize: '11.5px', fontWeight: 600,
+      background: token ? soft(token) : 'var(--elev)', color: token ? `var(${token})` : 'var(--ink-3)',
+    }}
+  >
+    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
     {label}
   </span>
 )
 
-const Sub: FunctionComponent<{ children: ComponentChildren }> = ({ children }) => (
-  <span class="text-[11px] text-forge-muted">{children}</span>
-)
-
 export const AccountCell: FunctionComponent<{
-  cell: CWDoctorCell
-  connecting: boolean
+  view: CellView
   onConnect: () => void
   onCancel: () => void
-}> = ({ cell, connecting, onConnect, onCancel }) => {
-  const view = cellView(cell, connecting)
-  return (
-    <div class="grid gap-0.5 justify-items-start text-xs">
-      {view.kind === 'connecting' && (
-        <>
-          <Status color="var(--forge-accent)" label="Connecting…" />
-          <button class="text-[11px] text-forge-muted underline" onClick={onCancel}>Cancel</button>
-        </>
-      )}
-      {view.kind === 'not_installed' && (
-        <>
-          <span class="text-forge-muted">Not installed</span>
-          {view.detail && <Sub>{view.detail}</Sub>}
-        </>
-      )}
-      {view.kind === 'error' && (
-        <>
-          <Status color="var(--forge-error)" label="Error" />
-          {view.detail && <Sub>{view.detail}</Sub>}
-        </>
-      )}
-      {view.kind === 'local' && (
-        <>
-          <Status color="var(--forge-warning)" label="Local" />
-          <Sub>{view.providerModel}</Sub>
-          {view.reachable !== null && (
-            <Sub>
-              {view.reachable ? 'reachable ✓' : 'unreachable ✗'}
-              {view.pulled !== null && ` · ${view.pulled ? 'model pulled ✓' : 'model not pulled ✗'}`}
-            </Sub>
-          )}
-        </>
-      )}
-      {view.kind === 'api_key' && (
-        <>
-          <Status color="var(--forge-success)" label="API key" />
-          {view.providerModel && <Sub>{view.providerModel}</Sub>}
-        </>
-      )}
-      {view.kind === 'connected' && <Status color="var(--forge-success)" label="Connected" />}
-      {view.kind === 'connect' && (
-        <>
-          <button
-            class="px-2.5 py-1 rounded-lg text-xs font-semibold border text-forge-accent"
-            style={{ backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' }}
-            onClick={onConnect}
-          >
-            Connect
-          </button>
-          <Sub>not logged in</Sub>
-        </>
-      )}
-      {cell.unofficial && (
-        <span class="text-[10px] px-1.5 rounded" style={{ color: 'var(--forge-warning)', border: '1px solid currentColor' }}>
-          unofficial
+}> = ({ view, onConnect, onCancel }) => {
+  switch (view.kind) {
+    case 'connecting':
+      return (
+        <span class="inline-flex items-center shrink-0" style={{ gap: '8px' }}>
+          <Pill token="--blue" label="Connecting…" />
+          <button type="button" class="cursor-pointer hover:text-ink" style={{ border: 0, background: 'none', color: 'var(--ink-2)', fontSize: '12px' }} onClick={onCancel}>Cancel</button>
         </span>
-      )}
-    </div>
-  )
+      )
+    case 'not_installed': return <Pill token={null} label="Not installed" />
+    case 'error': return <Pill token="--red" label="Error" />
+    case 'local': return <Pill token="--orange" label="Local" />
+    case 'api_key': return <Pill token="--green" label="API key" />
+    case 'connected': return <Pill token="--green" label="Connected" />
+    case 'connect':
+      return (
+        <button
+          type="button"
+          class="shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:brightness-106"
+          style={{ padding: '5px 13px', borderRadius: '9px', border: 0, background: 'linear-gradient(180deg, var(--blue-2), var(--blue))', color: '#fff', fontSize: '12.5px', fontWeight: 600, boxShadow: 'var(--shadow-m)' }}
+          onClick={onConnect}
+        >
+          Connect
+        </button>
+      )
+  }
 }

@@ -28,7 +28,7 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
   return (
     <Modal open={open} title="Graduate to Dev Task" onClose={onClose}>
       <div class="space-y-4">
-        <p class="text-sm text-forge-muted">
+        <p style={{ fontSize: '13px', color: 'var(--ink-2)' }}>
           Create a Dev task to implement this prototype in production.
         </p>
 
@@ -36,12 +36,12 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
           <div class="space-y-2">
             {prUrl && (
               <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-forge-muted w-16">PR:</span>
+                <span class="shrink-0" style={{ width: '64px', fontSize: '12px', color: 'var(--ink-2)' }}>PR:</span>
                 <a
                   href={prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-sm text-forge-accent hover:underline truncate"
+                  class="truncate" style={{ fontSize: '13px' }}
                 >
                   {prUrl}
                 </a>
@@ -49,12 +49,12 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
             )}
             {previewUrl && (
               <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-forge-muted w-16">Preview:</span>
+                <span class="shrink-0" style={{ width: '64px', fontSize: '12px', color: 'var(--ink-2)' }}>Preview:</span>
                 <a
                   href={previewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-sm text-forge-accent hover:underline truncate"
+                  class="truncate" style={{ fontSize: '13px' }}
                 >
                   {previewUrl}
                 </a>
@@ -64,14 +64,14 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
         )}
 
         <div>
-          <label class="block text-xs font-medium text-forge-muted mb-1.5">
+          <label style={{ display: 'block', fontSize: '12px', color: 'var(--ink-2)', marginBottom: '5px' }}>
             Task name
           </label>
           <input
             type="text"
             value={taskName}
             onInput={(e) => setTaskName((e.target as HTMLInputElement).value)}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+            class="field w-full" style={{ height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none' }}
             placeholder="implement-my-feature"
           />
         </div>

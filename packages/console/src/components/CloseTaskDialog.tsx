@@ -38,24 +38,20 @@ export const CloseTaskDialog: FunctionComponent<{
   const warnings: CloseWarning[] = request.state ? request.state.closeWarnings : ['state-unknown']
   const destructive = warnings.includes('uncommitted')
 
+  const footer = (
+    <>
+      <span class="flex-1" />
+      <ActionButton label="Cancel" variant="secondary" onClick={onCancel} />
+      <ActionButton label="Close task" variant={destructive ? 'destructive' : 'primary'} onClick={onConfirm} />
+    </>
+  )
+
   return (
-    <Modal open title="Close this task?" onClose={onCancel}>
-      <div class="space-y-4">
-        <ul class="space-y-2 text-sm text-forge-text list-disc pl-5">
-          {warnings.map(warning => <li key={warning}>{closeWarningText(warning, request.state)}</li>)}
-        </ul>
-        {request.error && <p class="text-xs text-forge-muted">{request.error}</p>}
-        <div class="flex justify-end gap-2">
-          <button
-            autoFocus
-            class="px-4 py-2 rounded-lg text-sm bg-forge-surface border border-forge-border hover:bg-forge-border"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <ActionButton label="Close task" variant={destructive ? 'destructive' : 'primary'} onClick={onConfirm} />
-        </div>
-      </div>
+    <Modal open title="Close this task?" onClose={onCancel} footer={footer} width={460}>
+      <ul class="flex flex-col" style={{ gap: '8px', fontSize: '13.5px', paddingLeft: '18px' }}>
+        {warnings.map(warning => <li key={warning}>{closeWarningText(warning, request.state)}</li>)}
+      </ul>
+      {request.error && <p style={{ marginTop: '10px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{request.error}</p>}
     </Modal>
   )
 }

@@ -26,27 +26,27 @@ export const ShareModal: FunctionComponent<ShareModalProps> = ({
     <Modal open={open} title="Create Pull Request" onClose={onClose}>
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-medium text-forge-muted mb-1.5">
+          <label style={{ display: 'block', fontSize: '12px', color: 'var(--ink-2)', marginBottom: '5px' }}>
             Branch name
           </label>
           <input
             type="text"
             value={branch}
             onInput={(e) => setBranch((e.target as HTMLInputElement).value)}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+            class="field w-full" style={{ height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none' }}
             placeholder="prototype/my-feature"
           />
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-forge-muted mb-1.5">
-            PR description <span class="text-forge-muted font-normal">(optional)</span>
+          <label style={{ display: 'block', fontSize: '12px', color: 'var(--ink-2)', marginBottom: '5px' }}>
+            PR description · optional
           </label>
           <textarea
             value={description}
             onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
             rows={3}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
+            class="field w-full" style={{ padding: '10px 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none', resize: 'none' }}
             placeholder="Describe the changes in this PR..."
           />
         </div>

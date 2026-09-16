@@ -142,85 +142,85 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
 
   const exited = login?.status === 'exited'
 
+  const field = { height: '36px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '13px', outline: 'none' }
+
   return (
-    <div class="rounded-xl p-4 grid gap-3" style={{ border: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}>
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-semibold text-forge-text">Connect {account} on {label}</h3>
-        <button class="text-xs text-forge-muted hover:text-forge-text" onClick={cancel}>Cancel</button>
+    <div class="flex flex-col" style={{ gap: '12px', padding: '14px 16px', borderRadius: '16px', background: 'var(--bg-2)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: 'riseIn .3s var(--ease) both' }}>
+      <div class="flex items-center" style={{ gap: '10px' }}>
+        <h3 style={{ fontSize: '14px', fontWeight: 650 }}>Connect {account} on {label}</h3>
+        <span class="flex-1" />
+        <ActionButton label="Cancel" variant="secondary" size="sm" onClick={cancel} />
       </div>
 
-      {!login && <p class="text-xs text-forge-muted">Starting the login…</p>}
+      {!login && <p style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>Starting the login…</p>}
 
       {login && !exited && (
         <>
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex flex-wrap items-center" style={{ gap: '12px' }}>
             {login.url && (
               <a
                 href={login.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                style={{ backgroundColor: 'var(--forge-accent)' }}
+                class="inline-flex items-center gap-1 transition-all duration-180 ease-spring hover:-translate-y-px hover:brightness-106"
+                style={{ padding: '6px 14px', borderRadius: '9px', background: 'linear-gradient(180deg, var(--blue-2), var(--blue))', color: '#fff', fontSize: '12.5px', fontWeight: 600, boxShadow: 'var(--shadow-m)' }}
               >
-                Open login ↗
+                Open login <span class="i-lucide-external-link" style={{ width: '12px', height: '12px' }} />
               </a>
             )}
             {login.code && (
               <>
-                <span class="font-mono text-lg tracking-widest text-forge-text">{login.code}</span>
-                <button
-                  class="px-2 py-1 text-xs rounded border border-forge-border text-forge-muted hover:text-forge-text"
-                  onClick={() => { navigator.clipboard.writeText(login.code ?? ''); showToast('Code copied', 'info') }}
-                >
-                  Copy
-                </button>
+                <span class="mono" style={{ fontSize: '19px', fontWeight: 650, letterSpacing: '.12em' }}>{login.code}</span>
+                <ActionButton label="Copy" variant="secondary" size="sm" onClick={() => { void navigator.clipboard.writeText(login.code ?? ''); showToast('Code copied', 'info') }} />
               </>
             )}
           </div>
           {login.code && (
-            <p class="text-[11px] text-forge-muted">If the code is rejected, use the one shown in Output.</p>
+            <p style={{ fontSize: '12px', color: 'var(--ink-3)' }}>If the code is rejected, use the one shown in Output.</p>
           )}
-          <p class="text-xs text-forge-muted">
-            {login.url || login.code ? 'Checks every 3 s. The cell turns Connected on its own.' : 'Waiting for the login URL…'}
+          <p style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>
+            {login.url || login.code ? 'Checks every 3 s. The status turns Connected on its own.' : 'Waiting for the login URL…'}
           </p>
         </>
       )}
 
       {exited && checking && (
-        <p class="text-xs text-forge-muted">Checking the connection…</p>
+        <p style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>Checking the connection…</p>
       )}
 
       {exited && !checking && (
-        <div class="flex items-center gap-3 text-xs">
-          <span style={{ color: 'var(--forge-error)' }}>The login ended before connecting.</span>
-          <button class="underline text-forge-text" onClick={() => setAttempt(n => n + 1)}>Retry</button>
+        <div class="flex items-center" style={{ gap: '10px', fontSize: '12.5px' }}>
+          <span style={{ color: 'var(--red)' }}>The login ended before connecting.</span>
+          <ActionButton label="Retry" variant="secondary" size="sm" onClick={() => setAttempt(n => n + 1)} />
         </div>
       )}
 
       {login && login.output.length > 0 && (
-        <details class="text-xs">
-          <summary class="cursor-pointer text-forge-muted">Output</summary>
-          <pre class="mt-2 p-2 rounded overflow-x-auto text-[11px] text-forge-text" style={{ backgroundColor: 'var(--forge-bg)' }}>
+        <details style={{ fontSize: '12.5px' }}>
+          <summary class="cursor-pointer" style={{ color: 'var(--ink-2)' }}>Output</summary>
+          <pre class="overflow-x-auto" style={{ marginTop: '8px', padding: '10px 12px', borderRadius: '11px', background: 'var(--term)', color: '#e3e3e8', fontSize: '11.5px' }}>
             {login.output.join('\n')}
           </pre>
         </details>
       )}
 
       {canUseApiKey && (
-        <div class="grid gap-2 pt-3" style={{ borderTop: '1px solid var(--forge-ghost-border)' }}>
-          <span class="text-[11px] uppercase tracking-wider text-forge-muted">or with an API key</span>
-          <div class="flex gap-2 items-center">
+        <div class="flex flex-col" style={{ gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--hair)' }}>
+          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)' }}>Or with an API key</span>
+          <div class="flex items-center" style={{ gap: '8px' }}>
             <input
               type="password"
               autocomplete="off"
+              aria-label="API key"
               value={apiKey}
               onInput={(e) => setApiKey((e.target as HTMLInputElement).value)}
               placeholder="sk-…"
-              class="flex-1 px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+              class="field mono flex-1 min-w-0"
+              style={field}
             />
-            <ActionButton label="Save" variant="secondary" loading={savingKey} disabled={!apiKey.trim()} onClick={saveKey} />
+            <ActionButton label="Save" variant="secondary" size="sm" loading={savingKey} disabled={!apiKey.trim()} onClick={saveKey} />
           </div>
-          <p class="text-[11px] text-forge-muted">Sent to cw over stdin. Forge never stores or shows it.</p>
+          <p style={{ fontSize: '12px', color: 'var(--ink-3)' }}>Sent to cw over stdin. Forge never stores or shows it.</p>
         </div>
       )}
     </div>

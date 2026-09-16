@@ -5,8 +5,6 @@ interface ModalProps {
   open: boolean
   title: string
   onClose: () => void
-  onConfirm?: () => void
-  confirmLabel?: string
   footer?: ComponentChildren
   width?: number
   children: ComponentChildren
@@ -25,7 +23,7 @@ export const CloseButton: FunctionComponent<{ onClick: () => void; label?: strin
 )
 
 export const Modal: FunctionComponent<ModalProps> = ({
-  open, title, onClose, onConfirm, confirmLabel = 'Confirm', footer, width = 540, children
+  open, title, onClose, footer, width = 540, children
 }) => {
   useEffect(() => {
     if (!open) return
@@ -35,27 +33,6 @@ export const Modal: FunctionComponent<ModalProps> = ({
   }, [open, onClose])
 
   if (!open) return null
-
-  const actions = footer ?? (onConfirm !== undefined || confirmLabel !== 'Confirm' ? (
-    <>
-      <span class="flex-1" />
-      <button
-        type="button"
-        class="cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m"
-        style={{ padding: '7px 13px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', boxShadow: 'var(--shadow-s)' }}
-        onClick={onClose}
-      >Cancel</button>
-      <button
-        type="button"
-        disabled={!onConfirm}
-        class={onConfirm ? 'cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:brightness-106' : 'cursor-not-allowed'}
-        style={onConfirm
-          ? { padding: '7px 15px', borderRadius: '9px', border: 0, background: 'linear-gradient(180deg, var(--blue-2), var(--blue))', color: '#fff', fontSize: '13px', fontWeight: 600, boxShadow: 'var(--shadow-m)' }
-          : { padding: '7px 15px', borderRadius: '9px', border: 0, background: 'var(--elev)', color: 'var(--ink-3)', fontSize: '13px', fontWeight: 600, opacity: 0.8 }}
-        onClick={onConfirm}
-      >{confirmLabel}</button>
-    </>
-  ) : null)
 
   return (
     <div
@@ -81,9 +58,9 @@ export const Modal: FunctionComponent<ModalProps> = ({
           <CloseButton onClick={onClose} />
         </div>
         <div class="overflow-auto min-h-0" style={{ padding: '16px 18px' }}>{children}</div>
-        {actions && (
+        {footer && (
           <div class="flex items-center gap-2.5 shrink-0" style={{ padding: '13px 18px', borderTop: '1px solid var(--hair)' }}>
-            {actions}
+            {footer}
           </div>
         )}
       </div>

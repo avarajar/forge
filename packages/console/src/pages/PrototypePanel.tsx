@@ -1,13 +1,13 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
-import { showToast } from '@forge-dev/ui'
+import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import { usePrototype } from '../hooks/usePrototype.js'
 import type { InputType } from '../hooks/usePrototype.js'
 import { InputSelector } from '../components/InputSelector.js'
-import { PrototypePreview } from '../components/PrototypePreview.js'
+import { PrototypePreview, VIEWPORTS, type Viewport } from '../components/PrototypePreview.js'
 import { ShareModal } from '../components/ShareModal.js'
 import { GraduateModal } from '../components/GraduateModal.js'
-import { TYPE_STYLES } from '../config/types.js'
+import { PageHeader, BackButton } from '../components/PageHeader.js'
 
 /* ── Types ── */
 
@@ -19,20 +19,24 @@ interface StackDetection {
 
 export interface PrototypePanelProps {
   project: string
+  projects: string[]
+  onProjectChange: (project: string) => void
   onBack: () => void
 }
 
-/* ── Helpers ── */
+const STAGES = ['Idle', 'Generating', 'Live', 'Shared', 'Graduated']
 
-const designStyle = TYPE_STYLES.task
+const stageOf = (state: string): number =>
+  state === 'generating' ? 1 : state === 'live' ? 2 : state === 'shared' ? 3 : state === 'archived' ? -1 : 0
 
 /* ── Component ── */
 
-export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project, onBack }) => {
+export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project, projects, onProjectChange, onBack }) => {
   const proto = usePrototype()
   const [detection, setDetection] = useState<StackDetection | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [graduateOpen, setGraduateOpen] = useState(false)
+  const [viewport, setViewport] = useState<Viewport>('desktop')
 
   // Fetch stack detection on mount
   useEffect(() => {
@@ -98,160 +102,70 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
   const showGraduate = proto.state === 'shared'
   const sandboxName = proto.sandbox?.name ?? project
 
-  /* ── Render ── */
+  const stage = stageOf(proto.state)
+  const port = proto.sandbox?.port
 
   return (
-    <div class="flex flex-col h-full" style={{ backgroundColor: 'var(--forge-bg)' }}>
-
-      {/* ── Header ── */}
-      <div
-        class="shrink-0 flex items-center gap-3 px-4 py-2.5"
-        style={{ borderBottom: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}
+    <main class="prototype-page flex flex-col min-w-0" style={{ height: '100vh' }}>
+      <PageHeader
+        size="md"
+        sticky={false}
+        leading={<BackButton onClick={onBack} />}
+        title={sandboxName}
+        subtitle={`Sandbox on ${port ? `:${port}` : '—'} · ${proto.state}`}
       >
-        {/* Back button */}
-        <button
-          class="text-xs shrink-0 transition-colors"
-          style={{ color: 'var(--forge-muted)' }}
-          onClick={onBack}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-text)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-muted)' }}
-        >
-          ← Back
-        </button>
+        <ActionButton label="Archive" variant="secondary" size="sm" disabled={!proto.sandbox || proto.state === 'archived'} onClick={handleArchive} />
+        <ActionButton label="Share as PR" variant="secondary" size="sm" disabled={!showShare} onClick={() => setShareOpen(true)} />
+        <ActionButton label="Graduate" variant="primary" size="sm" disabled={!showGraduate} onClick={() => setGraduateOpen(true)} />
+      </PageHeader>
 
-        {/* Separator */}
-        <span class="w-px h-3 shrink-0" style={{ backgroundColor: 'var(--forge-ghost-border)' }} />
-
-        {/* Title */}
-        <span class="text-sm font-semibold truncate" style={{ color: 'var(--forge-text)' }}>
-          Prototype: &ldquo;{sandboxName}&rdquo;
-        </span>
-
-        {/* DESIGN badge */}
-        <span
-          class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0"
-          style={{
-            backgroundColor: designStyle.fill,
-            color: designStyle.ink,
-            border: `1px solid ${designStyle.fill}`,
-          }}
-        >
-          {designStyle.label}
-        </span>
-
-        {/* Spacer */}
-        <span class="flex-1" />
-
-        {/* Archive button */}
-        {proto.sandbox && proto.state !== 'archived' && (
-          <button
-            class="text-xs transition-colors shrink-0"
-            style={{ color: 'var(--forge-muted)' }}
-            onClick={handleArchive}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-text)' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-muted)' }}
-          >
-            Archive
-          </button>
-        )}
-      </div>
-
-      {/* ── Error banner ── */}
       {proto.error && (
-        <div
-          class="shrink-0 px-4 py-2 text-xs"
-          style={{
-            backgroundColor: 'var(--forge-tint-red-bg, rgba(239,68,68,0.10))',
-            borderBottom: '1px solid var(--forge-tint-red-border, rgba(239,68,68,0.25))',
-            color: 'var(--forge-error, #ef4444)',
-          }}
-        >
+        <p class="shrink-0" style={{ padding: '8px 22px', fontSize: '12.5px', color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 12%, transparent)', borderBottom: '1px solid var(--hair)' }}>
           {proto.error}
-        </div>
+        </p>
       )}
 
-      {/* ── Body: split pane ── */}
-      <div class="flex flex-1 min-h-0">
-
-        {/* Left: Input Panel */}
-        <div
-          class="w-72 shrink-0 flex flex-col overflow-y-auto"
-          style={{ borderRight: '1px solid var(--forge-ghost-border)', padding: '16px' }}
-        >
+      <div class="prototype-body grid flex-1 min-h-0" style={{ gridTemplateColumns: '300px minmax(0,1fr)' }}>
+        <div class="flex flex-col overflow-auto" style={{ gap: '14px', padding: '14px', borderRight: '1px solid var(--hair)', background: 'var(--bg-2)' }}>
+          {projects.length > 1 && !proto.sandbox && (
+            <label class="flex flex-col" style={{ gap: '5px' }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink-3)' }}>Project</span>
+              <select
+                class="field"
+                style={{ height: '36px', padding: '0 10px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none' }}
+                value={project}
+                onChange={(e) => onProjectChange((e.target as HTMLSelectElement).value)}
+              >
+                {projects.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+          )}
           <InputSelector
             onSubmit={handleGenerate}
             disabled={isGenerating}
             detection={detection}
           />
+          {proto.sandbox && !isGenerating && proto.state !== 'archived' && (
+            <p style={{ fontSize: '12px', color: 'var(--ink-3)' }}>Change the input and generate again to regenerate.</p>
+          )}
         </div>
 
-        {/* Right: Preview + action bar */}
-        <div class="flex-1 flex flex-col min-w-0">
-
-          {/* Preview area */}
-          <div class="flex-1 min-h-0">
-            <PrototypePreview
-              port={proto.sandbox?.port ?? null}
-              state={proto.state}
-            />
-          </div>
-
-          {/* Action bar */}
-          <div
-            class="shrink-0 flex items-center justify-end gap-2 px-4 py-2.5"
-            style={{ borderTop: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}
-          >
-            {/* Regenerate — shown when a sandbox exists and not currently generating */}
-            {proto.sandbox && !isGenerating && proto.state !== 'archived' && (
-              <button
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                style={{
-                  backgroundColor: 'var(--forge-surface)',
-                  border: '1px solid var(--forge-border)',
-                  color: 'var(--forge-text)',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--forge-accent)' }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--forge-border)' }}
-                onClick={() => {
-                  // Regenerate requires the user to re-submit via InputSelector;
-                  // this button is a convenience hint — re-trigger the last inputs
-                  // is not stored here, so we show a toast guiding the user.
-                  showToast('Update your inputs above and click Generate', 'info')
-                }}
-              >
-                Regenerate
-              </button>
-            )}
-
-            {/* Share as PR — shown when state is 'live' */}
-            {showShare && (
-              <button
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                style={{
-                  backgroundColor: designStyle.fill,
-                  border: `1px solid ${designStyle.fill}`,
-                  color: designStyle.ink,
-                }}
-                onClick={() => setShareOpen(true)}
-              >
-                Share as PR
-              </button>
-            )}
-
-            {/* Graduate to Dev Task — shown when state is 'shared' */}
-            {showGraduate && (
-              <button
-                class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-                style={{
-                  backgroundColor: TYPE_STYLES.task.fill,
-                  border: `1px solid ${TYPE_STYLES.task.fill}`,
-                  color: TYPE_STYLES.task.ink,
-                }}
-                onClick={() => setGraduateOpen(true)}
-              >
-                Graduate to Dev Task
-              </button>
-            )}
+        <div class="flex flex-col min-h-0 min-w-0" style={{ background: 'var(--bg)' }}>
+          <PrototypePreview port={proto.sandbox?.port ?? null} state={proto.state} viewport={viewport} />
+          <div class="flex items-center flex-wrap shrink-0" style={{ gap: '12px', padding: '10px 22px', borderTop: '1px solid var(--hair)' }}>
+            <Tabs size="sm" label="Viewport" tabs={VIEWPORTS.map(v => ({ id: v.id, label: v.label }))} active={viewport} onChange={(id) => setViewport(id as Viewport)} />
+            <span class="flex-1" />
+            <ol class="flex items-center flex-wrap" style={{ gap: '7px', listStyle: 'none' }} aria-label="Prototype stage">
+              {STAGES.map((label, i) => {
+                const on = i === stage
+                return (
+                  <li key={label} class="inline-flex items-center" aria-current={on ? 'step' : undefined} style={{ gap: '5px', fontSize: '11.5px', color: on ? 'var(--ink)' : 'var(--ink-3)', fontWeight: on ? 600 : 400 }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: on ? 'var(--blue)' : 'var(--ink-3)' }} />
+                    {label}
+                  </li>
+                )
+              })}
+            </ol>
           </div>
         </div>
       </div>
@@ -272,6 +186,6 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
         onClose={() => setGraduateOpen(false)}
         onGraduate={handleGraduate}
       />
-    </div>
+    </main>
   )
 }

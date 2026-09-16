@@ -4,6 +4,7 @@ import { Shell, toggleTheme } from './shell.js'
 import { Sidebar, type View } from './components/Sidebar.js'
 import { harnesses, loadHarnesses } from './hooks/useHarnesses.js'
 import { forgetOutput } from './hooks/useTerminalMetrics.js'
+import { skills, loadSkills } from './hooks/useSkills.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
@@ -15,7 +16,7 @@ import { TabBar } from './components/TabBar.js'
 import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
-import type { CWSession } from '@forge-dev/core'
+import type { CWSession, SkillEntry } from '@forge-dev/core'
 import { QUICK_TYPES, sessionKey, type QuickType } from './config/types.js'
 import { typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
@@ -32,7 +33,7 @@ function App() {
 
   const [view, setView] = useState<View>('list')
   const [newTaskOpen, setNewTaskOpen] = useState(false)
-  const [skillCount, setSkillCount] = useState<number | null>(null)
+  const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
   const [prototypeCount, setPrototypeCount] = useState<number | null>(null)
 
   // Create Project modal
@@ -170,11 +171,30 @@ function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const handleCreateSkillWithAI = useCallback(async (scope: string, scopeRef: string, description: string) => {
-    let targetDir = ''
-    if (scope === 'global') targetDir = '~/.claude/skills/'
-    else if (scope === 'account') targetDir = `~/.cw/accounts/${scopeRef}/skills/`
-    else targetDir = `<project>/.claude/skills/`
+  const startGeneral = useCallback(async (description: string, account: string, project: string | undefined, started: string) => {
+    try {
+      const res = await fetch('/api/cw/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'general', account, project, description }),
+      })
+      const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
+      if (result.ok && result.session) {
+        openSession(result.session)
+        refreshAfterAction()
+        showToast(started, 'success')
+      } else {
+        showToast(result.error ?? 'Failed to start session', 'error')
+      }
+    } catch {
+      showToast('Failed to start session', 'error')
+    }
+  }, [openSession, refreshAfterAction])
+
+  const handleCreateSkillWithAI = useCallback((scope: string, scopeRef: string, description: string) => {
+    const targetDir = scope === 'global' ? '~/.claude/skills/'
+      : scope === 'account' ? `~/.cw/accounts/${scopeRef}/skills/`
+      : '<project>/.claude/skills/'
 
     const initDescription = [
       'Use the skill-creator skill to create a new Claude Code skill.',
@@ -191,28 +211,21 @@ function App() {
       'Then use skill-creator to build/customize the skill and save it.',
     ].join('\n')
 
-    try {
-      const res = await fetch('/api/cw/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'general',
-          account: accounts[0] || 'default',
-          description: initDescription,
-        })
-      })
-      const result = await res.json() as { ok: boolean; session?: CWSession }
-      if (result.ok && result.session) {
-        openSession(result.session)
-        showToast('AI skill creation session started', 'success')
-      } else {
-        showToast('Failed to start session', 'error')
-      }
-    } catch {
-      showToast('Failed to start skill creation session', 'error')
-    }
-  }, [accounts, openSession])
+    void startGeneral(initDescription, accounts[0] || 'default', undefined, 'AI skill creation session started')
+  }, [accounts, startGeneral])
 
+  const handleRunSkill = useCallback((skill: SkillEntry) => {
+    const project = skill.scope === 'project' && projects[skill.scopeRef] ? skill.scopeRef : undefined
+    const account = skill.scope === 'account' ? skill.scopeRef
+      : project ? projects[project].account
+      : accounts[0] || 'default'
+    void startGeneral(`Use the ${skill.name} skill.`, account, project, `Session started with ${skill.name}`)
+  }, [accounts, projects, startGeneral])
+
+  useEffect(() => {
+    if (loading) return
+    loadSkills(accounts[0] ?? '', Object.keys(projects)[0] ?? '').catch(() => {})
+  }, [loading])
 
   const activeSessions = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
 
@@ -235,7 +248,7 @@ function App() {
   const doctor = harnesses.value?.available ? harnesses.value.doctor : null
   const detailShown = !tabs.showList && tabs.openTabs.length > 0
   const sidebarView: View = detailShown ? 'list' : view
-  const prototypeTarget = filters.filterProject ?? Object.keys(projects)[0] ?? null
+  const prototypeTarget = prototypeProject ?? filters.filterProject ?? Object.keys(projects)[0] ?? null
 
   const closeTab = useCallback((index: number) => {
     const session = tabs.openTabs[index]
@@ -250,7 +263,7 @@ function App() {
       nav={[
         { view: 'list', label: 'Tasks', glyph: 'T', token: '--blue', count: activeSessions.length },
         { view: 'accounts', label: 'Accounts', glyph: 'A', token: '--purple', count: filters.accountNames.length },
-        { view: 'skills', label: 'Skills', glyph: 'S', token: '--green', count: skillCount },
+        { view: 'skills', label: 'Skills', glyph: 'S', token: '--green', count: skills.value?.length ?? null },
         { view: 'prototypes', label: 'Prototypes', glyph: 'P', token: '--orange', count: prototypeCount },
       ]}
       projects={sidebarProjects}
@@ -301,28 +314,26 @@ function App() {
     />
   ) : view === 'prototypes' ? (
     prototypeTarget ? (
-      <div style={{ height: '100vh' }}>
-        <PrototypePanel project={prototypeTarget} onBack={handleGoToList} />
-      </div>
+      <PrototypePanel
+        project={prototypeTarget}
+        projects={Object.keys(projects)}
+        onProjectChange={setPrototypeProject}
+        onBack={handleGoToList}
+      />
     ) : null
   ) : view === 'accounts' ? (
-    <div style={{ padding: '18px 22px 40px', maxWidth: '1180px', width: '100%' }}>
-      <Accounts
-        onBack={handleGoToList}
-        onOpenSession={openSession}
-        onAccountsChanged={() => { fetchData() }}
-      />
-    </div>
+    <Accounts
+      projects={projects}
+      onOpenSession={openSession}
+      onAccountsChanged={() => { fetchData() }}
+    />
   ) : (
-    <div style={{ padding: '18px 22px 40px', maxWidth: '1180px', width: '100%' }}>
-      <Skills
-        accounts={filters.accountNames}
-        projects={projects}
-        onBack={handleGoToList}
-        onCreateWithAI={handleCreateSkillWithAI}
-        onCount={setSkillCount}
-      />
-    </div>
+    <Skills
+      accounts={filters.accountNames}
+      projects={projects}
+      onCreateWithAI={handleCreateSkillWithAI}
+      onRunSkill={handleRunSkill}
+    />
   )
 
   return (

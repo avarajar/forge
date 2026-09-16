@@ -1,6 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
-import { ActionButton, showToast } from '@forge-dev/ui'
+import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import { ACCOUNT_NAME_RE, getHarnessStyle } from '../config/types.js'
 import { supportsIn, type HarnessesResponse } from '../hooks/useHarnesses.js'
 
@@ -10,7 +10,8 @@ interface AddAccountFormProps {
   onCreated: () => void
 }
 
-const inputClass = 'w-full px-3 py-2 rounded-lg bg-forge-bg border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none'
+const inputStyle = { width: '100%', height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none' }
+const labelStyle = { display: 'block', fontSize: '12px', color: 'var(--ink-2)', marginBottom: '5px' }
 
 export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ response, onCancel, onCreated }) => {
   const [name, setName] = useState('')
@@ -53,20 +54,23 @@ export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ respons
   }
 
   return (
-    <div class="rounded-xl p-4 mb-4 grid gap-3 max-w-lg" style={{ border: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-surface)' }}>
-      <div>
-        <label class="block text-sm font-medium mb-1">Account name</label>
+    <section class="flex flex-col" style={{ gap: '14px', padding: '16px 18px', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', animation: 'riseIn .3s var(--ease) both' }} aria-label="Add account">
+      <h2 style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em' }}>Add an account</h2>
+      <div style={{ maxWidth: '360px' }}>
+        <label style={labelStyle} for="new-account-name">Account name</label>
         <input
+          id="new-account-name"
           type="text"
           value={name}
           onInput={(e) => setName((e.target as HTMLInputElement).value)}
           onKeyDown={(e) => { if (e.key === 'Enter') create() }}
           placeholder="my-account"
-          class={inputClass}
+          class="field"
+          style={inputStyle}
           autoFocus
         />
         {trimmed && !valid && (
-          <p class="text-xs mt-1" style={{ color: 'var(--forge-error)' }}>
+          <p style={{ fontSize: '12px', color: 'var(--red)', marginTop: '5px' }}>
             Must start with a letter or number. Only letters, numbers, hyphens, and underscores allowed.
           </p>
         )}
@@ -74,40 +78,34 @@ export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ respons
 
       {harnessNames.length > 0 && (
         <div>
-          <label class="block text-sm font-medium mb-1">Default harness</label>
-          <div class="flex flex-wrap gap-2">
-            {['', ...harnessNames].map(h => (
-              <button
-                key={h || 'default'}
-                class={`px-3 py-1.5 text-xs rounded-lg border ${harness === h ? 'text-forge-accent' : 'border-forge-border bg-forge-surface text-forge-muted'}`}
-                style={harness === h ? { backgroundColor: 'var(--forge-tint-accent-bg)', borderColor: 'var(--forge-accent)' } : undefined}
-                onClick={() => setHarness(h)}
-              >
-                {h ? getHarnessStyle(h).label : 'Claude Code (default)'}
-              </button>
-            ))}
-          </div>
-          <p class="text-xs text-forge-muted mt-1">The default harness cannot be changed later.</p>
+          <span style={labelStyle}>Default harness</span>
+          <Tabs
+            label="Default harness"
+            tabs={[{ id: '', label: 'Claude Code' }, ...harnessNames.map(h => ({ id: h, label: getHarnessStyle(h).label }))]}
+            active={harness}
+            onChange={setHarness}
+          />
+          <p style={{ fontSize: '12px', color: 'var(--ink-3)', marginTop: '5px' }}>The default harness cannot be changed later.</p>
         </div>
       )}
 
       {acceptsProvider && (
-        <div class="grid gap-2" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px', maxWidth: '520px' }}>
           <div>
-            <label class="block text-sm font-medium mb-1">Provider <span class="font-normal text-forge-muted">(optional)</span></label>
-            <input type="text" value={provider} onInput={(e) => setProvider((e.target as HTMLInputElement).value)} placeholder="zai, ollama, openrouter" class={inputClass} />
+            <label style={labelStyle}>Provider · optional</label>
+            <input type="text" value={provider} onInput={(e) => setProvider((e.target as HTMLInputElement).value)} placeholder="zai, ollama, openrouter" class="field" style={inputStyle} />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Model <span class="font-normal text-forge-muted">(optional)</span></label>
-            <input type="text" value={model} onInput={(e) => setModel((e.target as HTMLInputElement).value)} placeholder="glm-5.1" class={inputClass} />
+            <label style={labelStyle}>Model · optional</label>
+            <input type="text" value={model} onInput={(e) => setModel((e.target as HTMLInputElement).value)} placeholder="glm-5.1" class="field" style={inputStyle} />
           </div>
         </div>
       )}
 
-      <div class="flex gap-2">
-        <ActionButton label={creating ? 'Creating...' : 'Add account'} variant="primary" loading={creating} disabled={!valid} onClick={create} />
+      <div class="flex" style={{ gap: '8px' }}>
+        <ActionButton label={creating ? 'Creating…' : 'Add account'} variant="primary" loading={creating} disabled={!valid} onClick={create} />
         <ActionButton label="Cancel" variant="secondary" onClick={onCancel} />
       </div>
-    </div>
+    </section>
   )
 }
