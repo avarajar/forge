@@ -2,6 +2,7 @@ import { render } from 'preact'
 import { useState, useEffect, useCallback, useMemo } from 'preact/hooks'
 import { Shell, toggleTheme } from './shell.js'
 import { Sidebar, type View } from './components/Sidebar.js'
+import { CommandPalette, type PaletteItem } from './components/CommandPalette.js'
 import { harnesses, loadHarnesses } from './hooks/useHarnesses.js'
 import { forgetOutput } from './hooks/useTerminalMetrics.js'
 import { skills, loadSkills } from './hooks/useSkills.js'
@@ -160,16 +161,43 @@ function App() {
     tabs.openTab(session)
   }, [tabs.openTab])
 
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteQuery, setPaletteQuery] = useState('')
+  const [highlightIndex, setHighlightIndex] = useState(0)
+
+  const closePalette = useCallback(() => setPaletteOpen(false), [])
+
+  const openPalette = useCallback(() => {
+    setPaletteQuery('')
+    setHighlightIndex(0)
+    setPaletteOpen(true)
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'j') {
+      const mod = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
+      if (mod && key === 'j') {
         e.preventDefault()
         toggleTheme()
+        return
       }
+      if (mod && key === 'k') {
+        e.preventDefault()
+        if (paletteOpen) setPaletteOpen(false)
+        else openPalette()
+        return
+      }
+      const target = e.target as HTMLElement | null
+      const typing = target?.closest('input, textarea, select, [contenteditable="true"]')
+      if (typing || mod || e.altKey || paletteOpen || newTaskOpen || showCreateProject) return
+      if (e.key === '/') { e.preventDefault(); openPalette() }
+      else if (key === 'n') { e.preventDefault(); setNewTaskOpen(true) }
+      else if (key === 'p') { e.preventDefault(); setShowCreateProject(true) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [paletteOpen, newTaskOpen, showCreateProject, openPalette])
 
   const startGeneral = useCallback(async (description: string, account: string, project: string | undefined, started: string) => {
     try {
@@ -256,6 +284,16 @@ function App() {
     return tabs.closeTab(index)
   }, [tabs.openTabs, tabs.closeTab])
 
+  const paletteCommands = useMemo<PaletteItem[]>(() => [
+    { id: 'new-task', label: 'New task', hint: 'N', glyph: '+', token: '--blue', run: () => handleNewTask() },
+    { id: 'add-project', label: 'Add project', hint: 'P', glyph: 'P', token: '--green', run: () => setShowCreateProject(true) },
+    { id: 'tasks', label: 'Tasks', hint: '⌘L', glyph: 'T', token: '--blue', run: () => navigate('list') },
+    { id: 'accounts', label: 'Accounts', hint: '', glyph: 'A', token: '--purple', run: () => navigate('accounts') },
+    { id: 'skills', label: 'Skills', hint: '', glyph: 'S', token: '--green', run: () => navigate('skills') },
+    { id: 'prototypes', label: 'Prototypes', hint: '', glyph: 'P', token: '--orange', run: () => navigate('prototypes') },
+    { id: 'appearance', label: 'Toggle appearance', hint: '⌘J', glyph: '◐', token: null, run: toggleTheme },
+  ], [navigate])
+
   const sidebar = (
     <Sidebar
       version={doctor?.cw_version ?? null}
@@ -273,6 +311,7 @@ function App() {
       onSelectProject={selectProject}
       onAddProject={() => setShowCreateProject(true)}
       onOpenLive={openSession}
+      onSearch={openPalette}
     />
   )
 
@@ -401,6 +440,22 @@ function App() {
             refreshAfterAction()
           }}
           onOpenAccounts={() => navigate('accounts')}
+        />
+      )}
+
+      {paletteOpen && (
+        <CommandPalette
+          query={paletteQuery}
+          onQuery={setPaletteQuery}
+          highlight={highlightIndex}
+          onHighlight={setHighlightIndex}
+          openTabs={tabs.openTabs}
+          sessions={spaces}
+          projects={Object.keys(projects)}
+          commands={paletteCommands}
+          onOpenSession={openSession}
+          onSelectProject={(p) => { filters.setFilterProject(p); navigate('list') }}
+          onClose={closePalette}
         />
       )}
 
