@@ -3,31 +3,58 @@ import { type FunctionComponent } from 'preact'
 interface Tab {
   id: string
   label: string
-  icon?: string
+  count?: number | string
+  disabled?: boolean
 }
 
 interface TabsProps {
   tabs: Tab[]
   active: string
   onChange: (id: string) => void
+  // stretch the options across the track
+  fill?: boolean
+  size?: 'md' | 'sm'
+  label?: string
 }
 
-export const Tabs: FunctionComponent<TabsProps> = ({ tabs, active, onChange }) => {
+export const Tabs: FunctionComponent<TabsProps> = ({ tabs, active, onChange, fill, size = 'md', label }) => {
+  const sm = size === 'sm'
   return (
-    <div class="flex border-b border-forge-border mb-6">
-      {tabs.map(tab => (
-        <button
-          key={tab.id}
-          class={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px
-            ${active === tab.id
-              ? 'border-forge-accent text-forge-accent'
-              : 'border-transparent text-forge-muted hover:text-forge-text hover:border-forge-border'}`}
-          onClick={() => onChange(tab.id)}
-        >
-          {tab.icon && <span class="mr-2">{tab.icon}</span>}
-          {tab.label}
-        </button>
-      ))}
+    <div
+      role="tablist"
+      aria-label={label}
+      class={`${fill ? 'flex' : 'inline-flex'} max-w-full overflow-x-auto`}
+      style={{ padding: '3px', borderRadius: sm ? '10px' : '11px', background: 'var(--elev)', border: '1px solid var(--hair)' }}
+    >
+      {tabs.map(tab => {
+        const on = active === tab.id
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            disabled={tab.disabled}
+            class={`flex items-center justify-center gap-1.5 whitespace-nowrap transition-all duration-200 ease-spring ${fill ? 'flex-1' : ''} ${tab.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            style={{
+              padding: fill ? (sm ? '5px 6px' : '7px 8px') : (sm ? '5px 11px' : '6px 12px'),
+              border: 0,
+              borderRadius: sm ? '7px' : '8px',
+              fontSize: sm ? '12px' : '12.5px',
+              fontWeight: 600,
+              background: on ? 'var(--card)' : 'transparent',
+              color: on ? 'var(--ink)' : 'var(--ink-3)',
+              boxShadow: on ? 'var(--shadow-s)' : 'none',
+            }}
+            onClick={() => onChange(tab.id)}
+          >
+            {tab.label}
+            {tab.count !== undefined && (
+              <span class="mono" style={{ fontSize: '11px', fontWeight: 400, color: 'var(--ink-3)' }}>{tab.count}</span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -85,7 +85,7 @@ const QuickTypePills: FunctionComponent<{ onNewTask: (type: string) => void }> =
       <button
         key={t.key}
         class="px-3 py-1.5 text-xs font-medium rounded-lg border transition-all hover:opacity-80"
-        style={{ backgroundColor: t.style.bgVar, borderColor: t.style.borderVar, color: t.style.color }}
+        style={{ backgroundColor: t.style.fill, borderColor: t.style.fill, color: t.style.ink }}
         onClick={() => onNewTask(t.key)}
       >
         + {t.label}
@@ -140,7 +140,7 @@ const FilterPill: FunctionComponent<{
     return (
       <button
         class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all"
-        style={{ backgroundColor: style.bgVar, borderColor: style.borderVar, color: style.color }}
+        style={{ backgroundColor: style.fill, borderColor: style.fill, color: style.ink }}
         onClick={onClick}
       >
         {label}

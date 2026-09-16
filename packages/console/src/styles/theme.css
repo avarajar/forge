@@ -1,105 +1,147 @@
-:root {
-  --forge-bg: #0f0f1a;
-  --forge-surface: #1a1a2e;
-  --forge-border: #2a2a3e;
-  --forge-text: #e0e0f0;
-  --forge-muted: #6b7280;
-  --forge-accent: #6366f1;
-  --forge-success: #10b981;
-  --forge-warning: #f59e0b;
-  --forge-error: #ef4444;
-  --forge-radius: 8px;
-  --forge-font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --forge-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  /* Ghost button backgrounds */
-  --forge-ghost-bg: rgba(30,30,50,0.5);
-  --forge-ghost-border: rgba(42,42,62,0.6);
-  --forge-ghost-hover: rgba(40,40,70,0.7);
-  /* Type tint backgrounds */
-  --forge-tint-amber-bg: rgba(245,158,11,0.12);
-  --forge-tint-amber-border: rgba(245,158,11,0.25);
-  --forge-tint-blue-bg: rgba(59,130,246,0.12);
-  --forge-tint-blue-border: rgba(59,130,246,0.25);
-  --forge-tint-purple-bg: rgba(168,85,247,0.12);
-  --forge-tint-purple-border: rgba(168,85,247,0.25);
-  --forge-tint-emerald-bg: rgba(5,150,105,0.12);
-  --forge-tint-emerald-border: rgba(5,150,105,0.25);
-  --forge-tint-rose-bg: rgba(225,29,72,0.12);
-  --forge-tint-rose-border: rgba(225,29,72,0.25);
-  --forge-tint-accent-bg: rgba(99,102,241,0.1);
-  --forge-tint-accent-border: rgba(99,102,241,0.3);
-  /* Harness colors */
+:root,
+[data-theme="dark"] {
+  --bg: #161618;
+  --bg-2: #1f1f22;
+  --card: #26262a;
+  --card-2: #2e2e33;
+  --elev: rgba(255,255,255,.04);
+  --hair: rgba(255,255,255,.10);
+  --hair-2: rgba(255,255,255,.16);
+  --ink: #f5f5f7;
+  --ink-2: #a1a1a8;
+  --ink-3: #6e6e76;
+  --blue: #0a84ff;
+  --blue-2: #409cff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --purple: #bf5af2;
+  --teal: #40c8e0;
+  --glass: rgba(28,28,30,.72);
+  --shadow-s: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-m: 0 6px 20px rgba(0,0,0,.42);
+  --shadow-l: 0 24px 60px rgba(0,0,0,.55);
+  --term: #0e0e10;
+  --sel: rgba(10,132,255,.18);
   --forge-harness-claude: #e08a68;
-  --forge-harness-claude-bg: rgba(224,138,104,0.16);
   --forge-harness-codex: #2fbf97;
-  --forge-harness-codex-bg: rgba(47,191,151,0.16);
   --forge-harness-pi: #6b9bff;
-  --forge-harness-pi-bg: rgba(107,155,255,0.16);
   --forge-harness-opencode: #e8b44a;
-  --forge-harness-opencode-bg: rgba(232,180,74,0.16);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Helvetica, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --ease: cubic-bezier(.32,.72,0,1);
+  color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --forge-bg: #f8fafc;
-  --forge-surface: #ffffff;
-  --forge-border: #e2e8f0;
-  --forge-text: #1e293b;
-  --forge-muted: #64748b;
-  /* Ghost button backgrounds for light mode */
-  --forge-ghost-bg: rgba(241,245,249,0.8);
-  --forge-ghost-border: rgba(203,213,225,0.6);
-  --forge-ghost-hover: rgba(226,232,240,0.8);
-  /* Type tint backgrounds — stronger for light mode */
-  --forge-tint-amber-bg: rgba(245,158,11,0.15);
-  --forge-tint-amber-border: rgba(245,158,11,0.35);
-  --forge-tint-blue-bg: rgba(59,130,246,0.12);
-  --forge-tint-blue-border: rgba(59,130,246,0.3);
-  --forge-tint-purple-bg: rgba(168,85,247,0.12);
-  --forge-tint-purple-border: rgba(168,85,247,0.3);
-  --forge-tint-emerald-bg: rgba(5,150,105,0.15);
-  --forge-tint-emerald-border: rgba(5,150,105,0.3);
-  --forge-tint-rose-bg: rgba(225,29,72,0.12);
-  --forge-tint-rose-border: rgba(225,29,72,0.3);
-  --forge-tint-accent-bg: rgba(99,102,241,0.1);
-  --forge-tint-accent-border: rgba(99,102,241,0.25);
+  --bg: #f2f2f5;
+  --bg-2: #f8f8fa;
+  --card: #ffffff;
+  --card-2: #ffffff;
+  --elev: rgba(0,0,0,.02);
+  --hair: rgba(0,0,0,.09);
+  --hair-2: rgba(0,0,0,.16);
+  --ink: #1d1d1f;
+  --ink-2: #6e6e73;
+  --ink-3: #8e8e93;
+  --blue: #007aff;
+  --blue-2: #0a6cff;
+  --green: #28a745;
+  --orange: #e08600;
+  --red: #e0352b;
+  --purple: #8944ab;
+  --teal: #0d9bb5;
+  --glass: rgba(248,248,250,.78);
+  --shadow-s: 0 1px 2px rgba(0,0,0,.06);
+  --shadow-m: 0 6px 18px rgba(0,0,0,.09);
+  --shadow-l: 0 24px 60px rgba(0,0,0,.14);
+  --term: #1c1c1e;
+  --sel: rgba(0,122,255,.14);
   --forge-harness-claude: #c9633f;
-  --forge-harness-claude-bg: rgba(201,99,63,0.12);
   --forge-harness-codex: #0f8f6f;
-  --forge-harness-codex-bg: rgba(15,143,111,0.12);
   --forge-harness-pi: #2f6fe0;
-  --forge-harness-pi-bg: rgba(47,111,224,0.12);
   --forge-harness-opencode: #c98a12;
-  --forge-harness-opencode-bg: rgba(201,138,18,0.14);
+  color-scheme: light;
+}
+
+/* legacy aliases, removed once every screen uses the tokens above */
+:root {
+  --forge-bg: var(--bg);
+  --forge-surface: var(--card);
+  --forge-border: var(--hair-2);
+  --forge-text: var(--ink);
+  --forge-muted: var(--ink-2);
+  --forge-accent: var(--blue);
+  --forge-success: var(--green);
+  --forge-warning: var(--orange);
+  --forge-error: var(--red);
+  --forge-ghost-bg: var(--elev);
+  --forge-ghost-border: var(--hair);
+  --forge-ghost-hover: var(--elev);
+  --forge-tint-amber-bg: color-mix(in srgb, var(--orange) 18%, transparent);
+  --forge-tint-amber-border: color-mix(in srgb, var(--orange) 35%, transparent);
+  --forge-tint-blue-bg: color-mix(in srgb, var(--blue) 18%, transparent);
+  --forge-tint-blue-border: color-mix(in srgb, var(--blue) 35%, transparent);
+  --forge-tint-purple-bg: color-mix(in srgb, var(--purple) 18%, transparent);
+  --forge-tint-purple-border: color-mix(in srgb, var(--purple) 35%, transparent);
+  --forge-tint-emerald-bg: color-mix(in srgb, var(--green) 18%, transparent);
+  --forge-tint-emerald-border: color-mix(in srgb, var(--green) 35%, transparent);
+  --forge-tint-rose-bg: color-mix(in srgb, var(--red) 18%, transparent);
+  --forge-tint-rose-border: color-mix(in srgb, var(--red) 35%, transparent);
+  --forge-tint-accent-bg: color-mix(in srgb, var(--blue) 18%, transparent);
+  --forge-tint-accent-border: color-mix(in srgb, var(--blue) 35%, transparent);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: var(--forge-font);
-  background: var(--forge-bg);
-  color: var(--forge-text);
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.45;
+  letter-spacing: -0.003em;
+  background: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Custom select arrow */
-select.appearance-none {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+input, textarea, select, button { font-family: inherit; letter-spacing: inherit; }
+input::placeholder, textarea::placeholder { color: var(--ink-3); }
+a { color: var(--blue); text-decoration: none; }
+a:hover { color: var(--blue-2); }
+::selection { background: var(--sel); }
+
+.mono, code, pre, kbd {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
-  padding-right: 28px;
+  background-position: right 10px center;
+  padding-right: 28px !important;
 }
 
-/* Smooth transitions for all interactive elements */
-button, a, [role="button"] {
-  transition-property: color, background-color, border-color, opacity, box-shadow;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Focus ring for keyboard navigation */
-[role="button"]:focus-visible,
-button:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--forge-accent);
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue) 55%, transparent);
   outline-offset: 2px;
+  border-radius: 8px;
+}
+
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+
+.field:focus, .field:focus-within {
+  border-color: var(--blue) !important;
+  box-shadow: 0 0 0 4px var(--sel) !important;
+}
+
+@keyframes riseIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@keyframes slideIn { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes popIn { from { transform: scale(.96); opacity: 0 } to { transform: none; opacity: 1 } }
+@keyframes breathe { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .45; transform: scale(.82) } }
+@keyframes sweep { from { transform: translateX(-100%) } to { transform: translateX(320%) } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important }
 }

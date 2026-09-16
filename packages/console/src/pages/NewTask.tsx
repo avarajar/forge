@@ -409,10 +409,10 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           <div class="flex flex-wrap gap-2 mb-6">
             {detection.framework && <Badge label={String(detection.framework)} color="var(--forge-accent)" />}
             {detection.testRunner && <Badge label={String(detection.testRunner)} color="var(--forge-success)" />}
-            {detection.hasTailwind && <Badge label="Tailwind" color="var(--forge-accent)" variant="outline" />}
-            {detection.hasShadcn && <Badge label="shadcn" color="var(--forge-accent)" variant="outline" />}
-            {detection.hasPlaywright && <Badge label="Playwright" color="var(--forge-success)" variant="outline" />}
-            {detection.hasDockerfile && <Badge label="Docker" color="var(--forge-warning)" variant="outline" />}
+            {detection.hasTailwind && <Badge label="Tailwind" color="var(--forge-accent)" />}
+            {detection.hasShadcn && <Badge label="shadcn" color="var(--forge-accent)" />}
+            {detection.hasPlaywright && <Badge label="Playwright" color="var(--forge-success)" />}
+            {detection.hasDockerfile && <Badge label="Docker" color="var(--forge-warning)" />}
           </div>
         )}
 

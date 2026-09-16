@@ -80,8 +80,8 @@ export const SplitPane: FunctionComponent<SplitPaneProps> = ({
 
       {/* Drag handle */}
       <div
-        class="shrink-0 w-1 cursor-col-resize hover:bg-forge-accent/30 transition-colors"
-        style={{ backgroundColor: 'var(--forge-ghost-border)' }}
+        class="shrink-0 w-1 cursor-col-resize transition-colors hover:bg-blue"
+        style={{ backgroundColor: 'var(--hair)' }}
         onMouseDown={onMouseDown}
       />
 

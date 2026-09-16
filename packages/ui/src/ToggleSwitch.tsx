@@ -9,24 +9,27 @@ interface ToggleSwitchProps {
 
 export const ToggleSwitch: FunctionComponent<ToggleSwitchProps> = ({
   checked, onChange, label, disabled
-}) => {
-  return (
-    <label class={`inline-flex items-center gap-2 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        class={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors
-          ${checked ? 'bg-forge-success' : 'bg-forge-border'}`}
-        onClick={() => !disabled && onChange(!checked)}
-      >
-        <span
-          class={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform
-            ${checked ? 'translate-x-5' : 'translate-x-0'}`}
-        />
-      </button>
-      {label && <span class="text-sm text-forge-text">{label}</span>}
-    </label>
-  )
-}
+}) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    disabled={disabled}
+    class={`relative shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    style={{
+      width: '44px', height: '26px', borderRadius: '99px', border: 0,
+      background: checked ? 'var(--green)' : 'var(--hair-2)',
+      transition: 'background .22s var(--ease)',
+    }}
+    onClick={() => !disabled && onChange(!checked)}
+  >
+    <span
+      class="absolute pointer-events-none"
+      style={{
+        top: '3px', left: checked ? '21px' : '3px', width: '20px', height: '20px', borderRadius: '50%',
+        background: '#fff', boxShadow: 'var(--shadow-s)', transition: 'left .22s var(--ease)',
+      }}
+    />
+  </button>
+)

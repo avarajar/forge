@@ -1,5 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useEffect, useRef } from 'preact/hooks'
+import type { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 
 interface TerminalProps {
@@ -15,10 +16,23 @@ interface TerminalProps {
   onExit?: (code: number) => void
   /** Called when WebSocket connection state changes */
   onConnectionChange?: (connected: boolean) => void
+  /** Called with every chunk written to the terminal */
+  onOutput?: (data: string) => void
+  theme?: 'dark' | 'light'
 }
 
+const MONO = 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace'
+
+const themeFor = (mode: 'dark' | 'light') => ({
+  background: mode === 'dark' ? '#0e0e10' : '#1c1c1e',
+  foreground: '#e3e3e8',
+  cursor: '#e3e3e8',
+  selectionBackground: 'rgba(10,132,255,0.35)',
+})
+
+
 export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
-  streamUrl, content, wsUrl, height = 300, onExit, onConnectionChange
+  streamUrl, content, wsUrl, height = 300, onExit, onConnectionChange, onOutput, theme = 'dark'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const isInteractive = !!wsUrl
@@ -28,6 +42,15 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
   onExitRef.current = onExit
   const onConnectionChangeRef = useRef(onConnectionChange)
   onConnectionChangeRef.current = onConnectionChange
+  const onOutputRef = useRef(onOutput)
+  onOutputRef.current = onOutput
+  const themeRef = useRef(theme)
+  themeRef.current = theme
+  const termRef = useRef<XTerm | null>(null)
+
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = themeFor(theme)
+  }, [theme])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -46,18 +69,20 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
       if (disposed) return
 
       const term = new Terminal({
-        theme: {
-          background: '#1a1a2e',
-          foreground: '#e0e0e0',
-          cursor: '#e0e0e0'
-        },
+        theme: themeFor(themeRef.current),
         fontSize: 13,
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontFamily: MONO,
         convertEol: !isInteractive,
         disableStdin: !isInteractive,
         cursorBlink: isInteractive,
         scrollback: 10000
       })
+
+      termRef.current = term
+      const write = (data: string) => {
+        term.write(data)
+        onOutputRef.current?.(data)
+      }
 
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
@@ -72,7 +97,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
 
       // Static content mode
       if (content && !isInteractive) {
-        term.write(content)
+        write(content)
       }
 
       // SSE stream mode
@@ -81,7 +106,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
         evtSource = new EventSource(streamUrl)
         evtSource.addEventListener('output', (e) => {
           const { chunk } = JSON.parse(e.data)
-          term.write(chunk)
+          write(chunk)
         })
         evtSource.addEventListener('done', (e) => {
           const { exitCode } = JSON.parse(e.data)
@@ -124,10 +149,8 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
           ws.onmessage = (evt) => {
             try {
               const msg = JSON.parse(evt.data)
-              if (msg.type === 'output') {
-                term.write(msg.data)
-              } else if (msg.type === 'scrollback') {
-                term.write(msg.data)
+              if (msg.type === 'output' || msg.type === 'scrollback') {
+                write(msg.data)
               } else if (msg.type === 'exit') {
                 term.write(`\r\n\x1b[33m--- Session ended (code ${msg.code}) ---\x1b[0m\r\n`)
                 onExitRef.current?.(msg.code)
@@ -178,6 +201,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
             ws.close()
           }
           term.dispose()
+          termRef.current = null
         }
       })
     }
@@ -196,8 +220,8 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
   return (
     <div
       ref={containerRef}
-      class="rounded-lg overflow-hidden"
-      style={style}
+      class="overflow-hidden"
+      style={{ ...style, background: themeFor(theme).background }}
     />
   )
 }

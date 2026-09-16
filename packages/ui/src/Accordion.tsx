@@ -15,9 +15,10 @@ export const AccordionSection: FunctionComponent<AccordionSectionProps> = ({
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div class="border-b" style={{ borderColor: 'var(--forge-ghost-border)' }}>
+    <div style={{ borderBottom: '1px solid var(--hair)' }}>
       <button
-        class="flex items-center justify-between w-full px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-forge-muted hover:text-forge-text transition-colors"
+        class="flex items-center justify-between w-full px-3 py-2.5 cursor-pointer transition-colors text-ink3 hover:text-ink"
+        style={{ fontSize: '11px', fontWeight: 600, border: 0, background: 'none' }}
         onClick={() => setOpen(!open)}
       >
         <span>{title}</span>
@@ -25,7 +26,7 @@ export const AccordionSection: FunctionComponent<AccordionSectionProps> = ({
           class="transition-transform"
           style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}
         >
-          ▸
+          <span class="i-lucide-chevron-right" />
         </span>
       </button>
       {open && (

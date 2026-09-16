@@ -12,9 +12,9 @@ export const TypeBadge: FunctionComponent<{ type: string }> = ({ type }) => {
   return (
     <span
       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border"
-      style={{ backgroundColor: s.bgVar, borderColor: s.borderVar, color: s.color }}
+      style={{ backgroundColor: s.fill, borderColor: s.fill, color: s.ink }}
     >
-      <span class={`w-1.5 h-1.5 rounded-full ${s.dotClass}`} />
+      <span class="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.ink }} />
       {s.label}
     </span>
   )
@@ -41,7 +41,7 @@ export const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
 export const LoopIntervalChip: FunctionComponent<{ interval?: string }> = ({ interval }) => (
   <span
     class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-    style={{ color: getTypeStyle('loop').color, backgroundColor: 'var(--forge-tint-rose-bg)', border: '1px solid var(--forge-tint-rose-border)' }}
+    style={{ color: getTypeStyle('loop').ink, backgroundColor: 'var(--forge-tint-rose-bg)', border: '1px solid var(--forge-tint-rose-border)' }}
   >
     ⟳ {interval || 'auto'}
   </span>
@@ -125,7 +125,7 @@ export const TaskCard: FunctionComponent<{
     <div
       class="group relative flex items-center gap-4 p-4 rounded-xl bg-forge-surface cursor-pointer transition-all"
       style={{
-        border: `1px solid ${hovered ? style.borderVar : 'var(--forge-ghost-border)'}`,
+        border: `1px solid ${hovered ? style.ink : 'var(--forge-ghost-border)'}`,
         boxShadow: hovered ? '0 10px 15px -3px rgba(99,102,241,0.05)' : undefined,
       }}
       onClick={onSelect}

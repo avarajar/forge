@@ -47,24 +47,24 @@ const OpenTabsBanner: FunctionComponent<{
               class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all cursor-pointer"
               style={{
                 backgroundColor: 'var(--forge-surface)',
-                border: `1px solid ${cfg.border}`,
+                border: `1px solid ${cfg.fill}`,
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = cfg.color;
-                (e.currentTarget as HTMLElement).style.boxShadow = `0 2px 8px ${cfg.bg}`
+                (e.currentTarget as HTMLElement).style.borderColor = cfg.ink;
+                (e.currentTarget as HTMLElement).style.boxShadow = `0 2px 8px ${cfg.fill}`
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = cfg.border;
+                (e.currentTarget as HTMLElement).style.borderColor = cfg.fill;
                 (e.currentTarget as HTMLElement).style.boxShadow = 'none'
               }}
               onClick={() => onSwitch(i)}
             >
-              <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: cfg.color }} />
+              <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: cfg.ink }} />
               <span class="text-xs font-semibold text-forge-text truncate max-w-[160px]">{sessionLabel(s)}</span>
               <span class="text-[10px] text-forge-muted truncate max-w-[100px]">{s.project}</span>
               <span
                 class="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0"
-                style={{ color: cfg.color, backgroundColor: cfg.bg }}
+                style={{ color: cfg.ink, backgroundColor: cfg.fill }}
               >
                 {cfg.label}
               </span>
@@ -253,7 +253,7 @@ function App() {
           <div class="py-20 text-center text-forge-muted">Loading...</div>
         ) : !hasProjects ? (
           <EmptyState
-            icon="&#128296;"
+            icon="i-lucide-folder"
             title="Welcome to Forge"
             description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
           />

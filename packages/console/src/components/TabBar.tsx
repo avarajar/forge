@@ -81,7 +81,7 @@ const AddMenu: FunctionComponent<{
                     key={sessionKey(s)}
                     class="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-left transition-colors"
                     style={{
-                      backgroundColor: isOpen ? cfg.bg : 'transparent',
+                      backgroundColor: isOpen ? cfg.fill : 'transparent',
                       opacity: isOpen ? 0.55 : 1,
                     }}
                     onMouseEnter={(e) => {
@@ -93,14 +93,14 @@ const AddMenu: FunctionComponent<{
                     onClick={() => { if (!isOpen) { onOpenSession(s); onClose() } }}
                     disabled={isOpen}
                   >
-                    <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.color }} />
+                    <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.ink }} />
                     <span class="text-xs font-medium text-forge-text truncate flex-1">{sessionLabel(s)}</span>
                     {isOpen ? (
                       <span class="text-[9px] text-forge-muted">open</span>
                     ) : (
                       <span
                         class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                        style={{ color: cfg.color, backgroundColor: cfg.bg }}
+                        style={{ color: cfg.ink, backgroundColor: cfg.fill }}
                       >
                         {cfg.label}
                       </span>
@@ -126,7 +126,7 @@ const AddMenu: FunctionComponent<{
             <button
               key={t.key}
               class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:opacity-80"
-              style={{ backgroundColor: t.style.bg, color: t.style.color, border: `1px solid ${t.style.border}` }}
+              style={{ backgroundColor: t.style.fill, color: t.style.ink, border: `1px solid ${t.style.fill}` }}
               onClick={() => { onNewTask(t.key); onClose() }}
             >
               + {t.label}
@@ -189,7 +189,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
             class="flex items-center gap-2 px-3.5 py-2 text-xs cursor-pointer shrink-0 transition-all"
             style={{
               backgroundColor: isActive ? 'var(--forge-surface)' : 'transparent',
-              borderTop: isActive ? `2px solid ${cfg.color}` : '2px solid transparent',
+              borderTop: isActive ? `2px solid ${cfg.ink}` : '2px solid transparent',
               borderLeft: isActive ? '1px solid var(--forge-ghost-border)' : '1px solid transparent',
               borderRight: isActive ? '1px solid var(--forge-ghost-border)' : '1px solid transparent',
               borderBottom: 'none',
@@ -201,7 +201,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
             onClick={() => onActivate(i)}
           >
             <span class="text-[9px] font-mono" style={{ opacity: 0.35 }}>{i + 1}</span>
-            <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.color }} />
+            <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.ink }} />
             <span
               class="font-semibold truncate max-w-[140px]"
               style={{ color: isActive ? 'var(--forge-text)' : 'var(--forge-muted)' }}

@@ -53,7 +53,7 @@ export const CloseTaskDialog: FunctionComponent<{
           >
             Cancel
           </button>
-          <ActionButton label="Close task" variant={destructive ? 'danger' : 'primary'} onClick={onConfirm} />
+          <ActionButton label="Close task" variant={destructive ? 'destructive' : 'primary'} onClick={onConfirm} />
         </div>
       </div>
     </Modal>

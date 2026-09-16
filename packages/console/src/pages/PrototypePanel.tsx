@@ -24,7 +24,7 @@ export interface PrototypePanelProps {
 
 /* ── Helpers ── */
 
-const designStyle = TYPE_STYLES['design']
+const designStyle = TYPE_STYLES.task
 
 /* ── Component ── */
 
@@ -131,9 +131,9 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
         <span
           class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0"
           style={{
-            backgroundColor: designStyle.bg,
-            color: designStyle.color,
-            border: `1px solid ${designStyle.border}`,
+            backgroundColor: designStyle.fill,
+            color: designStyle.ink,
+            border: `1px solid ${designStyle.fill}`,
           }}
         >
           {designStyle.label}
@@ -228,9 +228,9 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
               <button
                 class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                 style={{
-                  backgroundColor: designStyle.bg,
-                  border: `1px solid ${designStyle.border}`,
-                  color: designStyle.color,
+                  backgroundColor: designStyle.fill,
+                  border: `1px solid ${designStyle.fill}`,
+                  color: designStyle.ink,
                 }}
                 onClick={() => setShareOpen(true)}
               >
@@ -243,9 +243,9 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
               <button
                 class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                 style={{
-                  backgroundColor: TYPE_STYLES['task'].bg,
-                  border: `1px solid ${TYPE_STYLES['task'].border}`,
-                  color: TYPE_STYLES['task'].color,
+                  backgroundColor: TYPE_STYLES.task.fill,
+                  border: `1px solid ${TYPE_STYLES.task.fill}`,
+                  color: TYPE_STYLES.task.ink,
                 }}
                 onClick={() => setGraduateOpen(true)}
               >

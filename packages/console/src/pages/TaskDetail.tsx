@@ -6,6 +6,7 @@ import { TYPE_STYLES, sessionDirOf } from '../config/types.js'
 import { HarnessBadge } from '../components/HarnessBadge.js'
 import { ReviewSummary } from '../components/ReviewSummary.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
+import { theme } from '../shell.js'
 
 /* ── Types ── */
 
@@ -83,7 +84,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
           {/* Type badge */}
           <span
             class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0"
-            style={{ backgroundColor: typeCfg.bg, color: typeCfg.color, border: `1px solid ${typeCfg.border}` }}
+            style={{ backgroundColor: typeCfg.fill, color: typeCfg.ink, border: `1px solid ${typeCfg.fill}` }}
           >
             {typeCfg.label}
           </span>
@@ -192,6 +193,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
           <ForgeTerminal
             wsUrl={wsUrl}
+            theme={theme.value}
             onExit={() => setPtyExited(true)}
             onConnectionChange={(c) => setConnected(c)}
           />
