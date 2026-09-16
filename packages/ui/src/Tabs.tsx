@@ -13,12 +13,13 @@ interface TabsProps {
   onChange: (id: string) => void
   // stretch the options across the track
   fill?: boolean
-  size?: 'md' | 'sm'
+  size?: 'md' | 'sm' | 'xs'
   label?: string
 }
 
 export const Tabs: FunctionComponent<TabsProps> = ({ tabs, active, onChange, fill, size = 'md', label }) => {
-  const sm = size === 'sm'
+  const sm = size !== 'md'
+  const xs = size === 'xs'
   return (
     <div
       role="tablist"
@@ -37,10 +38,10 @@ export const Tabs: FunctionComponent<TabsProps> = ({ tabs, active, onChange, fil
             disabled={tab.disabled}
             class={`flex items-center justify-center gap-1.5 whitespace-nowrap transition-all duration-200 ease-spring ${fill ? 'flex-1' : ''} ${tab.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             style={{
-              padding: fill ? (sm ? '5px 6px' : '7px 8px') : (sm ? '5px 11px' : '6px 12px'),
+              padding: xs ? '4px 0' : fill ? (sm ? '5px 6px' : '7px 8px') : (sm ? '5px 11px' : '6px 12px'),
               border: 0,
               borderRadius: sm ? '7px' : '8px',
-              fontSize: sm ? '12px' : '12.5px',
+              fontSize: xs ? '11.5px' : sm ? '12px' : '12.5px',
               fontWeight: 600,
               background: on ? 'var(--card)' : 'transparent',
               color: on ? 'var(--ink)' : 'var(--ink-3)',

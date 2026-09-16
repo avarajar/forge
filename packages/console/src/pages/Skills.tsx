@@ -10,6 +10,7 @@ interface SkillsProps {
   projects: Record<string, { path: string; account: string }>
   onBack: () => void
   onCreateWithAI?: (scope: string, scopeRef: string, description: string) => void
+  onCount?: (count: number) => void
 }
 
 type SubView = 'list' | 'editor' | 'explore' | 'create'
@@ -710,7 +711,7 @@ const SkillCreateView: FunctionComponent<{
 /*  Main Skills component                                              */
 /* ================================================================== */
 
-export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onBack, onCreateWithAI }) => {
+export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onBack, onCreateWithAI, onCount }) => {
   const [view, setView] = useState<SubView>('list')
   const [skills, setSkills] = useState<SkillEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -729,7 +730,9 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onB
       if (firstProject) params.set('project', firstProject)
       const res = await fetch(`/api/skills?${params.toString()}`)
       if (!res.ok) throw new Error('fetch failed')
-      setSkills(await res.json() as SkillEntry[])
+      const list = await res.json() as SkillEntry[]
+      setSkills(list)
+      onCount?.(list.length)
     } catch {
       showToast('Failed to load skills', 'error')
     } finally {
