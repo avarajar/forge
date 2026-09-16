@@ -113,7 +113,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
 - `packages/console/src/pages/PrototypePanel.tsx` — Prototype sandbox flow (generate, preview, share, graduate to a dev task)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
-- `packages/console/src/components/ReviewSummary.tsx` — GitHub and Open in editor buttons
+- `packages/console/src/components/TaskLinks.tsx` — GitHub and Open in editor buttons
 - `packages/console/src/components/CloseTaskDialog.tsx` — Confirmation before closing a task that could lose work
 
 ## Development

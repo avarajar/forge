@@ -1,11 +1,10 @@
 import { render } from 'preact'
 import { useState, useEffect, useCallback, useMemo } from 'preact/hooks'
-import { Shell, toggleTheme } from './shell.js'
-import { Sidebar, type View } from './components/Sidebar.js'
+import { Shell, sidebarOpen, toggleTheme } from './shell.js'
+import { NAV, Sidebar, type View } from './components/Sidebar.js'
 import { CommandPalette, type PaletteItem } from './components/CommandPalette.js'
-import { harnesses, loadHarnesses } from './hooks/useHarnesses.js'
-import { forgetOutput } from './hooks/useTerminalMetrics.js'
-import { skills, loadSkills } from './hooks/useSkills.js'
+import { loadHarnesses } from './hooks/useHarnesses.js'
+import { loadSkills } from './hooks/useSkills.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
@@ -18,7 +17,7 @@ import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession, SkillEntry } from '@forge-dev/core'
-import { QUICK_TYPES, sessionKey, type QuickType } from './config/types.js'
+import { QUICK_TYPES, sessionKey } from './config/types.js'
 import { typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
@@ -79,7 +78,8 @@ function App() {
   const hasProjects = Object.keys(projects).length > 0
 
   const handleNewTask = (type?: string) => {
-    if (type && QUICK_TYPES.some(t => t.key === type)) typeOverride.value = type as QuickType
+    const quick = QUICK_TYPES.find(t => t.key === type)
+    if (quick) typeOverride.value = quick.key
     setNewTaskOpen(true)
   }
 
@@ -122,8 +122,7 @@ function App() {
     setCloseRequest({ session, state: entry.state, error: entry.error, onClosed })
   }, [performClose])
 
-  const handleMarkDone = useCallback((session: CWSession) => requestClose(session), [requestClose])
-
+  
   const closeDialog = (
     <CloseTaskDialog
       request={closeRequest}
@@ -142,6 +141,7 @@ function App() {
   )
 
   const navigate = useCallback((next: View) => {
+    sidebarOpen.value = false
     if (!tabs.showList) tabs.goToList()
     setNewTaskOpen(false)
     setView(next)
@@ -157,21 +157,14 @@ function App() {
   }, [filters.filterProject, filters.setFilterProject, navigate])
 
   const openSession = useCallback((session: CWSession) => {
+    sidebarOpen.value = false
     setNewTaskOpen(false)
     tabs.openTab(session)
   }, [tabs.openTab])
 
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [paletteQuery, setPaletteQuery] = useState('')
-  const [highlightIndex, setHighlightIndex] = useState(0)
-
   const closePalette = useCallback(() => setPaletteOpen(false), [])
-
-  const openPalette = useCallback(() => {
-    setPaletteQuery('')
-    setHighlightIndex(0)
-    setPaletteOpen(true)
-  }, [])
+  const openPalette = useCallback(() => setPaletteOpen(true), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -273,43 +266,34 @@ function App() {
     ?? filters.filteredSpaces.find(s => s.status === 'active' && projects[s.project])?.project
     ?? Object.keys(projects)[0] ?? ''
 
-  const doctor = harnesses.value?.available ? harnesses.value.doctor : null
+  const projectKeys = useMemo(() => Object.keys(projects), [projects])
+
+  const showProject = useCallback((project: string) => {
+    filters.setFilterProject(project)
+    navigate('list')
+  }, [filters.setFilterProject, navigate])
+
   const detailShown = !tabs.showList && tabs.openTabs.length > 0
   const sidebarView: View = detailShown ? 'list' : view
-  const prototypeTarget = prototypeProject ?? filters.filterProject ?? Object.keys(projects)[0] ?? null
-
-  const closeTab = useCallback((index: number) => {
-    const session = tabs.openTabs[index]
-    if (session) forgetOutput(sessionKey(session))
-    return tabs.closeTab(index)
-  }, [tabs.openTabs, tabs.closeTab])
+  const prototypeTarget = prototypeProject ?? filters.filterProject ?? projectKeys[0] ?? null
 
   const paletteCommands = useMemo<PaletteItem[]>(() => [
     { id: 'new-task', label: 'New task', hint: 'N', glyph: '+', token: '--blue', run: () => handleNewTask() },
     { id: 'add-project', label: 'Add project', hint: 'P', glyph: 'P', token: '--green', run: () => setShowCreateProject(true) },
-    { id: 'tasks', label: 'Tasks', hint: '⌘L', glyph: 'T', token: '--blue', run: () => navigate('list') },
-    { id: 'accounts', label: 'Accounts', hint: '', glyph: 'A', token: '--purple', run: () => navigate('accounts') },
-    { id: 'skills', label: 'Skills', hint: '', glyph: 'S', token: '--green', run: () => navigate('skills') },
-    { id: 'prototypes', label: 'Prototypes', hint: '', glyph: 'P', token: '--orange', run: () => navigate('prototypes') },
+    ...NAV.map(n => ({ id: n.view, label: n.label, hint: n.view === 'list' ? '⌘L' : '', glyph: n.glyph, token: n.token, run: () => navigate(n.view) })),
     { id: 'appearance', label: 'Toggle appearance', hint: '⌘J', glyph: '◐', token: null, run: toggleTheme },
   ], [navigate])
 
   const sidebar = (
     <Sidebar
-      version={doctor?.cw_version ?? null}
       view={sidebarView}
-      nav={[
-        { view: 'list', label: 'Tasks', glyph: 'T', token: '--blue', count: activeSessions.length },
-        { view: 'accounts', label: 'Accounts', glyph: 'A', token: '--purple', count: filters.accountNames.length },
-        { view: 'skills', label: 'Skills', glyph: 'S', token: '--green', count: skills.value?.length ?? null },
-        { view: 'prototypes', label: 'Prototypes', glyph: 'P', token: '--orange', count: prototypeCount },
-      ]}
+      counts={{ list: activeSessions.length, accounts: filters.accountNames.length, prototypes: prototypeCount }}
       projects={sidebarProjects}
       selectedProject={filters.filterProject}
       live={live}
       onNavigate={navigate}
       onSelectProject={selectProject}
-      onAddProject={() => setShowCreateProject(true)}
+      onAddProject={() => { sidebarOpen.value = false; setShowCreateProject(true) }}
       onOpenLive={openSession}
       onSearch={openPalette}
     />
@@ -344,7 +328,7 @@ function App() {
       onShowDone={filters.setShowDone}
       openTabKeys={tabs.openTabKeys}
       onSelectTask={openSession}
-      onMarkDone={handleMarkDone}
+      onMarkDone={requestClose}
       onNewTask={() => handleNewTask()}
       onCreateProject={() => setShowCreateProject(true)}
       onRefresh={() => fetchData()}
@@ -391,7 +375,7 @@ function App() {
             tabs={tabs.openTabs}
             activeIndex={tabs.activeTabIndex}
             onActivate={tabs.setActiveTabIndex}
-            onClose={closeTab}
+            onClose={tabs.closeTab}
             onBack={handleGoToList}
             allSessions={activeSessions}
             openTabKeys={tabs.openTabKeys}
@@ -418,7 +402,7 @@ function App() {
                   <TaskDetail
                     session={session}
                     active={shown}
-                    onDone={() => requestClose(session, () => { forgetOutput(sessionKey(session)); void tabs.closeTabByKey(sessionKey(session)) })}
+                    onDone={() => requestClose(session, () => { void tabs.closeTabByKey(sessionKey(session)) })}
                   />
                 </div>
               )
@@ -445,16 +429,12 @@ function App() {
 
       {paletteOpen && (
         <CommandPalette
-          query={paletteQuery}
-          onQuery={setPaletteQuery}
-          highlight={highlightIndex}
-          onHighlight={setHighlightIndex}
           openTabs={tabs.openTabs}
           sessions={spaces}
-          projects={Object.keys(projects)}
+          projects={projectKeys}
           commands={paletteCommands}
           onOpenSession={openSession}
-          onSelectProject={(p) => { filters.setFilterProject(p); navigate('list') }}
+          onSelectProject={showProject}
           onClose={closePalette}
         />
       )}

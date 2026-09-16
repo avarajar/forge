@@ -142,8 +142,6 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
 
   const exited = login?.status === 'exited'
 
-  const field = { height: '36px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '13px', outline: 'none' }
-
   return (
     <div class="flex flex-col" style={{ gap: '12px', padding: '14px 16px', borderRadius: '16px', background: 'var(--bg-2)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: 'riseIn .3s var(--ease) both' }}>
       <div class="flex items-center" style={{ gap: '10px' }}>
@@ -216,7 +214,6 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
               onInput={(e) => setApiKey((e.target as HTMLInputElement).value)}
               placeholder="sk-…"
               class="field mono flex-1 min-w-0"
-              style={field}
             />
             <ActionButton label="Save" variant="secondary" size="sm" loading={savingKey} disabled={!apiKey.trim()} onClick={saveKey} />
           </div>

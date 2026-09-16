@@ -1,6 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import type { CWDoctor, CWDoctorCell } from '@forge-dev/core'
-import { findCell, getHarnessStyle } from '../config/types.js'
+import { soft, findCell, getHarnessStyle } from '../config/types.js'
 
 export const harnessUnavailableReason = (harness: string, cell: CWDoctorCell | undefined, isLoop: boolean): string | null => {
   if (isLoop && harness !== 'claude') return "Loop uses Claude Code's /loop"
@@ -52,7 +52,7 @@ export const HarnessPicker: FunctionComponent<HarnessPickerProps> = ({
             style={{
               gap: '9px', padding: '10px 11px', borderRadius: '12px',
               border: `1px solid ${selected ? 'var(--blue)' : 'var(--hair)'}`,
-              background: selected ? 'color-mix(in srgb, var(--blue) 18%, transparent)' : 'var(--card)',
+              background: selected ? soft('--blue') : 'var(--card)',
               boxShadow: selected ? 'var(--shadow-s)' : 'none',
               opacity: reason ? 0.45 : 1,
             }}

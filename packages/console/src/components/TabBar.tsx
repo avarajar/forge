@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
-import { useState, useRef, useEffect } from 'preact/hooks'
+import { useState, useRef, useEffect, useCallback } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, sessionKey, sessionLabel } from '../config/types.js'
+import { QUICK_TYPES, quickLabel, sessionKey, sessionLabel } from '../config/types.js'
 import { TypeTile } from './TaskCard.js'
 import { Dot } from './Dot.js'
 import { BackButton, MenuButton } from './PageHeader.js'
@@ -43,19 +43,18 @@ const AddMenu: FunctionComponent<{
   return (
     <div
       ref={ref}
-      class="fixed z-[60] flex flex-col"
+      class="popover fixed z-[60] flex flex-col"
       style={{
         top: `${position.top}px`, left: `${position.left}px`, width: 'min(320px, calc(100vw - 16px))', maxHeight: '420px', overflowY: 'auto',
-        padding: '6px', borderRadius: '14px', background: 'var(--glass)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-        border: '1px solid var(--hair-2)', boxShadow: 'var(--shadow-l)', animation: 'popIn .2s var(--ease) both',
+        padding: '6px', borderRadius: '14px',
       }}
     >
       <div style={{ padding: '7px 10px 3px', fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)' }}>New</div>
       {QUICK_TYPES.map(t => (
         <button key={t.key} type="button" class={menuItem} style={{ gap: '10px', padding: '7px 10px', borderRadius: '10px', border: 0, background: 'none', color: 'var(--ink)', fontSize: '13px' }}
           onClick={() => { onNewTask(t.key); onClose() }}>
-          <TypeTile type={t.key === 'dev' ? 'task' : t.key} size={22} radius={7} font={10} />
-          <span class="flex-1">{t.label}</span>
+          <TypeTile type={t.sessionType} size={22} radius={7} font={10} />
+          <span class="flex-1">{quickLabel(t.key)}</span>
         </button>
       ))}
       {closed.length > 0 && (
@@ -81,6 +80,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
   const [menuOpen, setMenuOpen] = useState(false)
   const addBtnRef = useRef<HTMLButtonElement>(null)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
 
   const toggleMenu = () => {
     if (!menuOpen && addBtnRef.current) {
@@ -118,7 +118,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
             onClick={() => onActivate(i)}
             onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(i) } }}
           >
-            {session.status === 'active' ? <Dot size={6} color="var(--green)" live /> : <Dot size={6} />}
+            <Dot size={6} live={session.status === 'active'} />
             <span style={{ fontWeight: 600, color: on ? 'var(--ink)' : 'var(--ink-2)' }}>{sessionLabel(session)}</span>
             <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{session.project}</span>
             <button
@@ -154,7 +154,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
           openTabKeys={openTabKeys}
           onOpenSession={onOpenSession}
           onNewTask={onNewTask}
-          onClose={() => setMenuOpen(false)}
+          onClose={closeMenu}
           position={menuPos}
         />
       )}

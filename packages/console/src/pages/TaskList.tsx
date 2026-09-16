@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useMemo } from 'preact/hooks'
 import { ActionButton, Tabs } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, QUICK_TO_SESSION, getHarnessStyle, sessionKey, type QuickType } from '../config/types.js'
+import { QUICK_TYPES, getHarnessStyle, quickLabel, sessionKey, type QuickType } from '../config/types.js'
 import { TaskRow, DoneRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
 import { StartCard, type ProjectMap } from '../components/StartCard.js'
@@ -124,7 +124,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             label="Filter by type"
             tabs={[
               { id: 'all', label: 'All', count: scoped.length },
-              ...QUICK_TYPES.map(t => ({ id: t.key, label: t.label, count: scoped.filter(s => s.type === QUICK_TO_SESSION[t.key]).length })),
+              ...QUICK_TYPES.map(t => ({ id: t.key, label: quickLabel(t.key), count: scoped.filter(s => s.type === t.sessionType).length })),
             ]}
             active={filterType ?? 'all'}
             onChange={(id) => onFilterType(id === 'all' ? null : id as QuickType)}

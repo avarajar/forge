@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TO_SESSION, type QuickType } from '../config/types.js'
+import { sessionTypeOf, type QuickType } from '../config/types.js'
 
 interface UseTaskFiltersOptions {
   spaces: CWSession[]
@@ -55,7 +55,7 @@ export function useTaskFilters({ spaces, accounts, projects }: UseTaskFiltersOpt
       if (filterAccount && s.account !== filterAccount) return false
       if (filterProject && s.project !== filterProject) return false
       if (filterHarness && (s.harness ?? 'claude') !== filterHarness) return false
-      if (filterType && s.type !== QUICK_TO_SESSION[filterType]) return false
+      if (filterType && s.type !== sessionTypeOf(filterType)) return false
       if (!showDone && s.status === 'done') return false
       return true
     })

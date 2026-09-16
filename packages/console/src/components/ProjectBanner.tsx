@@ -118,7 +118,6 @@ export const ProjectBanner: FunctionComponent<{
           <p style={{ fontSize: '13px' }}>Move "{project}" to a different account.</p>
           <select
             class="field"
-            style={{ height: '38px', padding: '0 10px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none' }}
             value={moveTarget}
             onChange={(e) => setMoveTarget((e.target as HTMLSelectElement).value)}
           >

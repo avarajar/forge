@@ -57,7 +57,7 @@ export const EditorButton: FunctionComponent<{ session: CWSession; entry: Review
         Open in editor <span class="i-lucide-chevron-down" style={{ width: '12px', height: '12px' }} />
       </button>
       {menuOpen && (
-        <div class="absolute right-0 top-full z-30 flex flex-col" style={{ marginTop: '6px', minWidth: '160px', padding: '5px', borderRadius: '12px', background: 'var(--glass)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)', border: '1px solid var(--hair-2)', boxShadow: 'var(--shadow-l)', animation: 'popIn .2s var(--ease) both' }}>
+        <div class="popover absolute right-0 top-full z-30 flex flex-col" style={{ marginTop: '6px', minWidth: '160px', padding: '5px', borderRadius: '12px' }}>
           {editorList.map(editor => (
             <button key={editor.id} type="button" class="text-left cursor-pointer hover:bg-elev" style={{ padding: '7px 10px', borderRadius: '8px', border: 0, background: 'none', color: 'var(--ink)', fontSize: '13px' }} onClick={() => open(editor.id)}>
               {editor.label}

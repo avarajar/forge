@@ -34,15 +34,17 @@ export const getTypeStyle = (type: string): TypeStyle =>
 
 export type QuickType = 'dev' | 'review' | 'loop' | 'general'
 
-export const QUICK_TYPES: Array<{ key: QuickType; label: string; style: TypeStyle }> = [
-  { key: 'dev', label: 'Dev', style: TYPE_STYLES.task },
-  { key: 'review', label: 'Review', style: TYPE_STYLES.review },
-  { key: 'loop', label: 'Loop', style: TYPE_STYLES.loop },
-  { key: 'general', label: 'General', style: TYPE_STYLES.general },
+// each quick type and the session type it starts
+export const QUICK_TYPES: Array<{ key: QuickType; sessionType: CWSession['type'] }> = [
+  { key: 'dev', sessionType: 'task' },
+  { key: 'review', sessionType: 'review' },
+  { key: 'loop', sessionType: 'loop' },
+  { key: 'general', sessionType: 'general' },
 ]
 
-// the session type each quick type starts
-export const QUICK_TO_SESSION: Record<QuickType, CWSession['type']> = { dev: 'task', review: 'review', loop: 'loop', general: 'general' }
+export const quickLabel = (key: QuickType): string => TYPE_STYLES[QUICK_TYPES.find(t => t.key === key)?.sessionType ?? 'task'].label
+
+export const sessionTypeOf = (key: QuickType): CWSession['type'] => QUICK_TYPES.find(t => t.key === key)?.sessionType ?? 'task'
 
 /* ── Shared helpers ── */
 
@@ -59,19 +61,6 @@ export const sessionLabel = (s: CWSession) =>
   : s.type === 'loop' ? `Loop: ${s.task ?? 'loop'}`
   : s.type === 'login' ? `Login: ${s.account} · ${getHarnessStyle(s.harness).label}`
   : (s.task ?? 'unknown')
-
-export const timeAgo = (date: string): string => {
-  const diff = Date.now() - new Date(date).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  return `${months}mo ago`
-}
 
 // compact form for fixed-width columns
 export const shortAgo = (date: string): string => {

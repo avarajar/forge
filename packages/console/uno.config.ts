@@ -1,6 +1,6 @@
 import { defineConfig, presetUno, presetIcons } from 'unocss'
 
-const tokens = ['bg', 'bg-2', 'card', 'card-2', 'elev', 'hair', 'hair-2', 'ink', 'ink-2', 'ink-3', 'blue', 'blue-2', 'green', 'orange', 'red', 'purple', 'teal', 'term']
+const tokens = ['bg', 'bg-2', 'card', 'elev', 'hair', 'hair-2', 'ink', 'ink-2', 'ink-3', 'blue', 'blue-2', 'green', 'orange', 'red', 'purple', 'teal', 'term']
 
 export default defineConfig({
   presets: [
@@ -22,7 +22,7 @@ export default defineConfig({
     ['shadow-l', { 'box-shadow': 'var(--shadow-l)' }],
     ['ease-spring', { 'transition-timing-function': 'var(--ease)' }],
     ['glass', { 'background': 'var(--glass)', 'backdrop-filter': 'blur(22px) saturate(180%)', '-webkit-backdrop-filter': 'blur(22px) saturate(180%)' }],
-    ['tnum', { 'font-variant-numeric': 'tabular-nums' }],
+    ['popover', { 'background': 'var(--glass)', 'backdrop-filter': 'blur(30px) saturate(180%)', '-webkit-backdrop-filter': 'blur(30px) saturate(180%)', 'border': '1px solid var(--hair-2)', 'box-shadow': 'var(--shadow-l)', 'animation': 'popIn .2s var(--ease) both' }],
     ['breathe', { animation: 'breathe 2.4s ease-in-out infinite' }],
   ],
 })

@@ -1,6 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { Modal, ActionButton } from '@forge-dev/ui'
+import { labelStyle } from './Field.js'
 
 interface GraduateModalProps {
   open: boolean
@@ -64,14 +65,14 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
         )}
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', color: 'var(--ink-2)', marginBottom: '5px' }}>
+          <label class="block mb-1" style={labelStyle}>
             Task name
           </label>
           <input
             type="text"
             value={taskName}
             onInput={(e) => setTaskName((e.target as HTMLInputElement).value)}
-            class="field w-full" style={{ height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none' }}
+            class="field"
             placeholder="implement-my-feature"
           />
         </div>

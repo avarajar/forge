@@ -49,7 +49,7 @@ const ReviewedLine: FunctionComponent<{ session: CWSession }> = ({ session }) =>
 
 const MetaLine: FunctionComponent<{ branch: string; status: string }> = ({ branch, status }) => (
   <div class="task-meta flex items-center min-w-0" style={{ gap: '9px', marginTop: '2px' }}>
-    <span class="task-branch mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{branch}</span>
+    <span class="mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{branch}</span>
     <span class="whitespace-nowrap truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{status}</span>
   </div>
 )

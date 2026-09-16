@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'preact/hooks'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
 import { sessionKey } from '../config/types.js'
+import { forgetOutput } from './useTerminalMetrics.js'
 
 const STORAGE_KEY = 'forge-open-tabs'
 
@@ -20,8 +21,7 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
   openTabsRef.current = openTabs
 
   // Restore tabs after initial data load — runs once
-  // Tabs are restored but we always start on the list view.
-  // The OpenTabsBanner shows which tabs are open so the user can jump in.
+  // Tabs are restored but we always start on the list view; the sidebar shows them as live
   useEffect(() => {
     if (loading || spaces.length === 0 || restoredRef.current) return
     restoredRef.current = true
@@ -37,7 +37,6 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
       if (restored.length > 0) {
         setOpenTabs(restored)
         setActiveTabIndex(Math.min(activeIndex, restored.length - 1))
-        // Stay on list — user clicks a tab from the banner to switch
       }
     } catch {}
   }, [loading, spaces])
@@ -80,6 +79,7 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
 
     const index = openTabsRef.current.findIndex(t => sessionKey(t) === key)
     if (index < 0) return
+    forgetOutput(key)
     const remaining = openTabsRef.current.length - 1
     setOpenTabs(prev => prev.filter(t => sessionKey(t) !== key))
 
@@ -102,11 +102,6 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
     setShowList(true)
     onFetchData()
   }, [onFetchData])
-
-  const switchToTab = useCallback((index: number) => {
-    setActiveTabIndex(index)
-    setShowList(false)
-  }, [])
 
   // Keyboard shortcuts: Cmd+1..5, Cmd+←/→, Cmd+W, Cmd+L
   useEffect(() => {
@@ -147,7 +142,7 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
     return () => window.removeEventListener('keydown', handler)
   }, [openTabs, showList, activeTabIndex, closeTab, goToList])
 
-  const openTabKeys = new Set(openTabs.map(sessionKey))
+  const openTabKeys = useMemo(() => new Set(openTabs.map(sessionKey)), [openTabs])
 
   return {
     openTabs,
@@ -158,7 +153,6 @@ export function useTabManager({ spaces, loading, onFetchData }: UseTabManagerOpt
     closeTab,
     closeTabByKey,
     goToList,
-    switchToTab,
     openTabKeys,
   }
 }

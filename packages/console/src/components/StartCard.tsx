@@ -2,10 +2,10 @@ import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { Tabs, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, findCell, getHarnessStyle, resolveHarness, type QuickType } from '../config/types.js'
+import { QUICK_TYPES, findCell, quickLabel, soft, getHarnessStyle, resolveHarness, type QuickType } from '../config/types.js'
 import { EMPTY_HINT, effectiveType, inferTask, inferenceText } from '../config/inference.js'
 import { startInput, typeOverride, setStartInput } from '../state/startTask.js'
-import { harnesses, supportsIn } from '../hooks/useHarnesses.js'
+import { harnesses, missingTicketToken } from '../hooks/useHarnesses.js'
 import { harnessUnavailableReason } from './HarnessPicker.js'
 
 export type ProjectMap = Record<string, { path: string; account: string; harness?: string }>
@@ -19,7 +19,7 @@ export const InferenceLine: FunctionComponent<{ project: string; harness: string
       style={{ gap: '7px', fontSize: size === 'md' ? '12.5px' : '12px', color: inf ? 'var(--blue)' : 'var(--ink-3)', margin: size === 'md' ? '9px 2px 0' : 0 }}
     >
       {inf && (
-        <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'color-mix(in srgb, var(--blue) 22%, transparent)' }}>
+        <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: '50%', background: soft('--blue', 22) }}>
           <span class="i-lucide-check" style={{ width: '10px', height: '10px' }} />
         </span>
       )}
@@ -32,7 +32,7 @@ export const TypeSegmented: FunctionComponent<{ fill?: boolean }> = ({ fill }) =
   <Tabs
     fill={fill}
     label="Task type"
-    tabs={QUICK_TYPES.map(t => ({ id: t.key, label: t.label }))}
+    tabs={QUICK_TYPES.map(t => ({ id: t.key, label: quickLabel(t.key) }))}
     active={effectiveType(startInput.value, typeOverride.value)}
     onChange={(id) => { typeOverride.value = id as QuickType }}
   />
@@ -57,11 +57,9 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, project
 
   const start = async () => {
     if (disabled) return
-    const inf = inferTask(value)
     const cell = doctor ? findCell(doctor, account, harness) : undefined
     const blocked = doctor ? harnessUnavailableReason(harness, cell, type === 'loop') : null
-    const ticket = inf?.kind === 'linear' || inf?.kind === 'notion' ? inf.kind : null
-    const missingToken = Boolean(response?.available && ticket && !supportsIn(response, harness, 'mcp') && !response.contextTokens[ticket])
+    const missingToken = missingTicketToken(response, harness, value)
     // anything that needs a choice or a warning goes through the drawer
     if (!project || type === 'loop' || type === 'general' || blocked || missingToken || cell?.status === 'not_logged_in') {
       onOpenDrawer()

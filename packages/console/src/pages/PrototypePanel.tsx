@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { useState, useEffect } from 'preact/hooks'
+import { useState } from 'preact/hooks'
 import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import { usePrototype } from '../hooks/usePrototype.js'
 import type { InputType } from '../hooks/usePrototype.js'
@@ -8,14 +8,10 @@ import { PrototypePreview, VIEWPORTS, type Viewport } from '../components/Protot
 import { ShareModal } from '../components/ShareModal.js'
 import { GraduateModal } from '../components/GraduateModal.js'
 import { PageHeader, BackButton } from '../components/PageHeader.js'
+import { soft } from '../config/types.js'
+import { useProjectStack } from '../hooks/useProjectStack.js'
 
 /* ── Types ── */
-
-interface StackDetection {
-  hasTailwind?: boolean
-  hasShadcn?: boolean
-  hasTokens?: boolean
-}
 
 export interface PrototypePanelProps {
   project: string
@@ -33,18 +29,10 @@ const stageOf = (state: string): number =>
 
 export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project, projects, onProjectChange, onBack }) => {
   const proto = usePrototype()
-  const [detection, setDetection] = useState<StackDetection | null>(null)
+  const detection = useProjectStack(project)
   const [shareOpen, setShareOpen] = useState(false)
   const [graduateOpen, setGraduateOpen] = useState(false)
   const [viewport, setViewport] = useState<Viewport>('desktop')
-
-  // Fetch stack detection on mount
-  useEffect(() => {
-    fetch(`/api/cw/detect/${encodeURIComponent(project)}`)
-      .then(r => r.ok ? r.json() as Promise<StackDetection> : null)
-      .then(data => { if (data) setDetection(data) })
-      .catch(() => {/* silently ignore detection errors */})
-  }, [project])
 
   /* ── Handlers ── */
 
@@ -120,7 +108,7 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
       </PageHeader>
 
       {proto.error && (
-        <p class="shrink-0" style={{ padding: '8px 22px', fontSize: '12.5px', color: 'var(--red)', background: 'color-mix(in srgb, var(--red) 12%, transparent)', borderBottom: '1px solid var(--hair)' }}>
+        <p class="shrink-0" style={{ padding: '8px 22px', fontSize: '12.5px', color: 'var(--red)', background: soft('--red', 12), borderBottom: '1px solid var(--hair)' }}>
           {proto.error}
         </p>
       )}
@@ -132,7 +120,6 @@ export const PrototypePanel: FunctionComponent<PrototypePanelProps> = ({ project
               <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink-3)' }}>Project</span>
               <select
                 class="field"
-                style={{ height: '36px', padding: '0 10px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none' }}
                 value={project}
                 onChange={(e) => onProjectChange((e.target as HTMLSelectElement).value)}
               >

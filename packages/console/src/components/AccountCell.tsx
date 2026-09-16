@@ -1,5 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import type { CWDoctorCell } from '@forge-dev/core'
+import { ActionButton } from '@forge-dev/ui'
 import { soft } from '../config/types.js'
 
 export type CellView =
@@ -84,14 +85,7 @@ export const AccountCell: FunctionComponent<{
     case 'connected': return <Pill token="--green" label="Connected" />
     case 'connect':
       return (
-        <button
-          type="button"
-          class="shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:brightness-106"
-          style={{ padding: '5px 13px', borderRadius: '9px', border: 0, background: 'linear-gradient(180deg, var(--blue-2), var(--blue))', color: '#fff', fontSize: '12.5px', fontWeight: 600, boxShadow: 'var(--shadow-m)' }}
-          onClick={onConnect}
-        >
-          Connect
-        </button>
+        <ActionButton label="Connect" size="sm" onClick={onConnect} />
       )
   }
 }

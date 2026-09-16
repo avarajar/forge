@@ -1,5 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
+import { soft } from '../config/types.js'
 
 interface DirEntry {
   name: string
@@ -85,7 +86,7 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
   const toolBtn = { width: '24px', height: '24px', borderRadius: '7px', border: 0, background: 'var(--card)', color: 'var(--ink-2)', boxShadow: 'var(--shadow-s)' }
   const row = 'flex items-center w-full text-left cursor-pointer transition-colors duration-140 hover:bg-elev disabled:cursor-not-allowed disabled:opacity-60'
   const rowStyle = { gap: '8px', padding: '7px 11px', border: 0, borderBottom: '1px solid var(--hair)', background: 'none', color: 'var(--ink)', fontSize: '12.5px' }
-  const gitPill = { padding: '1px 7px', borderRadius: '99px', background: 'color-mix(in srgb, var(--green) 18%, transparent)', color: 'var(--green)', fontSize: '10.5px', fontWeight: 600 }
+  const gitPill = { padding: '1px 7px', borderRadius: '99px', background: soft('--green'), color: 'var(--green)', fontSize: '10.5px', fontWeight: 600 }
 
   return (
     <div style={{ borderRadius: '12px', border: '1px solid var(--hair)', background: 'var(--card)', boxShadow: 'var(--shadow-s)', overflow: 'hidden' }}>
@@ -106,7 +107,7 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
       </div>
 
       {value && (
-        <div class="flex items-center" style={{ gap: '8px', padding: '7px 11px', borderBottom: '1px solid var(--hair)', background: 'color-mix(in srgb, var(--blue) 12%, transparent)', fontSize: '12px' }}>
+        <div class="flex items-center" style={{ gap: '8px', padding: '7px 11px', borderBottom: '1px solid var(--hair)', background: soft('--blue', 12), fontSize: '12px' }}>
           <span class="i-lucide-check shrink-0" style={{ width: '13px', height: '13px', color: 'var(--blue)' }} />
           <span class="mono flex-1 truncate">{value}</span>
           <button type="button" class="grid place-items-center cursor-pointer text-ink3 hover:text-ink" style={{ border: 0, background: 'none' }} onClick={() => onChange('', false)} title="Clear selection" aria-label="Clear selection">

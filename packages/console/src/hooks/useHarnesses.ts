@@ -74,3 +74,12 @@ export function watchUntil(
 
 export const supportsIn = (response: HarnessesResponse | null, harness: string, cap: Capability): boolean =>
   Boolean(response?.available && response.capabilities[harness]?.includes(cap))
+
+// a Linear or Notion link only reaches TASK_NOTES.md through the harness MCP or a CW token
+export const ticketSourceOf = (input: string): 'linear' | 'notion' | null =>
+  /linear\.app/.test(input) ? 'linear' : /notion\.(so|site)/.test(input) ? 'notion' : null
+
+export const missingTicketToken = (response: HarnessesResponse | null, harness: string, input: string): boolean => {
+  const source = ticketSourceOf(input)
+  return Boolean(response?.available && source && !supportsIn(response, harness, 'mcp') && !response.contextTokens[source])
+}

@@ -1,6 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { ActionButton, Badge } from '@forge-dev/ui'
+import { soft } from '../config/types.js'
 
 /* ── Types ── */
 
@@ -76,7 +77,7 @@ const DynamicInput: FunctionComponent<{
         style={{
           ...boxStyle, gap: '4px', padding: '26px 14px',
           border: `2px dashed ${dragOver ? 'var(--blue)' : 'var(--hair-2)'}`,
-          background: dragOver ? 'color-mix(in srgb, var(--blue) 18%, transparent)' : 'var(--card)',
+          background: dragOver ? soft('--blue') : 'var(--card)',
         }}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -172,7 +173,7 @@ export const InputSelector: FunctionComponent<InputSelectorProps> = ({
               style={{
                 gap: '10px', padding: '10px 12px', borderRadius: '12px', color: 'var(--ink)',
                 border: `1px solid ${on ? 'var(--blue)' : 'var(--hair)'}`,
-                background: on ? 'color-mix(in srgb, var(--blue) 18%, transparent)' : 'var(--card)',
+                background: on ? soft('--blue') : 'var(--card)',
                 boxShadow: on ? 'var(--shadow-s)' : 'none',
               }}
               onClick={() => handleTypeChange(t.id)}

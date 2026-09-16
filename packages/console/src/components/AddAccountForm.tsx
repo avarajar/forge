@@ -2,6 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import { ACCOUNT_NAME_RE, getHarnessStyle } from '../config/types.js'
+import { useAutoFocus } from '../hooks/useAutoFocus.js'
 import { supportsIn, type HarnessesResponse } from '../hooks/useHarnesses.js'
 
 interface AddAccountFormProps {
@@ -10,7 +11,6 @@ interface AddAccountFormProps {
   onCreated: () => void
 }
 
-const inputStyle = { width: '100%', height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none' }
 const labelStyle = { display: 'block', fontSize: '12px', color: 'var(--ink-2)', marginBottom: '5px' }
 
 export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ response, onCancel, onCreated }) => {
@@ -19,6 +19,7 @@ export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ respons
   const [provider, setProvider] = useState('')
   const [model, setModel] = useState('')
   const [creating, setCreating] = useState(false)
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   const trimmed = name.trim()
   const valid = ACCOUNT_NAME_RE.test(trimmed)
@@ -66,8 +67,7 @@ export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ respons
           onKeyDown={(e) => { if (e.key === 'Enter') create() }}
           placeholder="my-account"
           class="field"
-          style={inputStyle}
-          autoFocus
+          ref={nameRef}
         />
         {trimmed && !valid && (
           <p style={{ fontSize: '12px', color: 'var(--red)', marginTop: '5px' }}>
@@ -93,11 +93,11 @@ export const AddAccountForm: FunctionComponent<AddAccountFormProps> = ({ respons
         <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px', maxWidth: '520px' }}>
           <div>
             <label style={labelStyle}>Provider · optional</label>
-            <input type="text" value={provider} onInput={(e) => setProvider((e.target as HTMLInputElement).value)} placeholder="zai, ollama, openrouter" class="field" style={inputStyle} />
+            <input type="text" value={provider} onInput={(e) => setProvider((e.target as HTMLInputElement).value)} placeholder="zai, ollama, openrouter" class="field" />
           </div>
           <div>
             <label style={labelStyle}>Model · optional</label>
-            <input type="text" value={model} onInput={(e) => setModel((e.target as HTMLInputElement).value)} placeholder="glm-5.1" class="field" style={inputStyle} />
+            <input type="text" value={model} onInput={(e) => setModel((e.target as HTMLInputElement).value)} placeholder="glm-5.1" class="field" />
           </div>
         </div>
       )}

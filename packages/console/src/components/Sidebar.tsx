@@ -1,19 +1,25 @@
 import { type FunctionComponent } from 'preact'
 import type { CWSession } from '@forge-dev/core'
 import { Tabs } from '@forge-dev/ui'
-import { sessionLabel } from '../config/types.js'
+import { soft, sessionLabel } from '../config/types.js'
 import { theme, setTheme, sidebarOpen } from '../shell.js'
+import { harnesses } from '../hooks/useHarnesses.js'
+import { skills } from '../hooks/useSkills.js'
 import { Dot } from './Dot.js'
-import { terminalMetrics, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
+import { metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
 
 export type View = 'list' | 'accounts' | 'skills' | 'prototypes'
 
-interface NavItem { view: View; label: string; glyph: string; token: string; count: number | null }
+export const NAV: Array<{ view: View; label: string; glyph: string; token: string }> = [
+  { view: 'list', label: 'Tasks', glyph: 'T', token: '--blue' },
+  { view: 'accounts', label: 'Accounts', glyph: 'A', token: '--purple' },
+  { view: 'skills', label: 'Skills', glyph: 'S', token: '--green' },
+  { view: 'prototypes', label: 'Prototypes', glyph: 'P', token: '--orange' },
+]
 
 export interface SidebarProps {
-  version: string | null
   view: View
-  nav: NavItem[]
+  counts: Partial<Record<View, number | null>>
   projects: Array<{ name: string; count: number; live: boolean }>
   selectedProject: string | null
   live: Array<{ key: string; session: CWSession }>
@@ -39,7 +45,7 @@ const Label: FunctionComponent = ({ children }) => (
 )
 
 const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: number; onOpen: () => void }> = ({ id, session, index, onOpen }) => {
-  const m = terminalMetrics.value[id]
+  const m = metricsFor(id).value
   const isLoop = session.type === 'loop'
   const pct = m?.context ?? null
   const [c1, c2] = index % 2 === 0 ? ['var(--blue)', 'var(--purple)'] : ['var(--purple)', 'var(--blue)']
@@ -71,12 +77,14 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
 }
 
 export const Sidebar: FunctionComponent<SidebarProps> = ({
-  version, view, nav, projects, selectedProject, live, onNavigate, onSelectProject, onAddProject, onOpenLive, onSearch,
-}) => (
+  view, counts, projects, selectedProject, live, onNavigate, onSelectProject, onAddProject, onOpenLive, onSearch,
+}) => {
+  const version = harnesses.value?.available ? harnesses.value.doctor.cw_version : null
+  const nav = NAV.map(n => ({ ...n, count: n.view === 'skills' ? skills.value?.length ?? null : counts[n.view] ?? null }))
+  return (
   <aside
     class={`forge-sidebar flex flex-col${sidebarOpen.value ? ' open' : ''}`}
     aria-label="Sidebar"
-    onClick={(e) => { if ((e.target as HTMLElement).closest('button:not([role="tab"]), [role="button"]')) sidebarOpen.value = false }}
     style={{
       position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', overscrollBehavior: 'contain',
       gap: '18px', padding: '14px 10px 12px', background: 'var(--bg-2)', borderRight: '1px solid var(--hair)',
@@ -121,7 +129,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
           >
             <span class="grid place-items-center shrink-0" style={{
               width: '18px', height: '18px', borderRadius: '5px', fontSize: '10px', fontWeight: 600,
-              background: on ? `color-mix(in srgb, var(${n.token}) 18%, transparent)` : 'var(--elev)',
+              background: on ? soft(n.token) : 'var(--elev)',
               color: on ? `var(${n.token})` : 'var(--ink-3)',
             }}>{n.glyph}</span>
             <span class="flex-1 sb-label">{n.label}</span>
@@ -178,4 +186,5 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
       </div>
     </div>
   </aside>
-)
+  )
+}

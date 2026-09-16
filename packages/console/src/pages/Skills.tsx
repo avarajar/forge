@@ -4,6 +4,7 @@ import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import type { SkillEntry, SkillDetail, ExploreResult } from '@forge-dev/core'
 import { skills, loadSkills } from '../hooks/useSkills.js'
 import { MenuButton } from '../components/PageHeader.js'
+import { Field, labelStyle } from '../components/Field.js'
 
 interface SkillsProps {
   accounts: string[]
@@ -30,15 +31,6 @@ const scopeLabel = (s: Pick<SkillEntry, 'scope' | 'scopeRef'>) =>
 
 const skillDir = (s: Pick<SkillEntry, 'scope' | 'scopeRef' | 'dirName'>) =>
   s.scope === 'global' ? `~/.claude/skills/${s.dirName}` : s.scope === 'account' ? `~/.cw/accounts/${s.scopeRef}/skills/${s.dirName}` : `<${s.scopeRef}>/.claude/skills/${s.dirName}`
-
-const inputStyle = { width: '100%', height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none', boxShadow: 'var(--shadow-s)' }
-
-const Field: FunctionComponent<{ label: string; children: ComponentChildren }> = ({ label, children }) => (
-  <label class="flex flex-col" style={{ gap: '5px' }}>
-    <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{label}</span>
-    {children}
-  </label>
-)
 
 const PaneHeader: FunctionComponent<{ title: string; sub?: string; children?: ComponentChildren }> = ({ title, sub, children }) => (
   <div class="glass flex items-center flex-wrap shrink-0" style={{ gap: '10px', padding: '12px 20px', borderBottom: '1px solid var(--hair)' }}>
@@ -337,21 +329,21 @@ const SkillCreate: FunctionComponent<{
       <div class="flex-1 min-h-0 overflow-auto">
         <div class="flex flex-col" style={{ padding: '16px 20px 24px', gap: '14px', maxWidth: '560px' }}>
           <div class="flex flex-col" style={{ gap: '5px' }}>
-            <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>Scope</span>
+            <span style={labelStyle}>Scope</span>
             <Tabs label="Scope" tabs={[{ id: 'global', label: 'Global' }, { id: 'account', label: 'Account' }, { id: 'project', label: 'Project' }]} active={scope} onChange={(id) => changeScope(id as Scope)} />
           </div>
           {scope !== 'global' && (
             <Field label={scope === 'account' ? 'Account' : 'Project'}>
-              <select class="field" style={inputStyle} value={scopeRef} onChange={(e) => setScopeRef((e.target as HTMLSelectElement).value)}>
+              <select class="field" value={scopeRef} onChange={(e) => setScopeRef((e.target as HTMLSelectElement).value)}>
                 {(scope === 'account' ? accounts : projectNames).map(v => <option key={v} value={v}>{v}</option>)}
               </select>
             </Field>
           )}
           <Field label="Name">
-            <input class="field" style={inputStyle} value={name} placeholder="my-skill" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
+            <input class="field" value={name} placeholder="my-skill" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
           </Field>
           <Field label="Description">
-            <textarea class="field" rows={3} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', resize: 'none' }} value={description} placeholder="What does this skill do?" onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)} />
+            <textarea class="field" rows={3} value={description} placeholder="What does this skill do?" onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)} />
           </Field>
           <div class="flex flex-wrap" style={{ gap: '8px' }}>
             <ActionButton label={creating ? 'Creating…' : 'Create'} variant="primary" loading={creating} disabled={!name.trim()} onClick={create} />
@@ -385,7 +377,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
     }
   }, [firstAccount, firstProject])
 
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { if (skills.value === null) void refresh() }, [refresh])
 
   const list = skills.value ?? []
   const q = search.trim().toLowerCase()

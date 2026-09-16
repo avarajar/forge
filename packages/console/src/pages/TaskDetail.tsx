@@ -4,10 +4,10 @@ import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, harnessLabel, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
 import { unpushedCount } from '../config/review.js'
-import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/ReviewSummary.js'
+import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
-import { recordOutput, terminalMetrics, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
+import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
 import { theme } from '../shell.js'
 
 interface ToolsMcp { name: string; type: string; source: string; url?: string }
@@ -75,7 +75,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   const style = getTypeStyle(session.type)
   const isLogin = session.type === 'login'
   const stack = stackParts(useProjectStack(isLogin ? '' : session.project))
-  const metrics = terminalMetrics.value[key]
+  const metrics = metricsFor(key).value
 
   // Branch-style task names become sessionDirs like `task-task/form-header`; encode so the slash stays in one segment
   const projectEnc = encodeURIComponent(session.project)

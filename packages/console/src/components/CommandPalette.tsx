@@ -1,6 +1,7 @@
 import { type FunctionComponent } from 'preact'
-import { useEffect, useMemo, useRef } from 'preact/hooks'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
+import { useAutoFocus } from '../hooks/useAutoFocus.js'
 import { getTypeStyle, sessionKey, sessionLabel, soft } from '../config/types.js'
 
 export interface PaletteItem {
@@ -13,10 +14,6 @@ export interface PaletteItem {
 }
 
 interface CommandPaletteProps {
-  query: string
-  onQuery: (q: string) => void
-  highlight: number
-  onHighlight: (next: number | ((prev: number) => number)) => void
   openTabs: CWSession[]
   sessions: CWSession[]
   projects: string[]
@@ -32,9 +29,12 @@ const sessionItem = (s: CWSession, hint: string, onOpen: (s: CWSession) => void)
 }
 
 export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
-  query, onQuery, highlight, onHighlight, openTabs, sessions, projects, commands, onOpenSession, onSelectProject, onClose,
+  openTabs, sessions, projects, commands, onOpenSession, onSelectProject, onClose,
 }) => {
+  const [query, setQuery] = useState('')
+  const [highlight, setHighlight] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useAutoFocus<HTMLInputElement>()
 
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -64,17 +64,22 @@ export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
     item.run()
   }
 
+  // the listener stays registered once and reads the latest list through a ref
+  const latest = useRef({ flat, current, activate })
+  latest.current = { flat, current, activate }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const n = flat.length
-      if (e.key === 'ArrowDown') { e.preventDefault(); onHighlight(i => n ? (Math.min(i, n - 1) + 1) % n : 0) }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); onHighlight(i => n ? (Math.min(i, n - 1) - 1 + n) % n : 0) }
-      else if (e.key === 'Enter') { e.preventDefault(); activate(flat[current]) }
+      const { flat: items, current: at, activate: run } = latest.current
+      const n = items.length
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(i => n ? (Math.min(i, n - 1) + 1) % n : 0) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(i => n ? (Math.min(i, n - 1) - 1 + n) % n : 0) }
+      else if (e.key === 'Enter') { e.preventDefault(); run(items[at]) }
       else if (e.key === 'Escape') { e.preventDefault(); onClose() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  })
+  }, [onClose])
 
   let index = -1
   return (
@@ -96,7 +101,7 @@ export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <input
-          autoFocus
+          ref={inputRef}
           role="combobox"
           aria-expanded="true"
           aria-controls="palette-list"
@@ -106,7 +111,7 @@ export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
           style={{ height: '48px', padding: '0 16px', border: 0, borderBottom: '1px solid var(--hair)', background: 'transparent', color: 'var(--ink)', fontSize: '16px', outline: 'none' }}
           placeholder="Task, project, skill or command…"
           value={query}
-          onInput={(e) => { onQuery((e.target as HTMLInputElement).value); onHighlight(0) }}
+          onInput={(e) => { setQuery((e.target as HTMLInputElement).value); setHighlight(0) }}
         />
         <div id="palette-list" role="listbox" ref={listRef} class="overflow-auto" style={{ padding: '6px' }}>
           {flat.length === 0 && <p style={{ padding: '14px 10px', fontSize: '13px', color: 'var(--ink-2)' }}>Nothing matches “{query}”.</p>}
@@ -128,7 +133,7 @@ export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
                     tabIndex={-1}
                     class="flex items-center w-full text-left cursor-pointer"
                     style={{ gap: '10px', padding: '8px 10px', borderRadius: '10px', border: 0, background: on ? 'var(--elev)' : 'transparent', color: 'var(--ink)', fontSize: '13px', transition: 'background .14s' }}
-                    onMouseMove={() => { if (!on) onHighlight(i) }}
+                    onMouseMove={() => { if (!on) setHighlight(i) }}
                     onClick={() => activate(item)}
                   >
                     <span class="grid place-items-center shrink-0" style={{ width: '22px', height: '22px', borderRadius: '7px', fontSize: '10px', fontWeight: 700, background: item.token ? soft(item.token) : 'var(--elev)', color: item.token ? `var(${item.token})` : 'var(--ink-2)' }}>

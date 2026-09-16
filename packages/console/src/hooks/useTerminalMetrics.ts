@@ -1,4 +1,4 @@
-import { signal } from '@preact/signals'
+import { signal, type Signal } from '@preact/signals'
 
 export interface TerminalMetrics {
   context: number | null
@@ -6,11 +6,14 @@ export interface TerminalMetrics {
   cost: number | null
 }
 
-export const terminalMetrics = signal<Record<string, TerminalMetrics>>({})
+const EMPTY: TerminalMetrics = { context: null, tokens: null, cost: null }
 
 // only the tail matters: the status line is redrawn at the bottom
 const TAIL = 4000
-const tails = new Map<string, string>()
+const PARSE_MS = 250
+
+interface Entry { tail: string; timer: ReturnType<typeof setTimeout> | null; metrics: Signal<TerminalMetrics> }
+const entries = new Map<string, Entry>()
 
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[@-_]/g
 
@@ -41,22 +44,38 @@ export function parseMetrics(text: string): Partial<TerminalMetrics> {
   return out
 }
 
+const entryFor = (key: string): Entry => {
+  let entry = entries.get(key)
+  if (!entry) {
+    entry = { tail: '', timer: null, metrics: signal(EMPTY) }
+    entries.set(key, entry)
+  }
+  return entry
+}
+
+// one signal per session, so a streaming tab only re-renders its own views
+export const metricsFor = (key: string): Signal<TerminalMetrics> => entryFor(key).metrics
+
+const parse = (entry: Entry) => {
+  entry.timer = null
+  const prev = entry.metrics.value
+  const next = { ...prev, ...parseMetrics(entry.tail) }
+  if (next.context !== prev.context || next.tokens !== prev.tokens || next.cost !== prev.cost) entry.metrics.value = next
+}
+
 export function recordOutput(key: string, chunk: string): void {
-  const tail = ((tails.get(key) ?? '') + chunk.replace(ANSI, '')).slice(-TAIL)
-  tails.set(key, tail)
-  const found = parseMetrics(tail)
-  if (found.context === undefined && found.tokens === undefined && found.cost === undefined) return
-  const prev = terminalMetrics.value[key] ?? { context: null, tokens: null, cost: null }
-  const next = { ...prev, ...found }
-  if (next.context === prev.context && next.tokens === prev.tokens && next.cost === prev.cost) return
-  terminalMetrics.value = { ...terminalMetrics.value, [key]: next }
+  const entry = entryFor(key)
+  // scrollback replays can be megabytes; only the end can hold the status line
+  entry.tail = (entry.tail + chunk.slice(-TAIL * 2).replace(ANSI, '')).slice(-TAIL)
+  if (!entry.timer) entry.timer = setTimeout(() => parse(entry), PARSE_MS)
 }
 
 export function forgetOutput(key: string): void {
-  tails.delete(key)
-  if (!(key in terminalMetrics.value)) return
-  const { [key]: _gone, ...rest } = terminalMetrics.value
-  terminalMetrics.value = rest
+  const entry = entries.get(key)
+  if (!entry) return
+  if (entry.timer) clearTimeout(entry.timer)
+  entry.metrics.value = EMPTY
+  entries.delete(key)
 }
 
 export const formatTokens = (n: number): string =>

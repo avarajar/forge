@@ -1,13 +1,15 @@
-import { type FunctionComponent, type ComponentChildren } from 'preact'
+import { type FunctionComponent } from 'preact'
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { ActionButton, CloseButton, Tabs, ToggleSwitch, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness } from '../config/types.js'
+import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness, soft } from '../config/types.js'
 import { effectiveType, slugOf } from '../config/inference.js'
 import { startInput, setStartInput, typeOverride } from '../state/startTask.js'
-import { harnesses, loadHarnesses, supportsIn } from '../hooks/useHarnesses.js'
+import { harnesses, loadHarnesses, missingTicketToken, supportsIn, ticketSourceOf } from '../hooks/useHarnesses.js'
 import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
 import { InferenceLine, TypeSegmented, type ProjectMap } from '../components/StartCard.js'
+import { Field, labelStyle } from '../components/Field.js'
+import { useAutoFocus } from '../hooks/useAutoFocus.js'
 
 interface NewTaskProps {
   projects: ProjectMap
@@ -33,17 +35,7 @@ const NAME_HINT = { dev: 'fix-auth or https://linear.app/…', review: '42 or ht
 
 const WORKFLOWS = [{ id: '', label: 'Auto' }, { id: 'feature', label: 'feature' }, { id: 'bugfix', label: 'bugfix' }, { id: 'refactor', label: 'refactor' }]
 
-const fieldStyle = {
-  height: '38px', padding: '0 12px', borderRadius: '11px', border: '1px solid var(--hair)',
-  background: 'var(--card)', color: 'var(--ink)', fontSize: '13.5px', outline: 'none', boxShadow: 'var(--shadow-s)', width: '100%',
-}
-
-const Field: FunctionComponent<{ label: ComponentChildren; children: ComponentChildren }> = ({ label, children }) => (
-  <label class="flex flex-col min-w-0" style={{ gap: '5px' }}>
-    <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{label}</span>
-    {children}
-  </label>
-)
+const fieldStyle = { boxShadow: 'var(--shadow-s)' }
 
 const quote = (s: string) => (/^[\w./:#-]+$/.test(s) ? s : `"${s.replace(/"/g, '\\"')}"`)
 
@@ -60,6 +52,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const [starting, setStarting] = useState(false)
   const [loopInterval, setLoopInterval] = useState('')
   const [harness, setHarness] = useState('claude')
+  const nameRef = useAutoFocus<HTMLInputElement>()
 
   useEffect(() => { loadHarnesses() }, [])
 
@@ -142,10 +135,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     if (!usesClaudeModels) setModel(cell?.model ?? '')
   }, [selectedAccount])
 
-  const ticketSource = /linear\.app/.test(task) ? 'linear' : /notion\.(so|site)/.test(task) ? 'notion' : null
-  const missingTicketToken = Boolean(
-    response?.available && ticketSource && !supportsIn(response, harness, 'mcp') && !response.contextTokens[ticketSource]
-  )
+  const ticketSource = ticketSourceOf(task)
+  const missingToken = missingTicketToken(response, harness, task)
 
   const missingInput = (!isGeneral && !task.trim()) || (isLoop && !loopIntervalValid) || (!isGeneral && !project)
   const disabled = missingInput || Boolean(harnessBlocked)
@@ -210,7 +201,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label={TITLES[type]}
-        class="new-task-drawer flex flex-col h-full overflow-auto"
+        class="flex flex-col h-full overflow-auto"
         style={{ width: 'min(492px, 100%)', background: 'var(--bg-2)', borderLeft: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)', animation: 'slideIn .3s var(--ease) both' }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -232,7 +223,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                   style={{ ...fieldStyle, fontSize: '14px' }}
                   placeholder={NAME_HINT[type]}
                   value={task}
-                  autoFocus
+                  ref={nameRef}
                   onInput={(e) => {
                     const value = (e.target as HTMLInputElement).value
                     // a loop prompt is free text, so typing it keeps the loop pick
@@ -248,12 +239,12 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
 
           <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <Field label="Account">
-              <select class="field" style={fieldStyle} value={selectedAccount} onChange={(e) => handleAccountChange((e.target as HTMLSelectElement).value)}>
+              <select class="field" value={selectedAccount} onChange={(e) => handleAccountChange((e.target as HTMLSelectElement).value)}>
                 {accountList.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </Field>
             <Field label={isGeneral ? 'Project · optional' : 'Project'}>
-              <select class="field" style={fieldStyle} value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
+              <select class="field" value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
                 {isGeneral && <option value="">— none —</option>}
                 {filteredProjectNames.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
@@ -264,7 +255,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
             <Field label="Interval · optional">
               <input
                 class="field mono"
-                style={{ ...fieldStyle, borderColor: loopIntervalValid ? 'var(--hair)' : 'var(--red)' }}
+                style={{ ...fieldStyle, borderColor: loopIntervalValid ? undefined : 'var(--red)' }}
                 value={loopInterval}
                 placeholder="auto — Claude decides the pace"
                 onInput={(e) => setLoopInterval((e.target as HTMLInputElement).value)}
@@ -278,7 +269,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
               <textarea
                 class="field"
                 rows={3}
-                style={{ ...fieldStyle, height: 'auto', padding: '10px 12px', resize: 'none' }}
+                style={fieldStyle}
                 placeholder="Context the agent reads first…"
                 value={description}
                 onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
@@ -301,13 +292,13 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           {showModel && (
             <div class="grid" style={{ gridTemplateColumns: type === 'dev' ? '1fr 1fr' : '1fr', gap: '10px' }}>
               <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>Model</span>
+                  <span style={labelStyle}>Model</span>
                   {usesClaudeModels ? (
                     <Tabs fill size="sm" label="Model" tabs={CLAUDE_MODELS.map(m => ({ id: m.id, label: m.label }))} active={model} onChange={setModel} />
                   ) : (
                     <input
                       class="field mono"
-                      style={{ ...fieldStyle, height: '32px', fontSize: '12.5px' }}
+                      style={{ height: '32px', fontSize: '12.5px' }}
                       value={model}
                       placeholder="the account's model"
                       aria-label="Model"
@@ -317,7 +308,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
               </div>
               {type === 'dev' && (
                 <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>Workflow</span>
+                  <span style={labelStyle}>Workflow</span>
                   <Tabs fill size="sm" label="Workflow" tabs={WORKFLOWS} active={workflow} onChange={setWorkflow} />
                 </div>
               )}
@@ -333,8 +324,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
             </div>
           )}
 
-          {missingTicketToken && (
-            <p style={{ fontSize: '12.5px', padding: '10px 12px', borderRadius: '12px', background: 'color-mix(in srgb, var(--orange) 18%, transparent)', color: 'var(--ink)' }}>
+          {missingToken && (
+            <p style={{ fontSize: '12.5px', padding: '10px 12px', borderRadius: '12px', background: soft('--orange'), color: 'var(--ink)' }}>
               {harnessName} has no MCP and CW has no {ticketSource === 'linear' ? 'LINEAR_API_KEY' : 'NOTION_TOKEN'}, so
               the ticket will not reach TASK_NOTES.md. The task still starts, without the ticket.
             </p>
