@@ -1,4 +1,5 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
+import { sidebarOpen } from '../shell.js'
 
 export const PageHeader: FunctionComponent<{
   title: ComponentChildren
@@ -12,6 +13,7 @@ export const PageHeader: FunctionComponent<{
     class={`glass flex items-center flex-wrap shrink-0 ${sticky ? 'sticky top-0 z-20' : ''}`}
     style={{ gap: '12px 14px', padding: '12px 22px', borderBottom: '1px solid var(--hair)' }}
   >
+    <MenuButton />
     {leading}
     <div class="min-w-0">
       <h1 class="truncate" style={{ fontSize: size === 'lg' ? '20px' : '18px', fontWeight: 700, letterSpacing: '-0.02em' }}>{title}</h1>
@@ -30,5 +32,17 @@ export const BackButton: FunctionComponent<{ label?: string; onClick: () => void
     onClick={onClick}
   >
     <span aria-hidden="true">←</span> {label}
+  </button>
+)
+
+export const MenuButton: FunctionComponent = () => (
+  <button
+    type="button"
+    class="sb-toggle place-items-center shrink-0 cursor-pointer text-ink2 hover:text-ink"
+    style={{ width: '30px', height: '30px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', boxShadow: 'var(--shadow-s)' }}
+    aria-label="Open sidebar"
+    onClick={() => { sidebarOpen.value = true }}
+  >
+    <span class="i-lucide-menu" style={{ width: '15px', height: '15px' }} />
   </button>
 )

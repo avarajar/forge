@@ -64,34 +64,6 @@
   color-scheme: light;
 }
 
-/* legacy aliases, removed once every screen uses the tokens above */
-:root {
-  --forge-bg: var(--bg);
-  --forge-surface: var(--card);
-  --forge-border: var(--hair-2);
-  --forge-text: var(--ink);
-  --forge-muted: var(--ink-2);
-  --forge-accent: var(--blue);
-  --forge-success: var(--green);
-  --forge-warning: var(--orange);
-  --forge-error: var(--red);
-  --forge-ghost-bg: var(--elev);
-  --forge-ghost-border: var(--hair);
-  --forge-ghost-hover: var(--elev);
-  --forge-tint-amber-bg: color-mix(in srgb, var(--orange) 18%, transparent);
-  --forge-tint-amber-border: color-mix(in srgb, var(--orange) 35%, transparent);
-  --forge-tint-blue-bg: color-mix(in srgb, var(--blue) 18%, transparent);
-  --forge-tint-blue-border: color-mix(in srgb, var(--blue) 35%, transparent);
-  --forge-tint-purple-bg: color-mix(in srgb, var(--purple) 18%, transparent);
-  --forge-tint-purple-border: color-mix(in srgb, var(--purple) 35%, transparent);
-  --forge-tint-emerald-bg: color-mix(in srgb, var(--green) 18%, transparent);
-  --forge-tint-emerald-border: color-mix(in srgb, var(--green) 35%, transparent);
-  --forge-tint-rose-bg: color-mix(in srgb, var(--red) 18%, transparent);
-  --forge-tint-rose-border: color-mix(in srgb, var(--red) 35%, transparent);
-  --forge-tint-accent-bg: color-mix(in srgb, var(--blue) 18%, transparent);
-  --forge-tint-accent-border: color-mix(in srgb, var(--blue) 35%, transparent);
-}
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -142,6 +114,42 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @keyframes breathe { 0%, 100% { opacity: 1; transform: scale(1) } 50% { opacity: .45; transform: scale(.82) } }
 @keyframes sweep { from { transform: translateX(-100%) } to { transform: translateX(320%) } }
 
+/* responsive: icon rail below 900px, overlay sidebar below 700px */
+.sb-toggle { display: none; }
+.sb-scrim { display: none; }
+
+@media (max-width: 900px) {
+  .forge-shell { grid-template-columns: 56px minmax(0,1fr) !important; }
+  .forge-sidebar { padding: 14px 8px 12px !important; align-items: stretch; }
+  .forge-sidebar .sb-label, .forge-sidebar .sb-section { display: none !important; }
+  .forge-sidebar nav button, .forge-sidebar > [role="button"], .forge-sidebar > button { justify-content: center; padding: 0 !important; }
+  .forge-sidebar > button { height: 32px; }
+  .task-row .harness-pill { display: none; }
+  .prototype-body { grid-template-columns: minmax(0,1fr) !important; grid-auto-rows: auto minmax(420px, 1fr); overflow: auto; }
+  .prototype-body > :first-child { border-right: 0 !important; border-bottom: 1px solid var(--hair); }
+}
+
+@media (max-width: 700px) {
+  .forge-shell { grid-template-columns: minmax(0,1fr) !important; }
+  .forge-sidebar {
+    position: fixed !important; z-index: 65; left: 0; width: min(272px, 86vw);
+    padding: 14px 10px 12px !important; box-shadow: var(--shadow-l);
+    transform: translateX(-105%); transition: transform .3s var(--ease);
+  }
+  .forge-sidebar.open { transform: none; }
+  .forge-sidebar .sb-label, .forge-sidebar .sb-section { display: revert !important; }
+  .forge-sidebar .sb-section { display: flex !important; }
+  .forge-sidebar nav button, .forge-sidebar > [role="button"], .forge-sidebar > button { justify-content: flex-start; padding: 0 9px !important; }
+  .forge-sidebar > button { padding: 6px 9px !important; height: auto; }
+  .sb-scrim.open { display: block; position: fixed; inset: 0; z-index: 64; background: rgba(0,0,0,.38); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+  .sb-toggle { display: grid; }
+  .task-row .task-meta, .task-row .task-chip, .task-row .task-done { display: none; }
+  .task-row { gap: 10px !important; }
+  .skills-page { grid-template-columns: minmax(0,1fr) !important; grid-template-rows: auto minmax(0,1fr); height: auto !important; min-height: 100vh; }
+  .skills-rail { max-height: 42vh; border-right: 0 !important; border-bottom: 1px solid var(--hair); }
+  .task-terminal { margin: 0 12px 12px !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important }
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important }
 }

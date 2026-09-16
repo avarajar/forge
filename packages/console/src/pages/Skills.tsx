@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'preact/hooks'
 import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import type { SkillEntry, SkillDetail, ExploreResult } from '@forge-dev/core'
 import { skills, loadSkills } from '../hooks/useSkills.js'
+import { MenuButton } from '../components/PageHeader.js'
 
 interface SkillsProps {
   accounts: string[]
@@ -402,6 +403,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
       <div class="skills-rail flex flex-col min-h-0 overflow-hidden" style={{ borderRight: '1px solid var(--hair)', background: 'var(--bg-2)' }}>
         <div class="flex flex-col shrink-0" style={{ padding: '12px 14px', borderBottom: '1px solid var(--hair)', gap: '10px' }}>
           <div class="flex items-center" style={{ gap: '10px' }}>
+            <MenuButton />
             <h1 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.02em' }}>Skills</h1>
             <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{list.length}</span>
             <span class="flex-1" />

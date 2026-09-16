@@ -22,11 +22,15 @@ export const setTheme = (next: Theme) => {
   try { localStorage.setItem(THEME_KEY, next) } catch {}
 }
 
+// the overlay sidebar on narrow windows
+export const sidebarOpen = signal(false)
+
 export const toggleTheme = () => setTheme(theme.value === 'dark' ? 'light' : 'dark')
 
 export const Shell: FunctionComponent<{ sidebar: ComponentChildren; children: ComponentChildren }> = ({ sidebar, children }) => (
   <div class="forge-shell" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '236px minmax(0,1fr)', background: 'var(--bg)', color: 'var(--ink)' }}>
     {sidebar}
+    <div class={`sb-scrim${sidebarOpen.value ? ' open' : ''}`} onClick={() => { sidebarOpen.value = false }} />
     <div class="min-w-0 flex flex-col relative" style={{ minHeight: '100vh' }}>
       {children}
     </div>

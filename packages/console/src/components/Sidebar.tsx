@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import type { CWSession } from '@forge-dev/core'
 import { Tabs } from '@forge-dev/ui'
 import { sessionLabel } from '../config/types.js'
-import { theme, setTheme } from '../shell.js'
+import { theme, setTheme, sidebarOpen } from '../shell.js'
 import { Dot } from './Dot.js'
 import { terminalMetrics, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
 
@@ -74,7 +74,9 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
   version, view, nav, projects, selectedProject, live, onNavigate, onSelectProject, onAddProject, onOpenLive, onSearch,
 }) => (
   <aside
-    class="forge-sidebar flex flex-col"
+    class={`forge-sidebar flex flex-col${sidebarOpen.value ? ' open' : ''}`}
+    aria-label="Sidebar"
+    onClick={(e) => { if ((e.target as HTMLElement).closest('button:not([role="tab"]), [role="button"]')) sidebarOpen.value = false }}
     style={{
       position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', overscrollBehavior: 'contain',
       gap: '18px', padding: '14px 10px 12px', background: 'var(--bg-2)', borderRight: '1px solid var(--hair)',

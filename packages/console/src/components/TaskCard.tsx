@@ -48,7 +48,7 @@ const ReviewedLine: FunctionComponent<{ session: CWSession }> = ({ session }) =>
 }
 
 const MetaLine: FunctionComponent<{ branch: string; status: string }> = ({ branch, status }) => (
-  <div class="flex items-center min-w-0" style={{ gap: '9px', marginTop: '2px' }}>
+  <div class="task-meta flex items-center min-w-0" style={{ gap: '9px', marginTop: '2px' }}>
     <span class="task-branch mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{branch}</span>
     <span class="whitespace-nowrap truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{status}</span>
   </div>
@@ -97,7 +97,7 @@ export const TaskRow: FunctionComponent<{
         <div class="flex items-center min-w-0" style={{ gap: '8px' }}>
           <span class="truncate" style={{ fontSize: '14px', fontWeight: 600 }}>{sessionLabel(session)}</span>
           {isOpenInTab && session.status === 'active' && <LivePill />}
-          {session.source && <Chip label={session.source} href={session.source_url} />}
+          {session.source && <span class="task-chip contents"><Chip label={session.source} href={session.source_url} /></span>}
         </div>
         {reviewed
           ? <ReviewedLine session={session} />
@@ -110,7 +110,7 @@ export const TaskRow: FunctionComponent<{
       {onMarkDone && (
         <button
           type="button"
-          class={`grid place-items-center shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:text-green disabled:cursor-wait ${closing ? '' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
+          class={`task-done grid place-items-center shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:text-green disabled:cursor-wait ${closing ? '' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
           style={{ width: '28px', height: '28px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink-2)' }}
           onClick={(e: Event) => { e.stopPropagation(); void markDone() }}
           disabled={closing}

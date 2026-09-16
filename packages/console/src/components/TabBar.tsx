@@ -4,7 +4,7 @@ import type { CWSession } from '@forge-dev/core'
 import { QUICK_TYPES, sessionKey, sessionLabel } from '../config/types.js'
 import { TypeTile } from './TaskCard.js'
 import { Dot } from './Dot.js'
-import { BackButton } from './PageHeader.js'
+import { BackButton, MenuButton } from './PageHeader.js'
 
 interface TabBarProps {
   tabs: CWSession[]
@@ -97,6 +97,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
       aria-label="Open sessions"
       style={{ gap: '8px', padding: '9px 16px', borderBottom: '1px solid var(--hair)' }}
     >
+      <MenuButton />
       <BackButton onClick={onBack} />
       {tabs.map((session, i) => {
         const on = i === activeIndex
