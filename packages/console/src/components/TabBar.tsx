@@ -1,28 +1,24 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useRef, useEffect } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { TYPE_STYLES, QUICK_TYPES, sessionKey, sessionLabel } from '../config/types.js'
-
-/* ── Types ── */
+import { QUICK_TYPES, sessionKey, sessionLabel } from '../config/types.js'
+import { TypeTile } from './TaskCard.js'
+import { Dot } from './Dot.js'
+import { BackButton } from './PageHeader.js'
 
 interface TabBarProps {
   tabs: CWSession[]
   activeIndex: number
   onActivate: (index: number) => void
   onClose: (index: number) => void
-  /** All active sessions */
-  allSessions?: CWSession[]
-  /** Keys of sessions already open in tabs */
-  openTabKeys?: Set<string>
-  /** Open an existing session in a new tab */
-  onOpenSession?: (session: CWSession) => void
-  /** Navigate to new task form */
-  onNewTask?: (type?: string) => void
+  onBack: () => void
+  allSessions: CWSession[]
+  openTabKeys: Set<string>
+  onOpenSession: (session: CWSession) => void
+  onNewTask: (type?: string) => void
 }
 
-/* ── Helpers ── */
-
-/* ── Add Menu ── */
+const menuItem = 'flex items-center w-full text-left cursor-pointer transition-colors duration-140 hover:bg-elev'
 
 const AddMenu: FunctionComponent<{
   sessions: CWSession[]
@@ -35,230 +31,126 @@ const AddMenu: FunctionComponent<{
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [onClose])
 
-  // Group sessions by project
-  const grouped: Record<string, CWSession[]> = {}
-  for (const s of sessions) {
-    if (!grouped[s.project]) grouped[s.project] = []
-    grouped[s.project].push(s)
-  }
-  const projectNames = Object.keys(grouped).sort()
+  const closed = sessions.filter(s => !openTabKeys.has(sessionKey(s)))
 
   return (
     <div
       ref={ref}
-      class="fixed z-[999] rounded-xl"
+      class="fixed z-[60] flex flex-col"
       style={{
-        top: `${position.top}px`,
-        left: `${position.left}px`,
-        backgroundColor: 'var(--forge-surface)',
-        border: '1px solid var(--forge-ghost-border)',
-        boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
-        width: '320px',
-        maxHeight: '420px',
-        overflowY: 'auto',
+        top: `${position.top}px`, left: `${position.left}px`, width: 'min(320px, calc(100vw - 16px))', maxHeight: '420px', overflowY: 'auto',
+        padding: '6px', borderRadius: '14px', background: 'var(--glass)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)',
+        border: '1px solid var(--hair-2)', boxShadow: 'var(--shadow-l)', animation: 'popIn .2s var(--ease) both',
       }}
     >
-      {/* Sessions grouped by project */}
-      {projectNames.length > 0 && (
-        <div class="px-2 pt-2.5 pb-1">
-          {projectNames.map(project => (
-            <div key={project} class="mb-1.5">
-              <div class="text-[9px] font-bold uppercase tracking-widest text-forge-muted px-2 py-1" style={{ opacity: 0.45 }}>
-                {project}
-              </div>
-              {grouped[project].map(s => {
-                const cfg = TYPE_STYLES[s.type] ?? TYPE_STYLES.task
-                const isOpen = openTabKeys.has(sessionKey(s))
-                return (
-                  <button
-                    key={sessionKey(s)}
-                    class="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-left transition-colors"
-                    style={{
-                      backgroundColor: isOpen ? cfg.fill : 'transparent',
-                      opacity: isOpen ? 0.55 : 1,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isOpen) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--forge-ghost-bg)'
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isOpen) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'
-                    }}
-                    onClick={() => { if (!isOpen) { onOpenSession(s); onClose() } }}
-                    disabled={isOpen}
-                  >
-                    <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.ink }} />
-                    <span class="text-xs font-medium text-forge-text truncate flex-1">{sessionLabel(s)}</span>
-                    {isOpen ? (
-                      <span class="text-[9px] text-forge-muted">open</span>
-                    ) : (
-                      <span
-                        class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded"
-                        style={{ color: cfg.ink, backgroundColor: cfg.fill }}
-                      >
-                        {cfg.label}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Divider */}
-      <div class="mx-3 my-1" style={{ height: '1px', backgroundColor: 'var(--forge-ghost-border)' }} />
-
-      {/* New task */}
-      <div class="px-3 pt-1.5 pb-2.5">
-        <div class="text-[9px] font-bold uppercase tracking-widest text-forge-muted mb-2" style={{ opacity: 0.45 }}>
-          New task
-        </div>
-        <div class="flex items-center gap-1.5 flex-wrap">
-          {QUICK_TYPES.map(t => (
-            <button
-              key={t.key}
-              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:opacity-80"
-              style={{ backgroundColor: t.style.fill, color: t.style.ink, border: `1px solid ${t.style.fill}` }}
-              onClick={() => { onNewTask(t.key); onClose() }}
-            >
-              + {t.label}
+      <div style={{ padding: '7px 10px 3px', fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)' }}>New</div>
+      {QUICK_TYPES.map(t => (
+        <button key={t.key} type="button" class={menuItem} style={{ gap: '10px', padding: '7px 10px', borderRadius: '10px', border: 0, background: 'none', color: 'var(--ink)', fontSize: '13px' }}
+          onClick={() => { onNewTask(t.key); onClose() }}>
+          <TypeTile type={t.key === 'dev' ? 'task' : t.key} size={22} radius={7} font={10} />
+          <span class="flex-1">{t.label}</span>
+        </button>
+      ))}
+      {closed.length > 0 && (
+        <>
+          <div style={{ padding: '9px 10px 3px', fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)' }}>Resume</div>
+          {closed.map(s => (
+            <button key={sessionKey(s)} type="button" class={menuItem} style={{ gap: '10px', padding: '7px 10px', borderRadius: '10px', border: 0, background: 'none', color: 'var(--ink)', fontSize: '13px' }}
+              onClick={() => { onOpenSession(s); onClose() }}>
+              <TypeTile type={s.type} size={22} radius={7} font={10} />
+              <span class="flex-1 truncate">{sessionLabel(s)}</span>
+              <span class="mono truncate" style={{ fontSize: '10.5px', color: 'var(--ink-3)', maxWidth: '110px' }}>{s.project}</span>
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Standalone Claude session */}
-      <div class="mx-3 mb-1" style={{ height: '1px', backgroundColor: 'var(--forge-ghost-border)' }} />
-      <div class="px-3 pt-1.5 pb-3">
-        <button
-          class="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg text-left transition-colors"
-          style={{ backgroundColor: 'transparent' }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--forge-ghost-bg)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
-          onClick={() => { onNewTask('standalone'); onClose() }}
-        >
-          <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--forge-accent)' }} />
-          <span class="text-xs font-medium text-forge-text">Claude session</span>
-          <span class="flex-1" />
-          <span class="text-[10px] text-forge-muted">no project</span>
-        </button>
-      </div>
-
+        </>
+      )}
     </div>
   )
 }
 
-/* ── TabBar ── */
-
 export const TabBar: FunctionComponent<TabBarProps> = ({
-  tabs, activeIndex, onActivate, onClose,
-  allSessions, openTabKeys, onOpenSession, onNewTask,
+  tabs, activeIndex, onActivate, onClose, onBack, allSessions, openTabKeys, onOpenSession, onNewTask,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false)
   const addBtnRef = useRef<HTMLButtonElement>(null)
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
 
   const toggleMenu = () => {
     if (!menuOpen && addBtnRef.current) {
       const rect = addBtnRef.current.getBoundingClientRect()
-      setMenuPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 300) })
+      setMenuPos({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.left, window.innerWidth - 328)) })
     }
     setMenuOpen(!menuOpen)
   }
 
   return (
     <div
-      class="flex items-center shrink-0 overflow-x-auto px-2 gap-1"
-      style={{ borderBottom: '1px solid var(--forge-ghost-border)', backgroundColor: 'var(--forge-bg)', paddingTop: '6px' }}
+      class="glass flex items-center shrink-0 overflow-x-auto"
+      role="tablist"
+      aria-label="Open sessions"
+      style={{ gap: '8px', padding: '9px 16px', borderBottom: '1px solid var(--hair)' }}
     >
-      {/* Tabs */}
+      <BackButton onClick={onBack} />
       {tabs.map((session, i) => {
-        const isActive = i === activeIndex
-        const cfg = TYPE_STYLES[session.type] ?? TYPE_STYLES.task
+        const on = i === activeIndex
         return (
           <div
             key={sessionKey(session)}
-            class="flex items-center gap-2 px-3.5 py-2 text-xs cursor-pointer shrink-0 transition-all"
+            role="tab"
+            tabIndex={0}
+            aria-selected={on}
+            title={i < 5 ? `⌘${i + 1}` : undefined}
+            class="flex items-center shrink-0 whitespace-nowrap cursor-pointer transition-all duration-200 ease-spring"
             style={{
-              backgroundColor: isActive ? 'var(--forge-surface)' : 'transparent',
-              borderTop: isActive ? `2px solid ${cfg.ink}` : '2px solid transparent',
-              borderLeft: isActive ? '1px solid var(--forge-ghost-border)' : '1px solid transparent',
-              borderRight: isActive ? '1px solid var(--forge-ghost-border)' : '1px solid transparent',
-              borderBottom: 'none',
-              borderRadius: '8px 8px 0 0',
-              marginBottom: isActive ? '-1px' : '0',
-              paddingBottom: isActive ? 'calc(0.5rem + 1px)' : '0.5rem',
-              opacity: isActive ? 1 : 0.5,
+              gap: '8px', padding: '6px 11px', borderRadius: '10px', fontSize: '12.5px',
+              background: on ? 'var(--card)' : 'transparent',
+              border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`,
+              boxShadow: on ? 'var(--shadow-s)' : 'none',
             }}
             onClick={() => onActivate(i)}
+            onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(i) } }}
           >
-            <span class="text-[9px] font-mono" style={{ opacity: 0.35 }}>{i + 1}</span>
-            <span class="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cfg.ink }} />
-            <span
-              class="font-semibold truncate max-w-[140px]"
-              style={{ color: isActive ? 'var(--forge-text)' : 'var(--forge-muted)' }}
-            >
-              {sessionLabel(session)}
-            </span>
-            <span class="text-[10px] truncate max-w-[90px]" style={{ color: 'var(--forge-muted)', opacity: 0.6 }}>
-              {session.project}
-            </span>
+            {session.status === 'active' ? <Dot size={6} color="var(--green)" live /> : <Dot size={6} />}
+            <span style={{ fontWeight: 600, color: on ? 'var(--ink)' : 'var(--ink-2)' }}>{sessionLabel(session)}</span>
+            <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{session.project}</span>
             <button
-              class="ml-0.5 w-5 h-5 flex items-center justify-center rounded-md transition-colors text-[11px]"
-              style={{ color: 'var(--forge-muted)', backgroundColor: 'transparent' }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(239,68,68,0.15)';
-                (e.currentTarget as HTMLElement).style.color = '#ef4444'
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                (e.currentTarget as HTMLElement).style.color = 'var(--forge-muted)'
-              }}
+              type="button"
+              class="grid place-items-center cursor-pointer text-ink3 hover:text-red"
+              style={{ border: 0, background: 'none', padding: '0 1px' }}
               onClick={(e: Event) => { e.stopPropagation(); onClose(i) }}
-              title="Close tab (Cmd+W)"
+              title="Close tab (⌘W)"
+              aria-label={`Close ${sessionLabel(session)}`}
             >
-              ×
+              <span class="i-lucide-x" style={{ width: '13px', height: '13px' }} />
             </button>
           </div>
         )
       })}
 
-      {/* Add tab button */}
-      {onOpenSession && onNewTask && (
-        <button
-          ref={addBtnRef}
-          class="flex items-center justify-center w-7 h-7 rounded-lg transition-all text-sm shrink-0 ml-1"
-          style={{
-            color: menuOpen ? 'var(--forge-text)' : 'var(--forge-muted)',
-            backgroundColor: menuOpen ? 'var(--forge-surface)' : 'transparent',
-            border: menuOpen ? '1px solid var(--forge-ghost-border)' : '1px solid transparent',
-          }}
-          onMouseEnter={(e) => {
-            if (!menuOpen) (e.currentTarget as HTMLElement).style.color = 'var(--forge-text)'
-          }}
-          onMouseLeave={(e) => {
-            if (!menuOpen) (e.currentTarget as HTMLElement).style.color = 'var(--forge-muted)'
-          }}
-          onClick={toggleMenu}
-          title="Open or create tab"
-        >
-          +
-        </button>
-      )}
+      <button
+        ref={addBtnRef}
+        type="button"
+        class="grid place-items-center shrink-0 cursor-pointer text-ink2 hover:text-ink"
+        style={{ width: '26px', height: '26px', borderRadius: '8px', border: '1px solid var(--hair)', background: 'var(--card)' }}
+        onClick={toggleMenu}
+        aria-expanded={menuOpen}
+        title="Open or create a tab"
+        aria-label="Open or create a tab"
+      >
+        <span class="i-lucide-plus" style={{ width: '14px', height: '14px' }} />
+      </button>
 
-      {/* Menu — rendered as fixed portal to escape overflow clip */}
-      {menuOpen && onOpenSession && onNewTask && (
+      {menuOpen && (
         <AddMenu
-          sessions={allSessions ?? []}
-          openTabKeys={openTabKeys ?? new Set()}
+          sessions={allSessions}
+          openTabKeys={openTabKeys}
           onOpenSession={onOpenSession}
           onNewTask={onNewTask}
           onClose={() => setMenuOpen(false)}

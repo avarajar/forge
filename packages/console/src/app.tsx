@@ -335,13 +335,14 @@ function App() {
           aria-hidden={!detailShown}
           style={detailShown
             ? { height: '100vh' }
-            : { position: 'absolute', top: 0, left: 0, right: 0, height: '100vh', visibility: 'hidden', pointerEvents: 'none' }}
+            : { position: 'absolute', top: 0, left: 0, right: 0, height: '100vh', visibility: 'hidden', pointerEvents: 'none', zIndex: -1 }}
         >
           <TabBar
             tabs={tabs.openTabs}
             activeIndex={tabs.activeTabIndex}
             onActivate={tabs.setActiveTabIndex}
             onClose={closeTab}
+            onBack={handleGoToList}
             allSessions={activeSessions}
             openTabKeys={tabs.openTabKeys}
             onOpenSession={openSession}
@@ -350,6 +351,7 @@ function App() {
           <div class="flex-1 min-h-0 relative">
             {tabs.openTabs.map((session, i) => {
               const isActive = i === tabs.activeTabIndex
+              const shown = isActive && detailShown
               return (
                 <div
                   key={sessionKey(session)}
@@ -358,15 +360,14 @@ function App() {
                     top: 0, left: 0, right: 0, bottom: 0,
                     display: 'flex',
                     flexDirection: 'column',
-                    visibility: isActive ? 'visible' : 'hidden',
+                    visibility: shown ? 'visible' : 'hidden',
                     zIndex: isActive ? 1 : 0,
-                    pointerEvents: isActive ? 'auto' : 'none',
+                    pointerEvents: shown ? 'auto' : 'none',
                   }}
                 >
                   <TaskDetail
                     session={session}
-                    active={isActive && detailShown}
-                    onClose={() => closeTab(i)}
+                    active={shown}
                     onDone={() => requestClose(session, () => { forgetOutput(sessionKey(session)); void tabs.closeTabByKey(sessionKey(session)) })}
                   />
                 </div>
