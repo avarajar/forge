@@ -3,7 +3,7 @@ import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, harnessLabel, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
-import { unpushedCount } from '../config/review.js'
+import { reviewSummary, unpushedCount } from '../config/review.js'
 import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
@@ -107,6 +107,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   const pluginList = tools?.plugins ?? []
   const state = review?.state ?? null
   const shownBranch = state?.branch ?? branch
+  const changes = !review ? 'Checking changes…' : review.error !== null ? 'Changes unknown' : reviewSummary(review.state)
   const identity = [
     session.project,
     session.account,
@@ -126,6 +127,9 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
           <div class="min-w-0">
             <h1 class="truncate" style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '-0.02em' }}>{sessionLabel(session)}</h1>
             <p class="truncate" style={{ marginTop: '1px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{identity}</p>
+            {!isLogin && (
+              <p class="mono truncate" style={{ marginTop: '2px', fontSize: '11.5px', color: 'var(--ink-3)' }} title={changes}>{changes}</p>
+            )}
           </div>
           <span style={{ flex: '1 1 60px' }} />
           <div class="flex flex-wrap items-center" style={{ gap: '7px' }}>
@@ -134,8 +138,8 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
                 {contextOpen ? 'Hide context' : `Context · ${mcpList.length} MCP, ${pluginList.length} plugins`}
               </button>
             )}
-            {reviewed && <GitHubButton entry={review} />}
-            {reviewed && <EditorButton session={session} entry={review} />}
+            {!isLogin && <GitHubButton entry={review} />}
+            {!isLogin && <EditorButton session={session} entry={review} />}
             {ptyExited && <ActionButton label="Restart" variant="secondary" size="sm" onClick={handleRestart} />}
             {session.status === 'active' && !isLogin && <ActionButton label="Mark done" variant="primary" size="sm" onClick={onDone} />}
           </div>

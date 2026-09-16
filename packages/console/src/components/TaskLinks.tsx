@@ -11,11 +11,18 @@ export const secondaryButton = {
 }
 export const secondaryClass = 'inline-flex items-center gap-1 cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m hover:text-ink'
 
+const disabledButton = { ...secondaryButton, color: 'var(--ink-3)', boxShadow: 'none' }
+
+// always rendered, so the action stays findable while review state loads or when it does not apply
 export const GitHubButton: FunctionComponent<{ entry: ReviewEntry | null }> = ({ entry }) => {
   const github = entry?.state?.github
-  if (!github) return null
-  if (github.url === null) {
-    return <button type="button" class="cursor-not-allowed" style={{ ...secondaryButton, color: 'var(--ink-3)', boxShadow: 'none' }} disabled title={github.reason}>GitHub</button>
+  if (!github || github.url === null) {
+    const reason = !entry ? 'Checking the repository…' : entry.error ?? github?.reason ?? 'This task has no GitHub remote'
+    return (
+      <button type="button" class="inline-flex items-center gap-1 cursor-not-allowed" style={disabledButton} disabled title={reason}>
+        GitHub <span class="i-lucide-external-link" style={{ width: '12px', height: '12px' }} />
+      </button>
+    )
   }
   return (
     <a class={secondaryClass} style={secondaryButton} href={github.url} target="_blank" rel="noopener noreferrer" title={github.label}>
@@ -37,7 +44,13 @@ export const EditorButton: FunctionComponent<{ session: CWSession; entry: Review
 
   const editors = editorsInfo.value
   const editorList = editors?.enabled ? editors.editors : []
-  if (editorList.length === 0 || entry?.state?.workspace !== 'ready') return null
+  // editors only open on the machine running Forge
+  if (editorList.length === 0) return null
+  const workspace = entry?.state?.workspace
+  if (workspace !== 'ready') {
+    const reason = !entry ? 'Checking the worktree…' : workspace === 'missing' ? 'Workspace not created yet' : 'This session has no worktree'
+    return <button type="button" class="cursor-not-allowed" style={disabledButton} disabled title={reason}>Open in {editorList.length === 1 ? editorList[0].label : 'editor'}</button>
+  }
 
   const open = async (editorId: string) => {
     setMenuOpen(false)

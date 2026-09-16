@@ -4,6 +4,7 @@ import { Shell, sidebarOpen, toggleTheme } from './shell.js'
 import { NAV, Sidebar, type View } from './components/Sidebar.js'
 import { CommandPalette, type PaletteItem } from './components/CommandPalette.js'
 import { loadHarnesses } from './hooks/useHarnesses.js'
+import { loadEditors } from './hooks/useEditors.js'
 import { loadSkills } from './hooks/useSkills.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
@@ -42,6 +43,7 @@ function App() {
 
   useEffect(() => {
     void loadHarnesses()
+    void loadEditors()
     fetch('/api/prototype/list').then(r => r.json() as Promise<unknown[]>).then(l => setPrototypeCount(l.length)).catch(() => {})
   }, [])
 
