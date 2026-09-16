@@ -45,28 +45,27 @@ Modules are `forge-module.json` manifests plus panels. The server loads manifest
 ## Console Architecture
 
 ```
-App (app.tsx)
+App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── useTabManager    → tab state, sessionStorage, keyboard shortcuts
-├── useTaskFilters   → account/project/type/harness filters, derived data
+├── useTaskFilters   → project/type/harness filters, derived data
 ├── useHarnesses     → shared `cw doctor` store, 3 s polling
-├── config/types.ts  → shared TYPE_STYLES, QUICK_TYPES, helpers
+├── useTerminalMetrics → context, tokens and cost parsed from terminal output
+├── config/types.ts  → TYPE_STYLES (one token per type), QUICK_TYPES, helpers
+├── state/startTask.ts → start card / drawer shared input and type override
 │
-├── List view (listView: list | new-task | accounts | skills)
-│   ├── OpenTabsBanner
-│   ├── TaskList (pages/TaskList.tsx)
-│   │   ├── FilterPill
-│   │   ├── TaskCard, DoneTaskRow → HarnessBadge, PrChip (components/TaskCard.tsx)
-│   │   └── ProjectBanner (components/ProjectBanner.tsx)
-│   ├── CreateProjectModal → DirectoryPicker
-│   ├── NewTask → HarnessPicker
-│   │   └── PrototypePanel (usePrototype) → InputSelector, PrototypePreview, ShareModal, GraduateModal
+├── Sidebar → nav, projects, live session cards, appearance
+├── Views (view: list | accounts | skills | prototypes)
+│   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AddAccountForm, DeviceLoginPanel
-│   ├── Skills
-│   └── CloseTaskDialog (shared by TaskCard and TaskDetail Done)
-│
-└── Tabs view
-    ├── TabBar (components/TabBar.tsx)
-    └── TaskDetail (pages/TaskDetail.tsx) → xterm.js terminal, HarnessBadge, ReviewSummary
+│   ├── Skills (rail + editor/create/explore pane)
+│   └── PrototypePanel (usePrototype) → InputSelector, PrototypePreview, ShareModal, GraduateModal
+├── Tabs layer (kept mounted, hidden on the list)
+│   ├── TabBar → pill tabs, add menu
+│   └── TaskDetail → identity, metric strip, context panel, framed xterm terminal
+├── NewTask (right drawer) → HarnessPicker
+├── CommandPalette (⌘K, /)
+├── CreateProjectModal → DirectoryPicker
+└── CloseTaskDialog (shared by TaskRow and TaskDetail)
 ```
 
 ## Key Files
@@ -95,21 +94,26 @@ App (app.tsx)
 ### Console
 - `packages/console/src/app.tsx` — Root component, tab/filter/view orchestration
 - `packages/console/src/config/types.ts` — Shared type styles, helpers (single source of truth)
+- `packages/console/src/styles/theme.css` — Design tokens (dark/light), keyframes, responsive rules, reduced-motion guard
 - `packages/console/src/hooks/useTabManager.ts` — Tab state, persistence, keyboard shortcuts
 - `packages/console/src/hooks/useTaskFilters.ts` — Filter state, derived data
 - `packages/console/src/hooks/useHarnesses.ts` — Shared harness store, 3 s polling
-- `packages/console/src/components/TaskCard.tsx` — TaskCard, DoneTaskRow, TypeBadge
+- `packages/console/src/components/TaskCard.tsx` — TaskRow, DoneRow, TypeTile, LivePill
 - `packages/console/src/components/ProjectBanner.tsx` — Project info (stack, MCPs, delete)
-- `packages/console/src/components/TabBar.tsx` — Tab bar with add menu
+- `packages/console/src/components/TabBar.tsx` — Pill tabs with add menu
+- `packages/console/src/components/Sidebar.tsx` — Nav, projects, live session meters, appearance switch
+- `packages/console/src/components/StartCard.tsx` — Start card, type inference line (`config/inference.ts`)
+- `packages/console/src/components/CommandPalette.tsx` — ⌘K palette
+- `packages/console/src/hooks/useTerminalMetrics.ts` — Status line parsing for context, tokens and cost
 - `packages/console/src/components/HarnessPicker.tsx` — Harness selector and unavailable reasons
 - `packages/console/src/pages/TaskList.tsx` — Main task list page
-- `packages/console/src/pages/NewTask.tsx` — New task form (type, account, project, harness)
+- `packages/console/src/pages/NewTask.tsx` — New task drawer (type, account, project, harness)
 - `packages/console/src/pages/TaskDetail.tsx` — Terminal + git stats + MCP info
-- `packages/console/src/pages/Accounts.tsx` — Account × harness matrix and Connect flows
+- `packages/console/src/pages/Accounts.tsx` — Account cards, Connect flows, account removal
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
 - `packages/console/src/pages/PrototypePanel.tsx` — Prototype sandbox flow (generate, preview, share, graduate to a dev task)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
-- `packages/console/src/components/ReviewSummary.tsx` — Change summary, View on GitHub, Open in editor
+- `packages/console/src/components/ReviewSummary.tsx` — GitHub and Open in editor buttons
 - `packages/console/src/components/CloseTaskDialog.tsx` — Confirmation before closing a task that could lose work
 
 ## Development
@@ -177,7 +181,8 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - TypeScript strict mode, no `any` unless interfacing with external libs
 - ESM only (`"type": "module"` in all packages)
 - Preact (not React) — use `preact/hooks`, `@preact/signals`
-- UnoCSS utility classes — no CSS modules, no styled-components
+- UnoCSS utility classes plus inline `style` with the `theme.css` tokens (`var(--card)`, `var(--ink-2)`…) — no CSS modules, no styled-components
+- Motion uses `var(--ease)`; tints are `color-mix(in srgb, var(<token>) 18%, transparent)` (`soft()` in `config/types.ts`)
 - Vitest for all tests
 - Each module is independent — no cross-module imports
 - UI components go in `@forge-dev/ui`, not in individual modules
