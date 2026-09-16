@@ -12,6 +12,7 @@ import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
+import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
@@ -24,7 +25,7 @@ import 'virtual:uno.css'
 
 function App() {
   const [spaces, setSpaces] = useState<CWSession[]>([])
-  const [projects, setProjects] = useState<Record<string, { path: string; account: string }>>({})
+  const [projects, setProjects] = useState<ProjectMap>({})
   const [accounts, setAccounts] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -52,7 +53,7 @@ function App() {
         fetch('/api/cw/accounts'),
       ])
       setSpaces(await spacesRes.json() as CWSession[])
-      setProjects(await projectsRes.json() as Record<string, { path: string; account: string }>)
+      setProjects(await projectsRes.json() as ProjectMap)
       setAccounts(await accountsRes.json() as string[])
       refreshReviewStates()
     } catch {
@@ -272,34 +273,29 @@ function App() {
       />
     </div>
   ) : view === 'list' ? (
-    <div style={{ padding: '18px 22px 40px', maxWidth: '1180px', width: '100%' }}>
-      <TaskList
-        spaces={filters.filteredSpaces}
-        allSpaces={spaces}
-        loading={loading}
-        onNewTask={handleNewTask}
-        onCreateProject={() => setShowCreateProject(true)}
-        onOpenAccounts={() => navigate('accounts')}
-        onSelectTask={openSession}
-        onRefresh={() => fetchData()}
-        projects={projects}
-        accountNames={filters.accountNames}
-        filterAccount={filters.filterAccount}
-        onFilterAccount={filters.setFilterAccount}
-        projectNames={filters.projectNames}
-        filterProject={filters.filterProject}
-        onFilterProject={filters.setFilterProject}
-        filterType={filters.filterType}
-        onFilterType={filters.setFilterType}
-        harnessNames={filters.harnessNames}
-        filterHarness={filters.filterHarness}
-        onFilterHarness={filters.setFilterHarness}
-        showDone={filters.showDone}
-        onShowDone={filters.setShowDone}
-        openTabKeys={tabs.openTabKeys}
-        onMarkDone={handleMarkDone}
-      />
-    </div>
+    <TaskList
+      spaces={filters.filteredSpaces}
+      allSpaces={spaces}
+      projects={projects}
+      accountNames={filters.accountNames}
+      filterAccount={filters.filterAccount}
+      filterProject={filters.filterProject}
+      onFilterProject={filters.setFilterProject}
+      filterType={filters.filterType}
+      onFilterType={filters.setFilterType}
+      harnessNames={filters.harnessNames}
+      filterHarness={filters.filterHarness}
+      onFilterHarness={filters.setFilterHarness}
+      showDone={filters.showDone}
+      onShowDone={filters.setShowDone}
+      openTabKeys={tabs.openTabKeys}
+      onSelectTask={openSession}
+      onMarkDone={handleMarkDone}
+      onNewTask={() => handleNewTask()}
+      onCreateProject={() => setShowCreateProject(true)}
+      onRefresh={() => fetchData()}
+      onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
+    />
   ) : view === 'prototypes' ? (
     prototypeTarget ? (
       <div style={{ height: '100vh' }}>

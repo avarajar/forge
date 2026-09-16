@@ -29,3 +29,23 @@ export function reviewSummary(s: TaskReviewState): string {
   if (parts.length > 0) return parts.join(' · ')
   return s.workspace === 'ready' ? 'No changes yet' : ''
 }
+
+const CHECKS_TEXT = { passing: 'checks pass', failing: 'checks failing', pending: 'checks running', none: '' } as const
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+// one short line for a task row
+export function rowStatus(s: TaskReviewState): string {
+  if (s.workspace === 'missing') return 'not created yet'
+  if (s.pr.status === 'found') {
+    const stateLabel = s.pr.state === 'OPEN' && s.pr.isDraft ? 'draft' : PR_STATE_LABEL[s.pr.state]
+    return [`PR #${s.pr.number} ${stateLabel}`, CHECKS_TEXT[s.pr.checks]].filter(Boolean).join(' · ')
+  }
+  const parts: string[] = []
+  if (s.diff && s.diff.files > 0) parts.push(plural(s.diff.files, 'file'))
+  if (s.commits) parts.push(plural(s.commits, 'commit'))
+  const unpushed = unpushedCount(s)
+  if (unpushed > 0 && s.commits) parts.push(`${unpushed} unpushed`)
+  if (s.uncommitted > 0) parts.push(`${s.uncommitted} uncommitted`)
+  return parts.length > 0 ? parts.join(' · ') : 'no changes yet'
+}
