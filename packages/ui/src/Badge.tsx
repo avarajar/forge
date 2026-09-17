@@ -3,19 +3,23 @@ import { type FunctionComponent } from 'preact'
 interface BadgeProps {
   label: string
   color?: string
-  variant?: 'solid' | 'outline'
+  variant?: 'tint' | 'neutral'
+  dot?: boolean
 }
 
 export const Badge: FunctionComponent<BadgeProps> = ({
-  label, color = 'var(--forge-muted)', variant = 'solid'
+  label, color = 'var(--ink-2)', variant = 'tint', dot
 }) => {
-  const baseClass = 'px-2 py-0.5 rounded-full text-xs font-medium inline-flex items-center'
-  const variantStyle = variant === 'solid'
-    ? { backgroundColor: color, color: 'white' }
-    : { border: `1px solid ${color}`, color }
+  const style = variant === 'tint'
+    ? { background: `color-mix(in srgb, ${color} 18%, transparent)`, color }
+    : { background: 'var(--elev)', color: 'var(--ink-2)', border: '1px solid var(--hair)' }
 
   return (
-    <span class={baseClass} style={variantStyle}>
+    <span
+      class="inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+      style={{ ...style, padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 600 }}
+    >
+      {dot && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: color }} />}
       {label}
     </span>
   )

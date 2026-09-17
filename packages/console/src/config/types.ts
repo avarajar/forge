@@ -1,93 +1,62 @@
 import type { CWDoctor, CWDoctorCell, CWSession } from '@forge-dev/core'
 
+// avatar gradients, cycled per account
+const AVATAR_PAIRS: Array<[string, string]> = [['--blue', '--purple'], ['--teal', '--blue'], ['--orange', '--red'], ['--green', '--teal']]
+export const avatarPair = (index: number): [string, string] => AVATAR_PAIRS[index % AVATAR_PAIRS.length]
+
 /* ── Type visual config ── */
+
+export const soft = (token: string, pct = 18): string => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 
 export interface TypeStyle {
   label: string
-  color: string
-  bg: string
-  border: string
-  /** UnoCSS class for dot indicator */
-  dotClass: string
-  /** CSS var for tinted background */
-  bgVar: string
-  /** CSS var for tinted border */
-  borderVar: string
+  glyph: string
+  token: string
+  ink: string
+  fill: string
 }
 
+const typeStyle = (label: string, glyph: string, token: string): TypeStyle =>
+  ({ label, glyph, token, ink: `var(${token})`, fill: soft(token) })
+
 export const TYPE_STYLES: Record<string, TypeStyle> = {
-  task: {
-    label: 'DEV',
-    color: '#d97706',
-    bg: 'rgba(217,119,6,0.10)',
-    border: 'rgba(217,119,6,0.25)',
-    dotClass: 'bg-amber-500',
-    bgVar: 'var(--forge-tint-amber-bg)',
-    borderVar: 'var(--forge-tint-amber-border)',
-  },
-  review: {
-    label: 'REVIEW',
-    color: '#2563eb',
-    bg: 'rgba(37,99,235,0.10)',
-    border: 'rgba(37,99,235,0.25)',
-    dotClass: 'bg-blue-500',
-    bgVar: 'var(--forge-tint-blue-bg)',
-    borderVar: 'var(--forge-tint-blue-border)',
-  },
-  design: {
-    label: 'DESIGN',
-    color: '#7c3aed',
-    bg: 'rgba(124,58,237,0.10)',
-    border: 'rgba(124,58,237,0.25)',
-    dotClass: 'bg-purple-500',
-    bgVar: 'var(--forge-tint-purple-bg)',
-    borderVar: 'var(--forge-tint-purple-border)',
-  },
-  general: {
-    label: 'GENERAL',
-    color: '#059669',
-    bg: 'rgba(5,150,105,0.10)',
-    border: 'rgba(5,150,105,0.25)',
-    dotClass: 'bg-emerald-500',
-    bgVar: 'var(--forge-tint-emerald-bg)',
-    borderVar: 'var(--forge-tint-emerald-border)',
-  },
-  loop: {
-    label: 'LOOP',
-    color: '#e11d48',
-    bg: 'rgba(225,29,72,0.10)',
-    border: 'rgba(225,29,72,0.25)',
-    dotClass: 'bg-rose-500',
-    bgVar: 'var(--forge-tint-rose-bg)',
-    borderVar: 'var(--forge-tint-rose-border)',
-  },
-  login: {
-    label: 'LOGIN',
-    color: '#64748b',
-    bg: 'rgba(100,116,139,0.10)',
-    border: 'rgba(100,116,139,0.25)',
-    dotClass: 'bg-slate-500',
-    bgVar: 'var(--forge-ghost-bg)',
-    borderVar: 'var(--forge-ghost-border)',
-  },
+  task: typeStyle('Dev', 'D', '--orange'),
+  review: typeStyle('Review', 'R', '--blue'),
+  loop: typeStyle('Loop', 'L', '--purple'),
+  general: typeStyle('General', 'G', '--green'),
+}
+
+const OTHER_TYPES: Record<string, TypeStyle> = {
+  create: typeStyle('Create', 'C', '--teal'),
+  login: typeStyle('Login', 'A', '--ink-2'),
 }
 
 export const getTypeStyle = (type: string): TypeStyle =>
-  TYPE_STYLES[type] ?? TYPE_STYLES['task']
+  TYPE_STYLES[type] ?? OTHER_TYPES[type] ?? TYPE_STYLES.task
 
-/* ── Quick-launch type pills ── */
+/* ── Quick-launch types ── */
 
-export const QUICK_TYPES = [
-  { key: 'dev',     label: 'Dev',     style: TYPE_STYLES['task'] },
-  { key: 'review',  label: 'Review',  style: TYPE_STYLES['review'] },
-  { key: 'loop',    label: 'Loop',    style: TYPE_STYLES['loop'] },
-  { key: 'general', label: 'General', style: TYPE_STYLES['general'] },
+export type QuickType = 'dev' | 'review' | 'loop' | 'general'
+
+// each quick type and the session type it starts
+export const QUICK_TYPES: Array<{ key: QuickType; sessionType: CWSession['type'] }> = [
+  { key: 'dev', sessionType: 'task' },
+  { key: 'review', sessionType: 'review' },
+  { key: 'loop', sessionType: 'loop' },
+  { key: 'general', sessionType: 'general' },
 ]
+
+export const quickLabel = (key: QuickType): string => TYPE_STYLES[QUICK_TYPES.find(t => t.key === key)?.sessionType ?? 'task'].label
+
+export const sessionTypeOf = (key: QuickType): CWSession['type'] => QUICK_TYPES.find(t => t.key === key)?.sessionType ?? 'task'
 
 /* ── Shared helpers ── */
 
 export const sessionKey = (s: CWSession) =>
   s.sessionDir ? `${s.project}::${s.sessionDir}` : `${s.project}::${s.task ?? s.pr}`
+
+// a general session outside any project carries CW's placeholder project name
+export const projectOf = (s: Pick<CWSession, 'project'>): string => s.project === '__general' ? '' : s.project
 
 export const sessionDirOf = (s: CWSession): string =>
   s.sessionDir ?? (s.type === 'review' ? `review-pr-${s.pr}` : s.type === 'loop' ? `loop-${s.task}` : `task-${s.task}`)
@@ -100,17 +69,15 @@ export const sessionLabel = (s: CWSession) =>
   : s.type === 'login' ? `Login: ${s.account} · ${getHarnessStyle(s.harness).label}`
   : (s.task ?? 'unknown')
 
-export const timeAgo = (date: string): string => {
-  const diff = Date.now() - new Date(date).getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+// compact form for fixed-width columns
+export const shortAgo = (date: string): string => {
+  const minutes = Math.floor((Date.now() - new Date(date).getTime()) / 60000)
+  if (minutes < 1) return 'now'
+  if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return `${hours}h`
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  return `${months}mo ago`
+  return days < 30 ? `${days}d` : `${Math.floor(days / 30)}mo`
 }
 
 /* ── Harness visual config ── */
@@ -121,15 +88,18 @@ export interface HarnessStyle {
   bg: string
 }
 
+const harnessStyle = (label: string, name: string): HarnessStyle =>
+  ({ label, color: `var(--forge-harness-${name})`, bg: soft(`--forge-harness-${name}`) })
+
 export const HARNESS_STYLES: Record<string, HarnessStyle> = {
-  claude: { label: 'Claude Code', color: 'var(--forge-harness-claude)', bg: 'var(--forge-harness-claude-bg)' },
-  codex: { label: 'Codex', color: 'var(--forge-harness-codex)', bg: 'var(--forge-harness-codex-bg)' },
-  pi: { label: 'Pi', color: 'var(--forge-harness-pi)', bg: 'var(--forge-harness-pi-bg)' },
-  opencode: { label: 'OpenCode', color: 'var(--forge-harness-opencode)', bg: 'var(--forge-harness-opencode-bg)' },
+  claude: harnessStyle('Claude Code', 'claude'),
+  codex: harnessStyle('Codex', 'codex'),
+  pi: harnessStyle('Pi', 'pi'),
+  opencode: harnessStyle('OpenCode', 'opencode'),
 }
 
 export const getHarnessStyle = (harness?: string): HarnessStyle =>
-  HARNESS_STYLES[harness ?? 'claude'] ?? { label: harness ?? 'claude', color: 'var(--forge-muted)', bg: 'var(--forge-ghost-bg)' }
+  HARNESS_STYLES[harness ?? 'claude'] ?? { label: harness ?? 'claude', color: 'var(--ink-3)', bg: 'var(--elev)' }
 
 export const harnessLabel = (s: Pick<CWSession, 'harness' | 'provider' | 'model'>): string => {
   const label = getHarnessStyle(s.harness).label

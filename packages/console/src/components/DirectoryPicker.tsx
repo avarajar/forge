@@ -1,5 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
+import { soft } from '../config/types.js'
 
 interface DirEntry {
   name: string
@@ -82,96 +83,66 @@ export const DirectoryPicker: FunctionComponent<DirectoryPickerProps> = ({
     return resolvedPath
   })()
 
+  const toolBtn = { width: '24px', height: '24px', borderRadius: '7px', border: 0, background: 'var(--card)', color: 'var(--ink-2)', boxShadow: 'var(--shadow-s)' }
+  const row = 'flex items-center w-full text-left cursor-pointer transition-colors duration-140 hover:bg-elev disabled:cursor-not-allowed disabled:opacity-60'
+  const rowStyle = { gap: '8px', padding: '7px 11px', border: 0, borderBottom: '1px solid var(--hair)', background: 'none', color: 'var(--ink)', fontSize: '12.5px' }
+  const gitPill = { padding: '1px 7px', borderRadius: '99px', background: soft('--green'), color: 'var(--green)', fontSize: '10.5px', fontWeight: 600 }
+
   return (
-    <div class="border border-forge-border rounded-lg overflow-hidden bg-forge-bg">
-      {/* Path bar */}
-      <div class="flex items-center gap-2 px-3 py-2 border-b border-forge-border bg-forge-surface">
-        <button
-          type="button"
-          class="px-2 py-1 text-xs rounded text-forge-muted hover:text-forge-text disabled:opacity-40"
-          onClick={() => parent && navigate(parent)}
-          disabled={!parent || loading}
-          title="Parent directory"
-        >
-          ←
-        </button>
-        <button
-          type="button"
-          class="px-2 py-1 text-xs rounded text-forge-muted hover:text-forge-text"
-          onClick={() => navigate('~')}
-          title="Home"
-        >
-          ~
-        </button>
+    <div style={{ borderRadius: '12px', border: '1px solid var(--hair)', background: 'var(--card)', boxShadow: 'var(--shadow-s)', overflow: 'hidden' }}>
+      <div class="flex items-center" style={{ gap: '6px', padding: '7px 9px', borderBottom: '1px solid var(--hair)', background: 'var(--elev)' }}>
+        <button type="button" class="grid place-items-center cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" style={toolBtn} onClick={() => parent && navigate(parent)} disabled={!parent || loading} title="Parent folder" aria-label="Parent folder">←</button>
+        <button type="button" class="grid place-items-center cursor-pointer" style={toolBtn} onClick={() => navigate('~')} title="Home" aria-label="Home">~</button>
         <input
           type="text"
           value={draft}
+          aria-label="Path"
           onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
           onBlur={() => setCwd(draft)}
           onKeyDown={(e) => { if (e.key === 'Enter') setCwd(draft) }}
-          class="flex-1 px-2 py-1 text-xs rounded bg-forge-bg border border-forge-border text-forge-text focus:border-forge-accent focus:outline-none font-mono"
+          class="field mono flex-1 min-w-0"
+          style={{ height: '26px', padding: '0 9px', borderRadius: '7px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '11.5px', outline: 'none' }}
           placeholder="~/workspace"
         />
       </div>
 
-      {/* Selected indicator */}
       {value && (
-        <div class="px-3 py-2 text-xs border-b border-forge-border bg-forge-surface flex items-center justify-between gap-2">
-          <span class="text-forge-muted truncate font-mono">Selected: <span class="text-forge-text">{value}</span></span>
-          <button
-            type="button"
-            class="text-forge-muted hover:text-forge-text"
-            onClick={() => onChange('', false)}
-            title="Clear selection"
-          >×</button>
+        <div class="flex items-center" style={{ gap: '8px', padding: '7px 11px', borderBottom: '1px solid var(--hair)', background: soft('--blue', 12), fontSize: '12px' }}>
+          <span class="i-lucide-check shrink-0" style={{ width: '13px', height: '13px', color: 'var(--blue)' }} />
+          <span class="mono flex-1 truncate">{value}</span>
+          <button type="button" class="grid place-items-center cursor-pointer text-ink3 hover:text-ink" style={{ border: 0, background: 'none' }} onClick={() => onChange('', false)} title="Clear selection" aria-label="Clear selection">
+            <span class="i-lucide-x" style={{ width: '13px', height: '13px' }} />
+          </button>
         </div>
       )}
 
-      {/* Listing */}
-      <div class="max-h-64 overflow-y-auto">
+      <div class="overflow-y-auto" style={{ maxHeight: '220px' }}>
         {loading ? (
-          <div class="px-3 py-4 text-xs text-forge-muted">Loading...</div>
+          <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>Loading…</p>
         ) : error ? (
-          <div class="px-3 py-4 text-xs" style={{ color: 'var(--forge-error)' }}>{error}</div>
+          <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--red)' }}>{error}</p>
         ) : (
           <>
-            {/* "Select this folder" row */}
             <button
               type="button"
-              class={`w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-forge-surface transition-colors border-b border-forge-border ${
-                isSelected ? 'bg-forge-surface' : ''
-              }`}
+              class={row}
+              style={{ ...rowStyle, background: isSelected ? 'var(--elev)' : 'none', fontWeight: 600 }}
               onClick={() => onChange(resolvedPath, isCwdGitRepo)}
               disabled={blockedByGit}
               title={blockedByGit ? 'Not a git repository' : 'Pick this folder'}
             >
-              <span class="font-mono truncate">
-                <span class="text-forge-muted mr-2">►</span>
-                Pick <span class="text-forge-text">{breadcrumb}</span>
-              </span>
-              {isCwdGitRepo ? (
-                <span class="text-xs" style={{ color: 'var(--forge-accent)' }}>git ✓</span>
-              ) : blockedByGit ? (
-                <span class="text-xs text-forge-muted">no .git</span>
-              ) : null}
+              <span class="i-lucide-check shrink-0" style={{ width: '12px', height: '12px', color: 'var(--blue)' }} />
+              <span class="flex-1 truncate">Pick <span class="mono">{breadcrumb}</span></span>
+              {isCwdGitRepo ? <span style={gitPill}>git</span> : blockedByGit ? <span style={{ fontSize: '11px', color: 'var(--ink-3)' }}>no .git</span> : null}
             </button>
             {entries.length === 0 ? (
-              <div class="px-3 py-4 text-xs text-forge-muted">No subdirectories</div>
+              <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-3)' }}>No subfolders</p>
             ) : (
               entries.map(entry => (
-                <button
-                  key={entry.path}
-                  type="button"
-                  class="w-full flex items-center justify-between px-3 py-2 text-xs text-left hover:bg-forge-surface transition-colors font-mono"
-                  onClick={() => navigate(entry.path)}
-                >
-                  <span class="truncate">
-                    <span class="text-forge-muted mr-2">📁</span>
-                    {entry.name}
-                  </span>
-                  {entry.isGitRepo && (
-                    <span class="text-xs ml-2" style={{ color: 'var(--forge-accent)' }}>git</span>
-                  )}
+                <button key={entry.path} type="button" class={row} style={rowStyle} onClick={() => navigate(entry.path)}>
+                  <span class="i-lucide-chevron-right shrink-0" style={{ width: '12px', height: '12px', color: 'var(--ink-3)' }} />
+                  <span class="mono flex-1 truncate">{entry.name}</span>
+                  {entry.isGitRepo && <span style={gitPill}>git</span>}
                 </button>
               ))
             )}

@@ -15,10 +15,10 @@
 
 **Where ideas are shaped into software.**
 
-[![MIT License](https://img.shields.io/badge/license-MIT-6366f1?style=for-the-badge)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-10b981?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![MIT License](https://img.shields.io/badge/license-MIT-0a84ff?style=for-the-badge)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-30d158?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-f59e0b?style=for-the-badge)](CONTRIBUTING.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-ff9f0a?style=for-the-badge)](CONTRIBUTING.md)
 
 <br />
 
@@ -38,15 +38,18 @@
 
 Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw review`, `cw spaces` in the terminal, you get a web dashboard with:
 
-- **Task list** with filters by account, project, and type (dev/review/loop/general)
+- **Start from anything** — paste a pull request, a Linear or Notion link, or type a name; Forge picks review or dev and starts it
+- **Task list** — most recently opened first, or grouped by project, with type, harness and done filters
+- **Sidebar** — sections, projects grouped by account with a filter, and a card per live session with its context meter
 - **Any harness** — run a task on Claude Code, Codex, Pi or OpenCode and see which one each session uses (needs CW 0.3.0)
-- **Accounts** — an account × harness matrix with one-click Connect; Codex logs in with a device code, no terminal
-- **Multi-tab terminal sessions** — open multiple agent sessions side by side
-- **Project info** — auto-detected stack, MCPs, plugins at a glance
-- **One-click actions** — start tasks, review PRs, mark done, create, register, move and delete projects
-- **Skills** — browse and edit global, account and project skills, install from skills.sh, or start a session that writes one
+- **Task detail** — the agent's terminal with context used, tokens and cost read from its status line, commits, unpushed work, MCPs, plugins and stack, plus GitHub and Open in editor
+- **Multi-tab sessions** — keep several agents open; tabs stay connected while you browse the list
+- **Command palette** — ⌘K or `/` to jump to a session, a task, a project or a command
+- **Accounts** — one card per account with each harness's status and one-click Connect; Codex logs in with a device code, no terminal
+- **Skills** — browse and edit global, account and project skills side by side, install from skills.sh, or start a session that writes one
 - **Prototypes** — a sandbox with its own dev server to try an idea, share it as a PR or graduate it to a dev task
-- **Keyboard shortcuts** — Cmd+1..5, Cmd+W, Cmd+L for tab navigation
+- **Projects** — create, register, move and delete projects without leaving the dashboard
+- **Dark and light themes** — system fonts, reduced-motion aware, and a layout that folds into an icon rail or an overlay on narrow windows
 
 It reads from `~/.cw/` (sessions, projects, accounts, skills) and from `~/.claude/` (MCPs, plugins, settings).
 
@@ -54,20 +57,57 @@ It reads from `~/.cw/` (sessions, projects, accounts, skills) and from `~/.claud
 
 ## Screenshots
 
-### Task List
-Filter tasks by account, project, type. Quick-launch buttons for new work.
+> Screenshots use demo data.
 
-![Task List](docs/screenshots/task-list.png)
+### Tasks
+Paste a pull request, a ticket or a name into the start card: Forge detects the type and starts it on the right project and harness. Tasks are listed most recently opened first.
+
+![Task list](docs/screenshots/task-list.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/task-list-by-project.png" alt="Tasks grouped by project" /><br /><sub><b>By project</b> — one card per project with its account and stack</sub></td>
+    <td width="50%"><img src="docs/screenshots/task-list-light.png" alt="Task list in the light theme" /><br /><sub><b>Light theme</b> — switch from the sidebar or with ⌘J</sub></td>
+  </tr>
+</table>
 
 ### Task Detail
-Interactive terminal with Claude Code, git stats, MCP/plugin info, and session metadata.
+The agent's terminal, framed, with the metrics its status line reports, the task's commits and unpushed work, the branch (click to copy), and the MCPs, plugins and stack behind it.
 
-![Task Detail](docs/screenshots/task-detail.png)
+![Task detail](docs/screenshots/task-detail.png)
 
-### Project View
-Filter by project to see detected stack, MCPs, and plugins. Manage or delete projects.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/tab-menu.png" alt="Add tab menu" /><br /><sub><b>+ menu</b> — start a new task or resume one in another tab</sub></td>
+    <td width="50%"><img src="docs/screenshots/command-palette.png" alt="Command palette" /><br /><sub><b>⌘K palette</b> — live sessions, tasks, projects and commands</sub></td>
+  </tr>
+</table>
 
-![Project Filter](docs/screenshots/project-filter.png)
+### New Task
+A drawer over the list. The type, harness, model and workflow are one click each, and the exact `cw` command is shown before you start.
+
+![New task drawer](docs/screenshots/new-task.png)
+
+### Accounts
+Each account with every harness: connected, API key, local model, or a Connect button.
+
+![Accounts](docs/screenshots/accounts.png)
+
+### Skills
+The skill list and its editor side by side, with references as tabs and a search that falls through to skills.sh.
+
+![Skills](docs/screenshots/skills.png)
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/project-filter.png" alt="Project view" /><br /><sub><b>Project view</b> — pick a project in the sidebar to see its tasks, MCPs and actions</sub></td>
+    <td width="50%"><img src="docs/screenshots/create-project.png" alt="Add a project" /><br /><sub><b>Add a project</b> — create one with <code>cw create</code> or register an existing repo</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/prototype.png" alt="Prototype sandbox" /><br /><sub><b>Prototypes</b> — generate a UI in a sandbox, share it, graduate it</sub></td>
+    <td width="50%" align="center"><img src="docs/screenshots/mobile.png" alt="Narrow window" width="220" /><br /><sub><b>Narrow windows</b> — the sidebar becomes an overlay</sub></td>
+  </tr>
+</table>
 
 <br />
 
@@ -137,7 +177,7 @@ pnpm dev
 ```
 ┌─────────────────────────────────────────────────────┐
 │              FORGE CONSOLE (Preact + UnoCSS)         │
-│         ~100KB gzipped · dark/light themes           │
+│    ~130KB gzipped with xterm.js · dark/light themes  │
 └───────────────────────┬──────────────────────────────┘
                         │ HTTP + WebSocket
 ┌───────────────────────┼──────────────────────────────┐
@@ -174,7 +214,7 @@ pnpm dev
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (248 tests in `packages/core`) |
+| Tests | Vitest (349 tests in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ### Monorepo Structure
@@ -182,7 +222,7 @@ pnpm dev
 ```
 packages/
   core/       → Hono server, CW reader, PTY manager, harness logins, skills, prototypes, DB
-  console/    → Preact dashboard (app, pages, components, hooks)
+  console/    → Preact dashboard (app, pages, components, hooks, design tokens)
   ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
@@ -205,28 +245,40 @@ modules/
 The dashboard is a Preact SPA with this component structure:
 
 ```
-App
-├── useTabManager (tab state, sessionStorage, keyboard shortcuts)
-├── useTaskFilters (account/project/type/harness filters, derived data)
+App → Shell (sidebar + main column, theme)
+├── useTabManager (tab state, sessionStorage, ⌘1–5 / ⌘W / ⌘L)
+├── useTaskFilters (project/type/harness filters, derived data)
 ├── useHarnesses (shared `cw doctor` store, 3 s polling)
+├── useTerminalMetrics (context, tokens and cost from each tab's status line)
 │
-├── List view
-│   ├── OpenTabsBanner (shows tabs open in background)
-│   ├── TaskList
-│   │   ├── Filter pills (account, project, type, harness)
-│   │   ├── TaskCard / DoneTaskRow (with harness badge)
-│   │   └── ProjectBanner (stack, MCPs, plugins, delete)
-│   ├── NewTask (harness picker) → PrototypePanel
-│   ├── CreateProjectModal (directory picker)
-│   ├── Accounts (account × harness matrix, device login)
-│   └── Skills
-│
-└── Tabs view
-    ├── TabBar (tab bar + add menu)
-    └── TaskDetail (terminal + git stats + MCP info)
+├── Sidebar → nav, projects by account (filter, fold), live session cards, appearance
+├── Views
+│   ├── TaskList → StartCard (type inference), filters, Recent / By project, ProjectBanner
+│   ├── Accounts → account cards, device login, API key
+│   ├── Skills → list + editor, create, skills.sh search
+│   └── PrototypePanel → input, preview, share, graduate
+├── Tabs (kept mounted while the list is shown)
+│   ├── TabBar → pill tabs, + menu
+│   └── TaskDetail → identity, metric strip, context panel, terminal
+├── NewTask drawer → HarnessPicker
+├── CommandPalette (⌘K, /)
+└── CreateProjectModal → DirectoryPicker
 ```
 
-Shared config lives in `config/types.ts` (type colors, labels, helpers).
+Design tokens (colors, shadows, motion) live in `styles/theme.css` for both themes; type colors and helpers live in `config/types.ts`.
+
+### Keyboard
+
+| Keys | Action |
+|------|--------|
+| `⌘K` or `/` | Command palette |
+| `N` | New task |
+| `P` | Add a project |
+| `⌘J` | Switch light and dark |
+| `⌘1`–`⌘5` | Go to a tab |
+| `⌘←` `⌘→` | Previous or next tab |
+| `⌘W` | Close the tab |
+| `⌘L` | Back to the task list |
 
 <br />
 

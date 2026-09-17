@@ -1,6 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { Modal, ActionButton } from '@forge-dev/ui'
+import { labelStyle } from './Field.js'
 
 interface GraduateModalProps {
   open: boolean
@@ -28,7 +29,7 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
   return (
     <Modal open={open} title="Graduate to Dev Task" onClose={onClose}>
       <div class="space-y-4">
-        <p class="text-sm text-forge-muted">
+        <p style={{ fontSize: '13px', color: 'var(--ink-2)' }}>
           Create a Dev task to implement this prototype in production.
         </p>
 
@@ -36,12 +37,12 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
           <div class="space-y-2">
             {prUrl && (
               <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-forge-muted w-16">PR:</span>
+                <span class="shrink-0" style={{ width: '64px', fontSize: '12px', color: 'var(--ink-2)' }}>PR:</span>
                 <a
                   href={prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-sm text-forge-accent hover:underline truncate"
+                  class="truncate" style={{ fontSize: '13px' }}
                 >
                   {prUrl}
                 </a>
@@ -49,12 +50,12 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
             )}
             {previewUrl && (
               <div class="flex items-center gap-2">
-                <span class="text-xs font-medium text-forge-muted w-16">Preview:</span>
+                <span class="shrink-0" style={{ width: '64px', fontSize: '12px', color: 'var(--ink-2)' }}>Preview:</span>
                 <a
                   href={previewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-sm text-forge-accent hover:underline truncate"
+                  class="truncate" style={{ fontSize: '13px' }}
                 >
                   {previewUrl}
                 </a>
@@ -64,14 +65,14 @@ export const GraduateModal: FunctionComponent<GraduateModalProps> = ({
         )}
 
         <div>
-          <label class="block text-xs font-medium text-forge-muted mb-1.5">
+          <label class="block mb-1" style={labelStyle}>
             Task name
           </label>
           <input
             type="text"
             value={taskName}
             onInput={(e) => setTaskName((e.target as HTMLInputElement).value)}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+            class="field"
             placeholder="implement-my-feature"
           />
         </div>

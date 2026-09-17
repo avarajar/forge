@@ -1,6 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { Modal, ActionButton } from '@forge-dev/ui'
+import { labelStyle } from './Field.js'
 
 interface ShareModalProps {
   open: boolean
@@ -26,27 +27,27 @@ export const ShareModal: FunctionComponent<ShareModalProps> = ({
     <Modal open={open} title="Create Pull Request" onClose={onClose}>
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-medium text-forge-muted mb-1.5">
+          <label class="block mb-1" style={labelStyle}>
             Branch name
           </label>
           <input
             type="text"
             value={branch}
             onInput={(e) => setBranch((e.target as HTMLInputElement).value)}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none"
+            class="field"
             placeholder="prototype/my-feature"
           />
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-forge-muted mb-1.5">
-            PR description <span class="text-forge-muted font-normal">(optional)</span>
+          <label class="block mb-1" style={labelStyle}>
+            PR description · optional
           </label>
           <textarea
             value={description}
             onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
             rows={3}
-            class="w-full px-3 py-2 rounded-lg bg-forge-surface border border-forge-border text-forge-text text-sm focus:border-forge-accent focus:outline-none resize-none"
+            class="field"
             placeholder="Describe the changes in this PR..."
           />
         </div>

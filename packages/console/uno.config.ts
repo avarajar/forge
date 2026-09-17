@@ -1,5 +1,7 @@
 import { defineConfig, presetUno, presetIcons } from 'unocss'
 
+const tokens = ['bg', 'bg-2', 'card', 'elev', 'hair', 'hair-2', 'ink', 'ink-2', 'ink-3', 'blue', 'blue-2', 'green', 'orange', 'red', 'purple', 'teal', 'term']
+
 export default defineConfig({
   presets: [
     presetUno(),
@@ -7,17 +9,20 @@ export default defineConfig({
   ],
   theme: {
     colors: {
-      forge: {
-        bg: 'var(--forge-bg)',
-        surface: 'var(--forge-surface)',
-        border: 'var(--forge-border)',
-        text: 'var(--forge-text)',
-        muted: 'var(--forge-muted)',
-        accent: 'var(--forge-accent)',
-        success: 'var(--forge-success)',
-        warning: 'var(--forge-warning)',
-        error: 'var(--forge-error)'
-      }
+      ...Object.fromEntries(tokens.map(t => [t.replace('-', ''), `var(--${t})`])),
+    },
+    fontFamily: {
+      sans: 'var(--font)',
+      mono: 'var(--mono)'
     }
-  }
+  },
+  rules: [
+    ['shadow-s', { 'box-shadow': 'var(--shadow-s)' }],
+    ['shadow-m', { 'box-shadow': 'var(--shadow-m)' }],
+    ['shadow-l', { 'box-shadow': 'var(--shadow-l)' }],
+    ['ease-spring', { 'transition-timing-function': 'var(--ease)' }],
+    ['glass', { 'background': 'var(--glass)', 'backdrop-filter': 'blur(22px) saturate(180%)', '-webkit-backdrop-filter': 'blur(22px) saturate(180%)' }],
+    ['popover', { 'background': 'var(--glass)', 'backdrop-filter': 'blur(30px) saturate(180%)', '-webkit-backdrop-filter': 'blur(30px) saturate(180%)', 'border': '1px solid var(--hair-2)', 'box-shadow': 'var(--shadow-l)', 'animation': 'popIn .2s var(--ease) both' }],
+    ['breathe', { animation: 'breathe 2.4s ease-in-out infinite' }],
+  ],
 })

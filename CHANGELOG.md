@@ -12,9 +12,21 @@
 - Open in editor for a task's worktree: VS Code, Cursor, Windsurf or Zed, when Forge runs locally.
 - A pull request chip on task cards; a merged pull request keeps the card's Done button visible.
 - `GET /api/cw/review-state/:project/:sessionDir`, `GET /api/cw/editors` and `POST /api/cw/open-in-editor`.
+- A start card on the task list: paste a pull request, a Linear or Notion link, or type a name, and Forge picks review or dev and starts it on the project you pick. With General it launches a session on an account, in a project or outside any.
+- A ⌘K command palette (also `/`) for open sessions, tasks, projects and commands; `N` opens a new task, `P` adds a project and ⌘J switches appearance.
+- The task detail shows context used, tokens and cost read from the harness status line, plus commits, unpushed commits and the branch.
+- A sidebar with sections, projects and a card per live session; it becomes an icon rail below 900 px and an overlay below 700 px.
+- The sidebar's projects can be filtered by name and are grouped by account; each group folds, lists active projects first and shows the first five until expanded.
 
 ### Changed
 
+- The console is redesigned: system fonts, a dark and a light theme, system blue for actions, one color per task type, cards per project, and short motion that respects reduced motion.
+- New Task opens as a drawer over the task list and shares the start card's input.
+- Skills shows the list and the editor side by side; search falls through to skills.sh.
+- Accounts shows one card per account, and removing an account moved there from the task list.
+- The task list shows the most recently opened tasks first by default, with a By project view one click away.
+- The type filter covers Loop and General; the account filter moved out of the task list.
+- Terminal tabs stay connected while the task list is open.
 - Forge removes `CW_HARNESS` from the environment of every `cw` command it runs, except a new General session.
 - New sessions pass `--harness`; resumed sessions never do.
 - The task list's "+ Account" button is now "Accounts"; creating an account no longer opens a terminal.

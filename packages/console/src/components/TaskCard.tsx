@@ -1,113 +1,76 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { getTypeStyle, sessionLabel, timeAgo } from '../config/types.js'
+import { getTypeStyle, projectOf, sessionLabel, shortAgo, soft } from '../config/types.js'
+import { rowStatus } from '../config/review.js'
 import { HarnessBadge } from './HarnessBadge.js'
-import { reviewEntries, reviewKeyOf, useTaskReview } from '../hooks/useTaskReview.js'
+import { Dot } from './Dot.js'
+import { useTaskReview } from '../hooks/useTaskReview.js'
 
-/* ── Small UI pieces ── */
+/* ── Small pieces ── */
 
-export const TypeBadge: FunctionComponent<{ type: string }> = ({ type }) => {
+export const TypeTile: FunctionComponent<{ type: string; size?: number; radius?: number; font?: number }> = ({ type, size = 28, radius = 9, font = 11 }) => {
   const s = getTypeStyle(type)
   return (
     <span
-      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border"
-      style={{ backgroundColor: s.bgVar, borderColor: s.borderVar, color: s.color }}
+      class="grid place-items-center shrink-0"
+      title={s.label}
+      style={{ width: `${size}px`, height: `${size}px`, borderRadius: `${radius}px`, background: s.fill, color: s.ink, fontSize: `${font}px`, fontWeight: 700 }}
     >
-      <span class={`w-1.5 h-1.5 rounded-full ${s.dotClass}`} />
-      {s.label}
+      {s.glyph}
     </span>
   )
 }
 
-export const AccountBadge: FunctionComponent<{ account: string }> = ({ account }) => (
-  <span
-    class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-forge-muted"
-    style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)' }}
-  >
-    {account}
+export const LivePill: FunctionComponent = () => (
+  <span class="inline-flex items-center shrink-0" style={{ gap: '5px', padding: '1px 8px', borderRadius: '99px', background: soft('--green'), color: 'var(--green)', fontSize: '11px', fontWeight: 600 }}>
+    <Dot size={5} color="var(--green)" live glow={false} />
+    live
   </span>
 )
 
-export const ProjectPill: FunctionComponent<{ name: string }> = ({ name }) => (
-  <span
-    class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-forge-surface text-forge-muted truncate max-w-[160px]"
-    style={{ border: '1px solid var(--forge-ghost-border)' }}
-  >
-    {name}
-  </span>
-)
-
-export const LoopIntervalChip: FunctionComponent<{ interval?: string }> = ({ interval }) => (
-  <span
-    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-    style={{ color: getTypeStyle('loop').color, backgroundColor: 'var(--forge-tint-rose-bg)', border: '1px solid var(--forge-tint-rose-border)' }}
-  >
-    ⟳ {interval || 'auto'}
-  </span>
-)
-
-const SourceLink: FunctionComponent<{ source?: string; url?: string }> = ({ source, url }) => {
-  if (!source && !url) return null
-  const label = source ?? 'link'
-  if (url) {
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        class="text-[11px] text-forge-accent hover:underline underline-offset-2 transition-colors"
-        style={{ opacity: 0.7 }}
-        onClick={(e: Event) => e.stopPropagation()}
-      >
-        {label}
-      </a>
-    )
-  }
-  return <span class="text-[11px] text-forge-muted">{label}</span>
+export const Chip: FunctionComponent<{ label: string; href?: string }> = ({ label, href }) => {
+  const style = { padding: '1px 7px', borderRadius: '99px', background: 'var(--elev)', border: '1px solid var(--hair)', color: 'var(--ink-2)', fontSize: '11px' }
+  return href
+    ? <a class="shrink-0 hover:text-ink" style={style} href={href} target="_blank" rel="noopener noreferrer" onClick={(e: Event) => e.stopPropagation()}>{label}</a>
+    : <span class="shrink-0" style={style}>{label}</span>
 }
 
-/* ── Pull request chip ── */
+const fallbackBranch = (s: CWSession): string =>
+  s.type === 'review' ? `review/pr-${s.pr}` : s.type === 'loop' ? `loop/${s.task ?? 'loop'}` : s.type === 'task' ? `task/${s.task}` : '—'
 
-const PR_CHIP_STYLES = {
-  OPEN: { color: 'var(--forge-success)', bg: 'var(--forge-tint-emerald-bg)' },
-  DRAFT: { color: 'var(--forge-muted)', bg: 'var(--forge-ghost-bg)' },
-  MERGED: { color: '#a855f7', bg: 'var(--forge-tint-purple-bg)' },
-  CLOSED: { color: 'var(--forge-error)', bg: 'var(--forge-tint-rose-bg)' },
-} as const
-
-const CHECKS_MARK = { passing: ' ✓', failing: ' ✗', pending: ' …', none: '' } as const
-
-// its own component so only task and review cards fetch review state
-const PrChip: FunctionComponent<{ session: CWSession }> = ({ session }) => {
+// only task and review rows read review state
+const ReviewedLine: FunctionComponent<{ session: CWSession; project?: string }> = ({ session, project }) => {
   const entry = useTaskReview(session)
-  const pr = entry?.state?.pr
-  if (!pr || pr.status !== 'found') return null
-  const kind = pr.state === 'OPEN' && pr.isDraft ? 'DRAFT' : pr.state
-  const style = PR_CHIP_STYLES[kind]
-  return (
-    <span
-      class="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
-      style={{ color: style.color, backgroundColor: style.bg }}
-      title={pr.url}
-    >
-      PR #{pr.number}{pr.state === 'MERGED' ? ' merged' : ''}{CHECKS_MARK[pr.checks]}
-    </span>
-  )
+  const branch = entry?.state?.branch ?? fallbackBranch(session)
+  const status = !entry ? 'checking…' : entry.error !== null ? 'changes unknown' : rowStatus(entry.state)
+  return <MetaLine branch={branch} status={status} project={project} />
 }
 
-/* ── Active task card ── */
+const MetaLine: FunctionComponent<{ branch: string; status: string; project?: string }> = ({ branch, status, project }) => (
+  <div class="task-meta flex items-center min-w-0" style={{ gap: '9px', marginTop: '2px' }}>
+    {project && <span class="shrink-0" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)' }}>{project}</span>}
+    <span class="mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{branch}</span>
+    <span class="whitespace-nowrap truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{status}</span>
+  </div>
+)
 
-export const TaskCard: FunctionComponent<{
+const plainStatus = (s: CWSession): string =>
+  s.type === 'loop' ? (s.loop_interval ? `every ${s.loop_interval}` : 'self-paced')
+  : `${s.opens} session${s.opens === 1 ? '' : 's'}`
+
+/* ── Active task row ── */
+
+export const TaskRow: FunctionComponent<{
   session: CWSession
-  showAccount: boolean
   isOpenInTab: boolean
   onSelect: () => void
   onMarkDone?: () => void | Promise<void>
-}> = ({ session, showAccount, isOpenInTab, onSelect, onMarkDone }) => {
-  const style = getTypeStyle(session.type)
-  const [hovered, setHovered] = useState(false)
+  showProject?: boolean
+}> = ({ session, isOpenInTab, onSelect, onMarkDone, showProject }) => {
+  const project = showProject ? projectOf(session) || 'no project' : undefined
   const [closing, setClosing] = useState(false)
+  const reviewed = session.type === 'task' || session.type === 'review'
   // closing waits for cw --done, so the button stays busy and cannot send a second close
   const markDone = async () => {
     if (!onMarkDone || closing) return
@@ -118,125 +81,76 @@ export const TaskCard: FunctionComponent<{
       setClosing(false)
     }
   }
-  const reviewed = session.type === 'task' || session.type === 'review'
-  const reviewPr = reviewEntries.value[reviewKeyOf(session)]?.state?.pr
-  const merged = reviewPr?.status === 'found' && reviewPr.state === 'MERGED'
   return (
     <div
-      class="group relative flex items-center gap-4 p-4 rounded-xl bg-forge-surface cursor-pointer transition-all"
-      style={{
-        border: `1px solid ${hovered ? style.borderVar : 'var(--forge-ghost-border)'}`,
-        boxShadow: hovered ? '0 10px 15px -3px rgba(99,102,241,0.05)' : undefined,
+      class="task-row group flex items-center cursor-pointer transition-colors duration-160 hover:bg-elev"
+      style={{ gap: '13px', padding: '11px 15px', borderBottom: '1px solid var(--hair)' }}
+      onClick={onSelect}
+      role="button"
+      tabIndex={0}
+      aria-label={`${isOpenInTab ? 'Open' : 'Resume'} ${sessionLabel(session)}`}
+      onKeyDown={(e: KeyboardEvent) => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() }
       }}
-      onClick={onSelect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onSelect() }}
     >
-      <div class="shrink-0">
-        <TypeBadge type={session.type} />
-      </div>
-
+      <TypeTile type={session.type} />
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2.5 mb-1">
-          <span class="font-semibold text-sm text-forge-text truncate">
-            {sessionLabel(session)}
-          </span>
-          <ProjectPill name={session.project} />
-          {session.type === 'loop' && <LoopIntervalChip interval={session.loop_interval} />}
-          {showAccount && session.account && (
-            <AccountBadge account={session.account} />
-          )}
+        <div class="flex items-center min-w-0" style={{ gap: '8px' }}>
+          <span class="truncate" style={{ fontSize: '14px', fontWeight: 600 }}>{sessionLabel(session)}</span>
+          {isOpenInTab && session.status === 'active' && <LivePill />}
+          {session.source && <span class="task-chip contents"><Chip label={session.source} href={session.source_url} /></span>}
         </div>
-        <div class="flex items-center gap-3">
-          {session.opens > 0 && (
-            <span class="text-[11px] text-forge-muted">
-              {session.opens} session{session.opens !== 1 ? 's' : ''}
-            </span>
-          )}
-          <SourceLink source={session.source} url={session.source_url} />
-          {reviewed && <PrChip session={session} />}
-        </div>
+        {reviewed
+          ? <ReviewedLine session={session} project={project} />
+          : <MetaLine branch={fallbackBranch(session)} status={plainStatus(session)} project={project} />}
       </div>
-
-      <div class="shrink-0 flex items-center gap-4">
-        <HarnessBadge session={session} />
-        <span class="text-xs text-forge-muted whitespace-nowrap">
-          {timeAgo(session.last_opened)}
-        </span>
-        {onMarkDone && (
-          <button
-            class={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors text-forge-muted hover:text-forge-success disabled:cursor-wait ${merged || closing ? '' : 'opacity-0 group-hover:opacity-100'}`}
-            style={{ backgroundColor: 'var(--forge-ghost-bg)', borderColor: 'var(--forge-ghost-border)' }}
-            onClick={(e: Event) => { e.stopPropagation(); void markDone() }}
-            disabled={closing}
-            title="Mark as done"
-          >
-            {closing ? 'Closing…' : '✓ Done'}
-          </button>
-        )}
-        {isOpenInTab ? (
-          <span
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-            style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: 'var(--forge-accent)', borderColor: 'rgba(99,102,241,0.25)' }}
-          >
-            <span class="w-1.5 h-1.5 rounded-full bg-forge-accent animate-pulse" />
-            Open
-          </span>
-        ) : (
-          <span
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-            style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: 'var(--forge-success)', borderColor: 'rgba(16,185,129,0.2)' }}
-          >
-            &#9658; Resume
-          </span>
-        )}
-      </div>
+      <HarnessBadge session={session} />
+      <span class="mono shrink-0 text-right" style={{ width: '52px', fontSize: '11.5px', color: 'var(--ink-3)' }} title={new Date(session.last_opened).toLocaleString()}>
+        {shortAgo(session.last_opened)}
+      </span>
+      {onMarkDone && (
+        <button
+          type="button"
+          class={`task-done grid place-items-center shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:text-green disabled:cursor-wait ${closing ? '' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'}`}
+          style={{ width: '28px', height: '28px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink-2)' }}
+          onClick={(e: Event) => { e.stopPropagation(); void markDone() }}
+          disabled={closing}
+          title={closing ? 'Closing…' : 'Mark done'}
+          aria-label="Mark done"
+        >
+          <span class={closing ? 'i-lucide-loader-2 animate-spin' : 'i-lucide-check'} style={{ width: '14px', height: '14px' }} />
+        </button>
+      )}
+      <span
+        class="shrink-0 whitespace-nowrap"
+        style={isOpenInTab
+          ? { padding: '5px 11px', borderRadius: '9px', background: 'linear-gradient(180deg, var(--blue-2), var(--blue))', color: '#fff', fontSize: '12.5px', fontWeight: 600, boxShadow: 'var(--shadow-m)' }
+          : { padding: '5px 11px', borderRadius: '9px', background: 'var(--elev)', color: 'var(--ink)', fontSize: '12.5px', fontWeight: 600 }}
+      >
+        {isOpenInTab ? 'Open' : 'Resume'}
+      </span>
     </div>
   )
 }
 
-/* ── Done task row — quieter style ── */
+/* ── Done row — quieter ── */
 
-export const DoneTaskRow: FunctionComponent<{
-  session: CWSession
-  showAccount: boolean
-  onSelect: () => void
-}> = ({ session, showAccount, onSelect }) => {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      class="group flex items-center gap-4 px-4 py-3 rounded-lg cursor-pointer transition-all"
-      style={{ backgroundColor: hovered ? 'var(--forge-ghost-hover)' : undefined }}
-      onClick={onSelect}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onSelect() }}
-    >
-      <div class="shrink-0 opacity-50">
-        <TypeBadge type={session.type} />
-      </div>
-      <div class="flex-1 min-w-0 flex items-center gap-2.5">
-        <span class="text-sm text-forge-muted truncate">{sessionLabel(session)}</span>
-        <ProjectPill name={session.project} />
-        {session.type === 'loop' && <LoopIntervalChip interval={session.loop_interval} />}
-        {showAccount && session.account && (
-          <AccountBadge account={session.account} />
-        )}
-      </div>
-      <div class="shrink-0 flex items-center gap-3">
-        <HarnessBadge session={session} muted />
-        <span class="text-[11px] text-forge-muted">
-          {session.opens} session{session.opens !== 1 ? 's' : ''}
-        </span>
-        <span class="text-xs text-forge-muted">
-          {timeAgo(session.last_opened)}
-        </span>
-      </div>
-    </div>
-  )
-}
+export const DoneRow: FunctionComponent<{ session: CWSession; onSelect: () => void }> = ({ session, onSelect }) => (
+  <div
+    class="flex items-center cursor-pointer transition-colors duration-160 hover:bg-elev"
+    style={{ gap: '12px', padding: '9px 15px', borderBottom: '1px solid var(--hair)', color: 'var(--ink-2)' }}
+    onClick={onSelect}
+    role="button"
+    tabIndex={0}
+    onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
+  >
+    <span class="grid place-items-center shrink-0" style={{ width: '22px', height: '22px', borderRadius: '7px', background: 'var(--elev)' }}>
+      <span class="i-lucide-check" style={{ width: '12px', height: '12px' }} />
+    </span>
+    <span class="flex-1 min-w-0 truncate" style={{ fontSize: '13px' }}>
+      {sessionLabel(session)} <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{projectOf(session)}</span>
+    </span>
+    <span class="mono shrink-0" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{shortAgo(session.closed ?? session.last_opened)}</span>
+  </div>
+)

@@ -1,6 +1,11 @@
-import { render, type FunctionComponent } from 'preact'
-import { useState, useEffect, useCallback } from 'preact/hooks'
-import { Shell } from './shell.js'
+import { render } from 'preact'
+import { useState, useEffect, useCallback, useMemo } from 'preact/hooks'
+import { Shell, sidebarOpen, toggleTheme } from './shell.js'
+import { NAV, Sidebar, type View } from './components/Sidebar.js'
+import { CommandPalette, type PaletteItem } from './components/CommandPalette.js'
+import { loadHarnesses } from './hooks/useHarnesses.js'
+import { loadEditors } from './hooks/useEditors.js'
+import { loadSkills } from './hooks/useSkills.js'
 import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
@@ -9,87 +14,38 @@ import { PrototypePanel } from './pages/PrototypePanel.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
+import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
-import type { CWSession } from '@forge-dev/core'
-import { TYPE_STYLES, sessionKey, sessionLabel } from './config/types.js'
+import type { CWSession, SkillEntry } from '@forge-dev/core'
+import { QUICK_TYPES, projectOf, sessionKey } from './config/types.js'
+import { startAccount, startProject, typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
 import { loadReviewState, refreshReviewStates } from './hooks/useTaskReview.js'
 import './styles/theme.css'
 import 'virtual:uno.css'
 
-/* ── Open tabs banner: shown at top of list view ── */
-
-const OpenTabsBanner: FunctionComponent<{
-  tabs: CWSession[]
-  onSwitch: (index: number) => void
-}> = ({ tabs, onSwitch }) => {
-  if (tabs.length === 0) return null
-  return (
-    <div
-      class="mb-6 rounded-xl px-4 py-4"
-      style={{ backgroundColor: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.12)' }}
-    >
-      <div class="flex items-center gap-2 mb-3">
-        <span class="w-2 h-2 rounded-full bg-forge-accent animate-pulse" />
-        <span class="text-[10px] font-bold uppercase tracking-widest text-forge-muted">
-          Open in tabs
-        </span>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        {tabs.map((s, i) => {
-          const cfg = TYPE_STYLES[s.type] ?? TYPE_STYLES.task
-          return (
-            <button
-              key={sessionKey(s)}
-              class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-all cursor-pointer"
-              style={{
-                backgroundColor: 'var(--forge-surface)',
-                border: `1px solid ${cfg.border}`,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = cfg.color;
-                (e.currentTarget as HTMLElement).style.boxShadow = `0 2px 8px ${cfg.bg}`
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = cfg.border;
-                (e.currentTarget as HTMLElement).style.boxShadow = 'none'
-              }}
-              onClick={() => onSwitch(i)}
-            >
-              <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: cfg.color }} />
-              <span class="text-xs font-semibold text-forge-text truncate max-w-[160px]">{sessionLabel(s)}</span>
-              <span class="text-[10px] text-forge-muted truncate max-w-[100px]">{s.project}</span>
-              <span
-                class="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0"
-                style={{ color: cfg.color, backgroundColor: cfg.bg }}
-              >
-                {cfg.label}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function App() {
   const [spaces, setSpaces] = useState<CWSession[]>([])
-  const [projects, setProjects] = useState<Record<string, { path: string; account: string }>>({})
+  const [projects, setProjects] = useState<ProjectMap>({})
   const [accounts, setAccounts] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Sub-views within list
-  const [listView, setListView] = useState<'list' | 'new-task' | 'skills' | 'accounts'>('list')
-  const [newTaskType, setNewTaskType] = useState<string | undefined>()
+  const [view, setView] = useState<View>('list')
+  const [newTaskOpen, setNewTaskOpen] = useState(false)
+  const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
+  const [prototypeCount, setPrototypeCount] = useState<number | null>(null)
 
   // Create Project modal
   const [showCreateProject, setShowCreateProject] = useState(false)
 
-  const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
+
+  useEffect(() => {
+    void loadHarnesses()
+    void loadEditors()
+    fetch('/api/prototype/list').then(r => r.json() as Promise<unknown[]>).then(l => setPrototypeCount(l.length)).catch(() => {})
+  }, [])
 
   const fetchData = useCallback(async () => {
     try {
@@ -99,7 +55,7 @@ function App() {
         fetch('/api/cw/accounts'),
       ])
       setSpaces(await spacesRes.json() as CWSession[])
-      setProjects(await projectsRes.json() as Record<string, { path: string; account: string }>)
+      setProjects(await projectsRes.json() as ProjectMap)
       setAccounts(await accountsRes.json() as string[])
       refreshReviewStates()
     } catch {
@@ -124,8 +80,9 @@ function App() {
   const hasProjects = Object.keys(projects).length > 0
 
   const handleNewTask = (type?: string) => {
-    setNewTaskType(type)
-    setListView('new-task')
+    const quick = QUICK_TYPES.find(t => t.key === type)
+    if (quick) typeOverride.value = quick.key
+    setNewTaskOpen(true)
   }
 
   const [closeRequest, setCloseRequest] = useState<CloseRequest | null>(null)
@@ -167,8 +124,7 @@ function App() {
     setCloseRequest({ session, state: entry.state, error: entry.error, onClosed })
   }, [performClose])
 
-  const handleMarkDone = useCallback((session: CWSession) => requestClose(session), [requestClose])
-
+  
   const closeDialog = (
     <CloseTaskDialog
       request={closeRequest}
@@ -186,16 +142,82 @@ function App() {
     />
   )
 
-  const handleGoToList = useCallback(() => {
-    tabs.goToList()
-    setListView('list')
-  }, [tabs.goToList])
+  const navigate = useCallback((next: View) => {
+    sidebarOpen.value = false
+    if (!tabs.showList) tabs.goToList()
+    setNewTaskOpen(false)
+    setView(next)
+  }, [tabs.showList, tabs.goToList])
 
-  const handleCreateSkillWithAI = useCallback(async (scope: string, scopeRef: string, description: string) => {
-    let targetDir = ''
-    if (scope === 'global') targetDir = '~/.claude/skills/'
-    else if (scope === 'account') targetDir = `~/.cw/accounts/${scopeRef}/skills/`
-    else targetDir = `<project>/.claude/skills/`
+  const handleGoToList = useCallback(() => navigate('list'), [navigate])
+
+  const closeNewTask = useCallback(() => setNewTaskOpen(false), [])
+
+  const selectProject = useCallback((project: string) => {
+    filters.setFilterProject(filters.filterProject === project ? null : project)
+    navigate('list')
+  }, [filters.filterProject, filters.setFilterProject, navigate])
+
+  const openSession = useCallback((session: CWSession) => {
+    sidebarOpen.value = false
+    setNewTaskOpen(false)
+    tabs.openTab(session)
+  }, [tabs.openTab])
+
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const closePalette = useCallback(() => setPaletteOpen(false), [])
+  const openPalette = useCallback(() => setPaletteOpen(true), [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
+      if (mod && key === 'j') {
+        e.preventDefault()
+        toggleTheme()
+        return
+      }
+      if (mod && key === 'k') {
+        e.preventDefault()
+        if (paletteOpen) setPaletteOpen(false)
+        else openPalette()
+        return
+      }
+      const target = e.target as HTMLElement | null
+      const typing = target?.closest('input, textarea, select, [contenteditable="true"]')
+      if (typing || mod || e.altKey || paletteOpen || newTaskOpen || showCreateProject) return
+      if (e.key === '/') { e.preventDefault(); openPalette() }
+      else if (key === 'n') { e.preventDefault(); setNewTaskOpen(true) }
+      else if (key === 'p') { e.preventDefault(); setShowCreateProject(true) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [paletteOpen, newTaskOpen, showCreateProject, openPalette])
+
+  const startGeneral = useCallback(async (description: string, account: string, project: string | undefined, started: string) => {
+    try {
+      const res = await fetch('/api/cw/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'general', account, project, description }),
+      })
+      const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
+      if (result.ok && result.session) {
+        openSession(result.session)
+        refreshAfterAction()
+        showToast(started, 'success')
+      } else {
+        showToast(result.error ?? 'Failed to start session', 'error')
+      }
+    } catch {
+      showToast('Failed to start session', 'error')
+    }
+  }, [openSession, refreshAfterAction])
+
+  const handleCreateSkillWithAI = useCallback((scope: string, scopeRef: string, description: string) => {
+    const targetDir = scope === 'global' ? '~/.claude/skills/'
+      : scope === 'account' ? `~/.cw/accounts/${scopeRef}/skills/`
+      : '<project>/.claude/skills/'
 
     const initDescription = [
       'Use the skill-creator skill to create a new Claude Code skill.',
@@ -212,169 +234,225 @@ function App() {
       'Then use skill-creator to build/customize the skill and save it.',
     ].join('\n')
 
-    try {
-      const res = await fetch('/api/cw/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'general',
-          account: accounts[0] || 'default',
-          description: initDescription,
-        })
-      })
-      const result = await res.json() as { ok: boolean; session?: CWSession }
-      if (result.ok && result.session) {
-        tabs.openTab(result.session)
-        setListView('list')
-        showToast('AI skill creation session started', 'success')
-      } else {
-        showToast('Failed to start session', 'error')
-      }
-    } catch {
-      showToast('Failed to start skill creation session', 'error')
-    }
-  }, [accounts, tabs])
+    void startGeneral(initDescription, accounts[0] || 'default', undefined, 'AI skill creation session started')
+  }, [accounts, startGeneral])
 
-  const handleStartPrototype = useCallback((project: string) => {
-    setPrototypeProject(project)
-  }, [])
+  const handleRunSkill = useCallback((skill: SkillEntry) => {
+    const project = skill.scope === 'project' && projects[skill.scopeRef] ? skill.scopeRef : undefined
+    const account = skill.scope === 'account' ? skill.scopeRef
+      : project ? projects[project].account
+      : accounts[0] || 'default'
+    void startGeneral(`Use the ${skill.name} skill.`, account, project, `Session started with ${skill.name}`)
+  }, [accounts, projects, startGeneral])
 
-  const handleBackFromPrototype = useCallback(() => {
-    setPrototypeProject(null)
-    setListView('list')
-  }, [])
+  useEffect(() => {
+    if (loading) return
+    loadSkills(accounts[0] ?? '', Object.keys(projects)[0] ?? '').catch(() => {})
+  }, [loading])
 
-  // --- Render ---
+  const activeSessions = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
 
-  if (tabs.showList || tabs.openTabs.length === 0) {
-    return (
-      <Shell onLogoClick={handleGoToList}>
-        {loading ? (
-          <div class="py-20 text-center text-forge-muted">Loading...</div>
-        ) : !hasProjects ? (
-          <EmptyState
-            icon="&#128296;"
-            title="Welcome to Forge"
-            description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
-          />
-        ) : listView === 'list' ? (
-          <>
-            <OpenTabsBanner tabs={tabs.openTabs} onSwitch={tabs.switchToTab} />
-            <TaskList
-              spaces={filters.filteredSpaces}
-              allSpaces={spaces}
-              loading={loading}
-              onNewTask={handleNewTask}
-              onCreateProject={() => setShowCreateProject(true)}
-              onOpenAccounts={() => setListView('accounts')}
-              onSelectTask={tabs.openTab}
-              onRefresh={() => fetchData()}
-              projects={projects}
-              accountNames={filters.accountNames}
-              filterAccount={filters.filterAccount}
-              onFilterAccount={filters.setFilterAccount}
-              projectNames={filters.projectNames}
-              filterProject={filters.filterProject}
-              onFilterProject={filters.setFilterProject}
-              filterType={filters.filterType}
-              onFilterType={filters.setFilterType}
-              harnessNames={filters.harnessNames}
-              filterHarness={filters.filterHarness}
-              onFilterHarness={filters.setFilterHarness}
-              showDone={filters.showDone}
-              onShowDone={filters.setShowDone}
-              openTabKeys={tabs.openTabKeys}
-              onMarkDone={handleMarkDone}
-            onSkills={() => setListView('skills')}
-            />
-            <CreateProjectModal
-              open={showCreateProject}
-              accounts={filters.accountNames}
-              onClose={() => setShowCreateProject(false)}
-              onCreated={(session) => { setShowCreateProject(false); if (session) tabs.openTab(session); refreshAfterAction() }}
-            />
-          </>
-        ) : prototypeProject ? (
-          <PrototypePanel
-            project={prototypeProject}
-            onBack={handleBackFromPrototype}
-          />
-        ) : listView === 'new-task' ? (
-          <NewTask
-            projects={projects}
-            accounts={filters.accountNames}
-            initialType={newTaskType}
-            initialAccount={filters.filterAccount ?? undefined}
-            initialProject={filters.filterProject ?? undefined}
-            onBack={() => setListView('list')}
-            onCreated={(session) => {
-              setListView('list')
-              if (session) tabs.openTab(session)
-              refreshAfterAction()
-            }}
-            onStartPrototype={handleStartPrototype}
-            onOpenAccounts={() => setListView('accounts')}
-          />
-        ) : listView === 'accounts' ? (
-          <Accounts
-            onBack={() => setListView('list')}
-            onOpenSession={tabs.openTab}
-            onAccountsChanged={() => { fetchData() }}
-          />
-        ) : listView === 'skills' ? (
-          <Skills
-            accounts={filters.accountNames}
-            projects={projects}
-            onBack={() => setListView('list')}
-            onCreateWithAI={handleCreateSkillWithAI}
-          />
-        ) : null}
-        {closeDialog}
-      </Shell>
-    )
-  }
+  const live = useMemo(
+    () => tabs.openTabs.filter(s => s.status === 'active' && s.type !== 'login').map(s => ({ key: sessionKey(s), session: s })),
+    [tabs.openTabs],
+  )
 
-  // --- Tabs view ---
+  // every registered project, plus projects that only appear in sessions
+  const sidebarProjects = useMemo(() => {
+    const accountOf = new Map(Object.entries(projects).map(([name, p]) => [name, p.account]))
+    for (const s of spaces) if (projectOf(s) && !accountOf.has(s.project)) accountOf.set(s.project, s.account)
+    return Array.from(accountOf, ([name, account]) => ({
+      name,
+      account: account || 'unassigned',
+      count: activeSessions.filter(s => s.project === name).length,
+      live: live.some(l => l.session.project === name),
+    }))
+  }, [projects, spaces, activeSessions, live])
+
+  // picking a project in the sidebar also picks it for the start card
+  useEffect(() => {
+    if (filters.filterProject) startProject.value = filters.filterProject
+  }, [filters.filterProject])
+
+  const projectKeys = useMemo(() => Object.keys(projects), [projects])
+
+  const showProject = useCallback((project: string) => {
+    filters.setFilterProject(project)
+    navigate('list')
+  }, [filters.setFilterProject, navigate])
+
+  const detailShown = !tabs.showList && tabs.openTabs.length > 0
+  const sidebarView: View = detailShown ? 'list' : view
+  const prototypeTarget = prototypeProject ?? filters.filterProject ?? projectKeys[0] ?? null
+
+  const paletteCommands = useMemo<PaletteItem[]>(() => [
+    { id: 'new-task', label: 'New task', hint: 'N', glyph: '+', token: '--blue', run: () => handleNewTask() },
+    { id: 'add-project', label: 'Add project', hint: 'P', glyph: 'P', token: '--green', run: () => setShowCreateProject(true) },
+    ...NAV.map(n => ({ id: n.view, label: n.label, hint: n.view === 'list' ? '⌘L' : '', glyph: n.glyph, token: n.token, run: () => navigate(n.view) })),
+    { id: 'appearance', label: 'Toggle appearance', hint: '⌘J', glyph: '◐', token: null, run: toggleTheme },
+  ], [navigate])
+
+  const sidebar = (
+    <Sidebar
+      view={sidebarView}
+      counts={{ list: activeSessions.length, accounts: filters.accountNames.length, prototypes: prototypeCount }}
+      projects={sidebarProjects}
+      accounts={filters.accountNames}
+      selectedProject={filters.filterProject}
+      live={live}
+      onNavigate={navigate}
+      onSelectProject={selectProject}
+      onAddProject={() => { sidebarOpen.value = false; setShowCreateProject(true) }}
+      onOpenLive={openSession}
+      onSearch={openPalette}
+    />
+  )
+
+  const page = loading ? (
+    <div class="py-20 text-center text-ink2">Loading…</div>
+  ) : view === 'list' && !hasProjects ? (
+    <div style={{ padding: '56px 22px' }}>
+      <EmptyState
+        icon="i-lucide-folder"
+        title="Welcome to Forge"
+        description="No projects found in CW. Register a project with 'cw open <project>' or create one with 'cw create' first."
+        action={{ label: 'Add project', onClick: () => setShowCreateProject(true) }}
+      />
+    </div>
+  ) : view === 'list' ? (
+    <TaskList
+      spaces={filters.filteredSpaces}
+      allSpaces={spaces}
+      projects={projects}
+      accountNames={filters.accountNames}
+      filterAccount={filters.filterAccount}
+      filterProject={filters.filterProject}
+      onFilterProject={filters.setFilterProject}
+      filterType={filters.filterType}
+      onFilterType={filters.setFilterType}
+      harnessNames={filters.harnessNames}
+      filterHarness={filters.filterHarness}
+      onFilterHarness={filters.setFilterHarness}
+      showDone={filters.showDone}
+      onShowDone={filters.setShowDone}
+      openTabKeys={tabs.openTabKeys}
+      onSelectTask={openSession}
+      onMarkDone={requestClose}
+      onNewTask={() => handleNewTask()}
+      onCreateProject={() => setShowCreateProject(true)}
+      onRefresh={() => fetchData()}
+      onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
+    />
+  ) : view === 'prototypes' ? (
+    prototypeTarget ? (
+      <PrototypePanel
+        project={prototypeTarget}
+        projects={Object.keys(projects)}
+        onProjectChange={setPrototypeProject}
+        onBack={handleGoToList}
+      />
+    ) : null
+  ) : view === 'accounts' ? (
+    <Accounts
+      projects={projects}
+      onOpenSession={openSession}
+      onAccountsChanged={() => { fetchData() }}
+    />
+  ) : (
+    <Skills
+      accounts={filters.accountNames}
+      projects={projects}
+      onCreateWithAI={handleCreateSkillWithAI}
+      onRunSkill={handleRunSkill}
+    />
+  )
+
   return (
-    <Shell fullHeight onLogoClick={handleGoToList}>
-      <div class="flex flex-col h-full">
-        <TabBar
-          tabs={tabs.openTabs}
-          activeIndex={tabs.activeTabIndex}
-          onActivate={tabs.setActiveTabIndex}
-          onClose={tabs.closeTab}
-          allSessions={spaces.filter(s => s.status === 'active')}
-          openTabKeys={tabs.openTabKeys}
-          onOpenSession={tabs.openTab}
-          onNewTask={(type) => { handleGoToList(); handleNewTask(type) }}
-        />
-        <div class="flex-1 min-h-0 relative">
-          {tabs.openTabs.map((session, i) => {
-            const isActive = i === tabs.activeTabIndex
-            return (
-              <div
-                key={sessionKey(session)}
-                style={{
-                  position: 'absolute',
-                  top: 0, left: 0, right: 0, bottom: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  visibility: isActive ? 'visible' : 'hidden',
-                  zIndex: isActive ? 1 : 0,
-                  pointerEvents: isActive ? 'auto' : 'none',
-                }}
-              >
-                <TaskDetail
-                  session={session}
-                  active={isActive}
-                  onClose={() => tabs.closeTab(i)}
-                  onDone={() => requestClose(session, () => { void tabs.closeTabByKey(sessionKey(session)) })}
-                />
-              </div>
-            )
-          })}
+    <Shell sidebar={sidebar}>
+      {!detailShown && page}
+
+      {tabs.openTabs.length > 0 && (
+        <div
+          class="flex flex-col"
+          aria-hidden={!detailShown}
+          style={detailShown
+            ? { height: '100vh' }
+            : { position: 'absolute', top: 0, left: 0, right: 0, height: '100vh', visibility: 'hidden', pointerEvents: 'none', zIndex: -1 }}
+        >
+          <TabBar
+            tabs={tabs.openTabs}
+            activeIndex={tabs.activeTabIndex}
+            onActivate={tabs.setActiveTabIndex}
+            onClose={tabs.closeTab}
+            onBack={handleGoToList}
+            allSessions={activeSessions}
+            openTabKeys={tabs.openTabKeys}
+            onOpenSession={openSession}
+            onNewTask={(type) => { handleGoToList(); handleNewTask(type) }}
+          />
+          <div class="flex-1 min-h-0 relative">
+            {tabs.openTabs.map((session, i) => {
+              const isActive = i === tabs.activeTabIndex
+              const shown = isActive && detailShown
+              return (
+                <div
+                  key={sessionKey(session)}
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    visibility: shown ? 'visible' : 'hidden',
+                    zIndex: isActive ? 1 : 0,
+                    pointerEvents: shown ? 'auto' : 'none',
+                  }}
+                >
+                  <TaskDetail
+                    session={session}
+                    active={shown}
+                    onDone={() => requestClose(session, () => { void tabs.closeTabByKey(sessionKey(session)) })}
+                  />
+                </div>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {newTaskOpen && (
+        <NewTask
+          projects={projects}
+          accounts={filters.accountNames}
+          initialAccount={filters.filterAccount ?? (startAccount.value || undefined)}
+          initialProject={startProject.value || undefined}
+          onClose={closeNewTask}
+          onCreated={(session) => {
+            setNewTaskOpen(false)
+            if (session) openSession(session)
+            refreshAfterAction()
+          }}
+          onOpenAccounts={() => navigate('accounts')}
+        />
+      )}
+
+      {paletteOpen && (
+        <CommandPalette
+          openTabs={tabs.openTabs}
+          sessions={spaces}
+          projects={projectKeys}
+          commands={paletteCommands}
+          onOpenSession={openSession}
+          onSelectProject={showProject}
+          onClose={closePalette}
+        />
+      )}
+
+      <CreateProjectModal
+        open={showCreateProject}
+        accounts={filters.accountNames}
+        onClose={() => setShowCreateProject(false)}
+        onCreated={(session) => { setShowCreateProject(false); if (session) openSession(session); refreshAfterAction() }}
+      />
       {closeDialog}
     </Shell>
   )

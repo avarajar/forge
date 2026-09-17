@@ -1,13 +1,14 @@
-import { type FunctionComponent } from 'preact'
+import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { TYPE_STYLES, sessionDirOf } from '../config/types.js'
-import { HarnessBadge } from '../components/HarnessBadge.js'
-import { ReviewSummary } from '../components/ReviewSummary.js'
+import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
+import { reviewSummary, unpushedCount } from '../config/review.js'
+import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
-
-/* ── Types ── */
+import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
+import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
+import { theme } from '../shell.js'
 
 interface ToolsMcp { name: string; type: string; source: string; url?: string }
 interface ToolsPlugin { name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }
@@ -16,47 +17,86 @@ interface ToolsInfo { mcps: ToolsMcp[]; plugins: ToolsPlugin[] }
 interface TaskDetailProps {
   session: CWSession
   active: boolean
-  onClose: () => void
   onDone: () => void | Promise<void>
 }
 
-/* ── Component ── */
+// the second stop of each type's avatar gradient
+const AVATAR_PAIR: Record<string, string> = { '--orange': '--red', '--blue': '--purple', '--purple': '--blue', '--green': '--teal' }
 
-export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active, onClose, onDone }) => {
+const Metric: FunctionComponent<{ label: string; index: number; color?: string; bar?: number | null; title?: string; children: ComponentChildren }> = ({ label, index, color = 'var(--ink)', bar, title, children }) => (
+  <div
+    class="min-w-0"
+    title={title}
+    style={{ padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: `riseIn .34s var(--ease) ${index * 60}ms both` }}
+  >
+    <div style={{ fontSize: '11.5px', color: 'var(--ink-2)' }}>{label}</div>
+    <div class="mono truncate" style={{ fontSize: '19px', fontWeight: 650, color, marginTop: '2px' }}>{children}</div>
+    {bar !== undefined && (
+      <div style={{ height: '5px', borderRadius: '99px', background: 'var(--elev)', marginTop: '7px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${bar ?? 0}%`, borderRadius: '99px', background: 'linear-gradient(90deg, var(--blue), var(--purple))', transition: 'width .6s var(--ease)' }} />
+      </div>
+    )}
+  </div>
+)
+
+const ChipCard: FunctionComponent<{ title: string; items: Array<{ name: string; title?: string; muted?: boolean }>; tone: string | null; empty: string }> = ({ title, items, tone, empty }) => (
+  <div style={{ padding: '11px 13px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)' }}>
+    <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '5px' }}>{title}</div>
+    <div class="flex flex-wrap" style={{ gap: '5px' }}>
+      {items.length === 0 && <span style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{empty}</span>}
+      {items.map(i => (
+        <span
+          key={i.name}
+          title={i.title}
+          style={{
+            padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 500,
+            background: tone && !i.muted ? soft(tone) : 'var(--elev)',
+            color: tone && !i.muted ? `var(${tone})` : 'var(--ink-2)',
+            opacity: i.muted ? 0.6 : 1,
+          }}
+        >{i.name}</span>
+      ))}
+    </div>
+  </div>
+)
+
+export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active, onDone }) => {
   const [branch, setBranch] = useState<string>('')
   const [ptyExited, setPtyExited] = useState(false)
   const [connected, setConnected] = useState(false)
   const [wsKey, setWsKey] = useState(0)
   const [tools, setTools] = useState<ToolsInfo | null>(null)
+  const [contextOpen, setContextOpen] = useState(false)
 
+  const key = sessionKey(session)
   const sessionDir = sessionDirOf(session)
+  const reviewed = session.type === 'task' || session.type === 'review'
   const review = useTaskReview(session, { poll: active && session.type === 'task' })
-  const typeCfg = TYPE_STYLES[session.type] ?? TYPE_STYLES.task
+  const style = getTypeStyle(session.type)
   const isLogin = session.type === 'login'
+  const stack = stackParts(useProjectStack(isLogin ? '' : projectOf(session)))
+  const metrics = metricsFor(key).value
 
-  // Branch-style task names (e.g. `task/form-header`) become sessionDirs like
-  // `task-task/form-header`. Encode each segment so the slash doesn't split the path.
+  // Branch-style task names become sessionDirs like `task-task/form-header`; encode so the slash stays in one segment
   const projectEnc = encodeURIComponent(session.project)
   const sessionDirEnc = encodeURIComponent(sessionDir)
 
   const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsUrl = `${wsProto}//${window.location.host}/ws/terminal/${projectEnc}/${sessionDirEnc}?k=${wsKey}`
 
-  const fetchData = async () => {
-    const [toolsRes, branchRes] = await Promise.all([
-      fetch(`/api/cw/tools?project=${projectEnc}`).catch(() => null),
-      fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`).catch(() => null),
-    ])
-    if (toolsRes) setTools(await toolsRes.json() as ToolsInfo)
-    if (branchRes) {
-      const data = await branchRes.json() as { branch: string }
-      setBranch(data.branch || session.task || session.pr || '')
-    } else {
-      setBranch(session.task ?? session.pr ?? '')
-    }
-  }
-
-  useEffect(() => { if (!isLogin) fetchData() }, [session])
+  useEffect(() => {
+    if (isLogin) return
+    let cancelled = false
+    Promise.all([
+      fetch(`/api/cw/tools?project=${projectEnc}`).then(r => r.json() as Promise<ToolsInfo>).catch(() => null),
+      fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`).then(r => r.json() as Promise<{ branch: string }>).catch(() => null),
+    ]).then(([toolsInfo, branchInfo]) => {
+      if (cancelled) return
+      if (toolsInfo) setTools(toolsInfo)
+      setBranch(branchInfo?.branch || session.task || session.pr || '')
+    })
+    return () => { cancelled = true }
+  }, [key])
 
   const handleRestart = () => {
     setPtyExited(false)
@@ -65,142 +105,125 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
 
   const mcpList = tools?.mcps ?? []
   const pluginList = tools?.plugins ?? []
-  const hasTools = mcpList.length > 0 || pluginList.length > 0
+  const state = review?.state ?? null
+  const shownBranch = state?.branch ?? branch
+  const changes = !review ? 'Checking changes…' : review.error !== null ? 'Changes unknown' : reviewSummary(review.state)
+  const identity = [
+    projectOf(session) || 'no project',
+    session.account,
+    [harnessLabel(session), session.provider && session.provider !== 'native' ? null : session.model].filter(Boolean).join(', '),
+    `${session.opens} session${session.opens === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' · ')
 
   return (
-    <div class="flex flex-col h-full">
-      {/* ── Status bar ── */}
-      <div class="shrink-0" style={{ backgroundColor: 'var(--forge-surface)', borderBottom: '1px solid var(--forge-ghost-border)' }}>
-        {/* Row 1: type + stats + actions */}
-        <div class="flex items-center gap-3 px-4 py-2">
-          {/* Connection dot */}
+    <div class="flex flex-col h-full min-w-0">
+      <div class="flex flex-col shrink-0" style={{ padding: '14px 20px', gap: '12px' }}>
+        <div class="flex items-center flex-wrap" style={{ gap: '12px' }}>
           <span
-            class={`w-2 h-2 rounded-full shrink-0${connected ? ' animate-pulse' : ''}`}
-            style={{ backgroundColor: connected ? 'var(--forge-success)' : 'var(--forge-muted)' }}
-            title={connected ? 'Connected' : 'Disconnected'}
-          />
-
-          {/* Type badge */}
-          <span
-            class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider shrink-0"
-            style={{ backgroundColor: typeCfg.bg, color: typeCfg.color, border: `1px solid ${typeCfg.border}` }}
-          >
-            {typeCfg.label}
-          </span>
-
-          <HarnessBadge session={session} />
-
-          {/* Branch (click to copy) */}
-          {branch && (
-            <button
-              class="text-[11px] font-mono px-1.5 py-0.5 rounded shrink-0 truncate max-w-[260px] cursor-pointer transition-colors"
-              style={{ backgroundColor: 'var(--forge-ghost-bg)', color: 'var(--forge-muted)', border: 'none' }}
-              title="Click to copy branch name"
-              onClick={() => {
-                navigator.clipboard.writeText(branch)
-                showToast('Branch copied', 'info')
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-text)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--forge-muted)' }}
-            >
-              {branch}
-            </button>
-          )}
-
-          {/* Separator */}
-          <span class="w-px h-3 shrink-0" style={{ backgroundColor: 'var(--forge-ghost-border)' }} />
-
-          {/* Stats */}
-          <div class="flex items-center gap-2.5 text-[11px] text-forge-muted min-w-0">
-            {!isLogin && <ReviewSummary session={session} entry={review} />}
-            <span style={{ opacity: 0.3 }}>&middot;</span>
-            <span class="shrink-0">{session.opens} session{session.opens !== 1 ? 's' : ''}</span>
+            class="grid place-items-center shrink-0"
+            style={{ width: '34px', height: '34px', borderRadius: '11px', background: `linear-gradient(160deg, var(${style.token}), var(${AVATAR_PAIR[style.token] ?? style.token}))`, boxShadow: 'var(--shadow-m)', color: '#fff', fontSize: '13px', fontWeight: 700 }}
+            aria-hidden="true"
+          >{style.glyph}</span>
+          <div class="min-w-0">
+            <h1 class="truncate" style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '-0.02em' }}>{sessionLabel(session)}</h1>
+            <p class="truncate" style={{ marginTop: '1px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{identity}</p>
+            {!isLogin && (
+              <p class="mono truncate" style={{ marginTop: '2px', fontSize: '11.5px', color: 'var(--ink-3)' }} title={changes}>{changes}</p>
+            )}
           </div>
-
-          <span class="flex-1" />
-
-          {/* Actions */}
-          <div class="flex items-center gap-2 shrink-0">
-            {ptyExited && (
-              <ActionButton label="Restart" variant="secondary" onClick={handleRestart} />
+          <span style={{ flex: '1 1 60px' }} />
+          <div class="flex flex-wrap items-center" style={{ gap: '7px' }}>
+            {!isLogin && (
+              <button type="button" class={secondaryClass} style={secondaryButton} aria-expanded={contextOpen} onClick={() => setContextOpen(o => !o)}>
+                {contextOpen ? 'Hide context' : `Context · ${mcpList.length} MCP, ${pluginList.length} plugins`}
+              </button>
             )}
-            {session.status === 'active' && !isLogin && (
-              <ActionButton label="Done" variant="secondary" onClick={onDone} />
-            )}
+            {!isLogin && <GitHubButton entry={review} />}
+            {!isLogin && <EditorButton session={session} entry={review} />}
+            {ptyExited && <ActionButton label="Restart" variant="secondary" size="sm" onClick={handleRestart} />}
+            {session.status === 'active' && !isLogin && <ActionButton label="Mark done" variant="primary" size="sm" onClick={onDone} />}
           </div>
         </div>
 
-        {/* Row 2: MCPs + Plugins */}
-        {hasTools && (
-          <div class="flex items-center gap-1.5 px-4 pb-2 flex-wrap" style={{ marginTop: '-2px' }}>
-            {mcpList.length > 0 && (
-              <>
-                <span class="text-[9px] font-bold uppercase tracking-widest text-forge-muted mr-0.5" style={{ opacity: 0.45 }}>MCP</span>
-                {mcpList.map(m => (
-                  <span
-                    key={m.name}
-                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-                    style={{
-                      backgroundColor: m.source === 'project' ? 'rgba(217,119,6,0.08)' : 'rgba(99,102,241,0.08)',
-                      color: m.source === 'project' ? 'rgba(217,170,100,0.85)' : 'rgba(147,151,255,0.85)',
-                      border: `1px solid ${m.source === 'project' ? 'rgba(217,119,6,0.15)' : 'rgba(99,102,241,0.15)'}`,
-                    }}
-                    title={`${m.name} (${m.type} · ${m.source})`}
-                  >
-                    <span class="w-1 h-1 rounded-full shrink-0" style={{
-                      backgroundColor: m.type === 'sse' || m.type === 'url' ? '#10b981' : '#6366f1'
-                    }} />
-                    {m.name}
-                  </span>
-                ))}
-              </>
+        {!isLogin && (
+          <div class="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(138px, 1fr))', gap: '9px' }}>
+            <Metric index={0} label="Context used" color="var(--blue)" bar={metrics?.context ?? null} title="Read from the harness status line">
+              {metrics?.context != null ? `${Math.round(metrics.context)}%` : '—'}
+            </Metric>
+            <Metric index={1} label="Tokens">{metrics?.tokens != null ? formatTokens(metrics.tokens) : '—'}</Metric>
+            <Metric index={2} label="Cost" color="var(--green)">{metrics?.cost != null ? formatCost(metrics.cost) : '—'}</Metric>
+            {reviewed && <Metric index={3} label="Commits">{state?.commits ?? '—'}</Metric>}
+            {reviewed && (
+              <Metric index={4} label="Unpushed" color={state && unpushedCount(state) > 0 ? 'var(--orange)' : 'var(--ink)'}>
+                {state ? unpushedCount(state) : '—'}
+              </Metric>
             )}
-            {mcpList.length > 0 && pluginList.length > 0 && (
-              <span class="w-px h-3 mx-0.5" style={{ backgroundColor: 'var(--forge-ghost-border)' }} />
+            {shownBranch && (
+              <button
+                type="button"
+                class="text-left cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m min-w-0"
+                style={{ padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', color: 'var(--ink)', animation: 'riseIn .34s var(--ease) 300ms both' }}
+                title="Copy branch name"
+                onClick={() => { void navigator.clipboard.writeText(shownBranch); showToast('Branch copied', 'info') }}
+              >
+                <div class="flex items-center" style={{ gap: '4px', fontSize: '11.5px', color: 'var(--ink-2)' }}>
+                  Branch <span class="i-lucide-copy" style={{ width: '11px', height: '11px' }} />
+                </div>
+                <div class="mono truncate" style={{ fontSize: '13px', fontWeight: 600, marginTop: '6px' }}>{shownBranch}</div>
+              </button>
             )}
-            {pluginList.length > 0 && (
-              <>
-                <span class="text-[9px] font-bold uppercase tracking-widest text-forge-muted mr-0.5" style={{ opacity: 0.45 }}>Plugins</span>
-                {pluginList.map(p => (
-                  <span
-                    key={p.name}
-                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium"
-                    style={{
-                      backgroundColor: p.enabled ? 'rgba(16,185,129,0.08)' : 'rgba(107,114,128,0.08)',
-                      color: p.enabled ? 'rgba(52,211,153,0.85)' : 'rgba(107,114,128,0.6)',
-                      border: `1px solid ${p.enabled ? 'rgba(16,185,129,0.15)' : 'rgba(107,114,128,0.15)'}`,
-                    }}
-                    title={`${p.name}${p.hasMcp ? ` (MCP: ${p.mcpName}, ${p.mcpType})` : ''} · ${p.enabled ? 'enabled' : 'disabled'} · ${p.marketplace}`}
-                  >
-                    <span class="w-1 h-1 rounded-full shrink-0" style={{
-                      backgroundColor: p.enabled ? (p.hasMcp ? '#10b981' : '#6366f1') : '#6b7280'
-                    }} />
-                    {p.name}
-                    {p.hasMcp && (
-                      <span class="text-[8px] opacity-50">mcp</span>
-                    )}
-                  </span>
-                ))}
-              </>
-            )}
+          </div>
+        )}
+
+        {contextOpen && (
+          <div class="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '9px', animation: 'riseIn .3s var(--ease) both' }}>
+            <ChipCard
+              title={`MCP · ${mcpList.length}`}
+              tone="--blue"
+              empty="No MCP servers"
+              items={mcpList.map(m => ({ name: m.name, title: `${m.type} · ${m.source}` }))}
+            />
+            <ChipCard
+              title={`Plugins · ${pluginList.length}`}
+              tone="--green"
+              empty="No plugins"
+              items={pluginList.map(p => ({ name: p.name, muted: !p.enabled, title: `${p.enabled ? 'enabled' : 'disabled'} · ${p.marketplace}${p.hasMcp ? ` · MCP ${p.mcpName ?? ''}` : ''}` }))}
+            />
+            <ChipCard title="Stack" tone={null} empty="Nothing detected" items={stack.map(name => ({ name }))} />
           </div>
         )}
       </div>
 
-      {/* ── Terminal ── */}
-      <div class="relative" style={{ flex: '1 1 0', minHeight: 0 }}>
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <ForgeTerminal
-            wsUrl={wsUrl}
-            onExit={() => setPtyExited(true)}
-            onConnectionChange={(c) => setConnected(c)}
-          />
-        </div>
-        {!connected && !ptyExited && (
-          <div class="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
-            <span class="text-sm text-white/70">Connecting...</span>
+      <div
+        class="task-terminal relative flex-1 min-h-0"
+        style={{ margin: '0 20px 20px', borderRadius: '14px', overflow: 'hidden', background: 'var(--term)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)' }}
+      >
+        <div class="absolute inset-0 flex flex-col">
+          <div class="flex items-center shrink-0" style={{ gap: '7px', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
+            <span style={{ width: '11px', height: '11px', borderRadius: '50%', background: '#ff5f57' }} />
+            <span style={{ width: '11px', height: '11px', borderRadius: '50%', background: '#febc2e' }} />
+            <span style={{ width: '11px', height: '11px', borderRadius: '50%', background: '#28c840' }} />
+            <span class="mono truncate" style={{ fontSize: '11px', color: '#8a8a92', marginLeft: '6px' }}>
+              {shownBranch || sessionLabel(session)} — {session.harness ?? 'claude'}
+            </span>
+            <span class="flex-1" />
+            <span class="mono" style={{ fontSize: '11px', color: connected ? '#30d158' : '#8a8a92' }}>{connected ? 'connected' : ptyExited ? 'exited' : 'offline'}</span>
           </div>
-        )}
+          <div class="relative flex-1 min-h-0" style={{ padding: '12px 6px 6px 14px' }}>
+            <ForgeTerminal
+              wsUrl={wsUrl}
+              theme={theme.value}
+              onOutput={(data) => recordOutput(key, data)}
+              onExit={() => setPtyExited(true)}
+              onConnectionChange={setConnected}
+            />
+            {!connected && !ptyExited && (
+              <div class="absolute inset-0 grid place-items-center pointer-events-none" style={{ background: 'rgba(0,0,0,.35)' }}>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,.7)' }}>Connecting…</span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
