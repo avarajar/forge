@@ -40,15 +40,16 @@ const fallbackBranch = (s: CWSession): string =>
   s.type === 'review' ? `review/pr-${s.pr}` : s.type === 'loop' ? `loop/${s.task ?? 'loop'}` : s.type === 'task' ? `task/${s.task}` : '—'
 
 // only task and review rows read review state
-const ReviewedLine: FunctionComponent<{ session: CWSession }> = ({ session }) => {
+const ReviewedLine: FunctionComponent<{ session: CWSession; project?: string }> = ({ session, project }) => {
   const entry = useTaskReview(session)
   const branch = entry?.state?.branch ?? fallbackBranch(session)
   const status = !entry ? 'checking…' : entry.error !== null ? 'changes unknown' : rowStatus(entry.state)
-  return <MetaLine branch={branch} status={status} />
+  return <MetaLine branch={branch} status={status} project={project} />
 }
 
-const MetaLine: FunctionComponent<{ branch: string; status: string }> = ({ branch, status }) => (
+const MetaLine: FunctionComponent<{ branch: string; status: string; project?: string }> = ({ branch, status, project }) => (
   <div class="task-meta flex items-center min-w-0" style={{ gap: '9px', marginTop: '2px' }}>
+    {project && <span class="shrink-0" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)' }}>{project}</span>}
     <span class="mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{branch}</span>
     <span class="whitespace-nowrap truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{status}</span>
   </div>
@@ -66,7 +67,9 @@ export const TaskRow: FunctionComponent<{
   isOpenInTab: boolean
   onSelect: () => void
   onMarkDone?: () => void | Promise<void>
-}> = ({ session, isOpenInTab, onSelect, onMarkDone }) => {
+  showProject?: boolean
+}> = ({ session, isOpenInTab, onSelect, onMarkDone, showProject }) => {
+  const project = showProject ? session.project || 'no project' : undefined
   const [closing, setClosing] = useState(false)
   const reviewed = session.type === 'task' || session.type === 'review'
   // closing waits for cw --done, so the button stays busy and cannot send a second close
@@ -100,8 +103,8 @@ export const TaskRow: FunctionComponent<{
           {session.source && <span class="task-chip contents"><Chip label={session.source} href={session.source_url} /></span>}
         </div>
         {reviewed
-          ? <ReviewedLine session={session} />
-          : <MetaLine branch={fallbackBranch(session)} status={plainStatus(session)} />}
+          ? <ReviewedLine session={session} project={project} />
+          : <MetaLine branch={fallbackBranch(session)} status={plainStatus(session)} project={project} />}
       </div>
       <HarnessBadge session={session} />
       <span class="mono shrink-0 text-right" style={{ width: '52px', fontSize: '11.5px', color: 'var(--ink-3)' }} title={new Date(session.last_opened).toLocaleString()}>

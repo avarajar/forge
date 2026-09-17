@@ -24,6 +24,7 @@
 - New Task opens as a drawer over the task list and shares the start card's input.
 - Skills shows the list and the editor side by side; search falls through to skills.sh.
 - Accounts shows one card per account, and removing an account moved there from the task list.
+- The task list shows the most recently opened tasks first by default, with a By project view one click away.
 - The type filter covers Loop and General; the account filter moved out of the task list.
 - Terminal tabs stay connected while the task list is open.
 - Forge removes `CW_HARNESS` from the environment of every `cw` command it runs, except a new General session.

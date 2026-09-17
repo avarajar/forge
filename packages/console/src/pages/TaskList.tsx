@@ -1,5 +1,5 @@
 import { type FunctionComponent } from 'preact'
-import { useMemo } from 'preact/hooks'
+import { useMemo, useState } from 'preact/hooks'
 import { ActionButton, Tabs } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { QUICK_TYPES, getHarnessStyle, quickLabel, sessionKey, type QuickType } from '../config/types.js'
@@ -36,6 +36,17 @@ interface TaskListProps {
 }
 
 const DONE_LIMIT = 10
+const LAYOUT_KEY = 'forge-task-layout'
+
+type Layout = 'recent' | 'project'
+
+const readLayout = (): Layout => {
+  try {
+    return localStorage.getItem(LAYOUT_KEY) === 'project' ? 'project' : 'recent'
+  } catch {
+    return 'recent'
+  }
+}
 
 const cardStyle = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', overflow: 'hidden' }
 const cardHeader = { padding: '11px 15px', borderBottom: '1px solid var(--hair)', background: 'var(--elev)' }
@@ -78,6 +89,13 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   filterType, onFilterType, harnessNames, filterHarness, onFilterHarness, showDone, onShowDone,
   openTabKeys, onSelectTask, onMarkDone, onNewTask, onCreateProject, onRefresh, onStarted, startProject,
 }) => {
+  const [layout, setLayout] = useState<Layout>(readLayout)
+  const changeLayout = (next: Layout) => {
+    setLayout(next)
+    try { localStorage.setItem(LAYOUT_KEY, next) } catch {}
+  }
+
+  // spaces arrive most recently opened first
   const active = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])
   const done = useMemo(() => spaces.filter(s => s.status === 'done'), [spaces])
 
@@ -138,6 +156,15 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             />
           )}
           <span class="flex-1" />
+          {!filterProject && (
+            <Tabs
+              size="sm"
+              label="Order tasks"
+              tabs={[{ id: 'recent', label: 'Recent' }, { id: 'project', label: 'By project' }]}
+              active={layout}
+              onChange={(id) => changeLayout(id === 'project' ? 'project' : 'recent')}
+            />
+          )}
           <button
             type="button"
             aria-pressed={showDone}
@@ -159,7 +186,28 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
           />
         )}
 
-        {groups.map((g, i) => (
+        {layout === 'recent' && !filterProject && active.length > 0 && (
+          <section style={{ ...cardStyle, animation: 'riseIn .4s var(--ease) both' }} aria-label="Recently opened">
+            <div class="flex items-center" style={{ ...cardHeader, gap: '10px' }}>
+              <span class="i-lucide-clock shrink-0" style={{ width: '14px', height: '14px', color: 'var(--ink-2)' }} />
+              <span style={{ fontSize: '14px', fontWeight: 650, letterSpacing: '-0.01em' }}>Recently opened</span>
+              <span class="flex-1" />
+              <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{active.length} task{active.length === 1 ? '' : 's'}</span>
+            </div>
+            {active.map(s => (
+              <TaskRow
+                key={sessionKey(s)}
+                session={s}
+                showProject
+                isOpenInTab={openTabKeys.has(sessionKey(s))}
+                onSelect={() => onSelectTask(s)}
+                onMarkDone={s.type === 'login' ? undefined : () => onMarkDone(s)}
+              />
+            ))}
+          </section>
+        )}
+
+        {(layout === 'project' || filterProject) && groups.map((g, i) => (
           <GroupCard
             key={g.project}
             project={g.project}
