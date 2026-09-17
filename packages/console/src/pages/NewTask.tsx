@@ -9,6 +9,7 @@ import { harnesses, loadHarnesses, missingTicketToken, supportsIn, ticketSourceO
 import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
 import { InferenceLine, TypeSegmented, type ProjectMap } from '../components/StartCard.js'
 import { Field, labelStyle } from '../components/Field.js'
+import { Combobox, projectOptions } from '../components/Combobox.js'
 import { useAutoFocus } from '../hooks/useAutoFocus.js'
 
 interface NewTaskProps {
@@ -243,11 +244,16 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                 {accountList.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </Field>
-            <Field label={isGeneral ? 'Project · optional' : 'Project'}>
-              <select class="field" value={project} onChange={(e) => { const v = (e.target as HTMLSelectElement).value; setProject(v); startProject.value = v }}>
-                {isGeneral && <option value="">— none —</option>}
-                {filteredProjectNames.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+            <Field plain label={isGeneral ? 'Project · optional' : 'Project'}>
+              <Combobox
+                label="Project"
+                size="md"
+                width="100%"
+                value={project}
+                placeholder={isGeneral ? 'No project' : 'Choose…'}
+                onChange={(v) => { setProject(v); startProject.value = v }}
+                options={[...(isGeneral ? [{ value: '', label: 'No project' }] : []), ...projectOptions(projects, accountList, filteredProjectNames)]}
+              />
             </Field>
           </div>
 

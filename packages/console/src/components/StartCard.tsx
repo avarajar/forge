@@ -7,6 +7,7 @@ import { effectiveType, inferTask, startSummary, type StartContext } from '../co
 import { startInput, typeOverride, setStartInput, startProject, startAccount } from '../state/startTask.js'
 import { harnesses, missingTicketToken } from '../hooks/useHarnesses.js'
 import { harnessUnavailableReason } from './HarnessPicker.js'
+import { Combobox, projectOptions } from './Combobox.js'
 
 export type ProjectMap = Record<string, { path: string; account: string; harness?: string }>
 
@@ -115,7 +116,8 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, account
 
   return (
     <section
-      style={{ padding: '14px', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', animation: 'riseIn .34s var(--ease) both' }}
+      // its own layer, so the project list opens over the cards below
+      style={{ position: 'relative', zIndex: 5, padding: '14px', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', animation: 'riseIn .34s var(--ease) both' }}
       aria-label="Start a task"
     >
       <div class="flex items-center flex-wrap" style={{ gap: '9px' }}>
@@ -153,14 +155,18 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, account
         {isGeneral && (
           <Picker label="Account" value={account} onChange={changeAccount} options={accounts.map(a => ({ value: a, label: a }))} />
         )}
-        <Picker
-          label="Project"
-          value={project}
-          onChange={(v) => { startProject.value = v }}
-          options={isGeneral
-            ? [{ value: '', label: 'No project' }, ...generalProjects.map(n => ({ value: n, label: n }))]
-            : [{ value: '', label: 'Choose…' }, ...projectNames.map(n => ({ value: n, label: n }))]}
-        />
+        <div class="inline-flex items-center shrink-0" style={{ gap: '6px', fontSize: '12px', color: 'var(--ink-3)' }}>
+          <span aria-hidden="true">Project</span>
+          <Combobox
+            label="Project"
+            value={project}
+            onChange={(v) => { startProject.value = v }}
+            placeholder={isGeneral ? 'No project' : 'Choose…'}
+            options={isGeneral
+              ? [{ value: '', label: 'No project' }, ...projectOptions(projects, accounts, generalProjects)]
+              : projectOptions(projects, accounts, projectNames)}
+          />
+        </div>
       </div>
     </section>
   )
