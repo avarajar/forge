@@ -90,7 +90,9 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
     setMenuOpen(!menuOpen)
   }
 
+  // the menu renders outside the glass bar: backdrop-filter would contain and clip a fixed child
   return (
+    <>
     <div
       class="glass flex items-center shrink-0 overflow-x-auto"
       role="tablist"
@@ -147,6 +149,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
       >
         <span class="i-lucide-plus" style={{ width: '14px', height: '14px' }} />
       </button>
+    </div>
 
       {menuOpen && (
         <AddMenu
@@ -158,6 +161,6 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
           position={menuPos}
         />
       )}
-    </div>
+    </>
   )
 }
