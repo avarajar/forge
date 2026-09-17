@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { getTypeStyle, sessionLabel, shortAgo, soft } from '../config/types.js'
+import { getTypeStyle, projectOf, sessionLabel, shortAgo, soft } from '../config/types.js'
 import { rowStatus } from '../config/review.js'
 import { HarnessBadge } from './HarnessBadge.js'
 import { Dot } from './Dot.js'
@@ -68,7 +68,7 @@ export const TaskRow: FunctionComponent<{
   onMarkDone?: () => void | Promise<void>
   showProject?: boolean
 }> = ({ session, isOpenInTab, onSelect, onMarkDone, showProject }) => {
-  const project = showProject ? session.project || 'no project' : undefined
+  const project = showProject ? projectOf(session) || 'no project' : undefined
   const [closing, setClosing] = useState(false)
   const reviewed = session.type === 'task' || session.type === 'review'
   // closing waits for cw --done, so the button stays busy and cannot send a second close
@@ -149,7 +149,7 @@ export const DoneRow: FunctionComponent<{ session: CWSession; onSelect: () => vo
       <span class="i-lucide-check" style={{ width: '12px', height: '12px' }} />
     </span>
     <span class="flex-1 min-w-0 truncate" style={{ fontSize: '13px' }}>
-      {sessionLabel(session)} <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{session.project}</span>
+      {sessionLabel(session)} <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{projectOf(session)}</span>
     </span>
     <span class="mono shrink-0" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{shortAgo(session.closed ?? session.last_opened)}</span>
   </div>

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { sessionTypeOf, type QuickType } from '../config/types.js'
+import { projectOf, sessionTypeOf, type QuickType } from '../config/types.js'
 
 interface UseTaskFiltersOptions {
   spaces: CWSession[]
@@ -31,7 +31,7 @@ export function useTaskFilters({ spaces, accounts, projects }: UseTaskFiltersOpt
     const names = new Set<string>()
     for (const s of spaces) {
       if (filterAccount && s.account !== filterAccount) continue
-      names.add(s.project)
+      if (projectOf(s)) names.add(s.project)
     }
     // Also include registered projects (filtered by account) so projects
     // with no sessions still appear after being moved to a new account

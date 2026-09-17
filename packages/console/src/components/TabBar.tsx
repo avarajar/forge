@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useRef, useEffect, useCallback } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, quickLabel, sessionKey, sessionLabel } from '../config/types.js'
+import { QUICK_TYPES, projectOf, quickLabel, sessionKey, sessionLabel } from '../config/types.js'
 import { TypeTile } from './TaskCard.js'
 import { Dot } from './Dot.js'
 import { BackButton, MenuButton } from './PageHeader.js'
@@ -65,7 +65,7 @@ const AddMenu: FunctionComponent<{
               onClick={() => { onOpenSession(s); onClose() }}>
               <TypeTile type={s.type} size={22} radius={7} font={10} />
               <span class="flex-1 truncate">{sessionLabel(s)}</span>
-              <span class="mono truncate" style={{ fontSize: '10.5px', color: 'var(--ink-3)', maxWidth: '110px' }}>{s.project}</span>
+              <span class="mono truncate" style={{ fontSize: '10.5px', color: 'var(--ink-3)', maxWidth: '110px' }}>{projectOf(s)}</span>
             </button>
           ))}
         </>
@@ -122,7 +122,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
           >
             <Dot size={6} live={session.status === 'active'} />
             <span style={{ fontWeight: 600, color: on ? 'var(--ink)' : 'var(--ink-2)' }}>{sessionLabel(session)}</span>
-            <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{session.project}</span>
+            <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{projectOf(session)}</span>
             <button
               type="button"
               class="grid place-items-center cursor-pointer text-ink3 hover:text-red"

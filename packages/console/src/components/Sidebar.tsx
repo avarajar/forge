@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import type { CWSession } from '@forge-dev/core'
 import { Tabs } from '@forge-dev/ui'
-import { soft, sessionLabel } from '../config/types.js'
+import { projectOf, soft, sessionLabel } from '../config/types.js'
 import { theme, setTheme, sidebarOpen } from '../shell.js'
 import { harnesses } from '../hooks/useHarnesses.js'
 import { skills } from '../hooks/useSkills.js'
@@ -55,7 +55,7 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
     ? (session.loop_interval ? `every ${session.loop_interval}` : 'self-paced')
     : m && (m.tokens !== null || m.cost !== null)
       ? [m.tokens !== null ? `${formatTokens(m.tokens)} tokens` : null, m.cost !== null ? formatCost(m.cost) : null].filter(Boolean).join(' · ')
-      : session.project
+      : projectOf(session) || session.account
   return (
     <button
       type="button"

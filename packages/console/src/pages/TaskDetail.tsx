@@ -2,7 +2,7 @@ import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { getTypeStyle, harnessLabel, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
+import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
 import { reviewSummary, unpushedCount } from '../config/review.js'
 import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
@@ -74,7 +74,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   const review = useTaskReview(session, { poll: active && session.type === 'task' })
   const style = getTypeStyle(session.type)
   const isLogin = session.type === 'login'
-  const stack = stackParts(useProjectStack(isLogin ? '' : session.project))
+  const stack = stackParts(useProjectStack(isLogin ? '' : projectOf(session)))
   const metrics = metricsFor(key).value
 
   // Branch-style task names become sessionDirs like `task-task/form-header`; encode so the slash stays in one segment
@@ -109,7 +109,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   const shownBranch = state?.branch ?? branch
   const changes = !review ? 'Checking changes…' : review.error !== null ? 'Changes unknown' : reviewSummary(review.state)
   const identity = [
-    session.project,
+    projectOf(session) || 'no project',
     session.account,
     [harnessLabel(session), session.provider && session.provider !== 'native' ? null : session.model].filter(Boolean).join(', '),
     `${session.opens} session${session.opens === 1 ? '' : 's'}`,

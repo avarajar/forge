@@ -18,8 +18,8 @@ import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession, SkillEntry } from '@forge-dev/core'
-import { QUICK_TYPES, sessionKey } from './config/types.js'
-import { typeOverride } from './state/startTask.js'
+import { QUICK_TYPES, projectOf, sessionKey } from './config/types.js'
+import { startAccount, startProject, typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
 import { loadReviewState, refreshReviewStates } from './hooks/useTaskReview.js'
@@ -260,7 +260,7 @@ function App() {
   // every registered project, plus projects that only appear in sessions
   const sidebarProjects = useMemo(() => {
     const accountOf = new Map(Object.entries(projects).map(([name, p]) => [name, p.account]))
-    for (const s of spaces) if (s.project && !accountOf.has(s.project)) accountOf.set(s.project, s.account)
+    for (const s of spaces) if (projectOf(s) && !accountOf.has(s.project)) accountOf.set(s.project, s.account)
     return Array.from(accountOf, ([name, account]) => ({
       name,
       account: account || 'unassigned',
@@ -269,10 +269,10 @@ function App() {
     }))
   }, [projects, spaces, activeSessions, live])
 
-  // the project a quick start runs on: the filtered one, else the most recent task's
-  const startProject = filters.filterProject
-    ?? filters.filteredSpaces.find(s => s.status === 'active' && projects[s.project])?.project
-    ?? Object.keys(projects)[0] ?? ''
+  // picking a project in the sidebar also picks it for the start card
+  useEffect(() => {
+    if (filters.filterProject) startProject.value = filters.filterProject
+  }, [filters.filterProject])
 
   const projectKeys = useMemo(() => Object.keys(projects), [projects])
 
@@ -341,7 +341,6 @@ function App() {
       onNewTask={() => handleNewTask()}
       onCreateProject={() => setShowCreateProject(true)}
       onRefresh={() => fetchData()}
-      startProject={startProject}
       onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
     />
   ) : view === 'prototypes' ? (
@@ -424,8 +423,8 @@ function App() {
         <NewTask
           projects={projects}
           accounts={filters.accountNames}
-          initialAccount={filters.filterAccount ?? undefined}
-          initialProject={startProject || undefined}
+          initialAccount={filters.filterAccount ?? (startAccount.value || undefined)}
+          initialProject={startProject.value || undefined}
           onClose={closeNewTask}
           onCreated={(session) => {
             setNewTaskOpen(false)

@@ -18,12 +18,26 @@ export function inferTask(value: string): Inference | null {
 
 export const EMPTY_HINT = 'A PR link becomes a review. A Linear or Notion link becomes a dev task with its notes.'
 
-export function inferenceText(inf: Inference, project: string, harness: string): string {
+export interface StartContext { type: QuickType; project: string; account: string; harness: string }
+
+// what Start will do, for the line under the start card and the drawer field
+export function startSummary(value: string, ctx: StartContext): { text: string; ready: boolean } {
+  const inf = inferTask(value)
+  const on = ctx.project ? ` on ${ctx.project}` : ''
+  if (ctx.type === 'general') {
+    return { text: `General session as ${ctx.account || 'an account'}${ctx.project ? ` in ${ctx.project}` : ', outside any project'}, run by ${ctx.harness}.`, ready: Boolean(ctx.account) }
+  }
+  if (!ctx.project) return { text: 'Pick a project to start.', ready: false }
+  if (!inf) return { text: EMPTY_HINT, ready: false }
+  if (ctx.type === 'loop') return { text: `Loop${on} — pick its interval in the next step.`, ready: true }
+  if (ctx.type === 'review') {
+    return { text: inf.kind === 'pr' ? `Pull request detected — this becomes a review${on}, run by ${ctx.harness}.` : `Review of “${value.trim()}”${on}, run by ${ctx.harness}.`, ready: true }
+  }
   switch (inf.kind) {
-    case 'pr': return `Pull request detected — this becomes a review on ${project}, run by ${harness}.`
-    case 'linear': return 'Linear ticket detected — a dev task, and the ticket lands in TASK_NOTES.md first.'
-    case 'notion': return 'Notion page detected — a dev task, and the page lands in TASK_NOTES.md first.'
-    case 'name': return `Dev task on ${project} · branch task/${inf.slug}`
+    case 'linear': return { text: 'Linear ticket detected — a dev task, and the ticket lands in TASK_NOTES.md first.', ready: true }
+    case 'notion': return { text: 'Notion page detected — a dev task, and the page lands in TASK_NOTES.md first.', ready: true }
+    case 'pr': return { text: `Dev task${on} from pull request ${value.trim()}, run by ${ctx.harness}.`, ready: true }
+    case 'name': return { text: `Dev task${on} · branch task/${inf.slug}`, ready: true }
   }
 }
 

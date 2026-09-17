@@ -3,27 +3,28 @@ import { useState } from 'preact/hooks'
 import { Tabs, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { QUICK_TYPES, findCell, quickLabel, soft, getHarnessStyle, resolveHarness, type QuickType } from '../config/types.js'
-import { EMPTY_HINT, effectiveType, inferTask, inferenceText } from '../config/inference.js'
-import { startInput, typeOverride, setStartInput } from '../state/startTask.js'
+import { effectiveType, inferTask, startSummary, type StartContext } from '../config/inference.js'
+import { startInput, typeOverride, setStartInput, startProject, startAccount } from '../state/startTask.js'
 import { harnesses, missingTicketToken } from '../hooks/useHarnesses.js'
 import { harnessUnavailableReason } from './HarnessPicker.js'
 
 export type ProjectMap = Record<string, { path: string; account: string; harness?: string }>
 
-export const InferenceLine: FunctionComponent<{ project: string; harness: string; size?: 'md' | 'sm' }> = ({ project, harness, size = 'md' }) => {
-  const inf = inferTask(startInput.value)
+export const InferenceLine: FunctionComponent<{ ctx: StartContext; size?: 'md' | 'sm' }> = ({ ctx, size = 'md' }) => {
+  const { text, ready } = startSummary(startInput.value, { ...ctx, harness: getHarnessStyle(ctx.harness).label })
+  const detected = ready && (ctx.type === 'general' || inferTask(startInput.value) !== null)
   return (
     <p
-      class="flex items-center"
+      class="flex items-center min-w-0"
       aria-live="polite"
-      style={{ gap: '7px', fontSize: size === 'md' ? '12.5px' : '12px', color: inf ? 'var(--blue)' : 'var(--ink-3)', margin: size === 'md' ? '9px 2px 0' : 0 }}
+      style={{ gap: '7px', fontSize: size === 'md' ? '12.5px' : '12px', color: detected ? 'var(--blue)' : 'var(--ink-3)' }}
     >
-      {inf && (
+      {detected && (
         <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: '50%', background: soft('--blue', 22) }}>
           <span class="i-lucide-check" style={{ width: '10px', height: '10px' }} />
         </span>
       )}
-      <span class="min-w-0" style={{ overflowWrap: 'anywhere' }}>{inf ? inferenceText(inf, project || 'no project', getHarnessStyle(harness).label) : EMPTY_HINT}</span>
+      <span class="min-w-0" style={{ overflowWrap: 'anywhere' }}>{text}</span>
     </p>
   )
 }
@@ -40,42 +41,62 @@ export const TypeSegmented: FunctionComponent<{ fill?: boolean }> = ({ fill }) =
 
 interface StartCardProps {
   projects: ProjectMap
-  project: string
+  accounts: string[]
   onStarted: (session?: CWSession) => void
   onOpenDrawer: () => void
 }
 
-export const StartCard: FunctionComponent<StartCardProps> = ({ projects, project, onStarted, onOpenDrawer }) => {
+const pickerStyle = { width: 'auto', maxWidth: '180px', height: '30px', padding: '0 26px 0 10px', borderRadius: '9px', fontSize: '12.5px', background: 'var(--bg-2)' }
+
+const Picker: FunctionComponent<{ label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }> }> = ({ label, value, onChange, options }) => (
+  <label class="inline-flex items-center shrink-0" style={{ gap: '6px', fontSize: '12px', color: 'var(--ink-3)' }}>
+    {label}
+    <select class="field" aria-label={label} style={pickerStyle} value={value} onChange={(e) => onChange((e.target as HTMLSelectElement).value)}>
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  </label>
+)
+
+export const StartCard: FunctionComponent<StartCardProps> = ({ projects, accounts, onStarted, onOpenDrawer }) => {
   const [starting, setStarting] = useState(false)
   const response = harnesses.value
   const doctor = response?.available ? response.doctor : null
-  const account = projects[project]?.account ?? ''
   const type = effectiveType(startInput.value, typeOverride.value)
+  const isGeneral = type === 'general'
+  const project = startProject.value
+  const projectNames = Object.keys(projects).sort()
+  const account = isGeneral
+    ? startAccount.value || projects[project]?.account || accounts[0] || ''
+    : projects[project]?.account ?? ''
+  const generalProjects = projectNames.filter(n => projects[n].account === account)
   const harness = type === 'loop' ? 'claude' : doctor ? resolveHarness(project || undefined, account, projects, doctor) : 'claude'
   const value = startInput.value.trim()
-  const disabled = !value || starting
+  const disabled = starting || (isGeneral ? !account : !value || !project)
 
   const start = async () => {
     if (disabled) return
     const cell = doctor ? findCell(doctor, account, harness) : undefined
     const blocked = doctor ? harnessUnavailableReason(harness, cell, type === 'loop') : null
-    const missingToken = missingTicketToken(response, harness, value)
+    const missingToken = !isGeneral && missingTicketToken(response, harness, value)
     // anything that needs a choice or a warning goes through the drawer
-    if (!project || type === 'loop' || type === 'general' || blocked || missingToken || cell?.status === 'not_logged_in') {
+    if (type === 'loop' || blocked || missingToken || cell?.status === 'not_logged_in') {
       onOpenDrawer()
       return
     }
     setStarting(true)
     try {
+      const body = isGeneral
+        ? { type, account, project: project || undefined, harness: doctor ? harness : undefined }
+        : { type, project, task: value, account: account || undefined, harness: doctor ? harness : undefined }
       const res = await fetch('/api/cw/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, project, task: value, account: account || undefined, harness: doctor ? harness : undefined }),
+        body: JSON.stringify(body),
       })
       const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
       if (result.ok) {
-        showToast(type === 'review' ? 'Review started' : 'Task started', 'success')
-        setStartInput('')
+        showToast(isGeneral ? 'Session started' : type === 'review' ? 'Review started' : 'Task started', 'success')
+        if (!isGeneral) setStartInput('')
         onStarted(result.session)
       } else {
         showToast(result.error ?? 'Failed to start', 'error')
@@ -87,6 +108,11 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, project
     }
   }
 
+  const changeAccount = (next: string) => {
+    startAccount.value = next
+    if (project && projects[project]?.account !== next) startProject.value = ''
+  }
+
   return (
     <section
       style={{ padding: '14px', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', animation: 'riseIn .34s var(--ease) both' }}
@@ -95,8 +121,8 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, project
       <div class="flex items-center flex-wrap" style={{ gap: '9px' }}>
         <input
           class="field min-w-0"
-          style={{ flex: '1 1 300px', height: '40px', padding: '0 13px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--bg-2)', color: 'var(--ink)', fontSize: '14.5px', outline: 'none', transition: 'border-color .18s, box-shadow .18s' }}
-          placeholder="Paste a Linear ticket, a PR link, or type a task name"
+          style={{ flex: '1 1 300px', height: '40px', padding: '0 13px', borderRadius: '11px', background: 'var(--bg-2)', fontSize: '14.5px' }}
+          placeholder={isGeneral ? 'A general session needs no name — pick the account below' : 'Paste a Linear ticket, a PR link, or type a task name'}
           aria-label="Task name, ticket or pull request"
           value={startInput.value}
           onInput={(e) => setStartInput((e.target as HTMLInputElement).value)}
@@ -117,10 +143,25 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, project
           }}
           onClick={() => void start()}
         >
-          {starting ? 'Starting…' : 'Start'}
+          {starting ? 'Starting…' : isGeneral ? 'Launch' : 'Start'}
         </button>
       </div>
-      <InferenceLine project={project} harness={harness} />
+      <div class="flex items-center flex-wrap" style={{ gap: '8px 14px', marginTop: '10px', padding: '0 2px' }}>
+        <div class="flex-1 min-w-0" style={{ flexBasis: '280px' }}>
+          <InferenceLine ctx={{ type, project, account, harness }} />
+        </div>
+        {isGeneral && (
+          <Picker label="Account" value={account} onChange={changeAccount} options={accounts.map(a => ({ value: a, label: a }))} />
+        )}
+        <Picker
+          label="Project"
+          value={project}
+          onChange={(v) => { startProject.value = v }}
+          options={isGeneral
+            ? [{ value: '', label: 'No project' }, ...generalProjects.map(n => ({ value: n, label: n }))]
+            : [{ value: '', label: 'Choose…' }, ...projectNames.map(n => ({ value: n, label: n }))]}
+        />
+      </div>
     </section>
   )
 }

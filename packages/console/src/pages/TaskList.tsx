@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useMemo, useState } from 'preact/hooks'
 import { ActionButton, Tabs } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, getHarnessStyle, quickLabel, sessionKey, type QuickType } from '../config/types.js'
+import { QUICK_TYPES, getHarnessStyle, projectOf, quickLabel, sessionKey, type QuickType } from '../config/types.js'
 import { TaskRow, DoneRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
 import { StartCard, type ProjectMap } from '../components/StartCard.js'
@@ -32,7 +32,6 @@ interface TaskListProps {
   onCreateProject: () => void
   onRefresh: () => void
   onStarted: (session?: CWSession) => void
-  startProject: string
 }
 
 const DONE_LIMIT = 10
@@ -87,7 +86,7 @@ const GroupCard: FunctionComponent<{
 export const TaskList: FunctionComponent<TaskListProps> = ({
   spaces, allSpaces, projects, accountNames, filterAccount, filterProject, onFilterProject,
   filterType, onFilterType, harnessNames, filterHarness, onFilterHarness, showDone, onShowDone,
-  openTabKeys, onSelectTask, onMarkDone, onNewTask, onCreateProject, onRefresh, onStarted, startProject,
+  openTabKeys, onSelectTask, onMarkDone, onNewTask, onCreateProject, onRefresh, onStarted,
 }) => {
   const [layout, setLayout] = useState<Layout>(readLayout)
   const changeLayout = (next: Layout) => {
@@ -114,9 +113,10 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
   const groups = useMemo(() => {
     const byProject = new Map<string, CWSession[]>()
     for (const s of active) {
-      const list = byProject.get(s.project) ?? []
+      const key = projectOf(s)
+      const list = byProject.get(key) ?? []
       list.push(s)
-      byProject.set(s.project, list)
+      byProject.set(key, list)
     }
     return Array.from(byProject, ([project, sessions]) => ({ project, sessions }))
   }, [active])
@@ -135,7 +135,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       </PageHeader>
 
       <div class="flex flex-col w-full" style={{ padding: '18px 22px 40px', gap: '16px', maxWidth: '1180px' }}>
-        <StartCard projects={projects} project={startProject} onStarted={onStarted} onOpenDrawer={onNewTask} />
+        <StartCard projects={projects} accounts={accountNames} onStarted={onStarted} onOpenDrawer={onNewTask} />
 
         <div class="flex items-center flex-wrap" style={{ gap: '12px' }}>
           <Tabs

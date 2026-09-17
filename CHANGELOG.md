@@ -12,7 +12,7 @@
 - Open in editor for a task's worktree: VS Code, Cursor, Windsurf or Zed, when Forge runs locally.
 - A pull request chip on task cards; a merged pull request keeps the card's Done button visible.
 - `GET /api/cw/review-state/:project/:sessionDir`, `GET /api/cw/editors` and `POST /api/cw/open-in-editor`.
-- A start card on the task list: paste a pull request, a Linear or Notion link, or type a name, and Forge picks review or dev and starts it.
+- A start card on the task list: paste a pull request, a Linear or Notion link, or type a name, and Forge picks review or dev and starts it on the project you pick. With General it launches a session on an account, in a project or outside any.
 - A ⌘K command palette (also `/`) for open sessions, tasks, projects and commands; `N` opens a new task, `P` adds a project and ⌘J switches appearance.
 - The task detail shows context used, tokens and cost read from the harness status line, plus commits, unpushed commits and the branch.
 - A sidebar with sections, projects and a card per live session; it becomes an icon rail below 900 px and an overlay below 700 px.

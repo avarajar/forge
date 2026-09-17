@@ -55,6 +55,9 @@ export const sessionTypeOf = (key: QuickType): CWSession['type'] => QUICK_TYPES.
 export const sessionKey = (s: CWSession) =>
   s.sessionDir ? `${s.project}::${s.sessionDir}` : `${s.project}::${s.task ?? s.pr}`
 
+// a general session outside any project carries CW's placeholder project name
+export const projectOf = (s: Pick<CWSession, 'project'>): string => s.project === '__general' ? '' : s.project
+
 export const sessionDirOf = (s: CWSession): string =>
   s.sessionDir ?? (s.type === 'review' ? `review-pr-${s.pr}` : s.type === 'loop' ? `loop-${s.task}` : `task-${s.task}`)
 

@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
 import { useAutoFocus } from '../hooks/useAutoFocus.js'
-import { getTypeStyle, sessionKey, sessionLabel, soft } from '../config/types.js'
+import { getTypeStyle, projectOf, sessionKey, sessionLabel, soft } from '../config/types.js'
 
 export interface PaletteItem {
   id: string
@@ -25,7 +25,7 @@ interface CommandPaletteProps {
 
 const sessionItem = (s: CWSession, hint: string, onOpen: (s: CWSession) => void): PaletteItem => {
   const style = getTypeStyle(s.type)
-  return { id: sessionKey(s), label: s.project ? `${sessionLabel(s)} · ${s.project}` : sessionLabel(s), hint, glyph: style.glyph, token: style.token, run: () => onOpen(s) }
+  return { id: sessionKey(s), label: projectOf(s) ? `${sessionLabel(s)} · ${projectOf(s)}` : sessionLabel(s), hint, glyph: style.glyph, token: style.token, run: () => onOpen(s) }
 }
 
 export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({

@@ -4,7 +4,7 @@ import { ActionButton, CloseButton, Tabs, ToggleSwitch, showToast } from '@forge
 import type { CWSession } from '@forge-dev/core'
 import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness, soft } from '../config/types.js'
 import { effectiveType, inferTask, slugOf } from '../config/inference.js'
-import { startInput, setStartInput, typeOverride } from '../state/startTask.js'
+import { startInput, setStartInput, startAccount, startProject, typeOverride } from '../state/startTask.js'
 import { harnesses, loadHarnesses, missingTicketToken, supportsIn, ticketSourceOf } from '../hooks/useHarnesses.js'
 import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
 import { InferenceLine, TypeSegmented, type ProjectMap } from '../components/StartCard.js'
@@ -233,18 +233,18 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
                   onKeyDown={(e) => { if (e.key === 'Enter') void handleStart() }}
                 />
               </Field>
-              {!isLoop && <InferenceLine project={project} harness={harness} size="sm" />}
+              {!isLoop && <InferenceLine ctx={{ type, project, account: selectedAccount, harness }} size="sm" />}
             </div>
           )}
 
           <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <Field label="Account">
-              <select class="field" value={selectedAccount} onChange={(e) => handleAccountChange((e.target as HTMLSelectElement).value)}>
+              <select class="field" value={selectedAccount} onChange={(e) => { const v = (e.target as HTMLSelectElement).value; handleAccountChange(v); startAccount.value = v }}>
                 {accountList.map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </Field>
             <Field label={isGeneral ? 'Project · optional' : 'Project'}>
-              <select class="field" value={project} onChange={(e) => setProject((e.target as HTMLSelectElement).value)}>
+              <select class="field" value={project} onChange={(e) => { const v = (e.target as HTMLSelectElement).value; setProject(v); startProject.value = v }}>
                 {isGeneral && <option value="">— none —</option>}
                 {filteredProjectNames.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
