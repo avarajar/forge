@@ -1,5 +1,9 @@
 import type { CWDoctor, CWDoctorCell, CWSession } from '@forge-dev/core'
 
+// avatar gradients, cycled per account
+const AVATAR_PAIRS: Array<[string, string]> = [['--blue', '--purple'], ['--teal', '--blue'], ['--orange', '--red'], ['--green', '--teal']]
+export const avatarPair = (index: number): [string, string] => AVATAR_PAIRS[index % AVATAR_PAIRS.length]
+
 /* ── Type visual config ── */
 
 export const soft = (token: string, pct = 18): string => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`

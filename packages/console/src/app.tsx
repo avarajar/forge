@@ -257,11 +257,17 @@ function App() {
     [tabs.openTabs],
   )
 
-  const sidebarProjects = useMemo(() => filters.projectNames.map(name => ({
-    name,
-    count: activeSessions.filter(s => s.project === name).length,
-    live: live.some(l => l.session.project === name),
-  })), [filters.projectNames, activeSessions, live])
+  // every registered project, plus projects that only appear in sessions
+  const sidebarProjects = useMemo(() => {
+    const accountOf = new Map(Object.entries(projects).map(([name, p]) => [name, p.account]))
+    for (const s of spaces) if (s.project && !accountOf.has(s.project)) accountOf.set(s.project, s.account)
+    return Array.from(accountOf, ([name, account]) => ({
+      name,
+      account: account || 'unassigned',
+      count: activeSessions.filter(s => s.project === name).length,
+      live: live.some(l => l.session.project === name),
+    }))
+  }, [projects, spaces, activeSessions, live])
 
   // the project a quick start runs on: the filtered one, else the most recent task's
   const startProject = filters.filterProject
@@ -291,6 +297,7 @@ function App() {
       view={sidebarView}
       counts={{ list: activeSessions.length, accounts: filters.accountNames.length, prototypes: prototypeCount }}
       projects={sidebarProjects}
+      accounts={filters.accountNames}
       selectedProject={filters.filterProject}
       live={live}
       onNavigate={navigate}

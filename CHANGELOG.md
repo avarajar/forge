@@ -16,6 +16,7 @@
 - A ⌘K command palette (also `/`) for open sessions, tasks, projects and commands; `N` opens a new task, `P` adds a project and ⌘J switches appearance.
 - The task detail shows context used, tokens and cost read from the harness status line, plus commits, unpushed commits and the branch.
 - A sidebar with sections, projects and a card per live session; it becomes an icon rail below 900 px and an overlay below 700 px.
+- The sidebar's projects can be filtered by name and are grouped by account; each group folds, lists active projects first and shows the first five until expanded.
 
 ### Changed
 
