@@ -57,7 +57,6 @@ const MetaLine: FunctionComponent<{ branch: string; status: string; project?: st
 
 const plainStatus = (s: CWSession): string =>
   s.type === 'loop' ? (s.loop_interval ? `every ${s.loop_interval}` : 'self-paced')
-  : !s.project ? 'no project'
   : `${s.opens} session${s.opens === 1 ? '' : 's'}`
 
 /* ── Active task row ── */

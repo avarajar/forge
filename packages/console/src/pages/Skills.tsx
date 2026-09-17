@@ -205,7 +205,7 @@ const SkillEditor: FunctionComponent<{ skill: SkillEntry; onDeleted: () => void;
             class="field mono w-full h-full"
             aria-label={activeFile}
             spellcheck={false}
-            style={{ padding: '14px 16px', borderRadius: '14px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '12.5px', lineHeight: 1.7, resize: 'none', outline: 'none', boxShadow: 'var(--shadow-s)', minHeight: '240px' }}
+            style={{ height: '100%', padding: '14px 16px', borderRadius: '14px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '12.5px', lineHeight: 1.7, resize: 'none', outline: 'none', boxShadow: 'var(--shadow-s)', minHeight: '240px' }}
             value={activeFile === 'SKILL.md' ? content : (refContents[activeFile] ?? '')}
             onInput={(e) => {
               const val = (e.target as HTMLTextAreaElement).value

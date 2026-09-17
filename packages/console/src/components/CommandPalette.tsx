@@ -25,7 +25,7 @@ interface CommandPaletteProps {
 
 const sessionItem = (s: CWSession, hint: string, onOpen: (s: CWSession) => void): PaletteItem => {
   const style = getTypeStyle(s.type)
-  return { id: sessionKey(s), label: `${sessionLabel(s)} · ${s.project}`, hint, glyph: style.glyph, token: style.token, run: () => onOpen(s) }
+  return { id: sessionKey(s), label: s.project ? `${sessionLabel(s)} · ${s.project}` : sessionLabel(s), hint, glyph: style.glyph, token: style.token, run: () => onOpen(s) }
 }
 
 export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({

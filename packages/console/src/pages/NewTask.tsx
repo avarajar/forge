@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'preact/hooks'
 import { ActionButton, CloseButton, Tabs, ToggleSwitch, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness, soft } from '../config/types.js'
-import { effectiveType, slugOf } from '../config/inference.js'
+import { effectiveType, inferTask, slugOf } from '../config/inference.js'
 import { startInput, setStartInput, typeOverride } from '../state/startTask.js'
 import { harnesses, loadHarnesses, missingTicketToken, supportsIn, ticketSourceOf } from '../hooks/useHarnesses.js'
 import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
@@ -189,7 +189,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const command = isGeneral ? `cw launch ${quote(acct)}`
     : isLoop ? `cw loop ${project || '<project>'} ${quote(task.trim() || '<prompt>')}${loopInterval.trim() ? ` --every ${loopInterval.trim()}` : ''}`
     : isReview ? `cw review ${project || '<project>'} ${quote(task.trim() || '<pr>')}`
-    : `cw work ${project || '<project>'} ${task.trim() ? quote(slugOf(task)) : '<task>'}`
+    : `cw work ${project || '<project>'} ${!task.trim() ? '<task>' : quote(inferTask(task)?.kind === 'name' ? slugOf(task) : task.trim())}`
 
   return (
     <div
