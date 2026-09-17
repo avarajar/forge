@@ -21,6 +21,7 @@
   --shadow-l: 0 24px 60px rgba(0,0,0,.55);
   --term: #0e0e10;
   --sel: rgba(10,132,255,.18);
+  --demo-bg: #34343b;
   --h-claude: #e08a68;
   --h-codex: #2fbf97;
   --h-pi: #6b9bff;
@@ -53,6 +54,7 @@
   --shadow-l: 0 24px 60px rgba(0,0,0,.14);
   --term: #1c1c1e;
   --sel: rgba(0,122,255,.14);
+  --demo-bg: #e6e6ee;
   --h-claude: #c9633f;
   --h-codex: #0f8f6f;
   --h-pi: #2f6fe0;
@@ -170,10 +172,21 @@ section[id] { scroll-margin-top: 64px; }
 .btn-secondary { border: 1px solid var(--hair); background: var(--card); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-s); }
 .btn-secondary:hover { color: var(--ink); }
 
-/* hero start card */
+/* hero start card, framed as a live demo so it does not read as a screenshot */
+.demo {
+  padding: 12px; border-radius: 22px;
+  background: var(--demo-bg); border: 1px solid color-mix(in srgb, var(--blue) 30%, var(--hair-2));
+  box-shadow: var(--shadow-l); animation: riseIn .5s var(--ease) 170ms both;
+}
+.demo-label {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 2px 4px 10px;
+  font-family: var(--mono); font-size: 11px; color: var(--ink-2);
+}
+.demo-label .dot { background: var(--blue); }
+.demo-hint { color: var(--ink-3); }
 .start-card {
   padding: 14px; border-radius: 18px; background: var(--card); border: 1px solid var(--hair);
-  box-shadow: var(--shadow-l); animation: riseIn .5s var(--ease) 170ms both;
+  box-shadow: var(--shadow-m);
 }
 .start-row { display: flex; flex-wrap: wrap; gap: 9px; }
 .start-input {
@@ -181,7 +194,9 @@ section[id] { scroll-margin-top: 64px; }
   border: 1px solid var(--hair); background: var(--bg-2); color: var(--ink); font-size: 13.5px; outline: none;
   transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
 }
+.start-input { cursor: text; }
 .start-input::placeholder { color: var(--ink-3); }
+.start-input:hover { border-color: var(--hair-2); }
 .start-input:focus { border-color: var(--blue); box-shadow: 0 0 0 4px var(--sel); }
 .type-pill {
   display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 13px; border-radius: 12px;

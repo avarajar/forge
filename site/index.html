@@ -61,11 +61,16 @@
         </div>
 
         <div class="hero-side">
-          <div class="start-card">
+          <div class="demo">
+            <p class="demo-label">
+              <span class="dot live" aria-hidden="true"></span>live demo
+              <span class="demo-hint">— type or paste anything</span>
+            </p>
+            <div class="start-card">
             <div class="start-row">
               <input class="start-input" type="text" data-task value="https://github.com/example/triton/pull/8601" aria-label="Paste a pull request, a ticket or a task name" placeholder="Paste a pull request, a ticket, or type a name" />
               <span class="type-pill"><span class="type-tile" data-type-tile>R</span><span data-type-label>Review</span></span>
-              <a class="start-go" href="#start">Start</a>
+              <a class="start-go" href="#start" title="In the demo this just jumps to the install steps">Start</a>
             </div>
             <p class="start-msg" data-type-msg aria-live="polite">Pull request detected — this becomes a review on triton, run by Codex.</p>
             <div class="try-row">
@@ -74,6 +79,7 @@
               <button type="button" class="try-pill" data-try="MER-6962">MER-6962</button>
               <button type="button" class="try-pill" data-try="https://notion.so/Redesign-the-palette-9f2a">a Notion page</button>
               <button type="button" class="try-pill" data-try="performance">a name</button>
+            </div>
             </div>
           </div>
 
