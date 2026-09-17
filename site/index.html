@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Forge — Where ideas are shaped into software.</title>
+  <meta name="description" content="A visual dashboard for your coding agents. Start a task from a pull request or a ticket, watch its terminal, and see what it costs, on Claude Code, Codex, Pi or OpenCode." />
+  <meta name="color-scheme" content="dark light" />
+  <meta property="og:title" content="Forge — Where ideas are shaped into software." />
+  <meta property="og:description" content="A visual dashboard for your coding agents, on Claude Code, Codex, Pi or OpenCode. Open source, runs on your machine." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://avarajar.github.io/forge/" />
+  <meta property="og:image" content="https://avarajar.github.io/forge/screenshots/task-list.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='.6' y2='1'%3E%3Cstop offset='0' stop-color='%230a84ff'/%3E%3Cstop offset='1' stop-color='%23bf5af2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='24' height='24' rx='7' fill='url(%23g)'/%3E%3Ctext x='12' y='17' text-anchor='middle' font-family='-apple-system,Helvetica,sans-serif' font-size='14' font-weight='700' fill='%23fff'%3EF%3C/text%3E%3C/svg%3E" />
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('forge-theme'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <header class="header">
+    <div class="header-row">
+      <a class="mark" href="#top" aria-label="Forge, back to top">
+        <span class="mark-tile" aria-hidden="true">F</span>
+        <span class="mark-name">Forge</span>
+      </a>
+      <span class="header-sep" aria-hidden="true"></span>
+      <span class="header-meta">v0.1.0 · MIT · 127.0.0.1</span>
+      <div class="spacer"></div>
+      <nav class="nav" aria-label="Sections">
+        <a href="#features"><b>01</b> features</a>
+        <a href="#how"><b>02</b> how</a>
+        <a href="#start"><b>03</b> install</a>
+      </nav>
+      <button type="button" class="icon-btn" data-theme-toggle aria-label="Switch light and dark" title="Switch light and dark (⌘J)">☀</button>
+      <a class="gh-btn" href="https://github.com/avarajar/forge">
+        GitHub
+        <span class="gh-stars" data-stars hidden>★ <span data-stars-n></span></span>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <section id="top" class="hero">
+      <div class="wrap hero-row">
+        <div class="hero-text">
+          <p class="kicker"><span class="dot live"></span>open source · MIT · runs on your machine</p>
+          <h1>Where ideas are shaped into software.<span class="caret" aria-hidden="true"></span></h1>
+          <p class="hero-sub">A visual dashboard for your coding agents. Start a task from a pull request or a ticket, watch its terminal, and see what it costs, on Claude Code, Codex, Pi or OpenCode.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#start">Get started</a>
+            <a class="btn btn-secondary" href="https://github.com/avarajar/forge">View on GitHub</a>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <div class="start-card">
+            <div class="start-row">
+              <input class="start-input" type="text" data-task value="https://github.com/example/triton/pull/8601" aria-label="Paste a pull request, a ticket or a task name" placeholder="Paste a pull request, a ticket, or type a name" />
+              <span class="type-pill"><span class="type-tile" data-type-tile>R</span><span data-type-label>Review</span></span>
+              <a class="start-go" href="#start">Start</a>
+            </div>
+            <p class="start-msg" data-type-msg aria-live="polite">Pull request detected — this becomes a review on triton, run by Codex.</p>
+            <div class="try-row">
+              <span class="try-label">try</span>
+              <button type="button" class="try-pill" data-try="https://github.com/example/triton/pull/8601">a pull request</button>
+              <button type="button" class="try-pill" data-try="MER-6962">MER-6962</button>
+              <button type="button" class="try-pill" data-try="https://notion.so/Redesign-the-palette-9f2a">a Notion page</button>
+              <button type="button" class="try-pill" data-try="performance">a name</button>
+            </div>
+          </div>
+
+          <div class="cmd">
+            <span class="cmd-prompt" aria-hidden="true">$</span>
+            <code>git clone https://github.com/avarajar/forge.git &amp;&amp; cd forge &amp;&amp; pnpm start</code>
+            <button type="button" class="copy" data-copy>Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="shot-band">
+        <div class="window">
+          <div class="window-bar" aria-hidden="true">
+            <span class="light-dot" style="background:#ff5f57"></span>
+            <span class="light-dot" style="background:#febc2e"></span>
+            <span class="light-dot" style="background:#28c840"></span>
+            <span class="window-url">localhost:3000</span>
+          </div>
+          <img data-hero-shot src="screenshots/task-list.png" width="1440" height="900" fetchpriority="high" alt="The Forge task list: a start card with a pasted pull request, filters, and eight recent tasks with their harness and elapsed time." />
+        </div>
+        <div class="session" aria-hidden="true">
+          <div class="session-head">
+            <span class="dot live"></span>
+            <span class="session-name">performance</span>
+            <span class="chip chip-sm chip-codex">Codex</span>
+          </div>
+          <p class="session-path">triton · task/performance</p>
+          <div class="session-stats">
+            <span>Context <span data-ctx-pct>41</span>%</span>
+            <span class="mono" data-ctx-meta>127k · $2.38</span>
+          </div>
+          <div class="meter"><div class="meter-fill" data-ctx-fill></div></div>
+        </div>
+      </div>
+
+      <div class="wrap">
+        <div class="harness-band">
+          <span class="band-label">runs on</span>
+          <span class="chip chip-claude">Claude Code</span>
+          <span class="chip chip-codex">Codex</span>
+          <span class="chip chip-pi">Pi</span>
+          <span class="chip chip-opencode">OpenCode</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="problem band">
+      <div class="wrap-narrow problem-row" data-reveal>
+        <div class="problem-text">
+          <p class="problem-q">Five agents. Five terminals. Three accounts. Which one is still running, and what did it push?</p>
+          <p class="problem-a">Forge puts them in one place.</p>
+        </div>
+        <div class="stair" aria-hidden="true">
+          <div class="stair-row"><span class="tile c-orange">D</span><code>~/w/forge · task/initial</code><span class="stair-q">running?</span></div>
+          <div class="stair-row"><span class="tile c-blue">R</span><code>~/w/triton · review/pr-8589</code><span class="stair-q">which account?</span></div>
+          <div class="stair-row"><span class="tile c-purple">L</span><code>~/w/seimseim · loop/babysit</code><span class="stair-q">pushed?</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="wrap-narrow features" data-reveal>
+      <article class="feature lift">
+        <div class="feature-text">
+          <span class="feature-num">01</span>
+          <h2>Start from anything.</h2>
+          <p>Paste a pull request, a Linear or Notion link, or type a name. Forge picks review or dev and starts it on the right project and harness.</p>
+          <div class="pills">
+            <span class="pill">Pull request → Review</span>
+            <span class="pill">MER-6962 → Dev</span>
+            <span class="pill">Notion → Dev</span>
+          </div>
+        </div>
+        <div class="feature-shot">
+          <img src="screenshots/new-task.png" width="1440" height="900" loading="lazy" alt="The new task drawer: type, harness, model and workflow pickers with the exact cw command shown before starting." />
+        </div>
+      </article>
+
+      <article class="feature flip lift">
+        <div class="feature-shot">
+          <img src="screenshots/task-detail.png" width="1440" height="900" loading="lazy" alt="Task detail: the agent's terminal with context, tokens and cost, commits, unpushed work and the pull request." />
+        </div>
+        <div class="feature-text">
+          <span class="feature-num">02</span>
+          <h2>The agent's terminal, in the browser.</h2>
+          <p>Context used, tokens and cost from its status line, plus commits, unpushed work, the pull request and its checks. Open the worktree in VS Code, Cursor, Windsurf or Zed.</p>
+        </div>
+      </article>
+
+      <article class="feature lift">
+        <div class="feature-text">
+          <span class="feature-num">03</span>
+          <h2>Every harness, every account.</h2>
+          <p>One card per account with each harness's status and one-click Connect. Codex logs in with a device code, no terminal.</p>
+        </div>
+        <div class="feature-shot">
+          <img src="screenshots/accounts.png" width="1440" height="900" loading="lazy" alt="The accounts screen: one card per account showing each harness as connected, API key, local model or a Connect button." />
+        </div>
+      </article>
+
+      <article class="feature flip lift">
+        <div class="feature-shot">
+          <img src="screenshots/command-palette.png" width="1440" height="900" loading="lazy" alt="The command palette open over the task list, listing live sessions, tasks, projects and commands." />
+        </div>
+        <div class="feature-text">
+          <span class="feature-num">04</span>
+          <h2>Keyboard first.</h2>
+          <p>A palette for sessions, tasks, projects and commands.</p>
+          <div class="keys">
+            <div><kbd>⌘K</kbd> Command palette</div>
+            <div><kbd>N</kbd> New task <span>·</span> <kbd>P</kbd> Add a project</div>
+            <div><kbd>⌘J</kbd> Light and dark <span>·</span> <kbd>⌘1–5</kbd> Tabs</div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="wrap-narrow more" aria-label="More features">
+      <div class="grid" data-reveal>
+        <div class="mini lift">
+          <span class="tile tile-lg c-blue" aria-hidden="true">⌘</span>
+          <h3>Multi-tab sessions</h3>
+          <p>Keep several agents open; tabs stay connected while you browse.</p>
+        </div>
+        <div class="mini lift">
+          <span class="tile tile-lg c-purple" aria-hidden="true">S</span>
+          <h3>Skills</h3>
+          <p>Browse and edit global, account and project skills, or install from skills.sh.</p>
+        </div>
+        <div class="mini lift">
+          <span class="tile tile-lg c-teal" aria-hidden="true">P</span>
+          <h3>Prototypes</h3>
+          <p>A sandbox with its own dev server; share it or turn it into a dev task.</p>
+        </div>
+        <div class="mini lift">
+          <span class="tile tile-lg c-orange" aria-hidden="true">/</span>
+          <h3>Projects</h3>
+          <p>Create, register, move and delete projects from the dashboard.</p>
+        </div>
+        <div class="mini lift">
+          <span class="tile tile-lg c-neutral" aria-hidden="true">◐</span>
+          <h3>Light and dark</h3>
+          <p>System fonts, reduced-motion aware, works in narrow windows.</p>
+        </div>
+        <div class="mini lift">
+          <span class="tile tile-lg c-green" aria-hidden="true">◉</span>
+          <h3>Live sessions</h3>
+          <p>A sidebar card per running agent with its context meter, and projects grouped by account.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap-narrow local">
+      <div class="local-card" data-reveal>
+        <div class="phone-slot">
+          <div class="phone">
+            <div class="phone-screen">
+              <img src="screenshots/mobile.png" width="390" height="844" loading="lazy" alt="Forge in a narrow window: the sidebar becomes an overlay and the task list fills the screen." />
+            </div>
+          </div>
+        </div>
+        <div class="local-text">
+          <h2>Local by default, and it folds.</h2>
+          <p>Forge listens on <code class="inline-code">127.0.0.1</code> and only answers requests from your own machine: its API starts agents, logs accounts in and can delete project files. A page on another site can't call it, and neither can another computer on your network.</p>
+          <div class="status-list">
+            <div class="status"><span class="dot" style="background:var(--green)"></span>Same-machine check on · no authentication needed</div>
+            <div class="status"><span class="dot" style="background:var(--orange)"></span><span><code>FORGE_HOST=0.0.0.0</code> opens it to your network — trusted networks only</span></div>
+            <div class="status"><span class="dot" style="background:var(--blue)"></span>Team mode adds PostgreSQL and a bearer token</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="how band">
+      <div class="wrap-narrow how-inner">
+        <h2 class="section-title">How it works</h2>
+        <div class="how-row" data-reveal>
+          <div class="stack">
+            <div class="layer"><b>Forge console</b><span>In your browser</span></div>
+            <div class="link-line" aria-hidden="true"></div>
+            <div class="layer"><b>Forge server</b><span>On your machine · HTTP and WebSocket</span></div>
+            <div class="link-line" aria-hidden="true"></div>
+            <div class="layer"><b>CW</b><span>Worktrees, sessions, accounts</span></div>
+            <div class="link-line" aria-hidden="true"></div>
+            <div class="chips">
+              <span class="chip chip-claude">Claude Code</span>
+              <span class="chip chip-codex">Codex</span>
+              <span class="chip chip-pi">Pi</span>
+              <span class="chip chip-opencode">OpenCode</span>
+            </div>
+          </div>
+          <div class="how-note">
+            <p>Forge reads <code class="inline-code">~/.cw</code> and <code class="inline-code">~/.claude</code>. CW starts each agent in its own git worktree with the right account.</p>
+            <a href="https://github.com/avarajar/cw">Learn about CW →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="start" class="wrap-narrow start">
+      <h2 class="section-title">Get started</h2>
+      <p class="start-sub">Needs Node 20+, pnpm 11+, Python 3.9+, git, and one harness.</p>
+      <div class="grid steps" data-reveal>
+        <div class="step">
+          <span class="tile tile-lg c-blue">1</span>
+          <h3>Install CW</h3>
+          <div class="code">
+            <code>git clone https://github.com/avarajar/cw.git &amp;&amp; cd cw &amp;&amp; ./install.sh
+cw init</code>
+            <button type="button" class="copy" data-copy>Copy</button>
+          </div>
+        </div>
+        <div class="step">
+          <span class="tile tile-lg c-blue">2</span>
+          <h3>Add a project</h3>
+          <div class="code">
+            <code>cw open my-app</code>
+            <button type="button" class="copy" data-copy>Copy</button>
+          </div>
+          <p>Or register an existing repo from the dashboard.</p>
+        </div>
+        <div class="step">
+          <span class="tile tile-lg c-blue">3</span>
+          <h3>Run Forge</h3>
+          <div class="code">
+            <code>git clone https://github.com/avarajar/forge.git &amp;&amp; cd forge &amp;&amp; pnpm start</code>
+            <button type="button" class="copy" data-copy>Copy</button>
+          </div>
+          <p>Opens at <code>http://localhost:3000</code>. With CW installed you can also run <code>cw forge</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing">
+      <div class="wrap closing-inner">
+<pre class="banner" aria-hidden="true">    ███████╗ ██████╗ ██████╗  ██████╗ ███████╗
+    ██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝
+    █████╗  ██║   ██║██████╔╝██║  ███╗█████╗
+    ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝
+    ██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗
+    ╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝</pre>
+        <div class="closing-row">
+          <h2>Give your agents<br />a home.</h2>
+          <div class="closing-actions">
+            <a class="big-btn big-primary" href="https://github.com/avarajar/forge">
+              Star on GitHub
+              <span class="big-count" data-stars hidden>★ <span data-stars-n></span></span>
+            </a>
+            <a class="big-btn big-outline" href="https://github.com/avarajar/forge#readme">Read the docs</a>
+          </div>
+        </div>
+        <div class="facts">
+          <span>console ~130kb gzipped</span><span>hono + preact</span><span>xterm.js terminals</span><span>sqlite local, postgresql for teams</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-row">
+      <div class="footer-brand">
+        <div class="mark">
+          <span class="mark-tile" aria-hidden="true">F</span>
+          <span class="mark-name">Forge</span>
+        </div>
+        <p>Where ideas are shaped into software. Built with Forge, CW and Claude Code.</p>
+      </div>
+      <div class="footer-col">
+        <p>project</p>
+        <a href="https://github.com/avarajar/forge">GitHub</a>
+        <a href="https://github.com/avarajar/forge/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/avarajar/forge/blob/main/LICENSE">MIT license</a>
+      </div>
+      <div class="footer-col">
+        <p>under it</p>
+        <a href="https://github.com/avarajar/cw">CW</a>
+        <a href="https://github.com/avarajar/forge#readme">Docs</a>
+        <a href="https://github.com/avarajar/forge/blob/main/CONTRIBUTING.md">Contributing</a>
+      </div>
+      <div class="footer-copy">MIT © Jose Andrade</div>
+    </div>
+  </footer>
+</body>
+</html>
