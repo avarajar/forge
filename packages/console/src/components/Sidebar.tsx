@@ -1,13 +1,15 @@
 import { type FunctionComponent } from 'preact'
-import type { CWSession } from '@forge-dev/core'
-import { Tabs } from '@forge-dev/ui'
-import { projectOf, soft, sessionLabel } from '../config/types.js'
+import { useEffect } from 'preact/hooks'
+import type { CWSession, UsageWindow } from '@forge-dev/core'
+import { Tabs, UsageMeter } from '@forge-dev/ui'
+import { projectOf, soft, sessionLabel, getHarnessStyle, usageBars, formatReset } from '../config/types.js'
 import { theme, setTheme, sidebarOpen } from '../shell.js'
 import { harnesses } from '../hooks/useHarnesses.js'
 import { skills } from '../hooks/useSkills.js'
 import { Dot } from './Dot.js'
 import { ProjectNav, type ProjectNavItem } from './ProjectNav.js'
 import { metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
+import { usage, watchUsage } from '../hooks/useUsage.js'
 
 export type View = 'list' | 'accounts' | 'skills' | 'prototypes'
 
@@ -42,6 +44,12 @@ const selectedRow = (on: boolean) => ({
   color: 'var(--ink)',
 })
 
+const cardClass = 'flex flex-col text-left cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m'
+
+const cardStyle = { gap: '6px', padding: '9px 10px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', color: 'var(--ink)' }
+
+const cardFoot = { fontSize: '10.5px', color: 'var(--ink-3)' }
+
 const Label: FunctionComponent = ({ children }) => (
   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '.02em' }}>{children}</span>
 )
@@ -57,12 +65,7 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
       ? [m.tokens !== null ? `${formatTokens(m.tokens)} tokens` : null, m.cost !== null ? formatCost(m.cost) : null].filter(Boolean).join(' · ')
       : projectOf(session) || session.account
   return (
-    <button
-      type="button"
-      class="flex flex-col text-left cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m"
-      style={{ gap: '6px', padding: '9px 10px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', color: 'var(--ink)' }}
-      onClick={onOpen}
-    >
+    <button type="button" class={cardClass} style={cardStyle} onClick={onOpen}>
       <span class="flex items-center w-full" style={{ gap: '6px' }}>
         <Dot size={6} color={c1} live />
         <span class="truncate" style={{ fontSize: '12.5px', fontWeight: 600 }}>{sessionLabel(session)}</span>
@@ -73,7 +76,26 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
         <span class="block h-full" style={{ width: `${pct ?? 0}%`, borderRadius: '99px', background: `linear-gradient(90deg, ${c1}, ${c2})`, transition: 'width .6s var(--ease)' }} />
         <span class="absolute inset-y-0 left-0" style={{ width: '30%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent)', animation: 'sweep 2.6s ease-in-out infinite' }} />
       </span>
-      <span class="mono truncate w-full" style={{ fontSize: '10.5px', color: 'var(--ink-3)' }}>{sub}</span>
+      <span class="mono truncate w-full" style={cardFoot}>{sub}</span>
+    </button>
+  )
+}
+
+// the tightest window decides what the card says underneath, because that is the one that will bite
+const LimitCard: FunctionComponent<{ account: string; harness: string; windows: UsageWindow[]; stale: boolean; onOpen: () => void }> = ({ account, harness, windows, stale, onOpen }) => {
+  const tightest = windows.reduce((worst, w) => (w.percent > worst.percent ? w : worst))
+  const harnessLabel = getHarnessStyle(harness).label
+  return (
+    <button type="button" class={cardClass} style={cardStyle} onClick={onOpen} title={`Usage limits for ${account} on ${harnessLabel}`}>
+      <span class="flex items-center w-full" style={{ gap: '6px' }}>
+        <span class="truncate" style={{ fontSize: '12.5px', fontWeight: 600 }}>{account}</span>
+        <span class="flex-1" />
+        <span class="mono truncate" style={{ fontSize: '10px', color: 'var(--ink-3)' }}>{harnessLabel}</span>
+      </span>
+      <UsageMeter bars={usageBars(windows)} size="sm" />
+      <span class="mono truncate w-full" style={cardFoot}>
+        {stale ? 'last known values' : formatReset(tightest.resetsAt)}
+      </span>
     </button>
   )
 }
@@ -83,6 +105,8 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
 }) => {
   const version = harnesses.value?.available ? harnesses.value.doctor.cw_version : null
   const nav = NAV.map(n => ({ ...n, count: n.view === 'skills' ? skills.value?.length ?? null : counts[n.view] ?? null }))
+  useEffect(() => watchUsage(), [])
+  const limits = usage.value?.available ? usage.value.usage.filter(u => u.state === 'ok' && u.windows.some(w => !w.scope)) : []
   return (
   <aside
     class={`forge-sidebar flex flex-col${sidebarOpen.value ? ' open' : ''}`}
@@ -148,6 +172,21 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
         <div class="flex flex-col sb-section" style={{ gap: '8px' }}>
           <span style={{ padding: '0 9px' }}><Label>Live now</Label></span>
           {live.map((l, i) => <LiveCard key={l.key} id={l.key} session={l.session} index={i} onOpen={() => onOpenLive(l.session)} />)}
+        </div>
+      )}
+      {limits.length > 0 && (
+        <div class="flex flex-col sb-section" style={{ gap: '8px' }}>
+          <span style={{ padding: '0 9px' }}><Label>Limits</Label></span>
+          {limits.map(l => (
+            <LimitCard
+              key={`${l.account}/${l.harness}`}
+              account={l.account}
+              harness={l.harness}
+              windows={l.windows.filter(w => !w.scope)}
+              stale={l.stale}
+              onOpen={() => onNavigate('accounts')}
+            />
+          ))}
         </div>
       )}
       <div class="sb-section">

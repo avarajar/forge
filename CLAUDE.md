@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (248 tests, all in `packages/core`) |
+| Tests | Vitest (387 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -49,14 +49,15 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── useTabManager    → tab state, sessionStorage, keyboard shortcuts
 ├── useTaskFilters   → project/type/harness filters, derived data
 ├── useHarnesses     → shared `cw doctor` store, 3 s polling
+├── useUsage         → shared usage limit store, 60 s polling
 ├── useTerminalMetrics → context, tokens and cost parsed from terminal output
 ├── config/types.ts  → TYPE_STYLES (one token per type), QUICK_TYPES, helpers
 ├── state/startTask.ts → start card / drawer shared input and type override
 │
-├── Sidebar → nav, projects, live session cards, appearance
+├── Sidebar → nav, projects, live session cards, usage limit meters, appearance
 ├── Views (view: list | accounts | skills | prototypes)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
-│   ├── Accounts → AccountCell, AddAccountForm, DeviceLoginPanel
+│   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
 │   ├── Skills (rail + editor/create/explore pane)
 │   └── PrototypePanel (usePrototype) → InputSelector, PrototypePreview, ShareModal, GraduateModal
 ├── Tabs layer (kept mounted, hidden on the list)
@@ -80,6 +81,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/runner.ts` — Command execution with streaming
 - `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`)
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
+- `packages/core/src/usage.ts` — Usage limit windows per account and harness: normalisation, severity, 45 s cache, stale fallback (`usage-claude.ts` reads the keychain and Claude's OAuth usage endpoint, `usage-codex.ts` asks the Codex app server over JSON-RPC)
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
 - `packages/core/src/login-manager.ts` — Hidden PTYs for headless logins
 - `packages/core/src/api-key-login.ts` — API key import over stdin
@@ -98,6 +100,8 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/hooks/useTabManager.ts` — Tab state, persistence, keyboard shortcuts
 - `packages/console/src/hooks/useTaskFilters.ts` — Filter state, derived data
 - `packages/console/src/hooks/useHarnesses.ts` — Shared harness store, 3 s polling
+- `packages/console/src/hooks/useUsage.ts` — Shared usage limit store, 60 s polling while the tab is visible
+- `packages/console/src/components/AccountLimits.tsx` — A harness row's limit meter on the Accounts page
 - `packages/console/src/components/TaskCard.tsx` — TaskRow, DoneRow, TypeTile, LivePill
 - `packages/console/src/components/ProjectBanner.tsx` — Project info (stack, MCPs, delete)
 - `packages/console/src/components/TabBar.tsx` — Pill tabs with add menu
@@ -149,6 +153,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `POST /accounts/:name/login`, `GET|DELETE /accounts/:name/login/:harness` — Headless device login (codex)
 - `POST /accounts/:name/api-key` — Import an API key over stdin (codex)
 - `GET /harnesses` — `cw doctor --json`, per-harness capabilities, Linear/Notion token presence
+- `GET /usage` — Usage limit windows per account and harness (45 s cache, `?fresh=1`); percentages only, never a credential
 - `GET /tools?project=X`, `GET /mcps` — MCPs + plugins for a project
 - `GET /detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info

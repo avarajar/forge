@@ -1,4 +1,5 @@
-import type { CWDoctor, CWDoctorCell, CWSession } from '@forge-dev/core'
+import type { CWDoctor, CWDoctorCell, CWSession, UsageWindow } from '@forge-dev/core'
+import type { UsageBar } from '@forge-dev/ui'
 
 // avatar gradients, cycled per account
 const AVATAR_PAIRS: Array<[string, string]> = [['--blue', '--purple'], ['--teal', '--blue'], ['--orange', '--red'], ['--green', '--teal']]
@@ -129,3 +130,23 @@ export const findCell = (doctor: CWDoctor, account: string, harness: string): CW
 
 // Mirrors ACCOUNT_NAME_RE in @forge-dev/core, which the console does not import at runtime
 export const ACCOUNT_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/
+
+const RESET_FORMAT = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+
+// a countdown while the window is close, a weekday once it is far enough away to be useless as one
+export const formatReset = (iso: string | null, now = Date.now()): string | null => {
+  if (!iso) return null
+  const at = new Date(iso).getTime()
+  if (!Number.isFinite(at)) return null
+  const minutes = Math.round((at - now) / 60_000)
+  if (minutes <= 0) return 'resets now'
+  if (minutes < 60) return `resets in ${minutes} m`
+  const hours = Math.floor(minutes / 60)
+  // the reset instant jitters by fractions of a second, so a whole hour can arrive as 15:59:59.9
+  if (hours >= 24) return `resets ${RESET_FORMAT.format(Math.round(at / 60_000) * 60_000)}`
+  const rest = minutes % 60
+  return `resets in ${hours} h${rest ? ` ${rest} m` : ''}`
+}
+
+export const usageBars = (windows: UsageWindow[]): UsageBar[] =>
+  windows.map(w => ({ label: w.label, percent: w.percent, severity: w.severity, scope: w.scope, reset: formatReset(w.resetsAt) }))
