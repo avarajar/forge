@@ -140,8 +140,6 @@ select.field { padding-right: 28px; }
   .forge-sidebar nav button, .forge-sidebar > [role="button"], .forge-sidebar > button { justify-content: center; padding: 0 !important; }
   .forge-sidebar > button { height: 32px; }
   .task-row .harness-pill { display: none; }
-  .prototype-body { grid-template-columns: minmax(0,1fr) !important; grid-auto-rows: auto minmax(420px, 1fr); overflow: auto; }
-  .prototype-body > :first-child { border-right: 0 !important; border-bottom: 1px solid var(--hair); }
 }
 
 @media (max-width: 700px) {

@@ -15,6 +15,7 @@ import { importApiKey } from './api-key-login.js'
 import { buildTaskReviewState, createLimiter, resolveBase, runCommand, type Runner, type RunResult } from './task-review.js'
 import type { TaskReviewState } from './cw-types.js'
 import { detectEditors, openInEditor, systemProbe, type DetectedEditor } from './editors.js'
+import { tailOutput } from './output.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -32,12 +33,6 @@ export { pendingSessions }
 export function resolveCwBin(cwHome: string): string {
   const candidate = join(cwHome, 'bin', 'cw')
   return existsSync(candidate) ? candidate : 'cw'
-}
-
-const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g
-
-export function tailOutput(text: string, max = 20): string {
-  return text.replace(ANSI_RE, '').split('\n').map(line => line.trimEnd()).filter(line => line.length > 0).slice(-max).join('\n')
 }
 
 const CW_DONE_TIMEOUT_MS = 60_000
@@ -366,7 +361,7 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
       return c.json({ ok: true, session: sessionData })
     }
 
-    // General sessions: no project or task required, just an account
+    // General sessions: no project or task required, just an account; directory runs it in any folder
     if (type === 'general') {
       const acct = account || 'default'
       const sessionDirName = `general-${acct}-${Date.now()}`
@@ -374,12 +369,13 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
       const projectName = project && projectPath ? project : GENERAL_PROJECT
       const sessionData: CWSession = {
         project: projectName,
+        task: task?.trim() || undefined,
         type: 'general',
         account: acct,
         harness: harness || undefined,
         model: model || undefined,
         workflow: '',
-        worktree: projectPath ?? '',
+        worktree: projectPath ?? directory ?? '',
         notes: '',
         status: 'active',
         created: new Date().toISOString(),

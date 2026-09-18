@@ -15,10 +15,8 @@ import { cwRoutes, resolveCwBin } from './cw-routes.js'
 import { skillRoutes } from './skill-routes.js'
 import { PTYManager } from './pty-manager.js'
 import { createTerminalWss } from './pty-routes.js'
-import { SandboxManager } from './sandbox-manager.js'
 import { LoginManager } from './login-manager.js'
-import { prototypeRoutes } from './prototype-routes.js'
-import { tmpdir } from 'node:os'
+import { liveframeRoutes } from './liveframe-routes.js'
 
 interface ServerOptions {
   dataDir: string
@@ -55,12 +53,7 @@ export function createForgeServer(options: ServerOptions) {
   const ptyManager = new PTYManager()
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly })
 
-  const sandboxManager = new SandboxManager({
-    templateDir: join(import.meta.dirname, '../sandbox-template'),
-    sandboxBaseDir: join(tmpdir(), 'forge-sandboxes'),
-    portRangeStart: 51000,
-  })
-  app.route('/api/prototype', prototypeRoutes(sandboxManager))
+  app.route('/api/liveframe', liveframeRoutes())
 
   app.post('/api/cw/terminal/kill', async (c) => {
     const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
@@ -262,6 +255,6 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); loginManager.dispose(); sandboxManager.dispose(); db.close() }
+    close: () => { ptyManager.dispose(); loginManager.dispose(); db.close() }
   }
 }

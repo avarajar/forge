@@ -103,7 +103,7 @@ All tests must pass before a PR can be merged. If you add a feature, add tests f
 ```
 forge/
   packages/
-    core/       → @forge-dev/core      — Hono server, CW reader, PTY terminals, harness logins, skills, prototypes, DB, module loader, action runner
+    core/       → @forge-dev/core      — Hono server, CW reader, PTY terminals, harness logins, skills, Liveframe, DB, module loader, action runner
     console/    → @forge-dev/console   — Preact dashboard (Vite)
     ui/         → @forge-dev/ui        — Shared UI components
     sdk/        → @forge-dev/sdk       — Module SDK (definePanel, types)
@@ -166,7 +166,7 @@ FORGE SERVER (Hono)
   ├── Origin guard      — same-machine check in local mode, bearer token in team mode
   ├── CW routes         — spawn cw work/review/launch, accounts, harness logins, git
   ├── PTY manager       — node-pty sessions streamed to xterm.js
-  ├── Skills, prototypes — skill files, sandboxes with their own dev server
+  ├── Skills, Liveframe — skill files, Liveframe frames through the lf CLI
   ├── Module Registry   — reads forge-module.json files from ~/.forge/modules
   ├── Action Runner     — spawns child processes, streams via SSE
   └── DB layer          — SQLite (local) or PostgreSQL (team)

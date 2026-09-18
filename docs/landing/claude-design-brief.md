@@ -92,7 +92,7 @@ Three short lines or a small visual of scattered terminal windows: "Five agents.
 ### 5. More features (grid of 6 small cards, icon + title + one line)
 - **Multi-tab sessions:** keep several agents open; tabs stay connected while you browse.
 - **Skills:** browse and edit global, account and project skills, or install from skills.sh.
-- **Prototypes:** a sandbox with its own dev server; share it or turn it into a dev task.
+- **Prototypes:** create or pull a Liveframe frame and open an agent in it; push a version from the dashboard.
 - **Projects:** create, register, move and delete projects from the dashboard.
 - **Light and dark:** system fonts, reduced-motion aware, works in narrow windows.
 - **Local by default:** listens on 127.0.0.1 and only answers your own machine. Team mode adds PostgreSQL and a token.

@@ -47,7 +47,7 @@ Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw revie
 - **Command palette** — ⌘K or `/` to jump to a session, a task, a project or a command
 - **Accounts** — one card per account with each harness's status and one-click Connect; Codex logs in with a device code, no terminal
 - **Skills** — browse and edit global, account and project skills side by side, install from skills.sh, or start a session that writes one
-- **Prototypes** — a sandbox with its own dev server to try an idea, share it as a PR or graduate it to a dev task
+- **Prototypes** — launches [Liveframe](https://liveframe.monokulabs.com): create or pull a frame, open an agent in it, push a version
 - **Projects** — create, register, move and delete projects without leaving the dashboard
 - **Dark and light themes** — system fonts, reduced-motion aware, and a layout that folds into an icon rail or an overlay on narrow windows
 
@@ -104,7 +104,7 @@ The skill list and its editor side by side, with references as tabs and a search
     <td width="50%"><img src="docs/screenshots/create-project.png" alt="Add a project" /><br /><sub><b>Add a project</b> — create one with <code>cw create</code> or register an existing repo</sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/prototype.png" alt="Prototype sandbox" /><br /><sub><b>Prototypes</b> — generate a UI in a sandbox, share it, graduate it</sub></td>
+    <td width="50%"><img src="docs/screenshots/prototype.png" alt="Liveframe frames" /><br /><sub><b>Prototypes</b> — Liveframe frames on this machine, each one an agent away</sub></td>
     <td width="50%" align="center"><img src="docs/screenshots/mobile.png" alt="Narrow window" width="220" /><br /><sub><b>Narrow windows</b> — the sidebar becomes an overlay</sub></td>
   </tr>
 </table>
@@ -190,8 +190,8 @@ pnpm dev
 │    projects,    xterm.js)      API key import)        │
 │    MCPs)                                              │
 │                                                       │
-│   Skills       Sandboxes      Module Loader           │
-│   (skills.sh)  (prototypes)   (forge-module.json)     │
+│   Skills       Liveframe      Module Loader           │
+│   (skills.sh)  (lf CLI)       (forge-module.json)     │
 │                                                       │
 │   SQLite (local) ──── or ──── PostgreSQL (team)       │
 └───────────────────────┬───────────────────────────────┘
@@ -221,7 +221,7 @@ pnpm dev
 
 ```
 packages/
-  core/       → Hono server, CW reader, PTY manager, harness logins, skills, prototypes, DB
+  core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe, DB
   console/    → Preact dashboard (app, pages, components, hooks, design tokens)
   ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
@@ -256,7 +256,7 @@ App → Shell (sidebar + main column, theme)
 │   ├── TaskList → StartCard (type inference), filters, Recent / By project, ProjectBanner
 │   ├── Accounts → account cards, device login, API key
 │   ├── Skills → list + editor, create, skills.sh search
-│   └── PrototypePanel → input, preview, share, graduate
+│   └── Prototypes → Liveframe frames: create, pull, push, open an agent
 ├── Tabs (kept mounted while the list is shown)
 │   ├── TabBar → pill tabs, + menu
 │   └── TaskDetail → identity, metric strip, context panel, terminal

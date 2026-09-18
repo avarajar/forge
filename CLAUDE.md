@@ -14,14 +14,14 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (387 tests, all in `packages/core`) |
+| Tests | Vitest (389 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
 
 ```
 packages/
-  core/       → Hono server, CW reader, PTY manager, harness logins, skills, prototype sandboxes, DB, action runner
+  core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe launcher, DB, action runner
   console/    → Preact dashboard
   ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
@@ -36,7 +36,6 @@ modules/
   mod-qa/         — Tests, security, load, visual
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
-skills/prototype/ — Skill used by prototype generation
 tests/integration/ — Cross-package tests (not wired, see Development)
 ```
 
@@ -59,7 +58,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
 │   ├── Skills (rail + editor/create/explore pane)
-│   └── PrototypePanel (usePrototype) → InputSelector, PrototypePreview, ShareModal, GraduateModal
+│   └── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
 ├── Tabs layer (kept mounted, hidden on the list)
 │   ├── TabBar → pill tabs, add menu
 │   └── TaskDetail → identity, metric strip, context panel, framed xterm terminal
@@ -88,7 +87,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/origin-guard.ts` — Same-machine check for HTTP and terminal WebSockets, `FORGE_HOST` bind address
 - `packages/core/src/auth.ts` — Bearer token middleware (team mode)
 - `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install
-- `packages/core/src/sandbox-manager.ts` / `prototype-routes.ts` — Prototype sandboxes (Vite dev server per sandbox, ports from 51000, idle cleanup)
+- `packages/core/src/liveframe.ts` / `liveframe-routes.ts` — Liveframe frames in `~/liveframe/<project>/<frame>` through the `lf` CLI (new, pull, push); reads only the API base from `~/.liveframe/config.json`
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
 - `packages/core/src/test-git.ts` — Fixture repositories for tests, isolated from the global git config (not built)
@@ -115,7 +114,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/TaskDetail.tsx` — Terminal + git stats + MCP info
 - `packages/console/src/pages/Accounts.tsx` — Account cards, Connect flows, account removal
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
-- `packages/console/src/pages/PrototypePanel.tsx` — Prototype sandbox flow (generate, preview, share, graduate to a dev task)
+- `packages/console/src/pages/Prototypes.tsx` — Liveframe launcher: local frames, create/pull, push, Open agent (a general session in the frame folder)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
 - `packages/console/src/components/TaskLinks.tsx` — GitHub and Open in editor buttons
 - `packages/console/src/components/CloseTaskDialog.tsx` — Confirmation before closing a task that could lose work
@@ -139,6 +138,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `FORGE_HOST` — listen address; setting it turns the same-machine check off (see `origin-guard.ts`)
 - `FORGE_DB_URL`, `FORGE_AUTH_TOKEN` — team mode (PostgreSQL + bearer token)
 - `FORGE_NO_OPEN=1` — do not open the browser on start
+- `FORGE_LIVEFRAME_ACCOUNT` — CW account for Liveframe agents (default `monoku`)
 
 ## API Endpoints
 
@@ -157,7 +157,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `GET /tools?project=X`, `GET /mcps` — MCPs + plugins for a project
 - `GET /detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info
-- `POST /start` — Start a task, review, loop, general or create session (spawns cw command)
+- `POST /start` — Start a task, review, loop, general or create session (spawns cw command); a general session takes `directory` and `task` to run in any folder under a name
 - `POST /done` — Runs `cw <work|review|loop> --done` and waits; `500 { error }` when CW fails
 - `GET /review-state/:project/:sessionDir` — Changes, pull request, GitHub link and close warnings (30 s cache, `?fresh=1`)
 - `GET /editors`, `POST /open-in-editor` — Detected editors and opening a worktree (local mode only)
@@ -166,7 +166,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 - `/api/skills` — `GET /`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`
-- `/api/prototype` — `create`, `list`, `:id`, `start-server`, `generate`, `regenerate`, `update-state`, `share`, `archive`, `DELETE :id`
+- `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
 - `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB
 
 ## MCP Reading
