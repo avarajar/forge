@@ -4,6 +4,8 @@
 
 ### Added
 
+- Prototypes launch Liveframe: create a frame (`lf new`) or pull one (`lf pull`) into `~/liveframe/<project>/<frame>` and Forge opens an agent in it on the `monoku` CW account (`FORGE_LIVEFRAME_ACCOUNT` changes it); every local frame lists its live link, a push (`lf push`) and Open agent. Uses the `lf` CLI signed in on this machine. `/api/liveframe` (`status`, `frames`, `pull`, `frames/:project/:frame/push`).
+- A general session can run in any folder under a name (`directory` and `task` on `POST /api/cw/start`).
 - Usage limits per account: the 5 h and weekly windows for Claude Code, and whatever windows the plan carries for Codex, with the time each one resets. The Accounts screen shows every window, including the weekly one scoped to a model; the sidebar keeps a compact meter per account.
 - `GET /api/cw/usage`, which reads the limits from Claude's OAuth usage endpoint and from the Codex app server. Credentials stay on the server.
 - Harness selector in New Task, preselecting the project's or the account's default harness from `cw doctor --json`.
@@ -50,6 +52,7 @@
 
 - The Plan task type, which launched `cw work`.
 - Design from New Task, the quick buttons and the filters.
+- Forge's own prototype sandboxes (generate, preview, Share as PR, Graduate), the sandbox template, the `prototype` skill and `/api/prototype`. Liveframe does the prototyping now.
 
 ### Known limits
 

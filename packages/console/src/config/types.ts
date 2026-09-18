@@ -64,7 +64,7 @@ export const sessionDirOf = (s: CWSession): string =>
 
 export const sessionLabel = (s: CWSession) =>
   s.type === 'review' ? `PR #${s.pr}`
-  : s.type === 'general' ? `General (${s.account})`
+  : s.type === 'general' ? (s.task ?? `General (${s.account})`)
   : s.type === 'create' ? `Create: ${s.task ?? 'project'}`
   : s.type === 'loop' ? `Loop: ${s.task ?? 'loop'}`
   : s.type === 'login' ? `Login: ${s.account} · ${getHarnessStyle(s.harness).label}`

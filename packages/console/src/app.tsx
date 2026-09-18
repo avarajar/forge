@@ -10,7 +10,7 @@ import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
 import { Skills } from './pages/Skills.js'
-import { PrototypePanel } from './pages/PrototypePanel.js'
+import { Prototypes } from './pages/Prototypes.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
@@ -34,8 +34,7 @@ function App() {
 
   const [view, setView] = useState<View>('list')
   const [newTaskOpen, setNewTaskOpen] = useState(false)
-  const [prototypeProject, setPrototypeProject] = useState<string | null>(null)
-  const [prototypeCount, setPrototypeCount] = useState<number | null>(null)
+  const [frameCount, setFrameCount] = useState<number | null>(null)
 
   // Create Project modal
   const [showCreateProject, setShowCreateProject] = useState(false)
@@ -44,7 +43,7 @@ function App() {
   useEffect(() => {
     void loadHarnesses()
     void loadEditors()
-    fetch('/api/prototype/list').then(r => r.json() as Promise<unknown[]>).then(l => setPrototypeCount(l.length)).catch(() => {})
+    fetch('/api/liveframe/frames').then(r => r.json() as Promise<unknown[]>).then(l => setFrameCount(l.length)).catch(() => {})
   }, [])
 
   const fetchData = useCallback(async () => {
@@ -283,7 +282,6 @@ function App() {
 
   const detailShown = !tabs.showList && tabs.openTabs.length > 0
   const sidebarView: View = detailShown ? 'list' : view
-  const prototypeTarget = prototypeProject ?? filters.filterProject ?? projectKeys[0] ?? null
 
   const paletteCommands = useMemo<PaletteItem[]>(() => [
     { id: 'new-task', label: 'New task', hint: 'N', glyph: '+', token: '--blue', run: () => handleNewTask() },
@@ -295,7 +293,7 @@ function App() {
   const sidebar = (
     <Sidebar
       view={sidebarView}
-      counts={{ list: activeSessions.length, accounts: filters.accountNames.length, prototypes: prototypeCount }}
+      counts={{ list: activeSessions.length, accounts: filters.accountNames.length, prototypes: frameCount }}
       projects={sidebarProjects}
       accounts={filters.accountNames}
       selectedProject={filters.filterProject}
@@ -344,14 +342,7 @@ function App() {
       onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
     />
   ) : view === 'prototypes' ? (
-    prototypeTarget ? (
-      <PrototypePanel
-        project={prototypeTarget}
-        projects={Object.keys(projects)}
-        onProjectChange={setPrototypeProject}
-        onBack={handleGoToList}
-      />
-    ) : null
+    <Prototypes accounts={filters.accountNames} onOpenSession={openSession} onFramesChanged={setFrameCount} />
   ) : view === 'accounts' ? (
     <Accounts
       projects={projects}

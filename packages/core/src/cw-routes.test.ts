@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { Hono } from 'hono'
-import { cwRoutes, cwDoneTimeoutMessage, tailOutput } from './cw-routes.js'
+import { cwRoutes, cwDoneTimeoutMessage } from './cw-routes.js'
+import { tailOutput } from './output.js'
 import { CWReader } from './cw-reader.js'
 import { LoginManager } from './login-manager.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, chmodSync } from 'node:fs'
@@ -704,6 +705,14 @@ describe('CW Routes', () => {
     const res = await start({ type: 'general', account: 'default', harness: 'codex' })
     const body = await res.json() as { session: { harness?: string } }
     expect(body.session.harness).toBe('codex')
+  })
+
+  it('POST /api/cw/start runs a general session in a directory under a name', async () => {
+    const res = await start({ type: 'general', account: 'default', directory: '/tmp/frames/checkout', task: 'Liveframe: checkout' })
+    const body = await res.json() as { session: { worktree: string; task?: string; project: string } }
+    expect(body.session.worktree).toBe('/tmp/frames/checkout')
+    expect(body.session.task).toBe('Liveframe: checkout')
+    expect(body.session.project).toBe('__general')
   })
 
   it('POST /api/cw/start rejects an invalid harness', async () => {
