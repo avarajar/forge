@@ -4,6 +4,8 @@
 
 ### Added
 
+- Usage limits per account: the 5 h and weekly windows for Claude Code, and whatever windows the plan carries for Codex, with the time each one resets. The Accounts screen shows every window, including the weekly one scoped to a model; the sidebar keeps a compact meter per account.
+- `GET /api/cw/usage`, which reads the limits from Claude's OAuth usage endpoint and from the Codex app server. Credentials stay on the server.
 - Harness selector in New Task, preselecting the project's or the account's default harness from `cw doctor --json`.
 - Harness badge on task cards, done rows and the task detail bar, and a harness filter in the task list.
 - Accounts screen: an account × harness matrix, Codex device login and API key import, and a terminal login for Claude Code, Pi and OpenCode.

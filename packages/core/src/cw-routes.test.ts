@@ -1087,3 +1087,40 @@ describe('account login routes', () => {
     }
   })
 })
+
+describe('GET /api/cw/usage', () => {
+  const DIR = join(import.meta.dirname, '../.test-cw-usage')
+  const FIXTURE = join(import.meta.dirname, '__fixtures__/usage/doctor-connected.json')
+  let app: Hono
+
+  beforeAll(() => {
+    mkdirSync(join(DIR, 'bin'), { recursive: true })
+    writeFileSync(join(DIR, 'bin/cw'), `#!/bin/sh\ncat '${FIXTURE}'\n`)
+    chmodSync(join(DIR, 'bin/cw'), 0o755)
+    app = new Hono()
+    app.route('/api/cw', cwRoutes(new CWReader(DIR), {
+      usage: {
+        probes: {
+          claude: async () => ({ state: 'ok', windows: [{ label: '5 h', percent: 86, resetsAt: '2026-09-18T00:30:00Z', severity: 'warning', scope: null }], detail: null }),
+          codex: async () => ({ state: 'ok', windows: [{ label: '30 d', percent: 20, resetsAt: null, severity: 'normal', scope: null }], detail: null }),
+        },
+      },
+    }))
+  })
+
+  afterAll(() => rmSync(DIR, { recursive: true, force: true }))
+
+  it('returns the windows per account and harness', async () => {
+    const res = await app.request('/api/cw/usage')
+    const body = await res.json() as { available: boolean; usage: Array<{ account: string; harness: string; state: string; windows: unknown[] }> }
+    expect(body.available).toBe(true)
+    const claude = body.usage.find(u => u.harness === 'claude' && u.state === 'ok')
+    expect(claude?.windows[0]).toEqual({ label: '5 h', percent: 86, resetsAt: '2026-09-18T00:30:00Z', severity: 'warning', scope: null })
+    expect(body.usage.some(u => u.harness === 'pi')).toBe(false)
+  })
+
+  it('never sends a credential to the browser', async () => {
+    const text = await (await app.request('/api/cw/usage')).text()
+    expect(text).not.toMatch(/sk-ant|accessToken|Bearer/)
+  })
+})

@@ -195,3 +195,24 @@ export interface TaskReviewState {
   github: GitHubLink
   closeWarnings: CloseWarning[]
 }
+
+export type UsageState = 'ok' | 'expired' | 'not_connected' | 'error'
+
+export type UsageSeverity = 'normal' | 'warning' | 'critical'
+
+export interface UsageWindow {
+  label: string
+  percent: number
+  resetsAt: string | null
+  severity: UsageSeverity
+  scope: string | null
+}
+
+export interface AccountUsage {
+  account: string
+  harness: string
+  state: UsageState
+  windows: UsageWindow[]
+  detail: string | null
+  stale: boolean
+}

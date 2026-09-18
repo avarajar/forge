@@ -8,6 +8,7 @@ import type { Dirent } from 'node:fs'
 import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-doctor.js'
+import { createUsageClient, type UsageClientDeps } from './usage.js'
 import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 import { LoginManager } from './login-manager.js'
 import { importApiKey } from './api-key-login.js'
@@ -62,7 +63,7 @@ async function runCw(bin: string, args: string[], timeoutMs: number): Promise<Ru
   }
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
@@ -84,6 +85,14 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
       result.doctor.harnesses.map(h => [h.name, [...(HARNESS_CAPABILITIES[h.name] ?? [])]])
     )
     return c.json({ ...result, capabilities, contextTokens: readContextTokens(reader.cwHome) })
+  })
+
+  const usage = createUsageClient(options.usage)
+
+  app.get('/usage', async (c) => {
+    const result = await doctor.get()
+    if (!result.available) return c.json(result)
+    return c.json({ available: true, usage: await usage.get(result.doctor, c.req.query('fresh') === '1') })
   })
 
   app.get('/projects', (c) => {

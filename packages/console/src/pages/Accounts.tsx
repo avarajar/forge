@@ -5,6 +5,8 @@ import type { CWDoctorAccount, CWSession } from '@forge-dev/core'
 import { avatarPair, findCell, getHarnessStyle, soft } from '../config/types.js'
 import { harnesses, loadHarnesses, supportsIn } from '../hooks/useHarnesses.js'
 import { AccountCell, cellDetailLine, cellView } from '../components/AccountCell.js'
+import { AccountLimits } from '../components/AccountLimits.js'
+import { watchUsage } from '../hooks/useUsage.js'
 import { DeviceLoginPanel } from '../components/DeviceLoginPanel.js'
 import { AddAccountForm } from '../components/AddAccountForm.js'
 import { PageHeader } from '../components/PageHeader.js'
@@ -58,6 +60,7 @@ export const Accounts: FunctionComponent<AccountsProps> = ({ projects, onOpenSes
   const [adding, setAdding] = useState(false)
 
   useEffect(() => { loadHarnesses() }, [])
+  useEffect(() => watchUsage(), [])
 
   const response = harnesses.value
   const remote = !LOCAL_HOSTS.has(window.location.hostname)
@@ -132,6 +135,7 @@ export const Accounts: FunctionComponent<AccountsProps> = ({ projects, onOpenSes
                 </span>
                 {view && <AccountCell view={view} onConnect={() => { void connect(account.name, h.name) }} onCancel={cancelDeviceLogin} />}
               </div>
+              {cell && <AccountLimits account={account.name} harness={h.name} />}
               {connecting && (
                 <div style={{ padding: '0 15px 13px' }}>
                   <DeviceLoginPanel
