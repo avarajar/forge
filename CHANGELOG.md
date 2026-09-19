@@ -4,6 +4,10 @@
 
 ### Added
 
+- Skills lists Claude Code plugin skills: each installed plugin once, the accounts that have it with version and state, and its skills read-only. Plugins apply to Claude Code only.
+- Propose a skill: when a plugin's repository is a registered CW project, a task in that project writes the skill following its CONTRIBUTING.md and repository skills, and opens a pull request.
+- Update a plugin in one account (`claude plugin marketplace update` and `claude plugin update`), so a merged skill applies to new sessions without waiting for auto-update.
+- `GET /api/skills/plugins`, `GET /api/skills/plugins/:id/skills/:name` and `POST /api/skills/plugins/:id/update`.
 - Prototypes launch Liveframe: create a frame (`lf new`) or pull one (`lf pull`) into `~/liveframe/<project>/<frame>` and Forge opens an agent in it on the `monoku` CW account (`FORGE_LIVEFRAME_ACCOUNT` changes it); every local frame lists its live link, a push (`lf push`) and Open agent. Uses the `lf` CLI signed in on this machine. `/api/liveframe` (`status`, `frames`, `pull`, `frames/:project/:frame/push`).
 - A general session can run in any folder under a name (`directory` and `task` on `POST /api/cw/start`).
 - Usage limits per account: the 5 h and weekly windows for Claude Code, and whatever windows the plan carries for Codex, with the time each one resets. The Accounts screen shows every window, including the weekly one scoped to a model; the sidebar keeps a compact meter per account.
