@@ -3,8 +3,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CWReader } from './cw-reader.js'
-import { listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
+import { createRemoteLookup, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
 import { writePluginFixture, type FixturePlugin } from './test-plugins.js'
+import { makeFixtureRepo } from './test-git.js'
 
 const noRemote = async () => null
 
@@ -133,5 +134,59 @@ describe('listPlugins', () => {
     expect(skill?.description).toBe('Hard bugs')
     expect(skill?.content).toContain('# body')
     expect(readPluginSkill(plugin!, 'draft')).toBeNull()
+  })
+})
+
+describe('listPlugins project match', () => {
+  let home: string
+  let cw: string
+  const prevHome = process.env.HOME
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'forge-plugins-match-'))
+    cw = join(home, '.cw')
+    process.env.HOME = home
+    mkdirSync(join(cw, 'accounts', 'monoku'), { recursive: true })
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku()])
+  })
+
+  afterEach(() => {
+    process.env.HOME = prevHome
+    rmSync(home, { recursive: true, force: true })
+  })
+
+  it('matches the project whose origin is the plugin repository', async () => {
+    const repo = makeFixtureRepo()
+    repo.git('remote', 'set-url', 'origin', 'git@github.com:monoku/skills.git')
+    writeFileSync(join(repo.work, 'CONTRIBUTING.md'), '# Contributing\n')
+    for (const name of ['ship', 'new-skill']) {
+      mkdirSync(join(repo.work, '.claude', 'skills', name), { recursive: true })
+      writeFileSync(join(repo.work, '.claude', 'skills', name, 'SKILL.md'), `---\nname: ${name}\n---\n`)
+    }
+    mkdirSync(join(repo.work, '.claude', 'skills', 'not-a-skill'), { recursive: true })
+    writeFileSync(join(cw, 'projects.json'), JSON.stringify({ skills: { path: repo.work, account: 'monoku' }, other: { path: home, account: 'monoku' } }))
+
+    const [plugin] = await listPlugins(new CWReader(cw), createRemoteLookup(repo.run))
+    expect(plugin).toMatchObject({ project: 'skills', contributing: true, projectSkills: ['new-skill', 'ship'] })
+    rmSync(repo.root, { recursive: true, force: true })
+  })
+
+  it('leaves project unset when no remote matches', async () => {
+    const repo = makeFixtureRepo()
+    writeFileSync(join(cw, 'projects.json'), JSON.stringify({ web: { path: repo.work, account: 'monoku' } }))
+    const [plugin] = await listPlugins(new CWReader(cw), createRemoteLookup(repo.run))
+    expect(plugin).toMatchObject({ project: undefined, contributing: false, projectSkills: [] })
+    rmSync(repo.root, { recursive: true, force: true })
+  })
+
+  it('caches the remote per project path', async () => {
+    writeFileSync(join(cw, 'projects.json'), JSON.stringify({ web: { path: home, account: 'monoku' } }))
+    let calls = 0
+    const lookup = createRemoteLookup(async () => { calls++; return { code: 0, stdout: 'git@github.com:monoku/skills.git\n', stderr: '' } })
+    const reader = new CWReader(cw)
+    await listPlugins(reader, lookup)
+    const [plugin] = await listPlugins(reader, lookup)
+    expect(calls).toBe(1)
+    expect(plugin?.project).toBe('web')
   })
 })
