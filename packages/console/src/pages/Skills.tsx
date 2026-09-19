@@ -1,9 +1,12 @@
-import { type FunctionComponent, type ComponentChildren } from 'preact'
+import { type FunctionComponent } from 'preact'
 import { useState, useEffect, useCallback } from 'preact/hooks'
 import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import type { SkillEntry, SkillDetail, ExploreResult } from '@forge-dev/core'
 import { skills, loadSkills } from '../hooks/useSkills.js'
+import { plugins, loadPlugins } from '../hooks/usePlugins.js'
+import { PluginRailGroup, PluginPane, PluginSkillView } from './SkillPlugins.js'
 import { MenuButton } from '../components/PageHeader.js'
+import { PaneHeader } from '../components/PaneHeader.js'
 import { Field, labelStyle } from '../components/Field.js'
 
 interface SkillsProps {
@@ -14,7 +17,8 @@ interface SkillsProps {
 }
 
 type Scope = SkillEntry['scope']
-type Pane = { kind: 'editor'; skill: SkillEntry } | { kind: 'create' } | { kind: 'explore'; query: string } | { kind: 'empty' }
+type Pane = { kind: 'editor'; skill: SkillEntry } | { kind: 'create' } | { kind: 'explore'; query: string }
+  | { kind: 'plugin'; id: string; skill?: string } | { kind: 'empty' }
 
 const SCOPE_TOKEN: Record<Scope, string> = { global: '--blue', account: '--orange', project: '--green' }
 
@@ -31,17 +35,6 @@ const scopeLabel = (s: Pick<SkillEntry, 'scope' | 'scopeRef'>) =>
 
 const skillDir = (s: Pick<SkillEntry, 'scope' | 'scopeRef' | 'dirName'>) =>
   s.scope === 'global' ? `~/.claude/skills/${s.dirName}` : s.scope === 'account' ? `~/.cw/accounts/${s.scopeRef}/skills/${s.dirName}` : `<${s.scopeRef}>/.claude/skills/${s.dirName}`
-
-const PaneHeader: FunctionComponent<{ title: string; sub?: string; children?: ComponentChildren }> = ({ title, sub, children }) => (
-  <div class="glass flex items-center flex-wrap shrink-0" style={{ gap: '10px', padding: '12px 20px', borderBottom: '1px solid var(--hair)' }}>
-    <div class="min-w-0">
-      <h2 style={{ fontSize: '17px', fontWeight: 650, letterSpacing: '-0.015em', overflowWrap: 'anywhere' }}>{title}</h2>
-      {sub && <p class="mono" style={{ marginTop: '1px', fontSize: '11.5px', color: 'var(--ink-3)', overflowWrap: 'anywhere' }}>{sub}</p>}
-    </div>
-    <span style={{ flex: '1 1 40px' }} />
-    {children}
-  </div>
-)
 
 /* ── Editor ── */
 
@@ -369,7 +362,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
 
   const refresh = useCallback(async () => {
     try {
-      await loadSkills(firstAccount, firstProject)
+      await Promise.all([loadSkills(firstAccount, firstProject), loadPlugins()])
     } catch {
       showToast('Failed to load skills', 'error')
     } finally {
@@ -377,11 +370,14 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
     }
   }, [firstAccount, firstProject])
 
-  useEffect(() => { if (skills.value === null) void refresh() }, [refresh])
+  useEffect(() => { if (skills.value === null || plugins.value === null) void refresh() }, [refresh])
 
   const list = skills.value ?? []
   const q = search.trim().toLowerCase()
   const filtered = q ? list.filter(s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)) : list
+
+  const pluginList = plugins.value ?? []
+  const activePlugin = pane.kind === 'plugin' ? pluginList.find(p => p.id === pane.id) : undefined
 
   // open the first skill once the list arrives
   useEffect(() => {
@@ -414,7 +410,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
         </div>
         <div class="overflow-auto min-h-0" style={{ padding: '8px' }}>
           {loading && <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>Loading skills…</p>}
-          {!loading && filtered.length === 0 && (
+          {!loading && filtered.length === 0 && pluginList.length === 0 && (
             <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{q ? 'No installed skill matches.' : 'No skills yet.'}</p>
           )}
           {filtered.map(s => {
@@ -437,6 +433,12 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
               </button>
             )
           })}
+          <PluginRailGroup
+            list={pluginList}
+            query={q}
+            selected={pane.kind === 'plugin' ? pane.id : null}
+            onSelect={(id) => setPane({ kind: 'plugin', id })}
+          />
           {q && (
             <button
               type="button"
@@ -469,6 +471,17 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
           />
         )}
         {pane.kind === 'explore' && <SkillExplore query={pane.query} onInstalled={() => { void refresh() }} />}
+        {pane.kind === 'plugin' && activePlugin && !pane.skill && (
+          <PluginPane
+            plugin={activePlugin}
+            accounts={accounts}
+            query={q}
+            onSelectSkill={(name) => setPane({ kind: 'plugin', id: activePlugin.id, skill: name })}
+          />
+        )}
+        {pane.kind === 'plugin' && activePlugin && pane.skill && (
+          <PluginSkillView key={pane.skill} plugin={activePlugin} name={pane.skill} onBack={() => setPane({ kind: 'plugin', id: activePlugin.id })} />
+        )}
         {pane.kind === 'empty' && !loading && (
           <div class="flex-1 grid place-items-center" style={{ padding: '24px' }}>
             <div class="flex flex-col items-center text-center" style={{ gap: '12px' }}>
