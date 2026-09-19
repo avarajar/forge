@@ -4,7 +4,8 @@ import type { ExploreResult, SkillScope } from './cw-types.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { envWithoutHarness } from './cw-doctor.js'
-import { createRunner, type Runner, type RunResult } from './task-review.js'
+import { createRunner, runCommand, type Runner, type RunResult } from './task-review.js'
+import { createRemoteLookup, listPlugins, readPluginSkill, type RemoteLookup } from './plugins.js'
 
 const INSTALL_TIMEOUT_MS = 120_000
 
@@ -18,8 +19,12 @@ function installFailure(result: RunResult): string {
   return result.stderr.trim().split('\n').pop() || `skills CLI exited with code ${result.code}`
 }
 
-export function skillRoutes(reader: CWReader, options: { runnerFor?: (env: NodeJS.ProcessEnv) => Runner } = {}): Hono {
+export function skillRoutes(
+  reader: CWReader,
+  options: { runnerFor?: (env: NodeJS.ProcessEnv) => Runner; remoteOf?: RemoteLookup } = {},
+): Hono {
   const runnerFor = options.runnerFor ?? ((env) => createRunner(env, INSTALL_TIMEOUT_MS))
+  const remoteOf = options.remoteOf ?? createRemoteLookup(runCommand)
   const app = new Hono()
 
   app.get('/', (c) => {
@@ -221,6 +226,15 @@ export function skillRoutes(reader: CWReader, options: { runnerFor?: (env: NodeJ
       return c.json({ error: `Failed to install skill: ${installFailure(result)}` }, 500)
     }
     return c.json({ ok: true })
+  })
+
+  app.get('/plugins', async (c) => c.json(await listPlugins(reader, remoteOf)))
+
+  app.get('/plugins/:id/skills/:name', async (c) => {
+    const plugin = (await listPlugins(reader, remoteOf)).find(p => p.id === c.req.param('id'))
+    const skill = plugin && readPluginSkill(plugin, c.req.param('name'))
+    if (!skill) return c.json({ error: 'Skill not found' }, 404)
+    return c.json(skill)
   })
 
   return app

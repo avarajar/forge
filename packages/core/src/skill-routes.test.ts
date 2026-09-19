@@ -4,6 +4,7 @@ import { skillRoutes } from './skill-routes.js'
 import { CWReader } from './cw-reader.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { writePluginFixture } from './test-plugins.js'
 
 const TEST_HOME = join(import.meta.dirname, '../.test-skill-routes-home')
 const TEST_CW = join(import.meta.dirname, '../.test-skill-routes-cw')
@@ -311,5 +312,121 @@ describe('Skill registry routes', () => {
     const res = await install({ repo: 'owner/repo', skill: 'skill', scope: 'global' })
     expect(res.status).toBe(500)
     expect(await res.json()).toEqual({ error: 'Failed to install skill: No matching skill found in source' })
+  })
+})
+
+describe('Plugin routes', () => {
+  const HOME = join(import.meta.dirname, '../.test-plugin-routes-home')
+  const CW = join(import.meta.dirname, '../.test-plugin-routes-cw')
+  const ID = encodeURIComponent('monoku-skills@monoku-skills')
+  const calls: Array<{ bin: string; args: string[]; configDir: string | undefined; harness: string | undefined }> = []
+  let results: Array<{ code: number; stdout: string; stderr: string }> = []
+  let gate: Promise<void> = Promise.resolve()
+  let app: Hono
+
+  const update = (body: Record<string, unknown>) => app.request(`/api/skills/plugins/${ID}/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  beforeAll(() => {
+    process.env.HOME = HOME
+    process.env.CW_HARNESS = 'codex'
+    mkdirSync(join(CW, 'accounts', 'monoku'), { recursive: true })
+    mkdirSync(join(CW, 'accounts', 'meridian'), { recursive: true })
+    writeFileSync(join(CW, 'projects.json'), JSON.stringify({ skills: { path: HOME, account: 'monoku' } }))
+    writePluginFixture(join(CW, 'accounts', 'monoku'), [{
+      name: 'monoku-skills', marketplace: 'monoku-skills', version: '2.1.0',
+      marketplaceSource: { source: 'github', repo: 'monoku/skills' },
+      listed: ['./skills/engineering/debug'],
+      skills: [{ dir: 'skills/engineering/debug', description: 'Hard bugs' }],
+    }])
+    app = new Hono()
+    app.route('/api/skills', skillRoutes(new CWReader(CW), {
+      remoteOf: async () => 'git@github.com:monoku/skills.git',
+      runnerFor: (env) => async (bin, args) => {
+        calls.push({ bin, args, configDir: env.CLAUDE_CONFIG_DIR, harness: env.CW_HARNESS })
+        await gate
+        return results.shift() ?? { code: 0, stdout: '', stderr: '' }
+      },
+    }))
+  })
+
+  beforeEach(() => {
+    calls.length = 0
+    results = []
+    gate = Promise.resolve()
+  })
+
+  afterAll(() => {
+    delete process.env.CW_HARNESS
+    rmSync(HOME, { recursive: true, force: true })
+    rmSync(CW, { recursive: true, force: true })
+  })
+
+  it('GET /plugins lists installed plugins with their project', async () => {
+    const res = await app.request('/api/skills/plugins')
+    expect(res.status).toBe(200)
+    const body = await res.json() as Array<{ id: string; project?: string; skills: unknown[] }>
+    expect(body).toHaveLength(1)
+    expect(body[0]).toMatchObject({ id: 'monoku-skills@monoku-skills', project: 'skills' })
+    expect(body[0]?.skills).toHaveLength(1)
+  })
+
+  it('GET /plugins/:id/skills/:name returns the SKILL.md', async () => {
+    const res = await app.request(`/api/skills/plugins/${ID}/skills/debug`)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { name: string; content: string }
+    expect(body.name).toBe('debug')
+    expect(body.content).toContain('description: Hard bugs')
+  })
+
+  it('GET /plugins/:id/skills/:name is 404 for an unknown skill or plugin', async () => {
+    expect((await app.request(`/api/skills/plugins/${ID}/skills/ghost`)).status).toBe(404)
+    expect((await app.request(`/api/skills/plugins/${encodeURIComponent('x@y')}/skills/debug`)).status).toBe(404)
+  })
+
+  it('POST update runs marketplace update then plugin update in the account config dir', async () => {
+    const res = await update({ scope: 'account', scopeRef: 'monoku' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, version: '2.1.0' })
+    expect(calls.map(c => [c.bin, ...c.args])).toEqual([
+      ['claude', 'plugin', 'marketplace', 'update', 'monoku-skills'],
+      ['claude', 'plugin', 'update', 'monoku-skills@monoku-skills'],
+    ])
+    expect(calls.every(c => c.configDir === join(CW, 'accounts', 'monoku'))).toBe(true)
+    expect(calls.every(c => c.harness === undefined)).toBe(true)
+  })
+
+  it('POST update is 404 where the plugin is not installed', async () => {
+    const res = await update({ scope: 'account', scopeRef: 'meridian' })
+    expect(res.status).toBe(404)
+    expect(calls).toEqual([])
+  })
+
+  it('POST update stops at the first failing command and reports its output', async () => {
+    results = [{ code: 128, stdout: '', stderr: 'Cloning…\nfatal: could not read from remote repository' }]
+    const res = await update({ scope: 'account', scopeRef: 'monoku' })
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Failed to update monoku-skills: fatal: could not read from remote repository' })
+    expect(calls).toHaveLength(1)
+  })
+
+  it('POST update explains a missing claude CLI', async () => {
+    results = [{ code: 127, stdout: '', stderr: 'ENOENT' }]
+    const res = await update({ scope: 'account', scopeRef: 'monoku' })
+    expect(await res.json()).toEqual({ error: 'Failed to update monoku-skills: the claude CLI is not installed' })
+  })
+
+  it('POST update is 409 while another update runs for the same account', async () => {
+    let release!: () => void
+    gate = new Promise(r => { release = r })
+    const first = update({ scope: 'account', scopeRef: 'monoku' })
+    await new Promise(r => setTimeout(r, 10))
+    const second = await update({ scope: 'account', scopeRef: 'monoku' })
+    expect(second.status).toBe(409)
+    release()
+    expect((await first).status).toBe(200)
   })
 })
