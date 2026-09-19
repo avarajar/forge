@@ -221,7 +221,7 @@ export class CWReader {
     return { mcps, plugins }
   }
 
-  private parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
+  parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
     const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
     if (!match) return { frontmatter: {}, body: content }
 

@@ -156,6 +156,34 @@ export interface ExploreResult {
   repo: string
 }
 
+export interface PluginInstall {
+  scope: 'global' | 'account'
+  scopeRef: string
+  version: string
+  enabled: boolean
+  installPath: string
+  lastUpdated?: string
+}
+
+export interface PluginSkill {
+  name: string
+  description: string
+  path: string
+}
+
+export interface PluginEntry {
+  id: string
+  name: string
+  marketplace: string
+  description: string
+  repo?: string
+  installs: PluginInstall[]
+  skills: PluginSkill[]
+  project?: string
+  contributing: boolean
+  projectSkills: string[]
+}
+
 export type ChecksSummary = 'passing' | 'failing' | 'pending' | 'none'
 
 export type PullRequestInfo =
