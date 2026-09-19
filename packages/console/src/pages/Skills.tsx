@@ -487,6 +487,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
         {pane.kind === 'propose' && activePlugin && (
           <ProposeSkill
             plugin={activePlugin}
+            accounts={accounts}
             onCancel={() => setPane({ kind: 'plugin', id: activePlugin.id })}
             onSubmit={async (text, area, account) => {
               if (await onProposeSkill(activePlugin, text, area, account)) setPane({ kind: 'plugin', id: activePlugin.id })

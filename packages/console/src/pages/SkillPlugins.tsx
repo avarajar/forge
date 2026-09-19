@@ -187,14 +187,18 @@ export const PluginPane: FunctionComponent<{
 
 export const ProposeSkill: FunctionComponent<{
   plugin: PluginEntry
+  accounts: string[]
   onSubmit: (text: string, area: string | undefined, account: string) => Promise<void>
   onCancel: () => void
-}> = ({ plugin, onSubmit, onCancel }) => {
+}> = ({ plugin, accounts, onSubmit, onCancel }) => {
   const areas = pluginAreas(plugin)
-  const accounts = plugin.installs.filter(i => i.scope === 'account').map(i => i.scopeRef)
+  // the session only edits the repository and does not need the plugin installed, so every CW
+  // account is offered; default to one that already has this plugin installed, if any
+  const installedAccounts = plugin.installs.filter(i => i.scope === 'account').map(i => i.scopeRef)
+  const defaultAccount = accounts.find(a => installedAccounts.includes(a)) ?? accounts[0] ?? ''
   const [text, setText] = useState('')
   const [area, setArea] = useState(areas[0] ?? '')
-  const [account, setAccount] = useState(accounts[0] ?? '')
+  const [account, setAccount] = useState(defaultAccount)
   const [starting, setStarting] = useState(false)
 
   const submit = async () => {
