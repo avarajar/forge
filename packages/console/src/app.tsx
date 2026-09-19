@@ -17,8 +17,9 @@ import { TabBar } from './components/TabBar.js'
 import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
-import type { CWSession, SkillEntry } from '@forge-dev/core'
+import type { CWSession, SkillEntry, PluginEntry } from '@forge-dev/core'
 import { QUICK_TYPES, projectOf, sessionKey } from './config/types.js'
+import { buildProposeDescription, proposeTaskName } from './config/plugins.js'
 import { startAccount, startProject, typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
@@ -244,6 +245,36 @@ function App() {
     void startGeneral(`Use the ${skill.name} skill.`, account, project, `Session started with ${skill.name}`)
   }, [accounts, projects, startGeneral])
 
+  // plugins load in Claude Code only, so the session that writes the skill runs there too
+  const handleProposeSkill = useCallback(async (plugin: PluginEntry, text: string, area: string | undefined, account: string) => {
+    if (!plugin.project) return false
+    try {
+      const res = await fetch('/api/cw/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'task',
+          project: plugin.project,
+          task: proposeTaskName(text),
+          description: buildProposeDescription(plugin, text, area),
+          account,
+          harness: 'claude',
+        }),
+      })
+      const result = await res.json() as { ok: boolean; error?: string; session?: CWSession }
+      if (result.ok && result.session) {
+        openSession(result.session)
+        refreshAfterAction()
+        showToast(`Proposing a skill in ${plugin.project}`, 'success')
+        return true
+      }
+      showToast(result.error ?? 'Failed to start session', 'error')
+    } catch {
+      showToast('Failed to start session', 'error')
+    }
+    return false
+  }, [openSession, refreshAfterAction])
+
   useEffect(() => {
     if (loading) return
     loadSkills(accounts[0] ?? '', Object.keys(projects)[0] ?? '').catch(() => {})
@@ -355,6 +386,7 @@ function App() {
       projects={projects}
       onCreateWithAI={handleCreateSkillWithAI}
       onRunSkill={handleRunSkill}
+      onProposeSkill={handleProposeSkill}
     />
   )
 

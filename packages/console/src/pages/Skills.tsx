@@ -1,10 +1,10 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect, useCallback } from 'preact/hooks'
 import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
-import type { SkillEntry, SkillDetail, ExploreResult } from '@forge-dev/core'
+import type { SkillEntry, SkillDetail, ExploreResult, PluginEntry } from '@forge-dev/core'
 import { skills, loadSkills } from '../hooks/useSkills.js'
 import { plugins, loadPlugins } from '../hooks/usePlugins.js'
-import { PluginRailGroup, PluginPane, PluginSkillView } from './SkillPlugins.js'
+import { PluginRailGroup, PluginPane, PluginSkillView, ProposeSkill } from './SkillPlugins.js'
 import { MenuButton } from '../components/PageHeader.js'
 import { PaneHeader } from '../components/PaneHeader.js'
 import { Field, labelStyle } from '../components/Field.js'
@@ -14,11 +14,12 @@ interface SkillsProps {
   projects: Record<string, { path: string; account: string }>
   onCreateWithAI?: (scope: string, scopeRef: string, description: string) => void
   onRunSkill: (skill: SkillEntry) => void
+  onProposeSkill: (plugin: PluginEntry, text: string, area: string | undefined, account: string) => Promise<boolean>
 }
 
 type Scope = SkillEntry['scope']
 type Pane = { kind: 'editor'; skill: SkillEntry } | { kind: 'create' } | { kind: 'explore'; query: string }
-  | { kind: 'plugin'; id: string; skill?: string } | { kind: 'empty' }
+  | { kind: 'plugin'; id: string; skill?: string } | { kind: 'propose'; id: string } | { kind: 'empty' }
 
 const SCOPE_TOKEN: Record<Scope, string> = { global: '--blue', account: '--orange', project: '--green' }
 
@@ -352,7 +353,7 @@ const SkillCreate: FunctionComponent<{
 
 /* ── Page ── */
 
-export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onCreateWithAI, onRunSkill }) => {
+export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onCreateWithAI, onRunSkill, onProposeSkill }) => {
   const [search, setSearch] = useState('')
   const [pane, setPane] = useState<Pane>({ kind: 'empty' })
   const [loading, setLoading] = useState(skills.value === null)
@@ -377,7 +378,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
   const filtered = q ? list.filter(s => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)) : list
 
   const pluginList = plugins.value ?? []
-  const activePlugin = pane.kind === 'plugin' ? pluginList.find(p => p.id === pane.id) : undefined
+  const activePlugin = pane.kind === 'plugin' || pane.kind === 'propose' ? pluginList.find(p => p.id === pane.id) : undefined
 
   // open the first skill once the list arrives
   useEffect(() => {
@@ -477,10 +478,20 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
             accounts={accounts}
             query={q}
             onSelectSkill={(name) => setPane({ kind: 'plugin', id: activePlugin.id, skill: name })}
+            onPropose={() => setPane({ kind: 'propose', id: activePlugin.id })}
           />
         )}
         {pane.kind === 'plugin' && activePlugin && pane.skill && (
           <PluginSkillView key={pane.skill} plugin={activePlugin} name={pane.skill} onBack={() => setPane({ kind: 'plugin', id: activePlugin.id })} />
+        )}
+        {pane.kind === 'propose' && activePlugin && (
+          <ProposeSkill
+            plugin={activePlugin}
+            onCancel={() => setPane({ kind: 'plugin', id: activePlugin.id })}
+            onSubmit={async (text, area, account) => {
+              if (await onProposeSkill(activePlugin, text, area, account)) setPane({ kind: 'plugin', id: activePlugin.id })
+            }}
+          />
         )}
         {pane.kind === 'empty' && !loading && (
           <div class="flex-1 grid place-items-center" style={{ padding: '24px' }}>

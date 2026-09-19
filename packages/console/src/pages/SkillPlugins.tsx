@@ -3,7 +3,9 @@ import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import type { PluginEntry, PluginInstall } from '@forge-dev/core'
 import { PaneHeader } from '../components/PaneHeader.js'
+import { Field } from '../components/Field.js'
 import { loadPlugins } from '../hooks/usePlugins.js'
+import { pluginAreas } from '../config/plugins.js'
 
 const pluginPath = (id: string) => `/api/skills/plugins/${encodeURIComponent(id)}`
 
@@ -175,6 +177,64 @@ export const PluginPane: FunctionComponent<{
               ))}
             </div>
           </section>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ── Propose a skill ── */
+
+export const ProposeSkill: FunctionComponent<{
+  plugin: PluginEntry
+  onSubmit: (text: string, area: string | undefined, account: string) => Promise<void>
+  onCancel: () => void
+}> = ({ plugin, onSubmit, onCancel }) => {
+  const areas = pluginAreas(plugin)
+  const accounts = plugin.installs.filter(i => i.scope === 'account').map(i => i.scopeRef)
+  const [text, setText] = useState('')
+  const [area, setArea] = useState(areas[0] ?? '')
+  const [account, setAccount] = useState(accounts[0] ?? '')
+  const [starting, setStarting] = useState(false)
+
+  const submit = async () => {
+    setStarting(true)
+    try {
+      await onSubmit(text.trim(), areas.length > 1 ? area : undefined, account)
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  return (
+    <>
+      <PaneHeader title="Propose a skill" sub={`${plugin.repo ?? plugin.name} · project ${plugin.project ?? ''}`} />
+      <div class="flex-1 min-h-0 overflow-auto">
+        <div class="flex flex-col" style={{ padding: '16px 20px 24px', gap: '14px', maxWidth: '560px' }}>
+          <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', margin: 0 }}>
+            Starts a task in <span class="mono">{plugin.project}</span> that writes the skill and opens a pull request for review.
+          </p>
+          <Field label="What the skill does and when to use it">
+            <textarea class="field" rows={4} value={text} placeholder="Summarize a release's merged PRs into notes when someone asks for a changelog" onInput={(e) => setText((e.target as HTMLTextAreaElement).value)} />
+          </Field>
+          {areas.length > 1 && (
+            <Field label="Area">
+              <select class="field" value={area} onChange={(e) => setArea((e.target as HTMLSelectElement).value)}>
+                {areas.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </Field>
+          )}
+          {accounts.length > 0 && (
+            <Field label="Account">
+              <select class="field" value={account} onChange={(e) => setAccount((e.target as HTMLSelectElement).value)}>
+                {accounts.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </Field>
+          )}
+          <div class="flex flex-wrap" style={{ gap: '8px' }}>
+            <ActionButton label={starting ? 'Starting…' : 'Start task'} variant="primary" loading={starting} disabled={!text.trim() || !account} onClick={submit} />
+            <ActionButton label="Cancel" variant="secondary" onClick={onCancel} />
+          </div>
         </div>
       </div>
     </>
