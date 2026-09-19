@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (416 tests, all in `packages/core`) |
+| Tests | Vitest (422 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -57,7 +57,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── Views (view: list | accounts | skills | prototypes)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
-│   ├── Skills (rail + editor/create/explore pane)
+│   ├── Skills (rail + editor/create/explore pane, Plugins group → plugin/propose pane)
 │   └── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
 ├── Tabs layer (kept mounted, hidden on the list)
 │   ├── TabBar → pill tabs, add menu

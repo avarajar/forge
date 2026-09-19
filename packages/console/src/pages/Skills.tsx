@@ -437,7 +437,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
           <PluginRailGroup
             list={pluginList}
             query={q}
-            selected={pane.kind === 'plugin' ? pane.id : null}
+            selected={pane.kind === 'plugin' || pane.kind === 'propose' ? pane.id : null}
             onSelect={(id) => setPane({ kind: 'plugin', id })}
           />
           {q && (

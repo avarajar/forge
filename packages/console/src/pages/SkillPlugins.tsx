@@ -69,7 +69,7 @@ const AccountRow: FunctionComponent<{ plugin: PluginEntry; install: PluginInstal
       const result = await res.json() as { ok?: boolean; version?: string; error?: string }
       if (result.ok) {
         showToast(`${plugin.name} ${result.version ?? ''} · applies to new sessions`, 'success')
-        await loadPlugins()
+        void loadPlugins().catch(() => {})
       } else {
         showToast(result.error ?? 'Failed to update plugin', 'error')
       }
