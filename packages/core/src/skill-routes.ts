@@ -19,6 +19,12 @@ function installFailure(result: RunResult): string {
   return result.stderr.trim().split('\n').pop() || `skills CLI exited with code ${result.code}`
 }
 
+function commandFailure(result: RunResult): string {
+  if (result.code === 127) return 'the claude CLI is not installed'
+  const lines = `${result.stderr}\n${result.stdout}`.trim().split('\n').filter(Boolean)
+  return lines.find(l => /error|fatal/i.test(l)) ?? lines.pop() ?? `claude exited with code ${result.code}`
+}
+
 export function skillRoutes(
   reader: CWReader,
   options: { runnerFor?: (env: NodeJS.ProcessEnv) => Runner; remoteOf?: RemoteLookup } = {},
@@ -26,6 +32,8 @@ export function skillRoutes(
   const runnerFor = options.runnerFor ?? ((env) => createRunner(env, INSTALL_TIMEOUT_MS))
   const remoteOf = options.remoteOf ?? createRemoteLookup(runCommand)
   const app = new Hono()
+  // one update per config dir: two CLIs rewriting installed_plugins.json would race
+  const updating = new Set<string>()
 
   app.get('/', (c) => {
     const account = c.req.query('account')
@@ -235,6 +243,31 @@ export function skillRoutes(
     const skill = plugin && readPluginSkill(plugin, c.req.param('name'))
     if (!skill) return c.json({ error: 'Skill not found' }, 404)
     return c.json(skill)
+  })
+
+  app.post('/plugins/:id/update', async (c) => {
+    const id = c.req.param('id')
+    const { scope, scopeRef } = await c.req.json<{ scope?: string; scopeRef?: string }>()
+    const ref = scope === 'global' ? 'global' : scopeRef ?? ''
+    const find = async () => (await listPlugins(reader, remoteOf)).find(p => p.id === id)
+    const plugin = await find()
+    const install = plugin?.installs.find(i => i.scope === scope && i.scopeRef === ref)
+    if (!plugin || !install) return c.json({ error: `${id} is not installed in ${ref || 'that scope'}` }, 404)
+
+    const configDir = reader.getSkillConfigDir(install.scope, install.scopeRef)
+    if (updating.has(configDir)) return c.json({ error: `An update is already running for ${ref}` }, 409)
+    updating.add(configDir)
+    try {
+      const run = runnerFor({ ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir })
+      for (const args of [['plugin', 'marketplace', 'update', plugin.marketplace], ['plugin', 'update', plugin.id]]) {
+        const result = await run('claude', args, configDir)
+        if (result.code !== 0) return c.json({ error: `Failed to update ${plugin.name}: ${commandFailure(result)}` }, 500)
+      }
+    } finally {
+      updating.delete(configDir)
+    }
+    const version = (await find())?.installs.find(i => i.scope === install.scope && i.scopeRef === ref)?.version ?? install.version
+    return c.json({ ok: true, version })
   })
 
   return app
