@@ -48,6 +48,11 @@ const inside = (root: string, path: string) => {
 }
 
 // the plugin.json "skills" array when present (Claude Code does not scan nested areas), otherwise skills/*
+function scanDirs(root: string): string[] {
+  if (!existsSync(root)) return []
+  return readdirSync(root, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => join(root, e.name))
+}
+
 function skillDirs(installPath: string, manifest: Json): string[] {
   const listed = manifest['skills']
   if (Array.isArray(listed)) {
@@ -56,9 +61,11 @@ function skillDirs(installPath: string, manifest: Json): string[] {
       .map(p => resolve(installPath, p))
       .filter(p => inside(installPath, p))
   }
-  const root = join(installPath, 'skills')
-  if (!existsSync(root)) return []
-  return readdirSync(root, { withFileTypes: true }).filter(e => e.isDirectory()).map(e => join(root, e.name))
+  if (typeof listed === 'string') {
+    const root = resolve(installPath, listed)
+    return inside(installPath, root) ? scanDirs(root) : []
+  }
+  return scanDirs(join(installPath, 'skills'))
 }
 
 function readSkill(reader: CWReader, dir: string): PluginSkill | null {
@@ -136,7 +143,7 @@ export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Pro
   for (const [id, list] of found) {
     const newest = [...list].sort((a, b) => (b.install.lastUpdated ?? '').localeCompare(a.install.lastUpdated ?? ''))[0]!
     const manifest = readJson(join(newest.install.installPath, '.claude-plugin', 'plugin.json'))
-    const repo = normalizeRepo(list.map(f => f.repo).find(Boolean) ?? manifestRepo(manifest))
+    const repo = [manifestRepo(manifest), ...list.map(f => f.repo)].map(normalizeRepo).find(Boolean)
     const match = repo ? remotes.find(r => r.repo === repo) : undefined
     plugins.push({
       id,

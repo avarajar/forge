@@ -115,10 +115,46 @@ describe('listPlugins', () => {
     expect(plugin?.skills.map(s => s.name)).toEqual(['debug'])
   })
 
+  it('scans every directory under a string skills root', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [{
+      name: 'superpowers', marketplace: 'official', version: '6.3.0', listed: './custom/',
+      skills: [{ dir: 'custom/a' }, { dir: 'custom/b' }],
+    }])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.skills.map(s => s.name).sort()).toEqual(['a', 'b'])
+  })
+
+  it('ignores a string skills root that escapes the install', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [{
+      name: 'superpowers', marketplace: 'official', version: '6.3.0', listed: '../../../../../../etc',
+      skills: [{ dir: 'skills/brainstorming' }],
+    }])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.skills).toEqual([])
+  })
+
   it('falls back to plugin.json repository when the marketplace has no source', async () => {
     writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({ marketplaceSource: undefined, repository: 'https://github.com/monoku/skills' })])
     const [plugin] = await listPlugins(reader, noRemote)
     expect(plugin?.repo).toBe('monoku/skills')
+  })
+
+  it('prefers the plugin.json repository over the marketplace source, for a multi-plugin marketplace', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({
+      marketplaceSource: { source: 'github', repo: 'anthropics/claude-plugins-official' },
+      repository: 'https://github.com/obra/superpowers',
+    })])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.repo).toBe('obra/superpowers')
+  })
+
+  it('leaves repo undefined when neither plugin.json nor the marketplace source normalize', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({
+      marketplaceSource: { source: 'url', url: 'https://example.com/not-github' },
+      repository: undefined,
+    })])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.repo).toBeUndefined()
   })
 
   it('treats malformed JSON as no plugins', async () => {

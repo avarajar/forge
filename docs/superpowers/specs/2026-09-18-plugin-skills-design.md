@@ -73,7 +73,7 @@ Rules:
 
 - **Config dirs scanned:** global plus every CW account, resolved with the existing `CWReader.getSkillConfigDir`. Entries are grouped by `id`, so a plugin installed in two accounts appears once with two installs.
 - **Skills:** taken from the most recently updated install. If `plugin.json` has a `"skills"` array, each entry is resolved against `installPath` and must contain `SKILL.md`. Otherwise `skills/*/SKILL.md` is scanned. Unreadable or missing skills are skipped.
-- **Repo:** from the marketplace source (`github` → `repo`; `git`/`url` → parsed), falling back to `plugin.json` `repository`. Normalization accepts `owner/repo`, `git@github.com:owner/repo(.git)` and `https://github.com/owner/repo(.git)`, and lowercases the result for comparison.
+- **Repo:** `plugin.json` `repository` first, then the marketplace source (`github` → `repo`; `git`/`url` → parsed), taking the first candidate that normalizes — so a plugin's own repository wins over a multi-plugin marketplace's source. Normalization accepts `owner/repo`, `git@github.com:owner/repo(.git)` and `https://github.com/owner/repo(.git)`, and lowercases the result for comparison.
 - **Project match:** `git remote get-url origin` for each registered project, normalized the same way. Remotes are cached per project path for the lifetime of the reader; a project without a remote or a failing command never matches.
 - **Missing files:** a config dir without `plugins/` contributes nothing; malformed JSON is treated as empty rather than failing the whole list.
 - **Security:** only paths derived from `installed_plugins.json` are read, and each skill path must resolve inside its `installPath`.

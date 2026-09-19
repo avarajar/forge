@@ -10,7 +10,7 @@ export interface FixturePlugin {
   description?: string
   repository?: string            // plugin.json repository
   marketplaceSource?: Record<string, string>  // known_marketplaces source
-  listed?: string[]              // plugin.json "skills" array; omitted → no array
+  listed?: string[] | string      // plugin.json "skills" array or string root; omitted → no array
   skills: Array<{ dir: string; name?: string; description?: string }>  // dir relative to installPath
 }
 
