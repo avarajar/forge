@@ -247,7 +247,7 @@ export function skillRoutes(
 
   app.post('/plugins/:id/update', async (c) => {
     const id = c.req.param('id')
-    const { scope, scopeRef } = await c.req.json<{ scope?: string; scopeRef?: string }>()
+    const { scope, scopeRef } = await c.req.json<{ scope?: string; scopeRef?: string }>().catch(() => ({}) as { scope?: string; scopeRef?: string })
     const ref = scope === 'global' ? 'global' : scopeRef ?? ''
     const find = async () => (await listPlugins(reader, remoteOf)).find(p => p.id === id)
     const plugin = await find()
@@ -258,7 +258,9 @@ export function skillRoutes(
     if (updating.has(configDir)) return c.json({ error: `An update is already running for ${ref}` }, 409)
     updating.add(configDir)
     try {
-      const run = runnerFor({ ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir })
+      // the CLI relocates .claude.json when CLAUDE_CONFIG_DIR is set to ~/.claude; accounts keep it, global does not
+      const { CLAUDE_CONFIG_DIR: _ignored, ...base } = envWithoutHarness()
+      const run = runnerFor(install.scope === 'global' ? base : { ...base, CLAUDE_CONFIG_DIR: configDir })
       for (const args of [['plugin', 'marketplace', 'update', plugin.marketplace], ['plugin', 'update', plugin.id]]) {
         const result = await run('claude', args, configDir)
         if (result.code !== 0) return c.json({ error: `Failed to update ${plugin.name}: ${commandFailure(result)}` }, 500)

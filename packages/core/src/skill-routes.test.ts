@@ -336,12 +336,14 @@ describe('Plugin routes', () => {
     mkdirSync(join(CW, 'accounts', 'monoku'), { recursive: true })
     mkdirSync(join(CW, 'accounts', 'meridian'), { recursive: true })
     writeFileSync(join(CW, 'projects.json'), JSON.stringify({ skills: { path: HOME, account: 'monoku' } }))
-    writePluginFixture(join(CW, 'accounts', 'monoku'), [{
+    const fixture = {
       name: 'monoku-skills', marketplace: 'monoku-skills', version: '2.1.0',
       marketplaceSource: { source: 'github', repo: 'monoku/skills' },
       listed: ['./skills/engineering/debug'],
       skills: [{ dir: 'skills/engineering/debug', description: 'Hard bugs' }],
-    }])
+    }
+    writePluginFixture(join(CW, 'accounts', 'monoku'), [fixture])
+    writePluginFixture(join(HOME, '.claude'), [fixture])
     app = new Hono()
     app.route('/api/skills', skillRoutes(new CWReader(CW), {
       remoteOf: async () => 'git@github.com:monoku/skills.git',
@@ -397,6 +399,22 @@ describe('Plugin routes', () => {
     ])
     expect(calls.every(c => c.configDir === join(CW, 'accounts', 'monoku'))).toBe(true)
     expect(calls.every(c => c.harness === undefined)).toBe(true)
+  })
+
+  it('POST update runs without CLAUDE_CONFIG_DIR for the global scope, so Claude Code does not relocate .claude.json', async () => {
+    const res = await update({ scope: 'global' })
+    expect(res.status).toBe(200)
+    expect(calls[0]?.configDir).toBeUndefined()
+  })
+
+  it('POST update is 404 for a malformed JSON body', async () => {
+    const res = await app.request(`/api/skills/plugins/${ID}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{bad',
+    })
+    expect(res.status).toBe(404)
+    expect(calls).toEqual([])
   })
 
   it('POST update is 404 where the plugin is not installed', async () => {
