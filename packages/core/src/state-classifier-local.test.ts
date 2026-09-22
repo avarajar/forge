@@ -13,6 +13,10 @@ describe('terminalText', () => {
     expect(terminalText('Quick\x1b[8Gsafety\x1b[15Gcheck')).toBe('Quick safety check')
   })
 
+  it('breaks rows the cursor moves between, so a redraw does not glue them together', () => {
+    expect(terminalText('✢ Brewing…\x1b[2A✻ Baked for 3s\x1b[5;1H❯ ')).toBe('✢ Brewing…\n✻ Baked for 3s\n❯ ')
+  })
+
   it('drops colours, OSC titles and carriage returns', () => {
     expect(terminalText('\x1b]0;title\x07\x1b[38;2;1;2;3mhi\x1b[39m\r\n')).toBe('hi\n')
   })
@@ -72,6 +76,20 @@ describe('classifyLocal edge cases', () => {
   it('does not read "thought for 3s" inside the spinner as a finished turn', () => {
     const text = '✻ Finagling… (4s · thought for 3s)'
     expect(classifyLocal({ text, ...quiet }).state).toBe('working')
+  })
+
+  it('reads a finished turn whose verb has an accent as waiting, after the spinner it replaced', () => {
+    const text = '✻ Gesticulating…\n⏺ Done.\n✻ Sautéed for 13s · done 10:33 pm\n❯ '
+    expect(classifyLocal({ text, ...quiet }).state).toBe('waiting')
+  })
+
+  it('reads a finished turn whose duration a redraw left out as waiting', () => {
+    const text = '✢ Brewing… (1m 52s · ↓ 2.0k tokens)✻ Baked for  done 10:12 am❯ '
+    expect(classifyLocal({ text, ...quiet }).state).toBe('waiting')
+  })
+
+  it('reads a spinner verb with an accent as working', () => {
+    expect(classifyLocal({ text: '✻ Brewed for 2s\n✻ Flambéing…', ...quiet }).state).toBe('working')
   })
 
   it('says idle with low confidence when nothing matches', () => {
