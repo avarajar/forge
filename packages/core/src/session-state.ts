@@ -103,6 +103,8 @@ export class StateTracker {
   output(key: string, chunk: string): void {
     const tracked = this.sessions.get(key)
     if (!tracked || tracked.exitedAt !== null) return
+    // a terminal query such as a cursor position request can repeat every 200 ms while nothing is drawn
+    if (!terminalText(chunk).trim()) return
     const now = Date.now()
     tracked.raw = (tracked.raw + chunk).slice(-TAIL_CHARS)
     tracked.lastOutputAt = now
@@ -164,7 +166,9 @@ export class StateTracker {
     tracked.timer = null
     tracked.burstStart = null
     if (this.sessions.get(key) !== tracked || tracked.exitedAt !== null) return
-    const input = { text: terminalText(tracked.raw), quietMs: Date.now() - tracked.lastOutputAt, harness: tracked.harness, exitCode: null }
+    // a timer can fire a millisecond before Date.now() says settleMs went by
+    const quietMs = Math.max(Date.now() - tracked.lastOutputAt, this.settleMs)
+    const input = { text: terminalText(tracked.raw), quietMs, harness: tracked.harness, exitCode: null }
     const local = classifyLocal(input)
     this.apply(tracked, local)
     if (!this.remote || !input.text.trim() || input.text === tracked.askedText) return

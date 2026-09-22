@@ -18,7 +18,7 @@ describe('StateTracker', () => {
   let tracker: StateTracker
 
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0) })
-  afterEach(() => { tracker?.dispose(); vi.useRealTimers() })
+  afterEach(() => { tracker?.dispose(); vi.useRealTimers(); vi.restoreAllMocks() })
 
   it('starts a tracked session as working', () => {
     tracker = new StateTracker()
@@ -57,6 +57,24 @@ describe('StateTracker', () => {
     vi.advanceTimersByTime(2000)
     for (let i = 0; i < 11; i++) { tracker.output('p::a', '✻ Brewing… '); vi.advanceTimersByTime(200) }
     expect(tracker.snapshot()['p::a'].state).toBe('working')
+  })
+
+  it('ignores output with nothing to show, such as a cursor position query every 200 ms', () => {
+    tracker = new StateTracker()
+    tracker.track('p::a', 'claude')
+    tracker.output('p::a', DONE)
+    for (let i = 0; i < 20; i++) { vi.advanceTimersByTime(200); tracker.output('p::a', '\x1b[?6n') }
+    expect(tracker.snapshot()['p::a']).toMatchObject({ state: 'waiting', since: 1500 })
+  })
+
+  it('reads a settled screen even when the timer fires a millisecond early', () => {
+    tracker = new StateTracker()
+    tracker.track('p::a', 'claude')
+    tracker.output('p::a', DONE)
+    const now = Date.now
+    vi.spyOn(Date, 'now').mockImplementation(() => now() - 1)
+    vi.advanceTimersByTime(1500)
+    expect(tracker.snapshot()['p::a'].state).toBe('waiting')
   })
 
   it('reports an exit with its code, and drops it ten minutes later', () => {
