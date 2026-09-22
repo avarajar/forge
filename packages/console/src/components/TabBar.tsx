@@ -1,7 +1,8 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useRef, useEffect, useCallback } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, projectOf, quickLabel, sessionKey, sessionLabel } from '../config/types.js'
+import { QUICK_TYPES, projectOf, quickLabel, sessionKey, sessionLabel, needsYou, stateLabel, stateToken } from '../config/types.js'
+import { sessionStates } from '../hooks/useSessionStates.js'
 import { TypeTile } from './TaskCard.js'
 import { Dot } from './Dot.js'
 import { BackButton, MenuButton } from './PageHeader.js'
@@ -103,13 +104,15 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
       <BackButton onClick={onBack} />
       {tabs.map((session, i) => {
         const on = i === activeIndex
+        const state = sessionStates.value[sessionKey(session)]
+        const urgent = !on && needsYou(state)
         return (
           <div
             key={sessionKey(session)}
             role="tab"
             tabIndex={0}
             aria-selected={on}
-            title={i < 5 ? `⌘${i + 1}` : undefined}
+            title={[urgent ? stateLabel(state!) : null, i < 5 ? `⌘${i + 1}` : null].filter(Boolean).join(' · ') || undefined}
             class="flex items-center shrink-0 whitespace-nowrap cursor-pointer transition-all duration-200 ease-spring"
             style={{
               gap: '8px', padding: '6px 11px', borderRadius: '10px', fontSize: '12.5px',
@@ -120,7 +123,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
             onClick={() => onActivate(i)}
             onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(i) } }}
           >
-            <Dot size={6} live={session.status === 'active'} />
+            <Dot size={6} live={session.status === 'active'} color={urgent ? `var(${stateToken(state!)})` : undefined} />
             <span style={{ fontWeight: 600, color: on ? 'var(--ink)' : 'var(--ink-2)' }}>{sessionLabel(session)}</span>
             <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{projectOf(session)}</span>
             <button

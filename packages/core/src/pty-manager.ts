@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import type { CWSession } from './cw-types.js'
 import { envWithoutHarness } from './cw-doctor.js'
 import { supports } from './harness-capabilities.js'
+import type { StateTracker } from './session-state.js'
 
 const SCROLLBACK_LIMIT = 5000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
@@ -111,7 +112,7 @@ export class PTYManager {
   private sessions = new Map<string, PTYSession>()
   private cleanupTimer: ReturnType<typeof setInterval> | null = null
 
-  constructor() {
+  constructor(private readonly states: StateTracker | null = null) {
     this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS)
   }
 
@@ -158,7 +159,10 @@ export class PTYManager {
       onExitDisposable: null!
     }
 
+    this.states?.track(key, session.harness ?? 'claude')
+
     ptySession.onDataDisposable = ptyProcess.onData((data: string) => {
+      this.states?.output(key, data)
       ptySession.scrollback.push(data)
       if (ptySession.scrollback.length > SCROLLBACK_LIMIT) {
         ptySession.scrollback.splice(0, ptySession.scrollback.length - SCROLLBACK_LIMIT)
@@ -175,6 +179,7 @@ export class PTYManager {
     })
 
     ptySession.onExitDisposable = ptyProcess.onExit(({ exitCode }) => {
+      this.states?.exit(key, exitCode)
       const message = JSON.stringify({ type: 'exit', code: exitCode })
       for (const client of ptySession.clients) {
         try {
@@ -222,6 +227,7 @@ export class PTYManager {
       session.onExitDisposable.dispose()
       session.pty.kill()
     } catch {}
+    this.states?.forget(sessionId)
     this.sessions.delete(sessionId)
   }
 

@@ -22,6 +22,8 @@ export type { ChecksSummary, PullRequestInfo, CloseWarning, DiffStat, GitHubLink
 export type { UsageState, UsageSeverity, UsageWindow, AccountUsage } from './cw-types.js'
 export { ACCOUNT_NAME_RE, HARNESS_NAME_RE, PROVIDER_NAME_RE, MODEL_NAME_RE } from './cw-types.js'
 export { PTYManager } from './pty-manager.js'
+export type { SessionState, Classification } from './state-classifier.js'
+export type { SessionStateEntry } from './session-state.js'
 export type { PTYSession, PTYClient } from './pty-manager.js'
 export { createTerminalWss } from './pty-routes.js'
 export { liveframeRoutes } from './liveframe-routes.js'

@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (422 tests, all in `packages/core`) |
+| Tests | Vitest (465 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -49,6 +49,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── useTaskFilters   → project/type/harness filters, derived data
 ├── useHarnesses     → shared `cw doctor` store, 3 s polling
 ├── useUsage         → shared usage limit store, 60 s polling
+├── useSessionStates → shared session state store, 2 s polling, notifications
 ├── useTerminalMetrics → context, tokens and cost parsed from terminal output
 ├── config/types.ts  → TYPE_STYLES (one token per type), QUICK_TYPES, helpers
 ├── state/startTask.ts → start card / drawer shared input and type override
@@ -76,6 +77,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/cw-routes.ts` — CW API endpoints (spaces, start, done, accounts, logins, projects, git)
 - `packages/core/src/pty-manager.ts` — node-pty session manager with idle cleanup
 - `packages/core/src/pty-routes.ts` — WebSocket server for terminal sessions
+- `packages/core/src/session-state.ts` — `StateTracker`: a live terminal's state (working, waiting, permission, error, exited, idle), read when the output settles; `state-classifier-local.ts` holds the Claude Code rules (latest marker wins, fixtures in `__fixtures__/terminal/claude`), `state-classifier-jev.ts` the optional TypeSafe Jev classifier
 - `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
 - `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`)
@@ -101,6 +103,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/hooks/useTaskFilters.ts` — Filter state, derived data
 - `packages/console/src/hooks/useHarnesses.ts` — Shared harness store, 3 s polling
 - `packages/console/src/hooks/useUsage.ts` — Shared usage limit store, 60 s polling while the tab is visible
+- `packages/console/src/hooks/useSessionStates.ts` — Shared session state store, 2 s polling (15 s while hidden), listeners for sessions that start needing the user; `state/notifications.ts` holds the browser notification switch
 - `packages/console/src/components/AccountLimits.tsx` — A harness row's limit meter on the Accounts page
 - `packages/console/src/components/TaskCard.tsx` — TaskRow, DoneRow, TypeTile, LivePill
 - `packages/console/src/components/ProjectBanner.tsx` — Project info (stack, MCPs, delete)
@@ -141,6 +144,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `FORGE_DB_URL`, `FORGE_AUTH_TOKEN` — team mode (PostgreSQL + bearer token)
 - `FORGE_NO_OPEN=1` — do not open the browser on start
 - `FORGE_LIVEFRAME_ACCOUNT` — CW account for Liveframe agents (default `monoku`)
+- `FORGE_STATE_CLASSIFIER=jev`, `TYPESAFE_API_KEY`, `FORGE_JEV_MODEL` — send unsure terminal screens to TypeSafe Jev (off by default; terminal text leaves the machine)
 
 ## API Endpoints
 
@@ -164,6 +168,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `GET /review-state/:project/:sessionDir` — Changes, pull request, GitHub link and close warnings (30 s cache, `?fresh=1`)
 - `GET /editors`, `POST /open-in-editor` — Detected editors and opening a worktree (local mode only)
 - `POST /terminal/kill` — Kill a session's PTY
+- `GET /session-states` — `{ classifier, states }`: state, confidence, since and source per live PTY (`project::sessionDir`); never terminal text
 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket

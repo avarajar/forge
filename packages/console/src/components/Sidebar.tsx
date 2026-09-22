@@ -1,8 +1,8 @@
 import { type FunctionComponent } from 'preact'
 import { useEffect } from 'preact/hooks'
 import type { CWSession, UsageWindow } from '@forge-dev/core'
-import { Tabs, UsageMeter } from '@forge-dev/ui'
-import { projectOf, soft, sessionLabel, getHarnessStyle, usageBars, formatReset } from '../config/types.js'
+import { Tabs, ToggleSwitch, UsageMeter, showToast } from '@forge-dev/ui'
+import { projectOf, soft, sessionLabel, getHarnessStyle, usageBars, formatReset, needsYou, stateLabel, stateToken } from '../config/types.js'
 import { theme, setTheme, sidebarOpen } from '../shell.js'
 import { harnesses } from '../hooks/useHarnesses.js'
 import { skills } from '../hooks/useSkills.js'
@@ -10,6 +10,8 @@ import { Dot } from './Dot.js'
 import { ProjectNav, type ProjectNavItem } from './ProjectNav.js'
 import { metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
 import { usage, watchUsage } from '../hooks/useUsage.js'
+import { sessionStates } from '../hooks/useSessionStates.js'
+import { notificationsSupported, notifySessions, setNotifySessions } from '../state/notifications.js'
 
 export type View = 'list' | 'accounts' | 'skills' | 'prototypes'
 
@@ -56,18 +58,20 @@ const Label: FunctionComponent = ({ children }) => (
 
 const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: number; onOpen: () => void }> = ({ id, session, index, onOpen }) => {
   const m = metricsFor(id).value
+  const state = sessionStates.value[id]
+  const urgent = needsYou(state)
   const isLoop = session.type === 'loop'
   const pct = m?.context ?? null
   const [c1, c2] = index % 2 === 0 ? ['var(--blue)', 'var(--purple)'] : ['var(--purple)', 'var(--blue)']
-  const sub = isLoop
+  const sub = urgent ? stateLabel(state!) : isLoop
     ? (session.loop_interval ? `every ${session.loop_interval}` : 'self-paced')
     : m && (m.tokens !== null || m.cost !== null)
       ? [m.tokens !== null ? `${formatTokens(m.tokens)} tokens` : null, m.cost !== null ? formatCost(m.cost) : null].filter(Boolean).join(' · ')
       : projectOf(session) || session.account
   return (
-    <button type="button" class={cardClass} style={cardStyle} onClick={onOpen}>
+    <button type="button" class={cardClass} style={urgent ? { ...cardStyle, borderColor: `var(${stateToken(state!)})` } : cardStyle} onClick={onOpen} title={state ? stateLabel(state) : undefined}>
       <span class="flex items-center w-full" style={{ gap: '6px' }}>
-        <Dot size={6} color={c1} live />
+        <Dot size={6} color={state ? `var(${stateToken(state)})` : c1} live={!state || state.state === 'working' || urgent} />
         <span class="truncate" style={{ fontSize: '12.5px', fontWeight: 600 }}>{sessionLabel(session)}</span>
         <span class="flex-1" />
         <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-2)' }}>{pct !== null ? `${Math.round(pct)}%` : '—'}</span>
@@ -76,10 +80,23 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
         <span class="block h-full" style={{ width: `${pct ?? 0}%`, borderRadius: '99px', background: `linear-gradient(90deg, ${c1}, ${c2})`, transition: 'width .6s var(--ease)' }} />
         <span class="absolute inset-y-0 left-0" style={{ width: '30%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent)', animation: 'sweep 2.6s ease-in-out infinite' }} />
       </span>
-      <span class="mono truncate w-full" style={cardFoot}>{sub}</span>
+      <span class="mono truncate w-full" style={urgent ? { ...cardFoot, color: `var(${stateToken(state!)})`, fontWeight: 600 } : cardFoot}>{sub}</span>
     </button>
   )
 }
+
+const NotifySwitch: FunctionComponent = () => (
+  <label class="flex items-center justify-between" style={{ gap: '8px', padding: '0 9px', fontSize: '12px', color: 'var(--ink-2)' }}>
+    <span class="sb-label">Notify when a session needs me</span>
+    <ToggleSwitch
+      checked={notifySessions.value}
+      label="Notify when a session needs me"
+      onChange={(on) => {
+        void setNotifySessions(on).then((ok) => { if (!ok) showToast('The browser blocked notifications for Forge', 'error') })
+      }}
+    />
+  </label>
+)
 
 // the tightest window decides what the card says underneath, because that is the one that will bite
 const LimitCard: FunctionComponent<{ account: string; harness: string; windows: UsageWindow[]; stale: boolean; onOpen: () => void }> = ({ account, harness, windows, stale, onOpen }) => {
@@ -106,6 +123,8 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
   const version = harnesses.value?.available ? harnesses.value.doctor.cw_version : null
   const nav = NAV.map(n => ({ ...n, count: n.view === 'skills' ? skills.value?.length ?? null : counts[n.view] ?? null }))
   useEffect(() => watchUsage(), [])
+  // sessions waiting on the user go first
+  const liveOrdered = [...live].sort((a, b) => Number(needsYou(sessionStates.value[b.key])) - Number(needsYou(sessionStates.value[a.key])))
   const limits = usage.value?.available ? usage.value.usage.filter(u => u.state === 'ok' && u.windows.some(w => !w.scope)) : []
   return (
   <aside
@@ -171,7 +190,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
       {live.length > 0 && (
         <div class="flex flex-col sb-section" style={{ gap: '8px' }}>
           <span style={{ padding: '0 9px' }}><Label>Live now</Label></span>
-          {live.map((l, i) => <LiveCard key={l.key} id={l.key} session={l.session} index={i} onOpen={() => onOpenLive(l.session)} />)}
+          {liveOrdered.map((l, i) => <LiveCard key={l.key} id={l.key} session={l.session} index={i} onOpen={() => onOpenLive(l.session)} />)}
         </div>
       )}
       {limits.length > 0 && (
@@ -189,6 +208,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
           ))}
         </div>
       )}
+      {notificationsSupported && <div class="sb-section"><NotifySwitch /></div>}
       <div class="sb-section">
         <Tabs
           fill
