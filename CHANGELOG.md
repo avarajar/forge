@@ -34,6 +34,7 @@
 
 ### Changed
 
+- Switching to a task tab puts the keyboard in its terminal, so you can type without clicking it first. Tabs in the background no longer take focus when they load.
 - The console is redesigned: system fonts, a dark and a light theme, system blue for actions, one color per task type, cards per project, and short motion that respects reduced motion.
 - New Task opens as a drawer over the task list and shares the start card's input.
 - Skills shows the list and the editor side by side; search falls through to skills.sh.

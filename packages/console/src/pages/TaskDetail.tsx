@@ -213,6 +213,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
             <ForgeTerminal
               wsUrl={wsUrl}
               theme={theme.value}
+              focused={active}
               onOutput={(data) => recordOutput(key, data)}
               onExit={() => setPtyExited(true)}
               onConnectionChange={setConnected}
