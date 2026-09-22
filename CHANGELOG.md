@@ -50,6 +50,7 @@
 
 ### Fixed
 
+- The screen sent to Jev and written to `FORGE_STATE_LOG` lost letters ("t e user to co firm"): Claude Code redraws a row by writing only the cells that changed and jumping over the rest, and the text stripped from the raw stream turned every jump into spaces. Forge now keeps each terminal's screen in a terminal emulator, at the size you resize it to, and sends that.
 - A Claude Code turn that ends on a spinner verb with an accent ("Sautéed for 13s"), or whose duration a redraw left out ("Baked for  done 10:12 am"), reads as waiting, not working. Rows Claude Code redraws by moving the cursor are no longer glued into one line.
 - A session whose terminal keeps asking for the cursor position (`ESC[?6n` every 200 ms) no longer stays working forever: output with nothing to show no longer counts as activity, so the screen settles and is read. A settled screen also reads correctly when the timer fires a millisecond early, instead of passing for fresh output.
 - Jev no longer sees Claude Code's footer notices ("Checking for updates", "new task? /clear…") or repeated lines, which it took for progress under an idle prompt and which pushed the prompt out of the 30 lines it gets.

@@ -22,7 +22,7 @@ export function stateLogLine(call: RemoteCall): string {
     remote: call.remote && { state: call.remote.state, confidence: call.remote.confidence },
     error: call.error,
     latencyMs: call.latencyMs,
-    screen: jevScreen(call.text),
+    screen: jevScreen(call.screen),
   }) + '\n'
 }
 

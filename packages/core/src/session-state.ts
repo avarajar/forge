@@ -1,6 +1,7 @@
 import { classifyLocal } from './state-classifier-local.js'
 import { createJevClassifier } from './state-classifier-jev.js'
 import { terminalText, type Classification, type SessionState, type StateClassifier } from './state-classifier.js'
+import { TerminalScreen } from './terminal-screen.js'
 
 // Holds the state of every live terminal. It sees each output chunk but only classifies once the
 // output settles, so a remote classifier is asked at most once per pause, never per chunk.
@@ -35,7 +36,8 @@ export interface RemoteCall {
   at: number
   key: string
   harness: string
-  text: string
+  // what the remote classifier was sent
+  screen: string
   local: Classification
   remote: Classification | null
   error: string | null
@@ -52,7 +54,8 @@ interface Tracked {
   burstStart: number | null
   version: number
   timer: ReturnType<typeof setTimeout> | null
-  askedText: string | null
+  screen: TerminalScreen
+  askedScreen: string | null
   entry: SessionStateEntry
   exitedAt: number | null
 }
@@ -93,7 +96,7 @@ export class StateTracker {
     const now = Date.now()
     this.forget(key)
     const tracked: Tracked = {
-      harness, raw: '', lastOutputAt: now, burstStart: now, version: 0, timer: null, askedText: null, exitedAt: null,
+      harness, raw: '', lastOutputAt: now, burstStart: now, version: 0, timer: null, screen: new TerminalScreen(), askedScreen: null, exitedAt: null,
       entry: { state: 'working', confidence: 0.6, since: now, source: 'local' },
     }
     this.sessions.set(key, tracked)
@@ -103,6 +106,7 @@ export class StateTracker {
   output(key: string, chunk: string): void {
     const tracked = this.sessions.get(key)
     if (!tracked || tracked.exitedAt !== null) return
+    tracked.screen.write(chunk)
     // a terminal query such as a cursor position request can repeat every 200 ms while nothing is drawn
     if (!terminalText(chunk).trim()) return
     const now = Date.now()
@@ -127,9 +131,14 @@ export class StateTracker {
     tracked.entry.exitCode = exitCode
   }
 
+  resize(key: string, cols: number, rows: number): void {
+    this.sessions.get(key)?.screen.resize(cols, rows)
+  }
+
   forget(key: string): void {
     const tracked = this.sessions.get(key)
     if (tracked?.timer) clearTimeout(tracked.timer)
+    tracked?.screen.dispose()
     this.sessions.delete(key)
   }
 
@@ -171,29 +180,34 @@ export class StateTracker {
     const input = { text: terminalText(tracked.raw), quietMs, harness: tracked.harness, exitCode: null }
     const local = classifyLocal(input)
     this.apply(tracked, local)
-    if (!this.remote || !input.text.trim() || input.text === tracked.askedText) return
+    if (!this.remote) return
     // error markers are exact API and limit messages, so a remote guess never overrules one
     if (!this.shadow && (local.confidence >= this.localTrust || local.state === 'error')) return
-    tracked.askedText = input.text
+    const remote = this.remote
     const version = tracked.version
-    const startedAt = Date.now()
-    const record = (remote: Classification | null, error: string | null, outcome: RemoteCall['outcome']) => this.onRemote({
-      at: startedAt, key, harness: input.harness, text: input.text, local, remote, error, latencyMs: Date.now() - startedAt, outcome,
+    void tracked.screen.read().then((screen) => {
+      if (this.sessions.get(key) !== tracked || tracked.version !== version) return
+      if (!screen.trim() || screen === tracked.askedScreen) return
+      tracked.askedScreen = screen
+      const startedAt = Date.now()
+      const record = (answer: Classification | null, error: string | null, outcome: RemoteCall['outcome']) => this.onRemote({
+        at: startedAt, key, harness: input.harness, screen, local, remote: answer, error, latencyMs: Date.now() - startedAt, outcome,
+      })
+      remote.classify({ ...input, screen }).then(
+        (answer) => {
+          if (this.shadow) return record(answer, null, 'shadow')
+          if (this.sessions.get(key) !== tracked || tracked.version !== version) return record(answer, null, 'stale')
+          if (answer.confidence < this.remoteMin) return record(answer, null, 'low-confidence')
+          this.apply(tracked, answer)
+          record(answer, null, 'applied')
+        },
+        (err: unknown) => {
+          const error = err instanceof Error ? err : new Error(String(err))
+          record(null, error.message, 'failed')
+          this.onError(error)
+        },
+      )
     })
-    this.remote.classify(input).then(
-      (remote) => {
-        if (this.shadow) return record(remote, null, 'shadow')
-        if (this.sessions.get(key) !== tracked || tracked.version !== version) return record(remote, null, 'stale')
-        if (remote.confidence < this.remoteMin) return record(remote, null, 'low-confidence')
-        this.apply(tracked, remote)
-        record(remote, null, 'applied')
-      },
-      (err: unknown) => {
-        const error = err instanceof Error ? err : new Error(String(err))
-        record(null, error.message, 'failed')
-        this.onError(error)
-      },
-    )
   }
 }
 

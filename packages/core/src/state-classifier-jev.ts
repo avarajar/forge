@@ -45,7 +45,7 @@ export function createJevClassifier({ apiKey, model = 'jev-latest', timeoutMs = 
       if (input.exitCode !== null) return { state: 'exited', confidence: 1, source: 'jev' }
       const body = {
         model,
-        state: { harness: input.harness, seconds_since_last_output: Math.round(input.quietMs / 1000), screen: jevScreen(input.text) },
+        state: { harness: input.harness, seconds_since_last_output: Math.round(input.quietMs / 1000), screen: jevScreen(input.screen ?? input.text) },
         questions: {
           state: {
             type: 'choice',
