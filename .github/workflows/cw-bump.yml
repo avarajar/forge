@@ -1,0 +1,76 @@
+name: Bump CW
+
+# Opens (or refreshes) one pull request that pins the latest CW main in
+# packages/platform/cw.lock.json, the CW the npm package carries.
+
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+  # CW can trigger it right after a merge:
+  # gh api repos/avarajar/forge/dispatches -f event_type=cw-updated
+  repository_dispatch:
+    types: [cw-updated]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: cw-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LOCK: packages/platform/cw.lock.json
+      BRANCH: chore/bump-cw
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare the pinned commit with CW main
+        id: cw
+        run: |
+          repo=$(jq -r .repo "$LOCK")
+          pinned=$(jq -r .ref "$LOCK")
+          latest=$(git ls-remote "$repo" refs/heads/main | cut -f1)
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          if [ "$latest" = "$pinned" ]; then
+            echo "CW main is still ${pinned:0:7}"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git clone --quiet --filter=blob:none --no-checkout "$repo" /tmp/cw
+          # Forge runs install.sh --no-shell; a CW without it would edit the user's shell rc files
+          git -C /tmp/cw show "$latest:install.sh" | grep -q -- '--no-shell'
+          version=$(git -C /tmp/cw show "$latest:cw" | sed -n 's/^CW_VERSION="\(.*\)"/\1/p' | head -1)
+          {
+            echo "changed=true"
+            echo "version=$version"
+            echo "log<<EOF"
+            git -C /tmp/cw log --format='- %s (%h)' --no-merges "$pinned..$latest" 2>/dev/null || true
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or refresh the pull request
+        if: steps.cw.outputs.changed == 'true'
+        env:
+          LATEST: ${{ steps.cw.outputs.latest }}
+          VERSION: ${{ steps.cw.outputs.version }}
+          LOG: ${{ steps.cw.outputs.log }}
+        run: |
+          jq --arg ref "$LATEST" '.ref = $ref' "$LOCK" > "$LOCK.tmp" && mv "$LOCK.tmp" "$LOCK"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git commit -q -am "chore: bundle CW $VERSION (${LATEST:0:7})"
+          git push -f origin "$BRANCH"
+          title="chore: bundle CW $VERSION (${LATEST:0:7})"
+          body=$(printf 'Pins [CW %s](https://github.com/avarajar/cw/commit/%s) in `%s`. The next published `@forge-dev/platform` carries it, and Forge updates the CW it installed on start.\n\n## CW changes\n\n%s\n' "$VERSION" "$LATEST" "$LOCK" "$LOG")
+          if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
+            gh pr edit "$BRANCH" --title "$title" --body "$body"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
+          fi

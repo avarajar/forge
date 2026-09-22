@@ -115,14 +115,17 @@ The skill list and its editor side by side, with references as tabs and a search
 
 ### Prerequisites
 
+Forge runs on macOS and Linux. On Windows, run it inside WSL.
+
 | Requirement | Version | Install |
 |-------------|---------|---------|
 | **Node.js** | >= 20 | [nodejs.org](https://nodejs.org) |
-| **pnpm** | >= 11 | `corepack enable && corepack prepare pnpm@latest --activate` |
+| **Bash** | >= 4 | Required by CW. macOS ships 3.2: `brew install bash` |
 | **Python 3** | >= 3.9 | Required by CW for session management |
 | **Git** | any recent | Worktree support required |
 | **A harness** | latest | At least one of Claude Code (`npm i -g @anthropic-ai/claude-code`), Codex, Pi or OpenCode |
-| **[CW](https://github.com/avarajar/cw)** | >= 0.3.0 | `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
+| **[CW](https://github.com/avarajar/cw)** | >= 0.3.0 | Comes with the npm package. From source: `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
+| **pnpm** | >= 11 | Only to run Forge from source: `corepack enable && corepack prepare pnpm@latest --activate` |
 
 ### CW Setup
 
@@ -136,9 +139,24 @@ cw open <project>                # Register a project (or cw project register)
 
 Once you have at least one project registered, Forge will show it in the dashboard. You can also register an existing repo from Forge's Create Project dialog.
 
-### Launch
+### Install
 
-Clone and run:
+```bash
+npm install -g @forge-dev/platform
+forge                      # opens http://localhost:3000 (--port, --no-open)
+```
+
+Or without installing: `npx @forge-dev/platform`. With CW on your PATH, `cw forge` starts it too.
+
+The package carries CW, so you don't install it separately. Each time Forge starts it checks `~/.cw`:
+
+- No CW: it installs the one it carries.
+- A CW it installed: it updates it when this Forge carries a newer one, so updating Forge updates CW.
+- A CW you installed yourself: it leaves it alone unless the one it carries has a higher version. A `cw` elsewhere on your PATH is always left alone.
+
+It never edits `.zshrc` or `.bashrc`. Forge's sessions find `cw` on their own; to run `cw` in a terminal, add `~/.cw/bin` to your PATH. `FORGE_SKIP_CW_INSTALL=1` turns all of this off.
+
+### From source
 
 ```bash
 git clone https://github.com/avarajar/forge.git
@@ -146,14 +164,7 @@ cd forge
 pnpm start
 ```
 
-That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`. The first run takes ~1–2 minutes while it installs 249 packages and compiles the monorepo; subsequent starts are near-instant thanks to Turborepo's cache.
-
-Other ways to launch:
-
-```bash
-cw forge                   # If you have CW installed
-npx @forge-dev/platform    # No install needed
-```
+That's it — installs dependencies, builds, and opens the dashboard at `http://localhost:3000`. The first run takes ~1–2 minutes while it installs 249 packages and compiles the monorepo; subsequent starts are near-instant thanks to Turborepo's cache. A checkout does not install CW: install it from its repository.
 
 ### Remote access
 
@@ -226,7 +237,7 @@ packages/
   ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
-  platform/   → Entry point (npx @forge-dev/platform)
+  platform/   → Entry point and the published package (npx @forge-dev/platform), with CW bundled
 modules/
   mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
@@ -317,6 +328,12 @@ pnpm test             # Run all tests
 
 `pnpm dev` runs the package watchers and the Vite dashboard on `http://localhost:5173`, but not the API server. Vite proxies `/api` and `/ws` to port 3000, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` in another terminal after `pnpm build`.
 
+### Publishing
+
+`@forge-dev/platform` is the only published package. `pnpm publish --access public` in `packages/platform` runs `scripts/pack.mjs`, which builds the workspace, bundles the server into `dist/index.js` (the workspace packages inlined, npm dependencies left external), copies the console, and copies the CW commit pinned in `packages/platform/cw.lock.json` into `cw/`. `pnpm pack` does the same without publishing.
+
+The Bump CW workflow checks CW's `main` every day and opens a pull request that moves the pin. CW can also trigger it after a merge with `gh api repos/avarajar/forge/dispatches -f event_type=cw-updated`. To bundle something else locally, set `FORGE_CW_SOURCE` (a clone or URL) and `FORGE_CW_REF`.
+
 ### Run specific package
 
 ```bash
@@ -333,6 +350,7 @@ cd packages/console && pnpm vite       # Dashboard dev server
 | `FORGE_DB_URL` | — | PostgreSQL URL for team mode |
 | `FORGE_AUTH_TOKEN` | — | Bearer token for team mode |
 | `FORGE_NO_OPEN` | — | `1` skips opening the browser |
+| `FORGE_SKIP_CW_INSTALL` | — | `1` stops the npm package from installing or updating CW |
 
 <br />
 

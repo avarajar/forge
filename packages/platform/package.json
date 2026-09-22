@@ -1,23 +1,54 @@
 {
   "name": "@forge-dev/platform",
   "version": "0.1.0",
+  "description": "A visual dashboard for your coding agents on Claude Code, Codex, Pi or OpenCode. Installs CW for you.",
+  "license": "MIT",
   "type": "module",
-  "bin": {
-    "forge-platform": "dist/index.js"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avarajar/forge.git",
+    "directory": "packages/platform"
   },
+  "homepage": "https://avarajar.github.io/forge/",
+  "bin": {
+    "forge": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "console",
+    "cw"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist console cw",
+    "bundle-cw": "node scripts/bundle-cw.mjs",
+    "prepack": "node scripts/pack.mjs",
+    "postpack": "rm -rf cw console"
   },
   "dependencies": {
-    "@forge-dev/core": "workspace:*",
-    "@forge-dev/console": "workspace:*",
     "@hono/node-server": "^1.14.0",
-    "open": "^10.0.0"
+    "@hono/node-ws": "^1.3.0",
+    "@xterm/headless": "^5.5.0",
+    "better-sqlite3": "^12.0.0",
+    "hono": "^4.7.0",
+    "node-pty": "^1.1.0",
+    "open": "^10.0.0",
+    "postgres": "^3.4.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@forge-dev/console": "workspace:*",
+    "@forge-dev/core": "workspace:*",
     "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
     "typescript": "^5.8.0"
   }
 }
