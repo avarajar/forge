@@ -51,6 +51,7 @@
 ### Fixed
 
 - A Claude Code turn that ends on a spinner verb with an accent ("Sautéed for 13s"), or whose duration a redraw left out ("Baked for  done 10:12 am"), reads as waiting, not working. Rows Claude Code redraws by moving the cursor are no longer glued into one line.
+- A session whose terminal keeps asking for the cursor position (`ESC[?6n` every 200 ms) no longer stays working forever: output with nothing to show no longer counts as activity, so the screen settles and is read. A settled screen also reads correctly when the timer fires a millisecond early, instead of passing for fresh output.
 - Jev no longer sees Claude Code's footer notices ("Checking for updates", "new task? /clear…") or repeated lines, which it took for progress under an idle prompt and which pushed the prompt out of the 30 lines it gets.
 - Installing a skill from Explore failed with "slug is required": Forge reads the current skills.sh search response and installs into `~/.claude/skills` with `skills add <repo> --skill <name> --agent claude-code`, even when Forge runs inside a CW session.
 - `POST /api/skills/install` takes `repo` and `skill` instead of `slug`, installs account and project skills with the skills CLI instead of guessing a GitHub raw URL, answers 404 for an unknown account or project, and returns the CLI's reason when it cannot install a skill.
