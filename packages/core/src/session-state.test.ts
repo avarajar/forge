@@ -102,6 +102,16 @@ describe('StateTracker', () => {
       expect(tracker.snapshot()['p::a'].state).toBe('permission')
     })
 
+    it('does not let the remote classifier overrule an error the local rules found', async () => {
+      const calls: string[] = []
+      tracker = new StateTracker({ remote: remoteReturning({ state: 'waiting', confidence: 0.95, source: 'jev' }, calls) })
+      tracker.track('p::a', 'claude')
+      tracker.output('p::a', '⎿ API Error: 529 overloaded\n❯ ')
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(calls).toHaveLength(0)
+      expect(tracker.snapshot()['p::a']).toMatchObject({ state: 'error', source: 'local' })
+    })
+
     it('keeps the local answer when the remote one is not confident enough', async () => {
       tracker = new StateTracker({ remote: remoteReturning({ state: 'error', confidence: 0.4, source: 'jev' }) })
       tracker.track('p::a', 'codex')

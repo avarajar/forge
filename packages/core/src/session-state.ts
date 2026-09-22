@@ -143,7 +143,8 @@ export class StateTracker {
     const input = { text: terminalText(tracked.raw), quietMs: Date.now() - tracked.lastOutputAt, harness: tracked.harness, exitCode: null }
     const local = classifyLocal(input)
     this.apply(tracked, local)
-    if (!this.remote || local.confidence >= this.localTrust || !input.text.trim() || input.text === tracked.askedText) return
+    // error markers are exact API and limit messages, so a remote guess never overrules one
+    if (!this.remote || local.confidence >= this.localTrust || local.state === 'error' || !input.text.trim() || input.text === tracked.askedText) return
     tracked.askedText = input.text
     const version = tracked.version
     this.remote.classify(input).then(
