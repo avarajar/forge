@@ -31,7 +31,7 @@ describe('Forge Server', () => {
   it('GET /api/cw/session-states lists no states before any terminal starts', async () => {
     const res = await server.fetch('/api/cw/session-states')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ classifier: 'local', states: {} })
+    expect(await res.json()).toEqual({ classifier: 'local', shadow: false, states: {} })
   })
 
   it('GET /api/projects returns empty array', async () => {
