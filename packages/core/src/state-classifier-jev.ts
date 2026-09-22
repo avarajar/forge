@@ -9,16 +9,23 @@ type AskedState = Exclude<SessionState, 'exited'>
 
 // Jev reads criteria literally, so each option names what is on screen, not what it means for Forge
 const CRITERIA: Record<AskedState, string> = {
-  working: 'The agent is still busy: a spinner, a progress line or a running tool is the newest thing on screen.',
+  working: 'The agent is still busy: a spinner, a progress line or a running tool is the newest thing above the prompt. Status bars and notices below the prompt are not progress.',
   waiting: 'The agent finished its turn or was interrupted and is waiting at an empty prompt for the next message.',
   permission: 'The agent shows a question with options the user must pick, such as approving a command or edit, trusting a folder, or answering yes or no.',
   error: 'The agent stopped on an error: an API error, a usage or rate limit, a failed login or a crash.',
   idle: 'Nothing on screen shows which of the other options applies.',
 }
 
+// Claude Code's footer notices, redrawn for hours under an idle prompt; Jev took them for progress
+const FOOTER_NOISE = /Checking for updates|new task\? \/clear to save [\d.]+k? tokens/g
+
 // only the bottom of the screen matters, and Jev loses accuracy on unrelated text
 export function jevScreen(text: string, lines = SCREEN_LINES): string {
-  const kept = text.split('\n').map(l => l.trim()).filter(Boolean).slice(-lines).join('\n')
+  const kept = text.split('\n')
+    .map(l => l.replace(FOOTER_NOISE, '').trim())
+    .filter(Boolean)
+    .filter((l, i, all) => l !== all[i - 1])
+    .slice(-lines).join('\n')
   return kept.slice(-SCREEN_CHARS)
 }
 

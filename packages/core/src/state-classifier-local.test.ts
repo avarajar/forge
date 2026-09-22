@@ -74,6 +74,15 @@ describe('classifyLocal edge cases', () => {
     expect(classifyLocal({ text, ...quiet }).state).toBe('working')
   })
 
+  it('reads a finished turn whose verb has an accent as waiting, after the spinner it replaced', () => {
+    const text = '✻ Gesticulating…\n⏺ Done.\n✻ Sautéed for 13s · done 10:33 pm\n❯ '
+    expect(classifyLocal({ text, ...quiet }).state).toBe('waiting')
+  })
+
+  it('reads a spinner verb with an accent as working', () => {
+    expect(classifyLocal({ text: '✻ Brewed for 2s\n✻ Flambéing…', ...quiet }).state).toBe('working')
+  })
+
   it('says idle with low confidence when nothing matches', () => {
     const result = classifyLocal({ text: '', ...quiet })
     expect(result.state).toBe('idle')

@@ -14,6 +14,12 @@ describe('jevScreen', () => {
     expect(jevScreen('a\n\n b \nc', 2)).toBe('b\nc')
   })
 
+  it('drops Claude Code footer notices and repeated lines, so an idle prompt stays in view', () => {
+    const footer = 'new task? /clear to save 173.9k tokens          Checking for updates\nnew task? /clear to save 173.9k tokens\n'
+    expect(jevScreen(`✻ Brewed for 3s\n❯\n${footer.repeat(40)}`)).toBe('✻ Brewed for 3s\n❯')
+    expect(jevScreen('Gesticulating…\n\nGesticulating…\n❯')).toBe('Gesticulating…\n❯')
+  })
+
   it('caps the screen length from the end', () => {
     expect(jevScreen('x'.repeat(10_000)).length).toBe(4000)
   })
