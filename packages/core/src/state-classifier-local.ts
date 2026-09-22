@@ -12,6 +12,8 @@ const CLAUDE_MARKERS: Marker[] = [
   { state: 'permission', confidence: 0.95, re: /Do you want to [^?\n]{1,80}\?[\s\S]{0,40}❯ ?1\. Yes/g },
   { state: 'permission', confidence: 0.95, re: /Esc to cancel · Tab to amend|Enter to confirm · Esc to cancel/g },
   { state: 'waiting', confidence: 0.9, re: /(?:^|[^(\p{L}\d_])\p{Lu}\p{Ll}+ed for (?:\d+[hm] )*\d+s\b/gmu },
+  // a redraw can reuse the digits of the spinner above, leaving "Baked for  done 10:12 am"
+  { state: 'waiting', confidence: 0.9, re: /\p{Lu}\p{Ll}+ed for [^\n…]{0,20}?\bdone \d{1,2}:\d{2}/gu },
   { state: 'waiting', confidence: 0.9, re: /Interrupted · What should Claude do instead\?/g },
   { state: 'waiting', confidence: 0.8, re: /Claude Code v\d+\.\d+/g },
   { state: 'error', confidence: 0.85, re: /API Error|usage limit reached|You've hit your (?:usage )?limit|Credit balance is too low|Please run \/login|OAuth token (?:has )?expired/gi },

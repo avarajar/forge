@@ -23,11 +23,13 @@ export interface StateClassifier {
   classify: (input: ClassifyInput) => Promise<Classification>
 }
 
-// Claude Code places every word with a cursor column move, so stripping ANSI alone glues words together
+// Claude Code places every word with a cursor column move and redraws rows by moving the cursor
+// between them, so stripping ANSI alone glues words and rows together
 export function terminalText(raw: string): string {
   return raw
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '')
     .replace(/\x1b\[\d*[GC]/g, ' ')
+    .replace(/\x1b\[[\d;]*[ABEFHfd]/g, '\n')
     .replace(/\x1b\[[0-9;?<>=]*[ -/]*[@-~]/g, '')
     .replace(/\x1b[()][0-9A-Za-z]/g, '')
     .replace(/\x1b[@-_]/g, '')
