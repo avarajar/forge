@@ -18,6 +18,8 @@ interface TerminalProps {
   onConnectionChange?: (connected: boolean) => void
   /** Called with every chunk written to the terminal */
   onOutput?: (data: string) => void
+  /** Interactive mode: take keyboard focus whenever this turns true */
+  focused?: boolean
   theme?: 'dark' | 'light'
 }
 
@@ -32,7 +34,7 @@ const themeFor = (mode: 'dark' | 'light') => ({
 
 
 export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
-  streamUrl, content, wsUrl, height = 300, onExit, onConnectionChange, onOutput, theme = 'dark'
+  streamUrl, content, wsUrl, height = 300, onExit, onConnectionChange, onOutput, focused = true, theme = 'dark'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const isInteractive = !!wsUrl
@@ -46,11 +48,17 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
   onOutputRef.current = onOutput
   const themeRef = useRef(theme)
   themeRef.current = theme
+  const focusedRef = useRef(focused)
+  focusedRef.current = focused
   const termRef = useRef<XTerm | null>(null)
 
   useEffect(() => {
     if (termRef.current) termRef.current.options.theme = themeFor(theme)
   }, [theme])
+
+  useEffect(() => {
+    if (isInteractive && focused) termRef.current?.focus()
+  }, [focused, isInteractive])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -92,7 +100,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
       // Delay fit so the container has final dimensions from layout
       setTimeout(() => {
         fitAddon.fit()
-        if (isInteractive) term.focus()
+        if (isInteractive && focusedRef.current) term.focus()
       }, 50)
 
       // Static content mode
