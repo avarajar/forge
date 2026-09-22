@@ -97,11 +97,24 @@ function renderCtx() {
   ctxFill.style.width = `${ctx}%`;
 }
 
+// Its state turns to "Waiting for you" near the top of the meter, like a turn that ended.
+const heroState = document.querySelector('[data-hero-state]');
+const heroStateLabel = document.querySelector('[data-hero-state-label]');
+
+function renderState() {
+  const waiting = ctx >= 80;
+  heroState.style.setProperty('--c', waiting ? 'var(--orange)' : 'var(--green)');
+  heroState.querySelector('.dot').classList.toggle('live', !waiting);
+  heroStateLabel.textContent = waiting ? 'Waiting for you' : 'Working';
+}
+
 renderCtx();
+renderState();
 if (!reduced) {
   setInterval(() => {
     ctx = ctx >= 92 ? 14 : ctx + 1 + Math.floor(Math.random() * 3);
     renderCtx();
+    renderState();
   }, 2200);
 }
 
