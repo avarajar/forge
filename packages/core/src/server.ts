@@ -15,6 +15,7 @@ import { cwRoutes, resolveCwBin } from './cw-routes.js'
 import { skillRoutes } from './skill-routes.js'
 import { PTYManager } from './pty-manager.js'
 import { StateTracker, remoteClassifierFromEnv } from './session-state.js'
+import { createStateLog } from './state-log.js'
 import { createTerminalWss } from './pty-routes.js'
 import { LoginManager } from './login-manager.js'
 import { liveframeRoutes } from './liveframe-routes.js'
@@ -51,11 +52,16 @@ export function createForgeServer(options: ServerOptions) {
   app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
   app.route('/api/skills', skillRoutes(cwReader))
 
-  const { remote, warning } = remoteClassifierFromEnv()
+  const { remote, shadow, warning } = remoteClassifierFromEnv()
   if (warning) console.warn(`[state] ${warning}`)
+  const logPath = process.env.FORGE_STATE_LOG
+  if (logPath && !remote) console.warn('[state] FORGE_STATE_LOG only records remote classifier calls; set FORGE_STATE_CLASSIFIER=jev')
+  const onRemote = logPath && remote ? createStateLog(logPath, (err) => console.warn(`[state] could not write ${logPath}: ${err.message}`)) : undefined
   let lastStateError = ''
   const states = new StateTracker({
     remote,
+    shadow,
+    onRemote,
     onError: (err) => {
       if (err.message !== lastStateError) console.warn(`[state] ${remote?.name ?? 'remote'} classifier failed, using local rules: ${err.message}`)
       lastStateError = err.message
@@ -67,7 +73,7 @@ export function createForgeServer(options: ServerOptions) {
   app.route('/api/liveframe', liveframeRoutes())
 
   // states only, never terminal text
-  app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', states: states.snapshot() }))
+  app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))
 
   app.post('/api/cw/terminal/kill', async (c) => {
     const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { StateTracker, remoteClassifierFromEnv } from './session-state.js'
+import { StateTracker, remoteClassifierFromEnv, type RemoteCall } from './session-state.js'
 import type { Classification, StateClassifier } from './state-classifier.js'
 
 const DONE = '✻ Brewed for 3s\n❯ '
@@ -161,12 +161,87 @@ describe('StateTracker', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(tracker.snapshot()['p::a'].state).not.toBe('error')
     })
+
+    it('records every call with the local answer, the remote one and what happened to it', async () => {
+      const calls: RemoteCall[] = []
+      tracker = new StateTracker({ remote: remoteReturning({ state: 'waiting', confidence: 0.88, source: 'jev' }), onRemote: c => calls.push(c) })
+      tracker.track('p::a', 'codex')
+      tracker.output('p::a', 'hello')
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(calls).toEqual([expect.objectContaining({
+        key: 'p::a', harness: 'codex', text: 'hello', outcome: 'applied', error: null,
+        local: expect.objectContaining({ state: 'idle' }), remote: expect.objectContaining({ state: 'waiting', confidence: 0.88 }),
+      })])
+    })
+
+    it('records low confidence, stale and failed calls', async () => {
+      const calls: RemoteCall[] = []
+      tracker = new StateTracker({ remote: remoteReturning({ state: 'error', confidence: 0.4, source: 'jev' }), onRemote: c => calls.push(c) })
+      tracker.track('p::a', 'codex')
+      tracker.output('p::a', 'hello')
+      await vi.advanceTimersByTimeAsync(1600)
+
+      let release: (c: Classification) => void = () => {}
+      const slow = new StateTracker({ remote: { name: 'slow', classify: () => new Promise(r => { release = r }) }, onRemote: c => calls.push(c) })
+      slow.track('p::b', 'codex')
+      slow.output('p::b', 'hello')
+      await vi.advanceTimersByTimeAsync(1600)
+      slow.output('p::b', 'more')
+      release({ state: 'waiting', confidence: 0.99, source: 'jev' })
+      await vi.advanceTimersByTimeAsync(0)
+      slow.dispose()
+
+      const failing = new StateTracker({ remote: remoteReturning(new Error('Jev answered 500')), onRemote: c => calls.push(c) })
+      failing.track('p::c', 'codex')
+      failing.output('p::c', 'hello')
+      await vi.advanceTimersByTimeAsync(1600)
+      failing.dispose()
+
+      expect(calls.map(c => c.outcome)).toEqual(['low-confidence', 'stale', 'failed'])
+      expect(calls[2]).toMatchObject({ remote: null, error: 'Jev answered 500' })
+    })
+
+    describe('in shadow mode', () => {
+      it('asks about screens the local rules are sure of, errors included, and records the answer', async () => {
+        const texts: string[] = []
+        const calls: RemoteCall[] = []
+        tracker = new StateTracker({ remote: remoteReturning({ state: 'idle', confidence: 0.9, source: 'jev' }, texts), shadow: true, onRemote: c => calls.push(c) })
+        tracker.track('p::a', 'claude')
+        tracker.output('p::a', PERMISSION)
+        await vi.advanceTimersByTimeAsync(1600)
+        tracker.output('p::a', '\n⎿ API Error: 529 overloaded\n❯ ')
+        await vi.advanceTimersByTimeAsync(1600)
+        expect(texts).toHaveLength(2)
+        expect(calls.map(c => [c.local.state, c.outcome])).toEqual([['permission', 'shadow'], ['error', 'shadow']])
+      })
+
+      it('never applies the remote answer', async () => {
+        tracker = new StateTracker({ remote: remoteReturning({ state: 'error', confidence: 0.99, source: 'jev' }), shadow: true })
+        tracker.track('p::a', 'codex')
+        tracker.output('p::a', 'hello')
+        await vi.advanceTimersByTimeAsync(1600)
+        expect(tracker.snapshot()['p::a']).toMatchObject({ state: 'idle', source: 'local' })
+        expect(tracker.isShadow).toBe(true)
+      })
+
+      it('still skips empty and repeated screens', async () => {
+        const texts: string[] = []
+        tracker = new StateTracker({ remote: remoteReturning({ state: 'waiting', confidence: 0.9, source: 'jev' }, texts), shadow: true })
+        tracker.track('p::a', 'claude')
+        await vi.advanceTimersByTimeAsync(1600)
+        tracker.output('p::a', DONE)
+        await vi.advanceTimersByTimeAsync(1600)
+        tracker.output('p::a', '')
+        await vi.advanceTimersByTimeAsync(1600)
+        expect(texts).toEqual([DONE])
+      })
+    })
   })
 })
 
 describe('remoteClassifierFromEnv', () => {
   it('stays local unless Jev is asked for', () => {
-    expect(remoteClassifierFromEnv({ TYPESAFE_API_KEY: 'k' })).toEqual({ remote: null, warning: null })
+    expect(remoteClassifierFromEnv({ TYPESAFE_API_KEY: 'k', FORGE_JEV_SHADOW: '1' })).toEqual({ remote: null, shadow: false, warning: null })
   })
 
   it('warns when Jev is asked for without a key', () => {
@@ -176,6 +251,10 @@ describe('remoteClassifierFromEnv', () => {
   })
 
   it('builds the Jev classifier when both are set', () => {
-    expect(remoteClassifierFromEnv({ FORGE_STATE_CLASSIFIER: 'jev', TYPESAFE_API_KEY: 'k' }).remote?.name).toBe('jev')
+    expect(remoteClassifierFromEnv({ FORGE_STATE_CLASSIFIER: 'jev', TYPESAFE_API_KEY: 'k' })).toMatchObject({ remote: { name: 'jev' }, shadow: false })
+  })
+
+  it('turns shadow mode on with FORGE_JEV_SHADOW=1', () => {
+    expect(remoteClassifierFromEnv({ FORGE_STATE_CLASSIFIER: 'jev', TYPESAFE_API_KEY: 'k', FORGE_JEV_SHADOW: '1' }).shadow).toBe(true)
   })
 })

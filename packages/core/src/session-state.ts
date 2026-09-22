@@ -23,8 +23,24 @@ export interface StateTrackerOptions {
   localTrust?: number
   // remote answers below this are ignored
   remoteMin?: number
+  // ask the remote classifier about every new screen, errors included, and never apply its answer
+  shadow?: boolean
   keepExitedMs?: number
   onError?: (err: Error) => void
+  // every remote call, for comparing the remote classifier with the local rules
+  onRemote?: (call: RemoteCall) => void
+}
+
+export interface RemoteCall {
+  at: number
+  key: string
+  harness: string
+  text: string
+  local: Classification
+  remote: Classification | null
+  error: string | null
+  latencyMs: number
+  outcome: 'applied' | 'low-confidence' | 'stale' | 'shadow' | 'failed'
 }
 
 const TAIL_CHARS = 32_000
@@ -48,8 +64,10 @@ export class StateTracker {
   private readonly burstMs: number
   private readonly localTrust: number
   private readonly remoteMin: number
+  private readonly shadow: boolean
   private readonly keepExitedMs: number
   private readonly onError: (err: Error) => void
+  private readonly onRemote: (call: RemoteCall) => void
 
   constructor(options: StateTrackerOptions = {}) {
     this.remote = options.remote ?? null
@@ -57,12 +75,18 @@ export class StateTracker {
     this.burstMs = options.burstMs ?? 2000
     this.localTrust = options.localTrust ?? 0.9
     this.remoteMin = options.remoteMin ?? 0.6
+    this.shadow = options.shadow ?? false
     this.keepExitedMs = options.keepExitedMs ?? 10 * 60 * 1000
     this.onError = options.onError ?? (() => {})
+    this.onRemote = options.onRemote ?? (() => {})
   }
 
   get remoteName(): string | null {
     return this.remote?.name ?? null
+  }
+
+  get isShadow(): boolean {
+    return this.remote !== null && this.shadow
   }
 
   track(key: string, harness: string): void {
@@ -143,23 +167,36 @@ export class StateTracker {
     const input = { text: terminalText(tracked.raw), quietMs: Date.now() - tracked.lastOutputAt, harness: tracked.harness, exitCode: null }
     const local = classifyLocal(input)
     this.apply(tracked, local)
+    if (!this.remote || !input.text.trim() || input.text === tracked.askedText) return
     // error markers are exact API and limit messages, so a remote guess never overrules one
-    if (!this.remote || local.confidence >= this.localTrust || local.state === 'error' || !input.text.trim() || input.text === tracked.askedText) return
+    if (!this.shadow && (local.confidence >= this.localTrust || local.state === 'error')) return
     tracked.askedText = input.text
     const version = tracked.version
+    const startedAt = Date.now()
+    const record = (remote: Classification | null, error: string | null, outcome: RemoteCall['outcome']) => this.onRemote({
+      at: startedAt, key, harness: input.harness, text: input.text, local, remote, error, latencyMs: Date.now() - startedAt, outcome,
+    })
     this.remote.classify(input).then(
       (remote) => {
-        if (this.sessions.get(key) !== tracked || tracked.version !== version) return
-        if (remote.confidence >= this.remoteMin) this.apply(tracked, remote)
+        if (this.shadow) return record(remote, null, 'shadow')
+        if (this.sessions.get(key) !== tracked || tracked.version !== version) return record(remote, null, 'stale')
+        if (remote.confidence < this.remoteMin) return record(remote, null, 'low-confidence')
+        this.apply(tracked, remote)
+        record(remote, null, 'applied')
       },
-      (err: unknown) => this.onError(err instanceof Error ? err : new Error(String(err))),
+      (err: unknown) => {
+        const error = err instanceof Error ? err : new Error(String(err))
+        record(null, error.message, 'failed')
+        this.onError(error)
+      },
     )
   }
 }
 
 // Sending terminal text to a remote service is opt-in: the classifier and the key must both be set
-export function remoteClassifierFromEnv(env: NodeJS.ProcessEnv = process.env): { remote: StateClassifier | null; warning: string | null } {
-  if (env.FORGE_STATE_CLASSIFIER !== 'jev') return { remote: null, warning: null }
-  if (!env.TYPESAFE_API_KEY) return { remote: null, warning: 'FORGE_STATE_CLASSIFIER=jev needs TYPESAFE_API_KEY; reading session states with local rules only' }
-  return { remote: createJevClassifier({ apiKey: env.TYPESAFE_API_KEY, model: env.FORGE_JEV_MODEL || undefined }), warning: null }
+export function remoteClassifierFromEnv(env: NodeJS.ProcessEnv = process.env): { remote: StateClassifier | null; shadow: boolean; warning: string | null } {
+  const shadow = env.FORGE_JEV_SHADOW === '1'
+  if (env.FORGE_STATE_CLASSIFIER !== 'jev') return { remote: null, shadow: false, warning: null }
+  if (!env.TYPESAFE_API_KEY) return { remote: null, shadow: false, warning: 'FORGE_STATE_CLASSIFIER=jev needs TYPESAFE_API_KEY; reading session states with local rules only' }
+  return { remote: createJevClassifier({ apiKey: env.TYPESAFE_API_KEY, model: env.FORGE_JEV_MODEL || undefined }), shadow, warning: null }
 }

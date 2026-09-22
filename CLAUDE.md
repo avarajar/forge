@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (466 tests, all in `packages/core`) |
+| Tests | Vitest (477 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -145,6 +145,8 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `FORGE_NO_OPEN=1` — do not open the browser on start
 - `FORGE_LIVEFRAME_ACCOUNT` — CW account for Liveframe agents (default `monoku`)
 - `FORGE_STATE_CLASSIFIER=jev`, `TYPESAFE_API_KEY`, `FORGE_JEV_MODEL` — send unsure terminal screens to TypeSafe Jev (off by default; terminal text leaves the machine)
+- `FORGE_JEV_SHADOW=1` — with Jev on, ask about every screen and never apply the answer (to compare it with the local rules)
+- `FORGE_STATE_LOG` — JSONL file of every Jev call: both answers, latency, outcome, the screen sent (`state-log.ts`)
 
 ## API Endpoints
 
@@ -168,7 +170,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `GET /review-state/:project/:sessionDir` — Changes, pull request, GitHub link and close warnings (30 s cache, `?fresh=1`)
 - `GET /editors`, `POST /open-in-editor` — Detected editors and opening a worktree (local mode only)
 - `POST /terminal/kill` — Kill a session's PTY
-- `GET /session-states` — `{ classifier, states }`: state, confidence, since and source per live PTY (`project::sessionDir`); never terminal text
+- `GET /session-states` — `{ classifier, shadow, states }`: state, confidence, since and source per live PTY (`project::sessionDir`); never terminal text
 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
