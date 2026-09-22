@@ -1,5 +1,5 @@
 import { render } from 'preact'
-import { useState, useEffect, useCallback, useMemo } from 'preact/hooks'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'preact/hooks'
 import { Shell, sidebarOpen, toggleTheme } from './shell.js'
 import { NAV, Sidebar, type View } from './components/Sidebar.js'
 import { CommandPalette, type PaletteItem } from './components/CommandPalette.js'
@@ -18,7 +18,9 @@ import type { ProjectMap } from './components/StartCard.js'
 import { CloseTaskDialog, type CloseRequest } from './components/CloseTaskDialog.js'
 import { EmptyState, showToast } from '@forge-dev/ui'
 import type { CWSession, SkillEntry, PluginEntry } from '@forge-dev/core'
-import { QUICK_TYPES, projectOf, sessionKey } from './config/types.js'
+import { QUICK_TYPES, projectOf, sessionKey, sessionLabel, needsYou, stateLabel } from './config/types.js'
+import { activeSessionKey, sessionStates, watchSessionStates } from './hooks/useSessionStates.js'
+import { notify } from './state/notifications.js'
 import { buildProposeDescription, proposeTaskName } from './config/plugins.js'
 import { startAccount, startProject, typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
@@ -287,6 +289,28 @@ function App() {
     [tabs.openTabs],
   )
 
+  const detailShown = !tabs.showList && tabs.openTabs.length > 0
+  useEffect(() => {
+    const active = detailShown ? tabs.openTabs[tabs.activeTabIndex] : undefined
+    activeSessionKey.value = active ? sessionKey(active) : null
+  }, [detailShown, tabs.openTabs, tabs.activeTabIndex])
+
+  // the listener outlives renders, so it reads the latest sessions through a ref
+  const sessionsRef = useRef({ openTabs: tabs.openTabs, spaces, openSession })
+  sessionsRef.current = { openTabs: tabs.openTabs, spaces, openSession }
+  useEffect(() => watchSessionStates((key, entry) => {
+    if (document.visibilityState === 'visible' && key === activeSessionKey.value) return
+    const { openTabs, spaces: all, openSession: open } = sessionsRef.current
+    const session = openTabs.find(s => sessionKey(s) === key) ?? all.find(s => sessionKey(s) === key)
+    if (!session) return
+    notify(`${sessionLabel(session)}: ${stateLabel(entry).toLowerCase()}`, projectOf(session) || session.account, key, () => open(session))
+  }), [])
+
+  const waitingCount = Object.values(sessionStates.value).filter(needsYou).length
+  useEffect(() => {
+    document.title = waitingCount > 0 ? `(${waitingCount}) Forge Console` : 'Forge Console'
+  }, [waitingCount])
+
   // every registered project, plus projects that only appear in sessions
   const sidebarProjects = useMemo(() => {
     const accountOf = new Map(Object.entries(projects).map(([name, p]) => [name, p.account]))
@@ -311,7 +335,6 @@ function App() {
     navigate('list')
   }, [filters.setFilterProject, navigate])
 
-  const detailShown = !tabs.showList && tabs.openTabs.length > 0
   const sidebarView: View = detailShown ? 'list' : view
 
   const paletteCommands = useMemo<PaletteItem[]>(() => [

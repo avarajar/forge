@@ -4,6 +4,10 @@
 
 ### Added
 
+- Session states: Forge reads each live terminal and tells whether the agent is working, waiting for you, asking for approval, stopped on an error or exited. The sidebar card and the tab show it, sessions that need you move to the top of Live now, and the page title counts them. Claude Code has its own rules; other harnesses only report activity.
+- Browser notifications when a session starts needing you (off by default, switch in the sidebar). The session on screen never notifies; clicking a notification opens its tab.
+- `GET /api/cw/session-states`, which returns states only, never terminal text.
+- Optional Jev classifier (TypeSafe) for screens the local rules are unsure about, and for harnesses without rules: set `FORGE_STATE_CLASSIFIER=jev` and `TYPESAFE_API_KEY` (`FORGE_JEV_MODEL` picks the model, default `jev-latest`). When on, the last 30 lines of those terminals are sent to TypeSafe; when the call fails or is unsure, the local answer stays, and an error the local rules found is never sent.
 - Skills lists Claude Code plugin skills: each installed plugin once, the accounts that have it with version and state, and its skills read-only. Plugins apply to Claude Code only.
 - Propose a skill: when a plugin's repository is a registered CW project, a task in that project writes the skill following its CONTRIBUTING.md and repository skills, and opens a pull request.
 - Update a plugin in one account (`claude plugin marketplace update` and `claude plugin update`), so a merged skill applies to new sessions without waiting for auto-update.

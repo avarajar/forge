@@ -14,6 +14,7 @@ import { CWReader } from './cw-reader.js'
 import { cwRoutes, resolveCwBin } from './cw-routes.js'
 import { skillRoutes } from './skill-routes.js'
 import { PTYManager } from './pty-manager.js'
+import { StateTracker, remoteClassifierFromEnv } from './session-state.js'
 import { createTerminalWss } from './pty-routes.js'
 import { LoginManager } from './login-manager.js'
 import { liveframeRoutes } from './liveframe-routes.js'
@@ -50,10 +51,23 @@ export function createForgeServer(options: ServerOptions) {
   app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
   app.route('/api/skills', skillRoutes(cwReader))
 
-  const ptyManager = new PTYManager()
+  const { remote, warning } = remoteClassifierFromEnv()
+  if (warning) console.warn(`[state] ${warning}`)
+  let lastStateError = ''
+  const states = new StateTracker({
+    remote,
+    onError: (err) => {
+      if (err.message !== lastStateError) console.warn(`[state] ${remote?.name ?? 'remote'} classifier failed, using local rules: ${err.message}`)
+      lastStateError = err.message
+    },
+  })
+  const ptyManager = new PTYManager(states)
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly })
 
   app.route('/api/liveframe', liveframeRoutes())
+
+  // states only, never terminal text
+  app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', states: states.snapshot() }))
 
   app.post('/api/cw/terminal/kill', async (c) => {
     const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
@@ -255,6 +269,6 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); loginManager.dispose(); db.close() }
+    close: () => { ptyManager.dispose(); states.dispose(); loginManager.dispose(); db.close() }
   }
 }

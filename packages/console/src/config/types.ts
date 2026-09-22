@@ -1,4 +1,4 @@
-import type { CWDoctor, CWDoctorCell, CWSession, UsageWindow } from '@forge-dev/core'
+import type { CWDoctor, CWDoctorCell, CWSession, SessionState, SessionStateEntry, UsageWindow } from '@forge-dev/core'
 import type { UsageBar } from '@forge-dev/ui'
 
 // avatar gradients, cycled per account
@@ -50,6 +50,30 @@ export const QUICK_TYPES: Array<{ key: QuickType; sessionType: CWSession['type']
 export const quickLabel = (key: QuickType): string => TYPE_STYLES[QUICK_TYPES.find(t => t.key === key)?.sessionType ?? 'task'].label
 
 export const sessionTypeOf = (key: QuickType): CWSession['type'] => QUICK_TYPES.find(t => t.key === key)?.sessionType ?? 'task'
+
+/* ── Session states ── */
+
+export interface StateStyle { label: string; token: string; attention: boolean }
+
+// what a live terminal is doing; attention states are the ones that notify
+export const STATE_STYLES: Record<SessionState, StateStyle> = {
+  working: { label: 'Working', token: '--green', attention: false },
+  waiting: { label: 'Waiting for you', token: '--orange', attention: true },
+  permission: { label: 'Needs approval', token: '--red', attention: true },
+  error: { label: 'Stopped on an error', token: '--red', attention: true },
+  exited: { label: 'Exited', token: '--ink-3', attention: false },
+  idle: { label: 'Idle', token: '--ink-3', attention: false },
+}
+
+// a crash is worth a look, a clean exit is not
+export const needsYou = (entry: SessionStateEntry | undefined): boolean =>
+  Boolean(entry && (STATE_STYLES[entry.state].attention || (entry.state === 'exited' && (entry.exitCode ?? 0) !== 0)))
+
+export const stateLabel = (entry: SessionStateEntry): string =>
+  entry.state === 'exited' && entry.exitCode ? `Exited with code ${entry.exitCode}` : STATE_STYLES[entry.state].label
+
+export const stateToken = (entry: SessionStateEntry): string =>
+  entry.state === 'exited' && entry.exitCode ? '--red' : STATE_STYLES[entry.state].token
 
 /* ── Shared helpers ── */
 

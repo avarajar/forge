@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import { PTYManager } from './pty-manager.js'
+import { StateTracker } from './session-state.js'
 import type { CWSession } from './cw-types.js'
 import { mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -90,6 +91,20 @@ describe('PTYManager', () => {
     manager.getOrCreate('testproj', 'task-fix-bug', session)
     manager.kill('testproj::task-fix-bug')
     expect(manager.has('testproj::task-fix-bug')).toBe(false)
+  })
+
+  it('tracks the state of each PTY it spawns and forgets it on kill', () => {
+    const states = new StateTracker()
+    const tracked = new PTYManager(states)
+    try {
+      tracked.getOrCreate('testproj', 'task-fix-bug', makeSession({ harness: 'codex' }))
+      expect(states.snapshot()['testproj::task-fix-bug']).toMatchObject({ state: 'working' })
+      tracked.kill('testproj::task-fix-bug')
+      expect(states.snapshot()['testproj::task-fix-bug']).toBeUndefined()
+    } finally {
+      tracked.dispose()
+      states.dispose()
+    }
   })
 
   it('stores scrollback data', () => {
