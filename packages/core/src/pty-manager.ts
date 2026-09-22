@@ -239,6 +239,14 @@ export class PTYManager {
     return this.sessions.get(sessionId)
   }
 
+  // the state tracker reads the screen at the size the user sees it
+  resize(sessionId: string, cols: number, rows: number): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) return
+    session.pty.resize(cols, rows)
+    this.states?.resize(sessionId, cols, rows)
+  }
+
   cleanup(): void {
     const now = Date.now()
     for (const [key, session] of this.sessions) {

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { PTYManager } from './pty-manager.js'
+import { StateTracker } from './session-state.js'
 import { CWReader } from './cw-reader.js'
 import { parseTerminalUpgradeUrl, takeSession } from './pty-routes.js'
 import { pendingSessions } from './cw-routes.js'
@@ -67,6 +68,19 @@ describe('PTY Routes', () => {
     expect(ptySession.command).toContain('--dangerously-skip-permissions')
     expect(ptySession.command).not.toContain('--skip-permissions')
     manager.kill(sessionId)
+  })
+
+  it('resizes the PTY and the screen the state tracker reads', () => {
+    const states = new StateTracker()
+    const resize = vi.spyOn(states, 'resize')
+    const sized = new PTYManager(states)
+    const session = new CWReader(TEST_CW).getSession('testproj', 'task-mytask')!
+    const ptySession = sized.getOrCreate('testproj', 'task-mytask', session)!
+    sized.resize('testproj::task-mytask', 90, 30)
+    expect(ptySession.pty.cols).toBe(90)
+    expect(resize).toHaveBeenCalledWith('testproj::task-mytask', 90, 30)
+    sized.dispose()
+    states.dispose()
   })
 
   it('PTYManager returns undefined for missing session ID', () => {

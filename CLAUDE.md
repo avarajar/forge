@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (477 tests, all in `packages/core`) |
+| Tests | Vitest (492 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -77,7 +77,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/cw-routes.ts` — CW API endpoints (spaces, start, done, accounts, logins, projects, git)
 - `packages/core/src/pty-manager.ts` — node-pty session manager with idle cleanup
 - `packages/core/src/pty-routes.ts` — WebSocket server for terminal sessions
-- `packages/core/src/session-state.ts` — `StateTracker`: a live terminal's state (working, waiting, permission, error, exited, idle), read when the output settles; `state-classifier-local.ts` holds the Claude Code rules (latest marker wins, fixtures in `__fixtures__/terminal/claude`), `state-classifier-jev.ts` the optional TypeSafe Jev classifier
+- `packages/core/src/session-state.ts` — `StateTracker`: a live terminal's state (working, waiting, permission, error, exited, idle), read when the output settles; `state-classifier-local.ts` holds the Claude Code rules (latest marker wins, fixtures in `__fixtures__/terminal/claude`), `state-classifier-jev.ts` the optional TypeSafe Jev classifier; `terminal-screen.ts` keeps each terminal's screen in `@xterm/headless`, and that screen is what Jev reads, not text stripped from the raw stream
 - `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
 - `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`)

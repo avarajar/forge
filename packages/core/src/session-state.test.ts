@@ -167,6 +167,29 @@ describe('StateTracker', () => {
       expect(calls).toHaveLength(1)
     })
 
+    it('sends the screen a terminal would show, with the letters a redraw jumped over', async () => {
+      const screens: (string | undefined)[] = []
+      const remote: StateClassifier = { name: 'fake', classify: async (input) => { screens.push(input.screen); return { state: 'waiting', confidence: 0.9, source: 'jev' } } }
+      tracker = new StateTracker({ remote })
+      tracker.track('p::a', 'codex')
+      tracker.output('p::a', 'ask the user to confirm\r\n')
+      tracker.output('p::a', '\x1b[1Aask\x1b[5Gt\x1b[7Ge user to co\x1b[20Gfirm')
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(screens).toEqual(['ask the user to confirm'])
+    })
+
+    it('reads the screen at the size the terminal was resized to', async () => {
+      const screens: (string | undefined)[] = []
+      const remote: StateClassifier = { name: 'fake', classify: async (input) => { screens.push(input.screen); return { state: 'waiting', confidence: 0.9, source: 'jev' } } }
+      tracker = new StateTracker({ remote })
+      tracker.track('p::a', 'codex')
+      tracker.resize('p::a', 10, 5)
+      // a jump past the last column stops at it
+      tracker.output('p::a', 'a\x1b[40Gz')
+      await vi.advanceTimersByTimeAsync(1600)
+      expect(screens).toEqual(['a        z'])
+    })
+
     it('drops a remote answer that arrives after new output', async () => {
       let release: (c: Classification) => void = () => {}
       const remote: StateClassifier = { name: 'slow', classify: () => new Promise(r => { release = r }) }
@@ -187,7 +210,7 @@ describe('StateTracker', () => {
       tracker.output('p::a', 'hello')
       await vi.advanceTimersByTimeAsync(1600)
       expect(calls).toEqual([expect.objectContaining({
-        key: 'p::a', harness: 'codex', text: 'hello', outcome: 'applied', error: null,
+        key: 'p::a', harness: 'codex', screen: 'hello', outcome: 'applied', error: null,
         local: expect.objectContaining({ state: 'idle' }), remote: expect.objectContaining({ state: 'waiting', confidence: 0.88 }),
       })])
     })

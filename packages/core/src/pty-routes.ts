@@ -38,10 +38,7 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
           const ptySession = manager.get(sessionId)
           if (ptySession) ptySession.pty.write(msg.data)
         } else if (msg.type === 'resize') {
-          const ptySession = manager.get(sessionId)
-          if (ptySession && msg.cols && msg.rows) {
-            ptySession.pty.resize(msg.cols, msg.rows)
-          }
+          if (msg.cols && msg.rows) manager.resize(sessionId, msg.cols, msg.rows)
         }
       } catch {}
     })

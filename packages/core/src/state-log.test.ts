@@ -6,7 +6,7 @@ import type { RemoteCall } from './session-state.js'
 import { createStateLog, expandHome, stateLogLine } from './state-log.js'
 
 const call = (over: Partial<RemoteCall> = {}): RemoteCall => ({
-  at: Date.UTC(2026, 8, 21, 12), key: 'forge::a', harness: 'claude', text: 'hello\n❯ ',
+  at: Date.UTC(2026, 8, 21, 12), key: 'forge::a', harness: 'claude', screen: 'hello\n❯ ',
   local: { state: 'waiting', confidence: 0.95, source: 'local' },
   remote: { state: 'waiting', confidence: 0.9, source: 'jev' },
   error: null, latencyMs: 420, outcome: 'shadow',
@@ -26,7 +26,7 @@ describe('stateLogLine', () => {
 
   it('keeps only the bottom of the screen, as the remote classifier saw it', () => {
     const text = Array.from({ length: 50 }, (_, i) => `line ${i}`).join('\n')
-    const { screen } = JSON.parse(stateLogLine(call({ text })))
+    const { screen } = JSON.parse(stateLogLine(call({ screen: text })))
     expect(screen.split('\n')).toHaveLength(30)
     expect(screen.endsWith('line 49')).toBe(true)
   })

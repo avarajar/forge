@@ -6,6 +6,8 @@ export const SESSION_STATES: readonly SessionState[] = ['working', 'waiting', 'p
 export interface ClassifyInput {
   // terminalText() of the tail, oldest first
   text: string
+  // the same tail read through a terminal emulator, when one is kept; the rows a person would see
+  screen?: string
   // time since the last output chunk
   quietMs: number
   harness: string
