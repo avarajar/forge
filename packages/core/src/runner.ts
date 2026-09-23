@@ -21,11 +21,20 @@ export class ActionRunner {
       let timedOut = false
       let timeoutId: ReturnType<typeof setTimeout> | undefined
 
+      // its own process group, so a stop reaches what the shell started (dash forks instead of exec'ing)
       const proc = spawn('sh', ['-c', command], {
         cwd: options.cwd,
         env: { ...process.env, ...options.env },
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: true
       })
+      const stop = () => {
+        try {
+          if (proc.pid) process.kill(-proc.pid, 'SIGTERM')
+        } catch {
+          proc.kill('SIGTERM')
+        }
+      }
 
       const handleData = (data: Buffer) => {
         const str = data.toString()
@@ -37,15 +46,13 @@ export class ActionRunner {
       proc.stderr.on('data', handleData)
 
       if (options.signal) {
-        options.signal.addEventListener('abort', () => {
-          proc.kill('SIGTERM')
-        }, { once: true })
+        options.signal.addEventListener('abort', stop, { once: true })
       }
 
       if (options.timeout) {
         timeoutId = setTimeout(() => {
           timedOut = true
-          proc.kill('SIGTERM')
+          stop()
         }, options.timeout)
       }
 

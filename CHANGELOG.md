@@ -58,6 +58,7 @@
 
 ### Fixed
 
+- Stopping a module action, or its timeout, now ends the commands its shell started. On Linux `sh` forks instead of exec'ing, so only the shell died and the action kept running until its commands finished.
 - A general session no longer ends with `Session not found` when its terminal exits or Forge restarts: Forge keeps it in `general-sessions.json` in its data dir and relaunches it with the same account, harness and folder until its tab is closed. The conversation itself does not resume.
 - A terminal the server refuses stops reconnecting instead of retrying forever, and shows Restart.
 - The screen sent to Jev and written to `FORGE_STATE_LOG` lost letters ("t e user to co firm"): Claude Code redraws a row by writing only the cells that changed and jumping over the rest, and the text stripped from the raw stream turned every jump into spaces. Forge now keeps each terminal's screen in a terminal emulator, at the size you resize it to, and sends that.
