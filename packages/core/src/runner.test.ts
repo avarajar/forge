@@ -47,4 +47,14 @@ describe('ActionRunner', () => {
     expect(result.exitCode).not.toBe(0)
     expect(result.timedOut).toBe(true)
   })
+
+  // sh forks here instead of exec'ing, as dash does for every command on Linux
+  it('stops the commands the shell started, not only the shell', async () => {
+    const runner = new ActionRunner()
+    const started = Date.now()
+    const result = await runner.exec('sleep 10; echo done', { cwd: '/tmp', timeout: 200 })
+    expect(result.timedOut).toBe(true)
+    expect(result.output).not.toContain('done')
+    expect(Date.now() - started).toBeLessThan(3000)
+  })
 })
