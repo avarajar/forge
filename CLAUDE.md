@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | better-sqlite3 (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (492 tests, all in `packages/core`) |
+| Tests | Vitest (513 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -26,7 +26,7 @@ packages/
   ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
-  platform/   → Entry point (npx @forge-dev/platform)
+  platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
 modules/
   mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
@@ -93,6 +93,8 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/liveframe.ts` / `liveframe-routes.ts` — Liveframe frames in `~/liveframe/<project>/<frame>` through the `lf` CLI (new, pull, push); reads only the API base from `~/.liveframe/config.json`
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
+- `packages/core/src/cw-install.ts` — Installs or updates the CW the npm package carries (`install.sh --no-shell`), leaves a CW installed by hand alone, puts `~/.cw/bin` on PATH; `.forge-cw.json` in `~/.cw` records what it installed
+- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin daily
 - `packages/core/src/test-git.ts` — Fixture repositories for tests, isolated from the global git config (not built)
 
 ### Console
@@ -135,6 +137,8 @@ pnpm test             # Run all tests (only packages/core has a test script)
 
 `pnpm dev` does not start the API. Vite serves the console on `:5173` and proxies `/api` and `/ws` to `:3000`, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` alongside it and restart that after core changes.
 
+`pnpm pack` in `packages/platform` assembles the published package (`forge-cw`); a checkout never installs CW, only the published package does.
+
 `tests/integration/` is not run by any script, and running it directly fails because the root has no `hono` dependency.
 
 ### Environment
@@ -144,6 +148,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `FORGE_DB_URL`, `FORGE_AUTH_TOKEN` — team mode (PostgreSQL + bearer token)
 - `FORGE_NO_OPEN=1` — do not open the browser on start
 - `FORGE_LIVEFRAME_ACCOUNT` — CW account for Liveframe agents (default `monoku`)
+- `FORGE_SKIP_CW_INSTALL=1` — the published package does not install or update CW
 - `FORGE_STATE_CLASSIFIER=jev`, `TYPESAFE_API_KEY`, `FORGE_JEV_MODEL` — send unsure terminal screens to TypeSafe Jev (off by default; terminal text leaves the machine)
 - `FORGE_JEV_SHADOW=1` — with Jev on, ask about every screen and never apply the answer (to compare it with the local rules)
 - `FORGE_STATE_LOG` — JSONL file of every Jev call: both answers, latency, outcome, the screen sent (`state-log.ts`)
@@ -213,7 +218,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - Do not concatenate shell args as strings — use spawn with args array
 - Do not skip tests
 - Do not store secrets in config files
-- Do not break the `npx @forge-dev/platform` zero-config experience
+- Do not break the `npx forge-cw` zero-config experience
 - Do not open local mode to other origins or hosts — routes go through `origin-guard.ts`; remote access is `FORGE_HOST`
 
 ## Related Projects

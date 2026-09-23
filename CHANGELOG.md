@@ -4,6 +4,8 @@
 
 ### Added
 
+- The npm package `forge-cw` (`npm i -g forge-cw` or `npx forge-cw`) carries CW. On start Forge installs it into `~/.cw` when it is missing, updates the CW it installed when a newer Forge carries a newer one, and leaves a CW you installed yourself alone unless the bundled one has a higher version. It never edits your shell rc files and puts `~/.cw/bin` on the PATH of its own sessions. `FORGE_SKIP_CW_INSTALL=1` turns it off.
+- `forge-cw` can be published: `pnpm pack` in `packages/platform` bundles the server, the console and the CW commit pinned in `cw.lock.json`. A daily workflow opens a pull request when CW's `main` moves.
 - Session states: Forge reads each live terminal and tells whether the agent is working, waiting for you, asking for approval, stopped on an error or exited. The sidebar card and the tab show it, sessions that need you move to the top of Live now, and the page title counts them. Claude Code has its own rules; other harnesses only report activity.
 - Browser notifications when a session starts needing you (off by default, switch in the sidebar). The session on screen never notifies; clicking a notification opens its tab.
 - `GET /api/cw/session-states`, which returns states only, never terminal text.
@@ -34,6 +36,7 @@
 
 ### Changed
 
+- The published command is `forge` (it was `forge-platform`) and takes `--port` and `--no-open`, so `cw forge` starts it.
 - Switching to a task tab puts the keyboard in its terminal, so you can type without clicking it first. Tabs in the background no longer take focus when they load.
 - The console is redesigned: system fonts, a dark and a light theme, system blue for actions, one color per task type, cards per project, and short motion that respects reduced motion.
 - New Task opens as a drawer over the task list and shares the start card's input.

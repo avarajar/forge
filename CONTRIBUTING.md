@@ -108,7 +108,7 @@ forge/
     ui/         → @forge-dev/ui        — Shared UI components
     sdk/        → @forge-dev/sdk       — Module SDK (definePanel, types)
     cli/        → @forge-dev/cli       — CLI commands (forge init/console/doctor/module/project/run)
-    platform/   → @forge-dev/platform  — Entry point (npx @forge-dev/platform)
+    platform/   → forge-cw  — Entry point, published on npm with CW bundled (npx forge-cw)
   modules/
     mod-hello/      — Minimal example manifest
     mod-dev/        — Git worktrees and Claude Code sessions
