@@ -26,7 +26,7 @@ packages/
   ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
-  platform/   → Entry point and the published package (npx @forge-dev/platform), carries CW
+  platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
 modules/
   mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
@@ -137,7 +137,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 
 `pnpm dev` does not start the API. Vite serves the console on `:5173` and proxies `/api` and `/ws` to `:3000`, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` alongside it and restart that after core changes.
 
-`pnpm publish` (or `pnpm pack`) in `packages/platform` assembles the published package; a checkout never installs CW, only the published package does.
+`pnpm pack` in `packages/platform` assembles the published package (`forge-cw`); a checkout never installs CW, only the published package does.
 
 `tests/integration/` is not run by any script, and running it directly fails because the root has no `hono` dependency.
 
@@ -218,7 +218,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - Do not concatenate shell args as strings — use spawn with args array
 - Do not skip tests
 - Do not store secrets in config files
-- Do not break the `npx @forge-dev/platform` zero-config experience
+- Do not break the `npx forge-cw` zero-config experience
 - Do not open local mode to other origins or hosts — routes go through `origin-guard.ts`; remote access is `FORGE_HOST`
 
 ## Related Projects

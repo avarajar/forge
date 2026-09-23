@@ -142,11 +142,11 @@ Once you have at least one project registered, Forge will show it in the dashboa
 ### Install
 
 ```bash
-npm install -g @forge-dev/platform
+npm install -g forge-cw
 forge                      # opens http://localhost:3000 (--port, --no-open)
 ```
 
-Or without installing: `npx @forge-dev/platform`. With CW on your PATH, `cw forge` starts it too.
+Or without installing: `npx forge-cw`. With CW on your PATH, `cw forge` starts it too.
 
 The package carries CW, so you don't install it separately. Each time Forge starts it checks `~/.cw`:
 
@@ -237,7 +237,7 @@ packages/
   ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
   sdk/        → Module SDK (definePanel, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
-  platform/   → Entry point and the published package (npx @forge-dev/platform), with CW bundled
+  platform/   → Entry point and the published package (`forge-cw` on npm), with CW bundled
 modules/
   mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
@@ -330,7 +330,7 @@ pnpm test             # Run all tests
 
 ### Publishing
 
-`@forge-dev/platform` is the only published package. `pnpm publish --access public` in `packages/platform` runs `scripts/pack.mjs`, which builds the workspace, bundles the server into `dist/index.js` (the workspace packages inlined, npm dependencies left external), copies the console, and copies the CW commit pinned in `packages/platform/cw.lock.json` into `cw/`. `pnpm pack` does the same without publishing.
+`packages/platform` is the only published package, as `forge-cw`. `pnpm pack` in `packages/platform` runs `scripts/pack.mjs`, which builds the workspace, bundles the server into `dist/index.js` (the workspace packages inlined, npm dependencies left external), copies the console, and copies the CW commit pinned in `packages/platform/cw.lock.json` into `cw/`. Publish the tarball it writes with `npm publish forge-cw-<version>.tgz`, which asks for your npm passkey in the browser.
 
 The Bump CW workflow checks CW's `main` every day and opens a pull request that moves the pin. CW can also trigger it after a merge with `gh api repos/avarajar/forge/dispatches -f event_type=cw-updated`. To bundle something else locally, set `FORGE_CW_SOURCE` (a clone or URL) and `FORGE_CW_REF`.
 

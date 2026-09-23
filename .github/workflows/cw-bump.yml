@@ -68,7 +68,7 @@ jobs:
           git commit -q -am "chore: bundle CW $VERSION (${LATEST:0:7})"
           git push -f origin "$BRANCH"
           title="chore: bundle CW $VERSION (${LATEST:0:7})"
-          body=$(printf 'Pins [CW %s](https://github.com/avarajar/cw/commit/%s) in `%s`. The next published `@forge-dev/platform` carries it, and Forge updates the CW it installed on start.\n\n## CW changes\n\n%s\n' "$VERSION" "$LATEST" "$LOCK" "$LOG")
+          body=$(printf 'Pins [CW %s](https://github.com/avarajar/cw/commit/%s) in `%s`. The next published `forge-cw` carries it, and Forge updates the CW it installed on start.\n\n## CW changes\n\n%s\n' "$VERSION" "$LATEST" "$LOCK" "$LOG")
           if gh pr view "$BRANCH" --json state -q .state 2>/dev/null | grep -q OPEN; then
             gh pr edit "$BRANCH" --title "$title" --body "$body"
           else
