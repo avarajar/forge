@@ -268,44 +268,45 @@ export class CWReader {
     return join(this.getSkillConfigDir(scope, scopeRef), 'skills', name)
   }
 
-  getSkills(account?: string, project?: string): SkillEntry[] {
-    const results: SkillEntry[] = []
+  // global, every account and every registered project
+  getSkills(): SkillEntry[] {
+    return [
+      ...this.scanSkills(join(this.getSkillConfigDir('global', 'global'), 'skills'), 'global', 'global'),
+      ...this.getAccounts().flatMap(a => this.scanSkills(join(this.getSkillConfigDir('account', a), 'skills'), 'account', a)),
+      ...Object.entries(this.getProjects()).flatMap(([name, p]) => this.scanSkills(join(p.path, '.claude', 'skills'), 'project', name)),
+    ]
+  }
 
-    const scanDir = (dir: string, scope: SkillEntry['scope'], scopeRef: string) => {
-      if (!existsSync(dir)) return
-      const entries = readdirSync(dir, { withFileTypes: true })
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue
-        if (entry.name.startsWith('acct--')) continue
-        const fullPath = join(dir, entry.name)
-        const skillMd = join(fullPath, 'SKILL.md')
-        if (!existsSync(skillMd)) continue
-        try {
-          const content = readFileSync(skillMd, 'utf-8')
-          const { frontmatter } = this.parseFrontmatter(content)
-          const refsDir = join(fullPath, 'references')
-          const hasReferences = existsSync(refsDir) &&
-            readdirSync(refsDir).some(f => f.endsWith('.md'))
-          results.push({
-            name: String(frontmatter['name'] ?? entry.name),
-            dirName: entry.name,
-            scope,
-            scopeRef,
-            description: String(frontmatter['description'] ?? ''),
-            domain: frontmatter['domain'] ? String(frontmatter['domain']) : undefined,
-            triggers: frontmatter['triggers'] ? String(frontmatter['triggers']) : undefined,
-            hasReferences,
-          })
-        } catch {
-          // skip unreadable skill
-        }
+  private scanSkills(dir: string, scope: SkillEntry['scope'], scopeRef: string): SkillEntry[] {
+    const results: SkillEntry[] = []
+    if (!existsSync(dir)) return results
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      if (entry.name.startsWith('acct--')) continue
+      const fullPath = join(dir, entry.name)
+      const skillMd = join(fullPath, 'SKILL.md')
+      if (!existsSync(skillMd)) continue
+      try {
+        const content = readFileSync(skillMd, 'utf-8')
+        const { frontmatter } = this.parseFrontmatter(content)
+        const refsDir = join(fullPath, 'references')
+        const hasReferences = existsSync(refsDir) &&
+          readdirSync(refsDir).some(f => f.endsWith('.md'))
+        results.push({
+          name: String(frontmatter['name'] ?? entry.name),
+          dirName: entry.name,
+          scope,
+          scopeRef,
+          description: String(frontmatter['description'] ?? ''),
+          domain: frontmatter['domain'] ? String(frontmatter['domain']) : undefined,
+          triggers: frontmatter['triggers'] ? String(frontmatter['triggers']) : undefined,
+          hasReferences,
+        })
+      } catch {
+        // skip unreadable skill
       }
     }
-
-    scanDir(join(this.getSkillConfigDir('global', 'global'), 'skills'), 'global', 'global')
-    if (account) scanDir(join(this.getSkillConfigDir('account', account), 'skills'), 'account', account)
-    if (project) scanDir(join(this.getSkillConfigDir('project', project), 'skills'), 'project', project)
-
     return results
   }
 

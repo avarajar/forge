@@ -37,6 +37,51 @@ const scopeLabel = (s: Pick<SkillEntry, 'scope' | 'scopeRef'>) =>
 const skillDir = (s: Pick<SkillEntry, 'scope' | 'scopeRef' | 'dirName'>) =>
   s.scope === 'global' ? `~/.claude/skills/${s.dirName}` : s.scope === 'account' ? `~/.cw/accounts/${s.scopeRef}/skills/${s.dirName}` : `<${s.scopeRef}>/.claude/skills/${s.dirName}`
 
+/* ── Scope ── */
+
+type Target = Pick<SkillEntry, 'scope' | 'scopeRef'>
+
+// CW gives every Claude Code session its account's config dir, so ~/.claude/skills never reaches one
+const SCOPE_HINT: Record<Scope, string> = {
+  global: 'Lands in ~/.claude/skills, which only plain claude reads — sessions started from Forge or CW load their account’s skills instead.',
+  account: 'Every session on this account loads it.',
+  project: 'Sessions in this project load it from its .claude/skills.',
+}
+
+const defaultTarget = (accounts: string[]): Target => accounts[0] ? { scope: 'account', scopeRef: accounts[0] } : { scope: 'global', scopeRef: 'global' }
+
+const targetReady = (t: Target) => t.scope === 'global' || t.scopeRef !== ''
+
+const ScopeFields: FunctionComponent<{ accounts: string[]; projects: string[]; value: Target; onChange: (t: Target) => void }> = ({ accounts, projects, value, onChange }) => {
+  const change = (scope: Scope) => {
+    const options = scope === 'account' ? accounts : projects
+    onChange({ scope, scopeRef: scope === 'global' ? 'global' : options.includes(value.scopeRef) ? value.scopeRef : options[0] ?? '' })
+  }
+  return (
+    <>
+      <div class="flex flex-col" style={{ gap: '5px' }}>
+        <span style={labelStyle}>Scope</span>
+        <Tabs label="Scope" tabs={[{ id: 'account', label: 'Account' }, { id: 'project', label: 'Project' }, { id: 'global', label: 'Global' }]} active={value.scope} onChange={(id) => change(id as Scope)} />
+        <span style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{SCOPE_HINT[value.scope]}</span>
+      </div>
+      {value.scope !== 'global' && (
+        <Field label={value.scope === 'account' ? 'Account' : 'Project'}>
+          <select class="field" value={value.scopeRef} onChange={(e) => onChange({ ...value, scopeRef: (e.target as HTMLSelectElement).value })}>
+            {(value.scope === 'account' ? accounts : projects).map(v => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </Field>
+      )}
+    </>
+  )
+}
+
+// every other scope the skill could be copied into
+const copyTargets = (skill: SkillEntry, accounts: string[], projects: string[]): Target[] => [
+  ...accounts.map(a => ({ scope: 'account' as const, scopeRef: a })),
+  ...projects.map(p => ({ scope: 'project' as const, scopeRef: p })),
+  { scope: 'global' as const, scopeRef: 'global' },
+].filter(t => t.scope !== skill.scope || t.scopeRef !== skill.scopeRef)
+
 /* ── Editor ── */
 
 const serializeFrontmatter = (obj: Record<string, unknown>, indent = ''): string[] => {
@@ -52,7 +97,7 @@ const serializeFrontmatter = (obj: Record<string, unknown>, indent = ''): string
   return lines
 }
 
-const SkillEditor: FunctionComponent<{ skill: SkillEntry; onDeleted: () => void; onRun: () => void }> = ({ skill, onDeleted, onRun }) => {
+const SkillEditor: FunctionComponent<{ skill: SkillEntry; accounts: string[]; projects: string[]; onDeleted: () => void; onCopied: () => void; onRun: () => void }> = ({ skill, accounts, projects, onDeleted, onCopied, onRun }) => {
   const [detail, setDetail] = useState<SkillDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeFile, setActiveFile] = useState('SKILL.md')
@@ -115,6 +160,25 @@ const SkillEditor: FunctionComponent<{ skill: SkillEntry; onDeleted: () => void;
     }
   }
 
+  const handleCopy = async (target: Target) => {
+    try {
+      const res = await fetch('/api/skills/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: { scope: skill.scope, scopeRef: skill.scopeRef, name: skill.dirName }, to: target }),
+      })
+      const result = await res.json() as { ok: boolean; error?: string }
+      if (result.ok) {
+        showToast(`Copied to ${scopeLabel(target)}`, 'success')
+        onCopied()
+      } else {
+        showToast(result.error ?? 'Failed to copy', 'error')
+      }
+    } catch {
+      showToast('Failed to copy', 'error')
+    }
+  }
+
   const handleAddReference = async () => {
     const filename = prompt('Reference filename (e.g. examples.md):')
     if (!filename?.trim()) return
@@ -162,11 +226,28 @@ const SkillEditor: FunctionComponent<{ skill: SkillEntry; onDeleted: () => void;
   }
 
   const files = ['SKILL.md', ...(detail?.references.map(r => r.name) ?? [])]
+  const targets = copyTargets(skill, accounts, projects)
 
   return (
     <>
       <PaneHeader title={skill.name} sub={`${scopeLabel(skill)} · ${skillDir(skill)}`}>
         <ActionButton label="Delete" variant="danger" size="sm" onClick={handleDelete} />
+        <select
+          class="field"
+          aria-label="Copy to"
+          style={{ height: '30px', padding: '0 8px', fontSize: '12.5px', width: 'auto' }}
+          value=""
+          disabled={!detail}
+          onChange={(e) => {
+            const el = e.target as HTMLSelectElement
+            const target = targets[Number(el.value)]
+            el.value = ''
+            if (target) void handleCopy(target)
+          }}
+        >
+          <option value="" disabled>Copy to…</option>
+          {targets.map((t, i) => <option key={`${t.scope}/${t.scopeRef}`} value={i}>{scopeLabel(t)}</option>)}
+        </select>
         <ActionButton label="Run in session" variant="secondary" size="sm" onClick={onRun} />
         <ActionButton label={saving ? 'Saving…' : 'Save'} variant="primary" size="sm" loading={saving} disabled={!detail} onClick={handleSave} />
       </PaneHeader>
@@ -215,9 +296,10 @@ const SkillEditor: FunctionComponent<{ skill: SkillEntry; onDeleted: () => void;
 
 /* ── Explore ── */
 
-const SkillExplore: FunctionComponent<{ query: string; onInstalled: () => void }> = ({ query, onInstalled }) => {
+const SkillExplore: FunctionComponent<{ query: string; accounts: string[]; projects: string[]; onInstalled: () => void }> = ({ query, accounts, projects, onInstalled }) => {
   const [results, setResults] = useState<ExploreResult[] | null>(null)
   const [installing, setInstalling] = useState<string | null>(null)
+  const [target, setTarget] = useState<Target>(() => defaultTarget(accounts))
 
   useEffect(() => {
     let cancelled = false
@@ -235,11 +317,11 @@ const SkillExplore: FunctionComponent<{ query: string; onInstalled: () => void }
       const res = await fetch('/api/skills/install', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ repo: skill.repo, skill: skill.skillId, scope: 'global' }),
+        body: JSON.stringify({ repo: skill.repo, skill: skill.skillId, ...target }),
       })
       const result = await res.json() as { ok: boolean; error?: string }
       if (result.ok) {
-        showToast('Skill installed', 'success')
+        showToast(`Installed in ${scopeLabel(target)}`, 'success')
         onInstalled()
       } else {
         showToast(result.error ?? 'Failed to install', 'error')
@@ -253,8 +335,11 @@ const SkillExplore: FunctionComponent<{ query: string; onInstalled: () => void }
 
   return (
     <>
-      <PaneHeader title={`skills.sh · “${query}”`} sub="Installs into ~/.claude/skills" />
+      <PaneHeader title={`skills.sh · “${query}”`} sub={`Installs into ${scopeLabel(target)}`} />
       <div class="flex-1 min-h-0 overflow-auto flex flex-col" style={{ padding: '14px 20px 20px', gap: '8px' }}>
+        <div class="flex flex-col" style={{ gap: '10px', maxWidth: '560px', marginBottom: '6px' }}>
+          <ScopeFields accounts={accounts} projects={projects} value={target} onChange={setTarget} />
+        </div>
         {results === null && <p style={{ fontSize: '13px', color: 'var(--ink-2)' }}>Searching…</p>}
         {results?.length === 0 && <p style={{ fontSize: '13px', color: 'var(--ink-2)' }}>No results on skills.sh.</p>}
         {results?.map((r, i) => (
@@ -263,7 +348,7 @@ const SkillExplore: FunctionComponent<{ query: string; onInstalled: () => void }
               <div class="truncate" style={{ fontSize: '13.5px', fontWeight: 600 }}>{r.name}</div>
               <div class="mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{r.repo} · {r.installs} installs</div>
             </div>
-            <ActionButton label={installing === r.slug ? 'Installing…' : 'Install'} variant="secondary" size="sm" loading={installing === r.slug} onClick={() => install(r)} />
+            <ActionButton label={installing === r.slug ? 'Installing…' : 'Install'} variant="secondary" size="sm" loading={installing === r.slug} disabled={!targetReady(target)} onClick={() => install(r)} />
           </div>
         ))}
       </div>
@@ -279,19 +364,11 @@ const SkillCreate: FunctionComponent<{
   onCreated: () => void
   onCreateWithAI?: (scope: string, scopeRef: string, description: string) => void
 }> = ({ accounts, projects, onCreated, onCreateWithAI }) => {
-  const [scope, setScope] = useState<Scope>('global')
-  const [scopeRef, setScopeRef] = useState('')
+  const [target, setTarget] = useState<Target>(() => defaultTarget(accounts))
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [creating, setCreating] = useState(false)
-  const projectNames = Object.keys(projects)
-
-  const changeScope = (s: Scope) => {
-    setScope(s)
-    if (s === 'account') setScopeRef(accounts.includes(scopeRef) ? scopeRef : accounts[0] ?? '')
-    else if (s === 'project') setScopeRef(projectNames.includes(scopeRef) ? scopeRef : projectNames[0] ?? '')
-    else setScopeRef('')
-  }
+  const { scope, scopeRef } = target
 
   const create = async () => {
     if (!name.trim()) return
@@ -301,7 +378,7 @@ const SkillCreate: FunctionComponent<{
       const res = await fetch('/api/skills', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope, scopeRef: scopeRef || undefined, name: name.trim(), content: template }),
+        body: JSON.stringify({ scope, scopeRef, name: name.trim(), content: template }),
       })
       const result = await res.json() as { ok: boolean; error?: string }
       if (result.ok) {
@@ -322,17 +399,7 @@ const SkillCreate: FunctionComponent<{
       <PaneHeader title="New skill" sub="Write it yourself or let an agent draft it with skill-creator" />
       <div class="flex-1 min-h-0 overflow-auto">
         <div class="flex flex-col" style={{ padding: '16px 20px 24px', gap: '14px', maxWidth: '560px' }}>
-          <div class="flex flex-col" style={{ gap: '5px' }}>
-            <span style={labelStyle}>Scope</span>
-            <Tabs label="Scope" tabs={[{ id: 'global', label: 'Global' }, { id: 'account', label: 'Account' }, { id: 'project', label: 'Project' }]} active={scope} onChange={(id) => changeScope(id as Scope)} />
-          </div>
-          {scope !== 'global' && (
-            <Field label={scope === 'account' ? 'Account' : 'Project'}>
-              <select class="field" value={scopeRef} onChange={(e) => setScopeRef((e.target as HTMLSelectElement).value)}>
-                {(scope === 'account' ? accounts : projectNames).map(v => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </Field>
-          )}
+          <ScopeFields accounts={accounts} projects={Object.keys(projects)} value={target} onChange={setTarget} />
           <Field label="Name">
             <input class="field" value={name} placeholder="my-skill" onInput={(e) => setName((e.target as HTMLInputElement).value)} />
           </Field>
@@ -340,9 +407,9 @@ const SkillCreate: FunctionComponent<{
             <textarea class="field" rows={3} value={description} placeholder="What does this skill do?" onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)} />
           </Field>
           <div class="flex flex-wrap" style={{ gap: '8px' }}>
-            <ActionButton label={creating ? 'Creating…' : 'Create'} variant="primary" loading={creating} disabled={!name.trim()} onClick={create} />
+            <ActionButton label={creating ? 'Creating…' : 'Create'} variant="primary" loading={creating} disabled={!name.trim() || !targetReady(target)} onClick={create} />
             {onCreateWithAI && (
-              <ActionButton label="Create with AI" variant="secondary" disabled={!description.trim()} title="Starts a session that drafts the skill" onClick={() => onCreateWithAI(scope, scopeRef, description.trim())} />
+              <ActionButton label="Create with AI" variant="secondary" disabled={!description.trim() || !targetReady(target)} title="Starts a session that drafts the skill" onClick={() => onCreateWithAI(scope, scopeRef, description.trim())} />
             )}
           </div>
         </div>
@@ -358,18 +425,17 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
   const [pane, setPane] = useState<Pane>({ kind: 'empty' })
   const [loading, setLoading] = useState(skills.value === null)
 
-  const firstAccount = accounts[0] ?? ''
-  const firstProject = Object.keys(projects)[0] ?? ''
+  const projectNames = Object.keys(projects)
 
   const refresh = useCallback(async () => {
     try {
-      await Promise.all([loadSkills(firstAccount, firstProject), loadPlugins()])
+      await Promise.all([loadSkills(), loadPlugins()])
     } catch {
       showToast('Failed to load skills', 'error')
     } finally {
       setLoading(false)
     }
-  }, [firstAccount, firstProject])
+  }, [])
 
   useEffect(() => { if (skills.value === null || plugins.value === null) void refresh() }, [refresh])
 
@@ -459,6 +525,9 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
           <SkillEditor
             key={skillId(pane.skill)}
             skill={pane.skill}
+            accounts={accounts}
+            projects={projectNames}
+            onCopied={() => { void refresh() }}
             onRun={() => onRunSkill(pane.skill)}
             onDeleted={() => { setPane({ kind: 'empty' }); void refresh() }}
           />
@@ -471,7 +540,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
             onCreated={() => { setPane({ kind: 'empty' }); void refresh() }}
           />
         )}
-        {pane.kind === 'explore' && <SkillExplore query={pane.query} onInstalled={() => { void refresh() }} />}
+        {pane.kind === 'explore' && <SkillExplore query={pane.query} accounts={accounts} projects={projectNames} onInstalled={() => { void refresh() }} />}
         {pane.kind === 'plugin' && activePlugin && !pane.skill && (
           <PluginPane
             plugin={activePlugin}

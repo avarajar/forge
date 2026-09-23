@@ -4,6 +4,7 @@
 
 ### Added
 
+- Skills installed from skills.sh go to an account, a project or global, and any skill can be copied to another scope with its files (`POST /api/skills/copy`). The scope picker explains that `~/.claude/skills` only reaches plain `claude`: sessions started from Forge or CW load their account's skills.
 - The npm package `forge-cw` (`npm i -g forge-cw` or `npx forge-cw`) carries CW. On start Forge installs it into `~/.cw` when it is missing, updates the CW it installed when a newer Forge carries a newer one, and leaves a CW you installed yourself alone unless the bundled one has a higher version. It never edits your shell rc files and puts `~/.cw/bin` on the PATH of its own sessions. `FORGE_SKIP_CW_INSTALL=1` turns it off.
 - `forge-cw` can be published: `pnpm pack` in `packages/platform` bundles the server, the console and the CW commit pinned in `cw.lock.json`. A daily workflow opens a pull request when CW's `main` moves.
 - Session states: Forge reads each live terminal and tells whether the agent is working, waiting for you, asking for approval, stopped on an error or exited. The sidebar card and the tab show it, sessions that need you move to the top of Live now, and the page title counts them. Claude Code has its own rules; other harnesses only report activity.
@@ -36,6 +37,7 @@
 
 ### Changed
 
+- Skills lists every account's and every project's skills, not only the first account's and the first project's. New skills default to the first account.
 - Terminals use `node-pty` 1.2.0-beta.15, which ships ready-made binaries for Linux (glibc, x64 and arm64) as well as macOS, so Forge installs and starts on Linux without compiling anything or running install scripts.
 - Forge's local database uses Node's built-in `node:sqlite` instead of `better-sqlite3`, so installing Forge compiles nothing for it. Forge needs Node 22.13 or later; existing `~/.forge/forge.db` files open as before.
 - The published command is `forge` (it was `forge-platform`) and takes `--port` and `--no-open`, so `cw forge` starts it.
@@ -56,6 +58,8 @@
 
 ### Fixed
 
+- A general session no longer ends with `Session not found` when its terminal exits or Forge restarts: Forge keeps it in `general-sessions.json` in its data dir and relaunches it with the same account, harness and folder until its tab is closed. The conversation itself does not resume.
+- A terminal the server refuses stops reconnecting instead of retrying forever, and shows Restart.
 - The screen sent to Jev and written to `FORGE_STATE_LOG` lost letters ("t e user to co firm"): Claude Code redraws a row by writing only the cells that changed and jumping over the rest, and the text stripped from the raw stream turned every jump into spaces. Forge now keeps each terminal's screen in a terminal emulator, at the size you resize it to, and sends that.
 - A Claude Code turn that ends on a spinner verb with an accent ("Sautéed for 13s"), or whose duration a redraw left out ("Baked for  done 10:12 am"), reads as waiting, not working. Rows Claude Code redraws by moving the cursor are no longer glued into one line.
 - A session whose terminal keeps asking for the cursor position (`ESC[?6n` every 200 ms) no longer stays working forever: output with nothing to show no longer counts as activity, so the screen settles and is read. A settled screen also reads correctly when the timer fires a millisecond early, instead of passing for fresh output.

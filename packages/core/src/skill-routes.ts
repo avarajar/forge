@@ -1,13 +1,14 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
 import type { ExploreResult, SkillScope } from './cw-types.js'
-import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync, cpSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { envWithoutHarness } from './cw-doctor.js'
 import { createRunner, runCommand, type Runner, type RunResult } from './task-review.js'
 import { createRemoteLookup, listPlugins, readPluginSkill, type RemoteLookup } from './plugins.js'
 
 const INSTALL_TIMEOUT_MS = 120_000
+const SKILL_NAME_RE = /^\w[\w.-]*$/
 
 // the CLI prints one JSON entry per requested skill; a non-installed one carries the reason
 function installFailure(result: RunResult): string {
@@ -35,10 +36,35 @@ export function skillRoutes(
   // one update per config dir: two CLIs rewriting installed_plugins.json would race
   const updating = new Set<string>()
 
-  app.get('/', (c) => {
-    const account = c.req.query('account')
-    const project = c.req.query('project')
-    return c.json(reader.getSkills(account, project))
+  const refOf = (scope: SkillScope, scopeRef?: string) => scope === 'global' ? 'global' : scopeRef ?? ''
+  // a scope ref must be a known account or project
+  const knownScope = (scope: SkillScope, ref: string) =>
+    scope === 'global' || (scope === 'account' ? reader.getAccounts().includes(ref) : scope === 'project' && ref in reader.getProjects())
+
+  app.get('/', (c) => c.json(reader.getSkills()))
+
+  app.post('/copy', async (c) => {
+    const { from, to } = await c.req.json<{
+      from: { scope: SkillScope; scopeRef?: string; name: string }
+      to: { scope: SkillScope; scopeRef?: string }
+    }>()
+    const fromRef = refOf(from.scope, from.scopeRef)
+    const toRef = refOf(to.scope, to.scopeRef)
+    if (!SKILL_NAME_RE.test(from.name)) return c.json({ error: 'Invalid skill name' }, 400)
+    if (!knownScope(from.scope, fromRef)) return c.json({ error: `Unknown ${from.scope}: ${fromRef}` }, 404)
+    if (!knownScope(to.scope, toRef)) return c.json({ error: `Unknown ${to.scope}: ${toRef}` }, 404)
+
+    const source = reader.getSkillDir(from.scope, fromRef, from.name)
+    const target = reader.getSkillDir(to.scope, toRef, from.name)
+    if (!existsSync(join(source, 'SKILL.md'))) return c.json({ error: 'Skill not found' }, 404)
+    if (existsSync(target)) return c.json({ error: `${from.name} already exists in ${toRef}` }, 409)
+    try {
+      cpSync(source, target, { recursive: true })
+      return c.json({ ok: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      return c.json({ error: `Failed to copy skill: ${message}` }, 500)
+    }
   })
 
   app.get('/global/:name', (c) => {
@@ -218,9 +244,8 @@ export function skillRoutes(
     if (!repo || !skill) {
       return c.json({ error: 'repo and skill are required' }, 400)
     }
-    const ref = scope === 'global' ? 'global' : (scopeRef ?? '')
-    const known = scope === 'global' || (scope === 'account' ? reader.getAccounts().includes(ref) : ref in reader.getProjects())
-    if (!known) {
+    const ref = refOf(scope, scopeRef)
+    if (!knownScope(scope, ref)) {
       return c.json({ error: `Unknown ${scope}: ${ref}` }, 404)
     }
 
