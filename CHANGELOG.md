@@ -36,6 +36,7 @@
 
 ### Changed
 
+- Terminals use `node-pty` 1.2.0-beta.15, which ships ready-made binaries for Linux (glibc, x64 and arm64) as well as macOS, so Forge installs and starts on Linux without compiling anything or running install scripts.
 - Forge's local database uses Node's built-in `node:sqlite` instead of `better-sqlite3`, so installing Forge compiles nothing for it. Forge needs Node 22.13 or later; existing `~/.forge/forge.db` files open as before.
 - The published command is `forge` (it was `forge-platform`) and takes `--port` and `--no-open`, so `cw forge` starts it.
 - Switching to a task tab puts the keyboard in its terminal, so you can type without clicking it first. Tabs in the background no longer take focus when they load.

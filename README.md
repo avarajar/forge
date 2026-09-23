@@ -156,7 +156,7 @@ The package carries CW, so you don't install it separately. Each time Forge star
 
 It never edits `.zshrc` or `.bashrc`. Forge's sessions find `cw` on their own; to run `cw` in a terminal, add `~/.cw/bin` to your PATH. `FORGE_SKIP_CW_INSTALL=1` turns all of this off.
 
-The only native module is `node-pty`, for the terminals. On macOS it ships ready to use, so the package installs even where npm skips install scripts (npm 12 does by default). On Linux it compiles on install: that needs Python 3, `make` and a C++ compiler, and on npm 12 approving `node-pty`'s install script (see `npm help approve-scripts`).
+The only native module is `node-pty`, for the terminals. It ships ready to use for macOS and for Linux with glibc (Debian, Ubuntu, Fedora…) on x64 and arm64, so the package installs even where npm skips install scripts, as npm 12 does by default. On Alpine and other musl systems it has to compile: that needs Python 3, `make`, a C++ compiler and, on npm 12, approving `node-pty`'s install script (see `npm help approve-scripts`).
 
 ### From source
 
