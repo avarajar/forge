@@ -85,7 +85,7 @@
 
           <div class="cmd">
             <span class="cmd-prompt" aria-hidden="true">$</span>
-            <code>git clone https://github.com/avarajar/forge.git &amp;&amp; cd forge &amp;&amp; pnpm start</code>
+            <code>npx forge-cw</code>
             <button type="button" class="copy" data-copy>Copy</button>
           </div>
         </div>
@@ -298,34 +298,26 @@
 
     <section id="start" class="wrap-narrow start">
       <h2 class="section-title">Get started</h2>
-      <p class="start-sub">Needs Node 22.13+, pnpm 11+, Python 3.9+, bash 4+, git, and one harness.</p>
+      <p class="start-sub">macOS or Linux, with Node 22.13+, Python 3.9+, bash 4+ (<code>brew install bash</code> on macOS), git, and one harness. CW comes with it.</p>
       <div class="grid steps" data-reveal>
         <div class="step">
           <span class="tile tile-lg c-blue">1</span>
-          <h3>Install CW</h3>
+          <h3>Run Forge</h3>
           <div class="code">
-            <code>git clone https://github.com/avarajar/cw.git &amp;&amp; cd cw &amp;&amp; ./install.sh
-cw init</code>
+            <code>npx forge-cw</code>
             <button type="button" class="copy" data-copy>Copy</button>
           </div>
+          <p>Installs CW into <code>~/.cw</code> the first time and opens <code>http://localhost:3000</code>. To keep it around: <code>npm i -g forge-cw</code>, then <code>forge</code>.</p>
         </div>
         <div class="step">
           <span class="tile tile-lg c-blue">2</span>
-          <h3>Add a project</h3>
-          <div class="code">
-            <code>cw open my-app</code>
-            <button type="button" class="copy" data-copy>Copy</button>
-          </div>
-          <p>Or register an existing repo from the dashboard.</p>
+          <h3>Connect an account</h3>
+          <p>Open Accounts, add one and connect Claude Code, Codex, Pi or OpenCode. Codex logs in with a device code, no terminal.</p>
         </div>
         <div class="step">
           <span class="tile tile-lg c-blue">3</span>
-          <h3>Run Forge</h3>
-          <div class="code">
-            <code>git clone https://github.com/avarajar/forge.git &amp;&amp; cd forge &amp;&amp; pnpm start</code>
-            <button type="button" class="copy" data-copy>Copy</button>
-          </div>
-          <p>Opens at <code>http://localhost:3000</code>. With CW installed you can also run <code>cw forge</code>.</p>
+          <h3>Add a project</h3>
+          <p>Add a repository from the sidebar, or create a new one, and start your first task from the start card.</p>
         </div>
       </div>
     </section>
@@ -367,6 +359,7 @@ cw init</code>
       <div class="footer-col">
         <p>project</p>
         <a href="https://github.com/avarajar/forge">GitHub</a>
+        <a href="https://www.npmjs.com/package/forge-cw">npm</a>
         <a href="https://github.com/avarajar/forge/blob/main/CHANGELOG.md">Changelog</a>
         <a href="https://github.com/avarajar/forge/blob/main/LICENSE">MIT license</a>
       </div>
