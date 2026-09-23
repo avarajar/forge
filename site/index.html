@@ -289,7 +289,7 @@
             </div>
           </div>
           <div class="how-note">
-            <p>Forge reads <code class="inline-code">~/.cw</code> and <code class="inline-code">~/.claude</code>. CW starts each agent in its own git worktree with the right account.</p>
+            <p>Underneath runs CW (Coding Workspace), an open-source command line tool that Forge installs for you: it gives every task its own git worktree and starts the agent on the account and harness you picked. You can use it from a terminal too.</p>
             <a href="https://github.com/avarajar/cw">Learn about CW →</a>
           </div>
         </div>
@@ -298,7 +298,7 @@
 
     <section id="start" class="wrap-narrow start">
       <h2 class="section-title">Get started</h2>
-      <p class="start-sub">macOS or Linux, with Node 22.13+, Python 3.9+, bash 4+ (<code>brew install bash</code> on macOS), git, and one harness. CW comes with it.</p>
+      <p class="start-sub">macOS or Linux, with Node 22.13+, Python 3.9+, bash 4+ (<code>brew install bash</code> on macOS), git, and one harness.</p>
       <div class="grid steps" data-reveal>
         <div class="step">
           <span class="tile tile-lg c-blue">1</span>
@@ -307,7 +307,7 @@
             <code>npx forge-cw</code>
             <button type="button" class="copy" data-copy>Copy</button>
           </div>
-          <p>Installs CW into <code>~/.cw</code> the first time and opens <code>http://localhost:3000</code>. To keep it around: <code>npm i -g forge-cw</code>, then <code>forge</code>.</p>
+          <p>Sets up what it needs the first time and opens <code>http://localhost:3000</code>. To keep it around: <code>npm i -g forge-cw</code>, then <code>forge</code>.</p>
         </div>
         <div class="step">
           <span class="tile tile-lg c-blue">2</span>
