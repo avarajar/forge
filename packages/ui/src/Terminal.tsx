@@ -14,6 +14,8 @@ interface TerminalProps {
   height?: number
   /** Called when the PTY exits */
   onExit?: (code: number) => void
+  /** Called when the terminal stops reconnecting */
+  onGiveUp?: () => void
   /** Called when WebSocket connection state changes */
   onConnectionChange?: (connected: boolean) => void
   /** Called with every chunk written to the terminal */
@@ -34,7 +36,7 @@ const themeFor = (mode: 'dark' | 'light') => ({
 
 
 export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
-  streamUrl, content, wsUrl, height = 300, onExit, onConnectionChange, onOutput, focused = true, theme = 'dark'
+  streamUrl, content, wsUrl, height = 300, onExit, onGiveUp, onConnectionChange, onOutput, focused = true, theme = 'dark'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const isInteractive = !!wsUrl
@@ -42,6 +44,8 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
   // Stable refs for callbacks — prevents useEffect re-runs
   const onExitRef = useRef(onExit)
   onExitRef.current = onExit
+  const onGiveUpRef = useRef(onGiveUp)
+  onGiveUpRef.current = onGiveUp
   const onConnectionChangeRef = useRef(onConnectionChange)
   onConnectionChangeRef.current = onConnectionChange
   const onOutputRef = useRef(onOutput)
@@ -175,13 +179,18 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
             onConnectionChangeRef.current?.(false)
 
             if (disposed) return
-            if (reconnectAttempt < 5) {
+            // the server refused the session (pty-routes REFUSED_CLOSE_CODE), so reconnecting would only repeat the error
+            if (evt.code === 4404) {
+              term.write(`\r\n\x1b[31m--- Click Restart to try again. ---\x1b[0m\r\n`)
+              onGiveUpRef.current?.()
+            } else if (reconnectAttempt < 5) {
               const delay = Math.min(2000 * Math.pow(2, reconnectAttempt), 16000)
               reconnectAttempt++
               term.write(`\r\n\x1b[90m--- Reconnecting (attempt ${reconnectAttempt}/5)... ---\x1b[0m\r\n`)
               reconnectTimer = setTimeout(() => connectWs(url), delay)
             } else {
               term.write(`\r\n\x1b[31m--- Connection lost. Click Restart to try again. ---\x1b[0m\r\n`)
+              onGiveUpRef.current?.()
             }
           }
 

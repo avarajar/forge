@@ -216,16 +216,24 @@ function App() {
     }
   }, [openSession, refreshAfterAction])
 
+  // a skill's session runs on its account, or in its project on the project's account
+  const skillSession = useCallback((scope: string, scopeRef: string) => {
+    const project = scope === 'project' && projects[scopeRef] ? scopeRef : undefined
+    const account = scope === 'account' ? scopeRef : project ? projects[project].account : accounts[0] || 'default'
+    return { account, project }
+  }, [accounts, projects])
+
   const handleCreateSkillWithAI = useCallback((scope: string, scopeRef: string, description: string) => {
+    const { account, project } = skillSession(scope, scopeRef)
     const targetDir = scope === 'global' ? '~/.claude/skills/'
       : scope === 'account' ? `~/.cw/accounts/${scopeRef}/skills/`
-      : '<project>/.claude/skills/'
+      : `${project ? projects[project].path : '<project>'}/.claude/skills/`
 
     const initDescription = [
       'Use the skill-creator skill to create a new Claude Code skill.',
       '',
       `The user wants: ${description}`,
-      `Target scope: ${scope}${scopeRef ? ` (${scopeRef})` : ''}`,
+      `Target scope: ${scope}${scope !== 'global' ? ` (${scopeRef})` : ''}`,
       `Save location: ${targetDir}`,
       '',
       'Before creating from scratch, search for existing similar skills:',
@@ -236,16 +244,13 @@ function App() {
       'Then use skill-creator to build/customize the skill and save it.',
     ].join('\n')
 
-    void startGeneral(initDescription, accounts[0] || 'default', undefined, 'AI skill creation session started')
-  }, [accounts, startGeneral])
+    void startGeneral(initDescription, account, project, 'AI skill creation session started')
+  }, [projects, skillSession, startGeneral])
 
   const handleRunSkill = useCallback((skill: SkillEntry) => {
-    const project = skill.scope === 'project' && projects[skill.scopeRef] ? skill.scopeRef : undefined
-    const account = skill.scope === 'account' ? skill.scopeRef
-      : project ? projects[project].account
-      : accounts[0] || 'default'
+    const { account, project } = skillSession(skill.scope, skill.scopeRef)
     void startGeneral(`Use the ${skill.name} skill.`, account, project, `Session started with ${skill.name}`)
-  }, [accounts, projects, startGeneral])
+  }, [skillSession, startGeneral])
 
   // plugins load in Claude Code only, so the session that writes the skill runs there too
   const handleProposeSkill = useCallback(async (plugin: PluginEntry, text: string, area: string | undefined, account: string) => {
@@ -279,7 +284,7 @@ function App() {
 
   useEffect(() => {
     if (loading) return
-    loadSkills(accounts[0] ?? '', Object.keys(projects)[0] ?? '').catch(() => {})
+    loadSkills().catch(() => {})
   }, [loading])
 
   const activeSessions = useMemo(() => spaces.filter(s => s.status === 'active'), [spaces])

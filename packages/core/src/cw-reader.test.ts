@@ -235,7 +235,7 @@ description: A project-scoped skill
   })
 
   it('getSkills returns global skills', () => {
-    const skills = reader.getSkills()
+    const skills = reader.getSkills().filter(s => s.scope === 'global')
     expect(skills).toHaveLength(1)
     const skill = skills[0]
     expect(skill.name).toBe('my-global-skill')
@@ -247,8 +247,8 @@ description: A project-scoped skill
     expect(skill.hasReferences).toBe(true)
   })
 
-  it('getSkills includes account skills when account provided', () => {
-    const skills = reader.getSkills('default')
+  it('getSkills includes account skills', () => {
+    const skills = reader.getSkills()
     const names = skills.map(s => s.name)
     expect(names).toContain('my-global-skill')
     expect(names).toContain('my-account-skill')
@@ -258,8 +258,8 @@ description: A project-scoped skill
     expect(acct?.hasReferences).toBe(false)
   })
 
-  it('getSkills includes project skills when project provided', () => {
-    const skills = reader.getSkills(undefined, 'myapp2')
+  it('getSkills includes project skills', () => {
+    const skills = reader.getSkills()
     const names = skills.map(s => s.name)
     expect(names).toContain('my-global-skill')
     expect(names).toContain('my-project-skill')

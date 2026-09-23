@@ -5,20 +5,28 @@ import type { CWReader } from './cw-reader.js'
 import type { CWSession } from './cw-types.js'
 import { pendingSessions } from './cw-routes.js'
 import { isLocalRequest } from './origin-guard.js'
+import type { GeneralSessions } from './general-sessions.js'
+
+// close code for a session the server will not open, so the client stops reconnecting
+export const REFUSED_CLOSE_CODE = 4404
 
 // A session still in pendingSessions was just created by /start; anything else is a resume
-export function takeSession(reader: CWReader, project: string, sessionDir: string): { session: CWSession; isNew: boolean } | null {
+export function takeSession(reader: CWReader, project: string, sessionDir: string, general?: GeneralSessions): { session: CWSession; isNew: boolean } | null {
   const sessionId = `${project}::${sessionDir}`
   const pending = pendingSessions.get(sessionId)
   if (pending) {
     pendingSessions.delete(sessionId)
+    if (pending.type === 'general') general?.remember(sessionId, pending)
     return { session: pending, isNew: true }
   }
   const session = reader.getSession(project, sessionDir)
-  return session ? { session, isNew: false } : null
+  if (session) return { session, isNew: false }
+  // a general session cannot resume, so it relaunches with the same account, harness and folder
+  const known = general?.get(sessionId)
+  return known ? { session: known, isNew: true } : null
 }
 
-export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true }: { localOnly?: boolean } = {}) {
+export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true, general }: { localOnly?: boolean; general?: GeneralSessions } = {}) {
   const wss = new WebSocketServer({ noServer: true })
 
   function wireWs(ws: WebSocket, sessionId: string, project: string, sessionDir: string) {
@@ -62,12 +70,12 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
       return
     }
 
-    const taken = takeSession(reader, project, sessionDir)
+    const taken = takeSession(reader, project, sessionDir, general)
 
     if (!taken) {
       console.log(`[pty-ws] Session not found: ${project}/${sessionDir}`)
       ws.send(JSON.stringify({ type: 'error', message: `Session not found: ${project}/${sessionDir}` }))
-      ws.close()
+      ws.close(REFUSED_CLOSE_CODE)
       return
     }
 
@@ -75,7 +83,7 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
     if (!ptySession) {
       console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
       ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal for ${project}/${sessionDir}` }))
-      ws.close()
+      ws.close(REFUSED_CLOSE_CODE)
       return
     }
 

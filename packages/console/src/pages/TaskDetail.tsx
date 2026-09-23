@@ -216,6 +216,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
               focused={active}
               onOutput={(data) => recordOutput(key, data)}
               onExit={() => setPtyExited(true)}
+              onGiveUp={() => setPtyExited(true)}
               onConnectionChange={setConnected}
             />
             {!connected && !ptyExited && (

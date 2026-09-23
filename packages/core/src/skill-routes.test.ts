@@ -69,13 +69,35 @@ describe('Skill Routes', () => {
     expect(global[0]?.name).toBe('Test Global Skill')
   })
 
-  it('GET /api/skills?account=testaccount returns account skills', async () => {
-    const res = await app.request('/api/skills?account=testaccount')
+  it('GET /api/skills returns account skills', async () => {
+    const res = await app.request('/api/skills')
     expect(res.status).toBe(200)
     const body = await res.json() as { name: string; scope: string }[]
     const account = body.filter(s => s.scope === 'account')
     expect(account.length).toBeGreaterThan(0)
     expect(account[0]?.name).toBe('Test Account Skill')
+  })
+
+  it('POST /api/skills/copy copies a global skill with its files into an account', async () => {
+    const refs = join(TEST_HOME, '.claude', 'skills', 'test-global-skill', 'references')
+    mkdirSync(refs, { recursive: true })
+    writeFileSync(join(refs, 'notes.md'), '# notes')
+    const copy = () => app.request('/api/skills/copy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: { scope: 'global', name: 'test-global-skill' }, to: { scope: 'account', scopeRef: 'testaccount' } }),
+    })
+    expect((await copy()).status).toBe(200)
+    const copied = await app.request('/api/skills/account/testaccount/test-global-skill')
+    const detail = await copied.json() as { references: { name: string }[] }
+    expect(detail.references.map(r => r.name)).toEqual(['notes.md'])
+    expect((await copy()).status).toBe(409)
+  })
+
+  it('POST /api/skills/copy rejects unknown scopes and path names', async () => {
+    const copy = (body: unknown) => app.request('/api/skills/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    expect((await copy({ from: { scope: 'global', name: 'test-global-skill' }, to: { scope: 'account', scopeRef: 'ghost' } })).status).toBe(404)
+    expect((await copy({ from: { scope: 'global', name: '../x' }, to: { scope: 'account', scopeRef: 'testaccount' } })).status).toBe(400)
   })
 
   it('GET /api/skills/global/:name returns skill detail', async () => {
