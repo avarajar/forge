@@ -338,7 +338,7 @@ pnpm test             # Run all tests
 
 ### Publishing
 
-`packages/platform` is the only published package, as `forge-cw`. `pnpm pack` in `packages/platform` runs `scripts/pack.mjs`, which builds the workspace, bundles the server into `dist/index.js` (the workspace packages inlined, npm dependencies left external), copies the console, and copies the CW commit pinned in `packages/platform/cw.lock.json` into `cw/`. Publish the tarball it writes with `npm publish forge-cw-<version>.tgz`, which asks for your npm passkey in the browser.
+`packages/platform` is the only published package, as `forge-cw`. `pnpm pack` in `packages/platform` runs `scripts/pack.mjs`, which builds the workspace, bundles the server into `dist/index.js` (the workspace packages inlined, npm dependencies left external), copies the console, and copies the CW commit pinned in `packages/platform/cw.lock.json` into `cw/`. The `Release` workflow publishes it: every push to `main` that changes the version in `packages/platform/package.json` runs the tests, packs and publishes through npm trusted publishing, and skips a version npm already has. `Bump CW` pins each new CW `main`, raises the patch version, merges once tests and the pack pass, and starts `Release`, so a CW change reaches `npx forge-cw` on its own. To release Forge changes, raise the version in a pull request.
 
 The Bump CW workflow checks CW's `main` every day and opens a pull request that moves the pin. CW can also trigger it after a merge with `gh api repos/avarajar/forge/dispatches -f event_type=cw-updated`. To bundle something else locally, set `FORGE_CW_SOURCE` (a clone or URL) and `FORGE_CW_REF`.
 

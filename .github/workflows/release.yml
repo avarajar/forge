@@ -1,0 +1,64 @@
+name: Release
+
+# Publishes forge-cw when main carries a version that npm does not have yet.
+# Uses npm trusted publishing (OIDC): no token, set up once on npmjs.com for this workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/platform/package.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/platform
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip a version npm already has
+        id: version
+        run: |
+          version=$(jq -r .version package.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if npm view "forge-cw@$version" version >/dev/null 2>&1; then
+            echo "forge-cw $version is already on npm"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.version.outputs.publish == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.version.outputs.publish == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install, test and pack
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir ../.. test
+          pnpm pack
+
+      # trusted publishing needs npm 11.5.1 or newer; pnpm pack already rewrote the workspace deps
+      - name: Publish
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          npm install -g npm@latest
+          npm publish "forge-cw-${{ steps.version.outputs.version }}.tgz" --access public
