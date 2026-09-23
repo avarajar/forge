@@ -1,17 +1,27 @@
 name: Release
 
-# Publishes forge-cw when main carries a version that npm does not have yet.
+# Publishes forge-cw from main. A push that changes what the package ships raises the patch
+# version when npm already has the current one; a version raised by hand (a minor, a major) or by
+# Bump CW is published as it is. The packed tarball must start and answer /api/health first.
+# The release commit and tag are pushed with GITHUB_TOKEN, which starts no workflow, so it never loops.
 # Uses npm trusted publishing (OIDC): no token, set up once on npmjs.com for this workflow.
 
 on:
   push:
     branches: [main]
     paths:
-      - packages/platform/package.json
+      - packages/core/**
+      - packages/console/**
+      - packages/ui/**
+      - packages/sdk/**
+      - packages/platform/**
+      - pnpm-lock.yaml
+      - '!**/*.test.ts'
+      - '!**/__fixtures__/**'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -27,17 +37,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Skip a version npm already has
+      - name: Pick the version
         id: version
+        env:
+          EVENT: ${{ github.event_name }}
         run: |
           version=$(jq -r .version package.json)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          if npm view "forge-cw@$version" version >/dev/null 2>&1; then
+          if ! npm view "forge-cw@$version" version >/dev/null 2>&1; then
+            echo "forge-cw $version is not on npm yet"
+          elif [ "$EVENT" = push ]; then
+            # from npm's latest too, in case main fell behind a version published by hand
+            latest=$(npm view forge-cw version)
+            highest=$(printf '%s\n%s\n' "$version" "$latest" | sort -V | tail -1)
+            IFS=. read -r major minor patch <<< "$highest"
+            version="$major.$minor.$((patch + 1))"
+            jq --arg v "$version" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
+            echo "Raised the patch version to $version"
+          else
             echo "forge-cw $version is already on npm"
             echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publish=true" >> "$GITHUB_OUTPUT"
 
       - uses: pnpm/action-setup@v4
         if: steps.version.outputs.publish == 'true'
@@ -55,6 +77,48 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm --dir ../.. test
           pnpm pack
+
+      # the unit tests never run the bundle, the console copy or the dependencies npm installs
+      - name: Start the packed tarball
+        if: steps.version.outputs.publish == 'true'
+        env:
+          TARBALL: forge-cw-${{ steps.version.outputs.version }}.tgz
+        run: |
+          smoke=$(mktemp -d)
+          mkdir "$smoke/home"
+          cp "$TARBALL" "$smoke/"
+          cd "$smoke"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "./$TARBALL"
+          HOME="$smoke/home" FORGE_PORT=3999 FORGE_NO_OPEN=1 FORGE_SKIP_CW_INSTALL=1 \
+            ./node_modules/.bin/forge > forge.log 2>&1 &
+          pid=$!
+          ok=false
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3999/api/health >/dev/null 2>&1 \
+              && curl -fsS http://127.0.0.1:3999/ | grep -qi '<html'; then ok=true; break; fi
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          kill "$pid" 2>/dev/null || true
+          cat forge.log
+          [ "$ok" = true ] || { echo "The packed forge-cw did not start"; exit 1; }
+
+      # pushed before publishing: a failed publish leaves main on a version npm lacks, which the next run publishes
+      - name: Commit and tag the release
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        working-directory: .
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          sed -i "0,/^## Unreleased$/s//## Unreleased\n\n## $VERSION ($(date -u +%F))/" CHANGELOG.md
+          git add packages/platform/package.json CHANGELOG.md
+          git commit -q -m "chore: release forge-cw $VERSION"
+          git pull -q --rebase origin main
+          git tag "v$VERSION"
+          git push -q origin HEAD:main "v$VERSION"
 
       # trusted publishing needs npm 11.5.1 or newer; pnpm pack already rewrote the workspace deps
       - name: Publish

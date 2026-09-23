@@ -31,7 +31,7 @@ export function consoleCommand() {
 
       console.log(`Starting Forge Console (${isTeam ? 'team' : 'local'} mode) on http://localhost:${port}`)
 
-      const { createForgeServer, createDatabase, resolveListenOptions, quietSqliteWarning } = await import('@forge-dev/core')
+      const { createForgeServer, createDatabase, resolveListenOptions, quietSqliteWarning, waitForListening, probePort, portInUseMessage } = await import('@forge-dev/core')
       quietSqliteWarning()
       const { host, localOnly } = resolveListenOptions(isTeam)
 
@@ -61,6 +61,13 @@ export function consoleCommand() {
 
       const { serve } = await import('@hono/node-server')
       const httpServer = serve({ fetch: server.app.fetch, port, hostname: host })
+      try {
+        await waitForListening(httpServer as unknown as import('node:net').Server)
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err
+        console.log(portInUseMessage(port, await probePort(port)))
+        process.exit(1)
+      }
       server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
       console.log(`Forge Console running at http://localhost:${port}`)
