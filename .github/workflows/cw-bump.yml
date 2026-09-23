@@ -1,7 +1,8 @@
 name: Bump CW
 
-# Opens (or refreshes) one pull request that pins the latest CW main in
-# packages/platform/cw.lock.json, the CW the npm package carries.
+# Pins the latest CW main in packages/platform/cw.lock.json, the CW the npm package carries,
+# raises the patch version, and merges the pull request once tests and the pack pass.
+# A merge made with GITHUB_TOKEN starts no push workflow, so this job starts Release itself.
 
 on:
   schedule:
@@ -15,6 +16,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: cw-bump
@@ -54,18 +56,47 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Open or refresh the pull request
+      - name: Pin CW and raise the patch version
+        if: steps.cw.outputs.changed == 'true'
+        env:
+          LATEST: ${{ steps.cw.outputs.latest }}
+        run: |
+          jq --arg ref "$LATEST" '.ref = $ref' "$LOCK" > "$LOCK.tmp" && mv "$LOCK.tmp" "$LOCK"
+          # a version still unpublished already ships this pin, so it is not raised again
+          cd packages/platform
+          current=$(jq -r .version package.json)
+          if npm view "forge-cw@$current" version >/dev/null 2>&1; then
+            npm version patch --no-git-tag-version >/dev/null
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.cw.outputs.changed == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.cw.outputs.changed == 'true'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Test and pack with the new CW
+        if: steps.cw.outputs.changed == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test
+          pnpm --dir packages/platform pack
+
+      - name: Open, merge and release
         if: steps.cw.outputs.changed == 'true'
         env:
           LATEST: ${{ steps.cw.outputs.latest }}
           VERSION: ${{ steps.cw.outputs.version }}
           LOG: ${{ steps.cw.outputs.log }}
         run: |
-          jq --arg ref "$LATEST" '.ref = $ref' "$LOCK" > "$LOCK.tmp" && mv "$LOCK.tmp" "$LOCK"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -C "$BRANCH"
-          git commit -q -am "chore: bundle CW $VERSION (${LATEST:0:7})"
+          git add "$LOCK" packages/platform/package.json
+          git commit -q -m "chore: bundle CW $VERSION (${LATEST:0:7})"
           git push -f origin "$BRANCH"
           title="chore: bundle CW $VERSION (${LATEST:0:7})"
           body=$(printf 'Pins [CW %s](https://github.com/avarajar/cw/commit/%s) in `%s`. The next published `forge-cw` carries it, and Forge updates the CW it installed on start.\n\n## CW changes\n\n%s\n' "$VERSION" "$LATEST" "$LOCK" "$LOG")
@@ -74,3 +105,5 @@ jobs:
           else
             gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
           fi
+          gh pr merge "$BRANCH" --squash --delete-branch
+          gh workflow run release.yml --ref main
