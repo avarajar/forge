@@ -30,8 +30,7 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist console cw",
     "bundle-cw": "node scripts/bundle-cw.mjs",
-    "prepack": "node scripts/pack.mjs",
-    "postpack": "rm -rf cw console"
+    "prepack": "node scripts/pack.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
