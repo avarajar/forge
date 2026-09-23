@@ -1,5 +1,5 @@
 export { createForgeServer } from './server.js'
-export { ForgeDB } from './db.js'
+export { ForgeDB, quietSqliteWarning } from './db.js'
 export { ModuleLoader } from './modules.js'
 export { ActionRunner } from './runner.js'
 export { bearerAuth } from './auth.js'

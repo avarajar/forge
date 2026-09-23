@@ -119,7 +119,7 @@ Forge runs on macOS and Linux. On Windows, run it inside WSL.
 
 | Requirement | Version | Install |
 |-------------|---------|---------|
-| **Node.js** | >= 20 | [nodejs.org](https://nodejs.org) |
+| **Node.js** | >= 22.13 | [nodejs.org](https://nodejs.org) |
 | **Bash** | >= 4 | Required by CW. macOS ships 3.2: `brew install bash` |
 | **Python 3** | >= 3.9 | Required by CW for session management |
 | **Git** | any recent | Worktree support required |
@@ -155,6 +155,8 @@ The package carries CW, so you don't install it separately. Each time Forge star
 - A CW you installed yourself: it leaves it alone unless the one it carries has a higher version. A `cw` elsewhere on your PATH is always left alone.
 
 It never edits `.zshrc` or `.bashrc`. Forge's sessions find `cw` on their own; to run `cw` in a terminal, add `~/.cw/bin` to your PATH. `FORGE_SKIP_CW_INSTALL=1` turns all of this off.
+
+The only native module is `node-pty`, for the terminals. On macOS it ships ready to use, so the package installs even where npm skips install scripts (npm 12 does by default). On Linux it compiles on install: that needs Python 3, `make` and a C++ compiler, and on npm 12 approving `node-pty`'s install script (see `npm help approve-scripts`).
 
 ### From source
 
@@ -222,7 +224,7 @@ pnpm dev
 | Server | Hono (Node.js) |
 | Dashboard | Preact + UnoCSS + Vite |
 | Terminal | xterm.js + node-pty (WebSocket) |
-| Database | better-sqlite3 (local) / PostgreSQL (team) |
+| Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
 | Tests | Vitest (349 tests in `packages/core`) |

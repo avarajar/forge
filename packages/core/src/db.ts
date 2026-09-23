@@ -1,5 +1,6 @@
-import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
+import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import type { Project, InstalledModule, ActionLog } from './types.js'
 import type { IForgeDB } from './db-interface.js'
 
@@ -30,13 +31,27 @@ interface RawActionLog {
   finished_at: string | null
 }
 
-export class ForgeDB implements IForgeDB {
-  private db: Database.Database
+// Node 22 still flags node:sqlite as experimental; Forge only uses its stable core (prepare, run, get, all)
+export function quietSqliteWarning(): void {
+  const emitWarning = process.emitWarning
+  process.emitWarning = function (this: NodeJS.Process, warning: string | Error, ...rest: unknown[]) {
+    const text = typeof warning === 'string' ? warning : warning.message
+    if (text.startsWith('SQLite is an experimental feature')) return
+    return (emitWarning as (...args: unknown[]) => void).call(process, warning, ...rest)
+  } as typeof process.emitWarning
+}
 
+// loaded on first use rather than imported, so an entry point can call quietSqliteWarning first
+const loadSqlite = () => createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite')
+
+export class ForgeDB implements IForgeDB {
+  private db: DatabaseSync
+
+  // node:sqlite is built into Node, so the published package has no native module to compile for it
   constructor(dbPath: string) {
-    this.db = new Database(dbPath)
-    this.db.pragma('journal_mode = WAL')
-    this.db.pragma('foreign_keys = ON')
+    this.db = new (loadSqlite().DatabaseSync)(dbPath)
+    this.db.exec('PRAGMA journal_mode = WAL')
+    this.db.exec('PRAGMA foreign_keys = ON')
     this.migrate()
   }
 
@@ -97,7 +112,7 @@ export class ForgeDB implements IForgeDB {
   listProjects(): Project[] {
     const rows = this.db.prepare(
       'SELECT * FROM projects ORDER BY created_at DESC'
-    ).all() as RawProject[]
+    ).all() as unknown as RawProject[]
     return rows.map(r => ({
       id: r.id,
       name: r.name,
@@ -136,7 +151,7 @@ export class ForgeDB implements IForgeDB {
   listModules(): InstalledModule[] {
     const rows = this.db.prepare(
       'SELECT * FROM modules ORDER BY installed_at DESC'
-    ).all() as RawInstalledModule[]
+    ).all() as unknown as RawInstalledModule[]
     return rows.map(r => ({
       id: r.id,
       name: r.name,
@@ -206,7 +221,7 @@ export class ForgeDB implements IForgeDB {
   listActionLogs(opts: { moduleId?: string; limit?: number }): ActionLog[] {
     const { moduleId, limit = 50 } = opts
     let sql = 'SELECT * FROM action_logs'
-    const params: unknown[] = []
+    const params: SQLInputValue[] = []
 
     if (moduleId) {
       sql += ' WHERE module_id = ?'
@@ -216,7 +231,7 @@ export class ForgeDB implements IForgeDB {
     sql += ' ORDER BY started_at DESC, rowid DESC LIMIT ?'
     params.push(limit)
 
-    const rows = this.db.prepare(sql).all(...params) as RawActionLog[]
+    const rows = this.db.prepare(sql).all(...params) as unknown as RawActionLog[]
     return rows.map(r => ({
       id: r.id,
       projectId: r.project_id,

@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { ForgeDB } from './db.js'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { ForgeDB, quietSqliteWarning } from './db.js'
 import { rmSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -137,5 +137,22 @@ describe('ForgeDB', () => {
       const logs = db.listActionLogs({ limit: 3 })
       expect(logs).toHaveLength(3)
     })
+  })
+})
+
+describe('quietSqliteWarning', () => {
+  const original = process.emitWarning
+  afterEach(() => { process.emitWarning = original })
+
+  it("drops node:sqlite's experimental warning and passes every other warning on", () => {
+    const seen = vi.fn()
+    process.emitWarning = seen as unknown as typeof process.emitWarning
+    quietSqliteWarning()
+
+    process.emitWarning('SQLite is an experimental feature and might change at any time', 'ExperimentalWarning')
+    process.emitWarning('something else', 'DeprecationWarning')
+
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(seen).toHaveBeenCalledWith('something else', 'DeprecationWarning')
   })
 })

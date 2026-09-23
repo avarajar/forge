@@ -21,7 +21,7 @@ Thank you for your interest in contributing to Forge. This document covers every
 
 ### Requirements
 
-- Node.js >= 20
+- Node.js >= 22.13
 - pnpm >= 11 (install via `corepack enable && corepack prepare pnpm@latest --activate`)
 - Git
 
@@ -152,7 +152,7 @@ forge/
 |-------|-----------|-------|
 | Server | Hono (Node.js) | ~14KB, runs all API endpoints under `/api/` |
 | Dashboard | Preact + UnoCSS + Vite | ~80KB gzipped, dark/light themes |
-| Database | better-sqlite3 / PostgreSQL | SQLite locally, PostgreSQL in team mode (`--team`) |
+| Database | node:sqlite / PostgreSQL | SQLite locally, PostgreSQL in team mode (`--team`) |
 | CLI | Commander.js | `forge init`, `forge console`, `forge doctor`, `forge module`, `forge project`, `forge run` |
 | Build | Turborepo | Parallel builds and tests across all packages |
 | Tests | Vitest | No Jest; only `packages/core` has tests today |

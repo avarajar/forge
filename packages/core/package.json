@@ -14,14 +14,12 @@
     "@forge-dev/sdk": "workspace:*",
     "@hono/node-ws": "^1.3.0",
     "@xterm/headless": "^5.5.0",
-    "better-sqlite3": "^12.0.0",
     "hono": "^4.7.0",
     "node-pty": "^1.1.0",
     "postgres": "^3.4.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
     "typescript": "^5.8.0",
