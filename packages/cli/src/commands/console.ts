@@ -31,7 +31,8 @@ export function consoleCommand() {
 
       console.log(`Starting Forge Console (${isTeam ? 'team' : 'local'} mode) on http://localhost:${port}`)
 
-      const { createForgeServer, createDatabase, resolveListenOptions } = await import('@forge-dev/core')
+      const { createForgeServer, createDatabase, resolveListenOptions, quietSqliteWarning } = await import('@forge-dev/core')
+      quietSqliteWarning()
       const { host, localOnly } = resolveListenOptions(isTeam)
 
       const db = await createDatabase({

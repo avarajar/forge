@@ -25,7 +25,8 @@ function findConsoleDist(): string | null {
 }
 
 async function main() {
-  const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, ensureCw, pathWithCw } = await import('@forge-dev/core')
+  const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, ensureCw, pathWithCw, quietSqliteWarning } = await import('@forge-dev/core')
+  quietSqliteWarning()
   const args = parseArgs(process.argv.slice(2))
   const { forgeDir, created } = ensureForgeDir()
 

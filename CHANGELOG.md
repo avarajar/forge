@@ -36,6 +36,7 @@
 
 ### Changed
 
+- Forge's local database uses Node's built-in `node:sqlite` instead of `better-sqlite3`, so installing Forge compiles nothing for it. Forge needs Node 22.13 or later; existing `~/.forge/forge.db` files open as before.
 - The published command is `forge` (it was `forge-platform`) and takes `--port` and `--no-open`, so `cw forge` starts it.
 - Switching to a task tab puts the keyboard in its terminal, so you can type without clicking it first. Tabs in the background no longer take focus when they load.
 - The console is redesigned: system fonts, a dark and a light theme, system blue for actions, one color per task type, cards per project, and short motion that respects reduced motion.

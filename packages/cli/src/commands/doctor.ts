@@ -10,9 +10,9 @@ export function doctorCommand() {
     .action(() => {
       console.log('Forge Doctor\n')
       const checks = [
-        { name: 'Node.js >= 20', check: () => {
+        { name: 'Node.js >= 22.13', check: () => {
           const v = process.version.slice(1).split('.').map(Number)
-          return v[0] >= 20
+          return v[0] > 22 || (v[0] === 22 && v[1] >= 13)
         }},
         { name: 'Git installed', check: () => {
           try { execSync('git --version', { stdio: 'pipe' }); return true }

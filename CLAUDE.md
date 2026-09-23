@@ -11,7 +11,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Server | Hono (Node.js) |
 | Dashboard | Preact + UnoCSS + Vite |
 | Terminal | xterm.js + node-pty (WebSocket) |
-| Database | better-sqlite3 (local) / PostgreSQL (team) |
+| Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
 | Tests | Vitest (513 tests, all in `packages/core`) |
