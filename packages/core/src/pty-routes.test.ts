@@ -4,6 +4,7 @@ import { StateTracker } from './session-state.js'
 import { CWReader } from './cw-reader.js'
 import { parseTerminalUpgradeUrl, takeSession } from './pty-routes.js'
 import { pendingSessions } from './cw-routes.js'
+import { GeneralSessions } from './general-sessions.js'
 import { mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -222,5 +223,16 @@ describe('takeSession', () => {
 
   it('returns null when the session exists nowhere', () => {
     expect(takeSession(new CWReader(TEST_CW), 'testproj', 'task-missing')).toBeNull()
+  })
+
+  it('relaunches a general session after its PTY and pending entry are gone', () => {
+    const reader = new CWReader(TEST_CW)
+    const general = new GeneralSessions()
+    const session = { ...reader.getSession('testproj', 'task-mytask')!, type: 'general' as const, harness: 'codex', sessionDir: 'general-default-1' }
+    pendingSessions.set('__general::general-default-1', session)
+    expect(takeSession(reader, '__general', 'general-default-1', general)?.isNew).toBe(true)
+    expect(takeSession(reader, '__general', 'general-default-1', general)).toEqual({ session, isNew: true })
+    general.forget('__general::general-default-1')
+    expect(takeSession(reader, '__general', 'general-default-1', general)).toBeNull()
   })
 })

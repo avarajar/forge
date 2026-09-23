@@ -18,6 +18,7 @@ import { StateTracker, remoteClassifierFromEnv } from './session-state.js'
 import { createStateLog } from './state-log.js'
 import { createTerminalWss } from './pty-routes.js'
 import { LoginManager } from './login-manager.js'
+import { GeneralSessions } from './general-sessions.js'
 import { liveframeRoutes } from './liveframe-routes.js'
 
 interface ServerOptions {
@@ -68,7 +69,8 @@ export function createForgeServer(options: ServerOptions) {
     },
   })
   const ptyManager = new PTYManager(states)
-  const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly })
+  const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
+  const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())
 
@@ -79,6 +81,7 @@ export function createForgeServer(options: ServerOptions) {
     const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
     const sessionId = `${project}::${sessionDir}`
     ptyManager.kill(sessionId)
+    generalSessions.forget(sessionId)
     return c.json({ ok: true })
   })
 
