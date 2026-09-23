@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.2 (2026-09-23)
+
 ### Added
 
 - Skills installed from skills.sh go to an account, a project or global, and any skill can be copied to another scope with its files (`POST /api/skills/copy`). Global skills reach CW sessions through the CW that links `~/.claude/skills` into each account at launch.
