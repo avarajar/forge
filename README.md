@@ -16,15 +16,20 @@
 **Where ideas are shaped into software.**
 
 [![MIT License](https://img.shields.io/badge/license-MIT-0a84ff?style=for-the-badge)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-30d158?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![npm](https://img.shields.io/npm/v/forge-cw?style=for-the-badge&color=bf5af2)](https://www.npmjs.com/package/forge-cw)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.13-30d158?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/typescript-strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-ff9f0a?style=for-the-badge)](CONTRIBUTING.md)
 
 <br />
 
-**Forge** is a visual dashboard for [CW (Coding Workspace)](https://github.com/avarajar/cw) — manage worktree sessions, tasks, PR reviews, accounts and coding-agent harnesses from a single web UI.
+**Forge** is a visual dashboard for your coding agents. Start a task from a pull request or a ticket, watch each agent's terminal, see which one needs you and what it costs, on Claude Code, Codex, Pi or OpenCode.
 
-[Getting Started](#-getting-started) &bull; [Screenshots](#-screenshots) &bull; [Architecture](#-architecture) &bull; [Modules](#-modules) &bull; [Roadmap](#-roadmap)
+```bash
+npx forge-cw
+```
+
+[Website](https://avarajar.github.io/forge/) &bull; [Getting Started](#getting-started) &bull; [Screenshots](#screenshots) &bull; [Architecture](#architecture) &bull; [Modules](#modules) &bull; [Roadmap](#roadmap)
 
 <br />
 
@@ -36,22 +41,27 @@
 
 ## What It Does
 
-Forge is the **visual frontend for CW**. Instead of running `cw work`, `cw review`, `cw spaces` in the terminal, you get a web dashboard with:
+Every task runs in its own git worktree, on the account and harness you pick. From one web dashboard you get:
 
 - **Start from anything** — paste a pull request, a Linear or Notion link, or type a name; Forge picks review or dev and starts it
 - **Task list** — most recently opened first, or grouped by project, with type, harness and done filters
 - **Sidebar** — sections, projects grouped by account with a filter, and a card per live session with its context meter
+- **Know which agent needs you** — each live session reads as working, waiting for you, asking for approval or stopped on an error; the ones that need you move to the top, the page title counts them, and a browser notification can tell you (Claude Code has its own rules; other harnesses report activity)
+- **Usage limits** — each account's 5-hour and weekly windows for Claude Code, and the Codex plan's windows, with when they reset, on the Accounts screen and in the sidebar
 - **Any harness** — run a task on Claude Code, Codex, Pi or OpenCode and see which one each session uses (needs CW 0.3.0)
-- **Task detail** — the agent's terminal with context used, tokens and cost read from its status line, commits, unpushed work, MCPs, plugins and stack, plus GitHub and Open in editor
+- **Task detail** — the agent's terminal with context used, tokens and cost read from its status line, the task's changes against its base branch, its pull request with checks and review, MCPs, plugins and stack, plus GitHub and Open in editor (VS Code, Cursor, Windsurf, Zed)
+- **Safe close** — Done asks first when a task has uncommitted changes, unpushed commits or an open pull request
 - **Multi-tab sessions** — keep several agents open; tabs stay connected while you browse the list
 - **Command palette** — ⌘K or `/` to jump to a session, a task, a project or a command
 - **Accounts** — one card per account with each harness's status and one-click Connect; Codex logs in with a device code, no terminal
-- **Skills** — browse and edit global, account and project skills side by side, install from skills.sh, or start a session that writes one
+- **Skills** — browse and edit global, account and project skills side by side, install from skills.sh, or start a session that writes one; see the skills your Claude Code plugins bring, update a plugin per account, and propose a new skill to a plugin's repository as a pull request
 - **Prototypes** — launches [Liveframe](https://liveframe.monokulabs.com): create or pull a frame, open an agent in it, push a version
 - **Projects** — create, register, move and delete projects without leaving the dashboard
 - **Dark and light themes** — system fonts, reduced-motion aware, and a layout that folds into an icon rail or an overlay on narrow windows
 
-It reads from `~/.cw/` (sessions, projects, accounts, skills) and from `~/.claude/` (MCPs, plugins, settings).
+### Under the hood
+
+Forge runs on [CW (Coding Workspace)](https://github.com/avarajar/cw), an open-source command line tool that creates a git worktree per task and starts the agent on the right account and harness. The npm package installs it for you, and you can also use it from a terminal (`~/.cw/bin/cw`). Forge reads `~/.cw/` (sessions, projects, accounts, skills) and `~/.claude/` (MCPs, plugins, settings).
 
 <br />
 
@@ -71,6 +81,11 @@ Paste a pull request, a ticket or a name into the start card: Forge detects the 
   </tr>
 </table>
 
+### Session States
+Every live session says what its agent is doing. The ones waiting for you or asking for approval go to the top of the sidebar, and each account's usage limits sit below them.
+
+![Session states and usage limits](docs/screenshots/session-states.png)
+
 ### Task Detail
 The agent's terminal, framed, with the metrics its status line reports, the task's commits and unpushed work, the branch (click to copy), and the MCPs, plugins and stack behind it.
 
@@ -89,7 +104,7 @@ A drawer over the list. The type, harness, model and workflow are one click each
 ![New task drawer](docs/screenshots/new-task.png)
 
 ### Accounts
-Each account with every harness: connected, API key, local model, or a Connect button.
+Each account with every harness: connected, API key, local model, or a Connect button, and its usage windows with when they reset.
 
 ![Accounts](docs/screenshots/accounts.png)
 
@@ -113,6 +128,16 @@ The skill list and its editor side by side, with references as tabs and a search
 
 ## Getting Started
 
+```bash
+npx forge-cw               # or: npm install -g forge-cw && forge
+```
+
+It opens `http://localhost:3000` (`--port` and `--no-open` change that). Then:
+
+1. **Connect an account** — open Accounts, add one and connect Claude Code, Codex, Pi or OpenCode. Codex logs in with a device code, no terminal.
+2. **Add a project** — register a repository from the sidebar, or create a new one.
+3. **Start a task** — paste a pull request, a Linear or Notion link, or type a name into the start card.
+
 ### Prerequisites
 
 Forge runs on macOS and Linux. On Windows, run it inside WSL.
@@ -120,35 +145,16 @@ Forge runs on macOS and Linux. On Windows, run it inside WSL.
 | Requirement | Version | Install |
 |-------------|---------|---------|
 | **Node.js** | >= 22.13 | [nodejs.org](https://nodejs.org) |
-| **Bash** | >= 4 | Required by CW. macOS ships 3.2: `brew install bash` |
-| **Python 3** | >= 3.9 | Required by CW for session management |
+| **Bash** | >= 4 | macOS ships 3.2: `brew install bash` |
+| **Python 3** | >= 3.9 | Used for session management |
 | **Git** | any recent | Worktree support required |
 | **A harness** | latest | At least one of Claude Code (`npm i -g @anthropic-ai/claude-code`), Codex, Pi or OpenCode |
-| **[CW](https://github.com/avarajar/cw)** | >= 0.3.0 | Comes with the npm package. From source: `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
+| **[CW](https://github.com/avarajar/cw)** | >= 0.3.0 | Installed by the npm package. From source: `git clone https://github.com/avarajar/cw.git && cd cw && ./install.sh` |
 | **pnpm** | >= 11 | Only to run Forge from source: `corepack enable && corepack prepare pnpm@latest --activate` |
 
-### CW Setup
+### How Forge installs CW
 
-CW must be initialized before Forge can read your workspace:
-
-```bash
-cw init                          # Initialize ~/.cw/
-cw account add <name>            # Add an account (or use the Accounts screen in Forge)
-cw open <project>                # Register a project (or cw project register)
-```
-
-Once you have at least one project registered, Forge will show it in the dashboard. You can also register an existing repo from Forge's Create Project dialog.
-
-### Install
-
-```bash
-npm install -g forge-cw
-forge                      # opens http://localhost:3000 (--port, --no-open)
-```
-
-Or without installing: `npx forge-cw`. With CW on your PATH, `cw forge` starts it too.
-
-The package carries CW, so you don't install it separately. Each time Forge starts it checks `~/.cw`:
+The package carries CW, so you don't install it separately. With CW on your PATH, `cw forge` starts Forge too. Each time Forge starts it checks `~/.cw`:
 
 - No CW: it installs the one it carries.
 - A CW it installed: it updates it when this Forge carries a newer one, so updating Forge updates CW.
@@ -172,7 +178,7 @@ That's it — installs dependencies, builds, and opens the dashboard at `http://
 
 Forge listens on `127.0.0.1` and only answers requests from your own machine, because its API starts agents, logs accounts in, imports API keys and can delete project files. A page on another site can't call it, and neither can another computer on your network.
 
-To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 pnpm start`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust. From a remote browser, only Codex's device code can connect an account; the other harnesses' browser logins redirect to `localhost` on the machine running Forge.
+To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 forge`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust. From a remote browser, only Codex's device code can connect an account; the other harnesses' browser logins redirect to `localhost` on the machine running Forge.
 
 ### Development
 
@@ -365,6 +371,7 @@ cd packages/console && pnpm vite       # Dashboard dev server
 | **2: Full Ecosystem** | Done | 7 module manifests, team mode (PostgreSQL + auth) |
 | **3: Polish** | In progress | UX improvements, error handling, performance |
 | **Harness integration** | Done | Claude Code, Codex, Pi and OpenCode sessions, Accounts screen, same-machine API |
+| **Distribution** | Done | `forge-cw` on npm with CW bundled, ready-made binaries for macOS and Linux |
 
 <br />
 
