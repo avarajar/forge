@@ -249,9 +249,7 @@ function App() {
 
   const handleRunSkill = useCallback((skill: SkillEntry) => {
     const { account, project } = skillSession(skill.scope, skill.scopeRef)
-    // a CW session never loads ~/.claude/skills, so a global skill is read from its file
-    const prompt = skill.scope === 'global' ? `Read ~/.claude/skills/${skill.dirName}/SKILL.md and follow it.` : `Use the ${skill.name} skill.`
-    void startGeneral(prompt, account, project, `Session started with ${skill.name}`)
+    void startGeneral(`Use the ${skill.name} skill.`, account, project, `Session started with ${skill.name}`)
   }, [skillSession, startGeneral])
 
   // plugins load in Claude Code only, so the session that writes the skill runs there too

@@ -41,9 +41,8 @@ const skillDir = (s: Pick<SkillEntry, 'scope' | 'scopeRef' | 'dirName'>) =>
 
 type Target = Pick<SkillEntry, 'scope' | 'scopeRef'>
 
-// CW gives every Claude Code session its account's config dir, so ~/.claude/skills never reaches one
 const SCOPE_HINT: Record<Scope, string> = {
-  global: 'Lands in ~/.claude/skills, which only plain claude reads — sessions started from Forge or CW load their account’s skills instead.',
+  global: 'Lands in ~/.claude/skills; CW links it into every account when a Claude Code session starts.',
   account: 'Every session on this account loads it.',
   project: 'Sessions in this project load it from its .claude/skills.',
 }
