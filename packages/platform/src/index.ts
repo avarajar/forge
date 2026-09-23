@@ -16,13 +16,11 @@ function parseArgs(argv: string[]): { port?: string; open: boolean } {
   return out
 }
 
-// the published package keeps the console next to dist/; a checkout builds it in packages/console
-function findConsoleDist(): string | null {
-  for (const dir of [join(import.meta.dirname, '../console'), join(import.meta.dirname, '../../console/dist')]) {
-    if (existsSync(join(dir, 'index.html'))) return dir
-  }
-  return null
-}
+// The published package has no src/. A checkout serves the console from packages/console and never
+// installs CW, even when `pnpm pack` has left its copies of both in packages/platform.
+const packageRoot = join(import.meta.dirname, '..')
+const isCheckout = existsSync(join(packageRoot, 'src'))
+const consoleDist = isCheckout ? join(packageRoot, '../console/dist') : join(packageRoot, 'console')
 
 async function main() {
   const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, ensureCw, pathWithCw, quietSqliteWarning } = await import('@forge-dev/core')
@@ -36,7 +34,9 @@ async function main() {
 
   // install or update the CW this package carries (packages/platform/cw), then put it on PATH
   const cwHome = join(process.env.HOME ?? homedir(), '.cw')
-  const cw = await ensureCw({ cwHome, bundleDir: join(import.meta.dirname, '../cw') })
+  const cw = isCheckout
+    ? { action: 'skipped' as const, message: 'a checkout does not install CW' }
+    : await ensureCw({ cwHome, bundleDir: join(packageRoot, 'cw') })
   if (cw.action === 'installed') console.log(`  Installed CW ${cw.version} in ${cwHome}`)
   else if (cw.action === 'updated') console.log(`  Updated ${cw.message}`)
   else if (cw.action === 'failed') console.log(`  Could not install CW: ${cw.message}`)
@@ -64,8 +64,7 @@ async function main() {
 
   const { serveStatic } = await import('@hono/node-server/serve-static')
   const { readFileSync } = await import('node:fs')
-  const consoleDist = findConsoleDist()
-  if (consoleDist) {
+  if (existsSync(join(consoleDist, 'index.html'))) {
     server.app.use('/*', serveStatic({ root: consoleDist }))
     // SPA fallback: serve index.html for non-API routes
     const indexHtml = readFileSync(join(consoleDist, 'index.html'), 'utf-8')
