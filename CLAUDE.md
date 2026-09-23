@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (522 tests, all in `packages/core`) |
+| Tests | Vitest (527 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure

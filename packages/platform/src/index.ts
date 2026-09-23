@@ -23,7 +23,7 @@ const isCheckout = existsSync(join(packageRoot, 'src'))
 const consoleDist = isCheckout ? join(packageRoot, '../console/dist') : join(packageRoot, 'console')
 
 async function main() {
-  const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, ensureCw, pathWithCw, quietSqliteWarning } = await import('@forge-dev/core')
+  const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, ensureCw, pathWithCw, quietSqliteWarning, waitForListening, probePort, portInUseMessage } = await import('@forge-dev/core')
   quietSqliteWarning()
   const args = parseArgs(process.argv.slice(2))
   const { forgeDir, created } = ensureForgeDir()
@@ -73,6 +73,21 @@ async function main() {
 
   const { serve } = await import('@hono/node-server')
   const httpServer = serve({ fetch: server.app.fetch, port, hostname: host })
+  try {
+    await waitForListening(httpServer as unknown as import('node:net').Server)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err
+    const holder = await probePort(port)
+    console.log(`\n  ${portInUseMessage(port, holder)}\n`)
+    // a second `npx forge-cw` opens the Forge already running instead of failing
+    if (holder === 'forge' && args.open && process.env.FORGE_NO_OPEN !== '1') {
+      try {
+        const open = (await import('open')).default
+        await open(`http://localhost:${port}`)
+      } catch { /* ok if open fails */ }
+    }
+    process.exit(holder === 'forge' ? 0 : 1)
+  }
   server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
   console.log(`
@@ -93,4 +108,7 @@ ${authToken ? '  Auth: bearer token required\n' : ''}
   }
 }
 
-main().catch(console.error)
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})
