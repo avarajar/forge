@@ -180,7 +180,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
-- `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install`, `GET|POST /marketplaces`
+- `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
 - `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB
 

@@ -57,11 +57,8 @@ export function skillRoutes(
       busy.delete(configDir)
     }
   }
-  const pluginScope = (body: { scope?: string; scopeRef?: string }): { scope: PluginScope; ref: string } | null => {
-    if (body.scope !== 'global' && body.scope !== 'account') return null
-    const ref = refOf(body.scope, body.scopeRef)
-    return knownScope(body.scope, ref) ? { scope: body.scope, ref } : null
-  }
+  // CW sessions read plugins from the account's config dir only, so new installs go to an account
+  const knownAccount = (account: string | undefined) => account && reader.getAccounts().includes(account) ? account : null
 
   const refOf = (scope: SkillScope, scopeRef?: string) => scope === 'global' ? 'global' : scopeRef ?? ''
   // a scope ref must be a known account or project
@@ -315,34 +312,34 @@ export function skillRoutes(
   app.get('/marketplaces', (c) => c.json(listMarketplaces(reader)))
 
   app.post('/marketplaces', async (c) => {
-    type Body = { source?: string; scope?: string; scopeRef?: string }
+    type Body = { source?: string; account?: string }
     const body = await c.req.json<Body>().catch((): Body => ({}))
     const source = body.source?.trim() ?? ''
     // a leading dash would reach the CLI as an option
     if (!source || source.startsWith('-')) return c.json({ error: 'A GitHub repo, URL or path is required' }, 400)
-    const target = pluginScope(body)
-    if (!target) return c.json({ error: 'Unknown scope' }, 404)
-    const failed = await runClaude(target.scope, target.ref, [['plugin', 'marketplace', 'add', source]], `Failed to add ${source}`)
+    const account = knownAccount(body.account)
+    if (!account) return c.json({ error: 'Unknown account' }, 404)
+    const failed = await runClaude('account', account, [['plugin', 'marketplace', 'add', source]], `Failed to add ${source}`)
     if (failed) return c.json({ error: failed.error }, failed.status)
     return c.json({ ok: true })
   })
 
   app.post('/plugins/install', async (c) => {
-    type Body = { id?: string; scope?: string; scopeRef?: string }
+    type Body = { id?: string; account?: string }
     const body = await c.req.json<Body>().catch((): Body => ({}))
     const id = body.id ?? ''
     if (!PLUGIN_ID_RE.test(id)) return c.json({ error: 'Invalid plugin id' }, 400)
-    const target = pluginScope(body)
-    if (!target) return c.json({ error: 'Unknown scope' }, 404)
+    const account = knownAccount(body.account)
+    if (!account) return c.json({ error: 'Unknown account' }, 404)
     const { name, marketplace } = splitPluginId(id)
     const commands = [['plugin', 'install', id]]
     // an account that lacks the marketplace gets it from wherever it is known
-    if (!knowsMarketplace(reader.getSkillConfigDir(target.scope, target.ref), marketplace)) {
+    if (!knowsMarketplace(reader.getSkillConfigDir('account', account), marketplace)) {
       const source = marketplaceSourceOf(reader, marketplace)
       if (!source) return c.json({ error: `Unknown marketplace ${marketplace}` }, 404)
       commands.unshift(['plugin', 'marketplace', 'add', source])
     }
-    const failed = await runClaude(target.scope, target.ref, commands, `Failed to install ${name}`)
+    const failed = await runClaude('account', account, commands, `Failed to install ${name}`)
     if (failed) return c.json({ error: failed.error }, failed.status)
     return c.json({ ok: true })
   })

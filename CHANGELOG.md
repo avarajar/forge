@@ -4,7 +4,7 @@
 
 ### Added
 
-- Add a plugin from Skills: pick global or an account, browse the plugins every known marketplace lists, and install one (`claude plugin install`). A marketplace can be added by GitHub repo, git URL or path, and an account that lacks a plugin's marketplace gets it added first. A plugin's pane can also install it in an account that does not have it.
+- Add a plugin from Skills: pick an account, browse the plugins every known marketplace lists, and install one (`claude plugin install`). A marketplace can be added by GitHub repo, git URL or path, and an account that lacks a plugin's marketplace gets it added first. A plugin's pane can also install it in an account that does not have it. Installs go to an account only, since CW sessions do not read plugins from `~/.claude`.
 - `GET /api/skills/marketplaces`, `POST /api/skills/marketplaces` and `POST /api/skills/plugins/install`.
 - Clicking a task's branch in the task list copies it.
 

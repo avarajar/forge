@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
-import type { PluginEntry, PluginInstall, PluginTarget } from '@forge-dev/core'
+import type { PluginEntry, PluginInstall } from '@forge-dev/core'
 import { PaneHeader } from '../components/PaneHeader.js'
 import { Field } from '../components/Field.js'
 import { loadMarketplaces, loadPlugins, marketplaces, plugins } from '../hooks/usePlugins.js'
@@ -10,8 +10,6 @@ import { errorText, postJson } from '../config/api.js'
 
 const pluginPath = (id: string) => `/api/skills/plugins/${encodeURIComponent(id)}`
 
-const targetLabel = (t: PluginTarget) => t.scope === 'global' ? 'global' : t.scopeRef
-const targetKey = (t: PluginTarget) => `${t.scope}/${t.scopeRef}`
 
 // runs a plugin command; toasts the server's error and resolves to null on failure
 async function runPluginCommand<T>(url: string, body: object): Promise<T | null> {
@@ -23,9 +21,9 @@ async function runPluginCommand<T>(url: string, body: object): Promise<T | null>
   }
 }
 
-async function installPlugin(id: string, name: string, target: PluginTarget): Promise<void> {
-  if (!await runPluginCommand('/api/skills/plugins/install', { id, ...target })) return
-  showToast(`${name} installed in ${targetLabel(target)} · applies to new sessions`, 'success')
+async function installPlugin(id: string, name: string, account: string): Promise<void> {
+  if (!await runPluginCommand('/api/skills/plugins/install', { id, account })) return
+  showToast(`${name} installed in ${account} · applies to new sessions`, 'success')
   await Promise.all([loadPlugins(), loadMarketplaces()]).catch(() => {})
 }
 
@@ -76,7 +74,7 @@ const rowStyle = { gap: '10px', padding: '9px 12px', borderRadius: '11px', borde
 
 const AccountRow: FunctionComponent<{ plugin: PluginEntry; install: PluginInstall }> = ({ plugin, install }) => {
   const [busy, setBusy] = useState(false)
-  const label = targetLabel(install)
+  const label = install.scope === 'global' ? 'global' : install.scopeRef
 
   const runUpdate = async () => {
     setBusy(true)
@@ -101,7 +99,7 @@ const MissingRow: FunctionComponent<{ plugin: PluginEntry; account: string }> = 
   const [busy, setBusy] = useState(false)
   const install = async () => {
     setBusy(true)
-    await installPlugin(plugin.id, plugin.name, { scope: 'account', scopeRef: account })
+    await installPlugin(plugin.id, plugin.name, account)
     setBusy(false)
   }
   return (
@@ -204,9 +202,8 @@ export const PluginPane: FunctionComponent<{
 /* ── Add a plugin ── */
 
 export const PluginBrowser: FunctionComponent<{ accounts: string[] }> = ({ accounts }) => {
-  const targets: PluginTarget[] = [...accounts.map(a => ({ scope: 'account' as const, scopeRef: a })), { scope: 'global', scopeRef: 'global' }]
-  const [key, setKey] = useState(targetKey(targets[0]!))
-  const target = targets.find(t => targetKey(t) === key) ?? targets[0]!
+  const [picked, setPicked] = useState('')
+  const account = accounts.includes(picked) ? picked : accounts[0] ?? ''
   const [market, setMarket] = useState('')
   const [filter, setFilter] = useState('')
   const [source, setSource] = useState('')
@@ -219,36 +216,39 @@ export const PluginBrowser: FunctionComponent<{ accounts: string[] }> = ({ accou
 
   const list = marketplaces.value
   const shown = list?.find(m => m.name === market) ?? list?.[0]
-  const installed = new Set((plugins.value ?? []).flatMap(p => p.installs.some(i => i.scope === target.scope && i.scopeRef === target.scopeRef) ? [p.id] : []))
+  const installed = new Set((plugins.value ?? []).flatMap(p => p.installs.some(i => i.scope === 'account' && i.scopeRef === account) ? [p.id] : []))
   const q = filter.trim().toLowerCase()
   const catalog = (shown?.plugins ?? []).filter(p => !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
 
   const addMarketplace = async () => {
     setAdding(true)
-    const added = await runPluginCommand('/api/skills/marketplaces', { source: source.trim(), ...target })
+    const added = await runPluginCommand('/api/skills/marketplaces', { source: source.trim(), account })
     setAdding(false)
     if (!added) return
-    showToast(`Marketplace added to ${targetLabel(target)}`, 'success')
+    showToast(`Marketplace added to ${account}`, 'success')
     setSource('')
     await loadMarketplaces().catch(() => {})
   }
 
   const install = async (id: string, name: string) => {
     setInstalling(id)
-    await installPlugin(id, name, target)
+    await installPlugin(id, name, account)
     setInstalling(null)
   }
 
   return (
     <>
-      <PaneHeader title="Add a plugin" sub={`Claude Code only · installs into ${targetLabel(target)}`} />
+      <PaneHeader title="Add a plugin" sub={account ? `Claude Code only · installs into ${account}` : 'Claude Code only'} />
       <div class="flex-1 min-h-0 overflow-auto flex flex-col" style={{ padding: '14px 20px 20px', gap: '8px' }}>
         <div class="flex flex-col" style={{ gap: '10px', maxWidth: '560px', marginBottom: '6px' }}>
-          <Field label="Install into">
-            <select class="field" value={key} onChange={(e) => setKey((e.target as HTMLSelectElement).value)}>
-              {targets.map(t => <option key={targetKey(t)} value={targetKey(t)}>{t.scope === 'global' ? 'Global · ~/.claude' : `Account · ${t.scopeRef}`}</option>)}
-            </select>
-          </Field>
+          {accounts.length === 0 && <p style={{ fontSize: '13px', color: 'var(--ink-2)', margin: 0 }}>Plugins install into a CW account. Add one in Accounts first.</p>}
+          {accounts.length > 0 && (
+            <Field label="Account">
+              <select class="field" value={account} onChange={(e) => setPicked((e.target as HTMLSelectElement).value)}>
+                {accounts.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </Field>
+          )}
           {list && list.length > 0 && (
             <Field label="Marketplace">
               <select class="field" value={shown?.name} onChange={(e) => setMarket((e.target as HTMLSelectElement).value)}>
@@ -259,7 +259,7 @@ export const PluginBrowser: FunctionComponent<{ accounts: string[] }> = ({ accou
           <Field label="Add a marketplace">
             <div class="flex" style={{ gap: '8px' }}>
               <input class="field flex-1" value={source} placeholder="owner/repo, git URL or path" onInput={(e) => setSource((e.target as HTMLInputElement).value)} onKeyDown={(e) => { if (e.key === 'Enter' && source.trim()) void addMarketplace() }} />
-              <ActionButton label={adding ? 'Adding…' : 'Add'} variant="secondary" size="sm" loading={adding} disabled={!source.trim()} onClick={addMarketplace} />
+              <ActionButton label={adding ? 'Adding…' : 'Add'} variant="secondary" size="sm" loading={adding} disabled={!source.trim() || !account} onClick={addMarketplace} />
             </div>
           </Field>
           {shown && shown.plugins.length > 0 && (
@@ -280,7 +280,7 @@ export const PluginBrowser: FunctionComponent<{ accounts: string[] }> = ({ accou
             </div>
             {installed.has(p.id)
               ? <span style={{ fontSize: '12px', color: 'var(--green)' }}>Installed</span>
-              : <ActionButton label={installing === p.id ? 'Installing…' : 'Install'} variant="secondary" size="sm" loading={installing === p.id} disabled={installing !== null} onClick={() => install(p.id, p.name)} />}
+              : <ActionButton label={installing === p.id ? 'Installing…' : 'Install'} variant="secondary" size="sm" loading={installing === p.id} disabled={installing !== null || !account} onClick={() => install(p.id, p.name)} />}
           </div>
         ))}
       </div>

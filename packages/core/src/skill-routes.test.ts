@@ -486,14 +486,14 @@ describe('Plugin routes', () => {
   })
 
   it('POST /plugins/install installs into an account that knows the marketplace', async () => {
-    const res = await post('/plugins/install', { id: 'monoku-skills@monoku-skills', scope: 'account', scopeRef: 'monoku' })
+    const res = await post('/plugins/install', { id: 'monoku-skills@monoku-skills', account: 'monoku' })
     expect(res.status).toBe(200)
     expect(calls.map(c => [c.bin, ...c.args])).toEqual([['claude', 'plugin', 'install', 'monoku-skills@monoku-skills']])
     expect(calls[0]?.configDir).toBe(join(CW, 'accounts', 'monoku'))
   })
 
   it('POST /plugins/install adds the marketplace first to an account that lacks it', async () => {
-    const res = await post('/plugins/install', { id: 'monoku-skills@monoku-skills', scope: 'account', scopeRef: 'meridian' })
+    const res = await post('/plugins/install', { id: 'monoku-skills@monoku-skills', account: 'meridian' })
     expect(res.status).toBe(200)
     expect(calls.map(c => c.args)).toEqual([
       ['plugin', 'marketplace', 'add', 'monoku/skills'],
@@ -501,30 +501,31 @@ describe('Plugin routes', () => {
     ])
   })
 
-  it('POST /plugins/install rejects bad ids, unknown scopes and unknown marketplaces', async () => {
-    expect((await post('/plugins/install', { id: '--help', scope: 'global' })).status).toBe(400)
-    expect((await post('/plugins/install', { id: 'a@monoku-skills', scope: 'project', scopeRef: 'skills' })).status).toBe(404)
-    expect((await post('/plugins/install', { id: 'a@monoku-skills', scope: 'account', scopeRef: 'nobody' })).status).toBe(404)
-    expect((await post('/plugins/install', { id: 'a@nowhere', scope: 'account', scopeRef: 'meridian' })).status).toBe(404)
+  it('POST /plugins/install rejects bad ids, global or unknown accounts and unknown marketplaces', async () => {
+    expect((await post('/plugins/install', { id: '--help', account: 'monoku' })).status).toBe(400)
+    expect((await post('/plugins/install', { id: 'a@monoku-skills', scope: 'global' })).status).toBe(404)
+    expect((await post('/plugins/install', { id: 'a@monoku-skills', account: 'nobody' })).status).toBe(404)
+    expect((await post('/plugins/install', { id: 'a@nowhere', account: 'meridian' })).status).toBe(404)
     expect(calls).toEqual([])
   })
 
   it('POST /plugins/install reports the CLI failure', async () => {
     results = [{ code: 1, stdout: '', stderr: 'Error: Plugin "a" not found in marketplace' }]
-    const res = await post('/plugins/install', { id: 'a@monoku-skills', scope: 'account', scopeRef: 'monoku' })
+    const res = await post('/plugins/install', { id: 'a@monoku-skills', account: 'monoku' })
     expect(res.status).toBe(500)
     expect(await res.json()).toEqual({ error: 'Failed to install a: Error: Plugin "a" not found in marketplace' })
   })
 
-  it('POST /marketplaces adds a marketplace in the chosen scope', async () => {
-    const res = await post('/marketplaces', { source: ' acme/plugins ', scope: 'global' })
+  it('POST /marketplaces adds a marketplace to an account', async () => {
+    const res = await post('/marketplaces', { source: ' acme/plugins ', account: 'meridian' })
     expect(res.status).toBe(200)
-    expect(calls.map(c => [c.args, c.configDir])).toEqual([[['plugin', 'marketplace', 'add', 'acme/plugins'], undefined]])
+    expect(calls.map(c => [c.args, c.configDir])).toEqual([[['plugin', 'marketplace', 'add', 'acme/plugins'], join(CW, 'accounts', 'meridian')]])
+    expect((await post('/marketplaces', { source: 'acme/plugins', scope: 'global' })).status).toBe(404)
   })
 
   it('POST /marketplaces rejects an empty source or one that looks like an option', async () => {
-    expect((await post('/marketplaces', { source: '', scope: 'global' })).status).toBe(400)
-    expect((await post('/marketplaces', { source: '--scope=project', scope: 'global' })).status).toBe(400)
+    expect((await post('/marketplaces', { source: '', account: 'monoku' })).status).toBe(400)
+    expect((await post('/marketplaces', { source: '--scope=project', account: 'monoku' })).status).toBe(400)
     expect(calls).toEqual([])
   })
 })
