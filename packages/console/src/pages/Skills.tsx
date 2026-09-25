@@ -4,7 +4,7 @@ import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import type { SkillEntry, SkillDetail, ExploreResult, PluginEntry } from '@forge-dev/core'
 import { skills, loadSkills } from '../hooks/useSkills.js'
 import { plugins, loadPlugins } from '../hooks/usePlugins.js'
-import { PluginRailGroup, PluginPane, PluginSkillView, ProposeSkill } from './SkillPlugins.js'
+import { PluginBrowser, PluginRailGroup, PluginPane, PluginSkillView, ProposeSkill } from './SkillPlugins.js'
 import { MenuButton } from '../components/PageHeader.js'
 import { PaneHeader } from '../components/PaneHeader.js'
 import { Field, labelStyle } from '../components/Field.js'
@@ -19,7 +19,7 @@ interface SkillsProps {
 
 type Scope = SkillEntry['scope']
 type Pane = { kind: 'editor'; skill: SkillEntry } | { kind: 'create' } | { kind: 'explore'; query: string }
-  | { kind: 'plugin'; id: string; skill?: string } | { kind: 'propose'; id: string } | { kind: 'empty' }
+  | { kind: 'plugin'; id: string; skill?: string } | { kind: 'propose'; id: string } | { kind: 'plugins' } | { kind: 'empty' }
 
 const SCOPE_TOKEN: Record<Scope, string> = { global: '--blue', account: '--orange', project: '--green' }
 
@@ -505,6 +505,18 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
             selected={pane.kind === 'plugin' || pane.kind === 'propose' ? pane.id : null}
             onSelect={(id) => setPane({ kind: 'plugin', id })}
           />
+          {!q && (
+            <button
+              type="button"
+              aria-current={pane.kind === 'plugins' ? 'true' : undefined}
+              class="flex items-center w-full text-left cursor-pointer hover:bg-elev"
+              style={{ gap: '8px', padding: '9px 11px', marginTop: '6px', borderRadius: '11px', border: '1px dashed var(--hair-2)', background: 'transparent', color: 'var(--blue)', fontSize: '12.5px', fontWeight: 500 }}
+              onClick={() => setPane({ kind: 'plugins' })}
+            >
+              <span class="i-lucide-plus shrink-0" style={{ width: '13px', height: '13px' }} />
+              <span class="truncate">Add a plugin</span>
+            </button>
+          )}
           {q && (
             <button
               type="button"
@@ -540,6 +552,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
           />
         )}
         {pane.kind === 'explore' && <SkillExplore query={pane.query} accounts={accounts} projects={projectNames} onInstalled={() => { void refresh() }} />}
+        {pane.kind === 'plugins' && <PluginBrowser accounts={accounts} />}
         {pane.kind === 'plugin' && activePlugin && !pane.skill && (
           <PluginPane
             plugin={activePlugin}

@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (527 tests, all in `packages/core`) |
+| Tests | Vitest (536 tests, all in `packages/core`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -90,7 +90,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/origin-guard.ts` — Same-machine check for HTTP and terminal WebSockets, `FORGE_HOST` bind address
 - `packages/core/src/auth.ts` — Bearer token middleware (team mode)
 - `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install
-- `packages/core/src/plugins.ts` — Claude Code plugins per config dir (global and each account): installs, skills from `plugin.json`, repository matched to a CW project by git remote
+- `packages/core/src/plugins.ts` — Claude Code plugins per config dir (global and each account): installs, skills from `plugin.json`, repository matched to a CW project by git remote, marketplaces and their catalogs
 - `packages/core/src/liveframe.ts` / `liveframe-routes.ts` — Liveframe frames in `~/liveframe/<project>/<frame>` through the `lf` CLI (new, pull, push); reads only the API base from `~/.liveframe/config.json`
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
@@ -121,7 +121,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/TaskDetail.tsx` — Terminal + git stats + MCP info
 - `packages/console/src/pages/Accounts.tsx` — Account cards, Connect flows, account removal
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
-- `packages/console/src/pages/SkillPlugins.tsx` — Plugins group, plugin pane (accounts, Update, read-only skills), Propose a skill form (`config/plugins.ts` builds the task)
+- `packages/console/src/pages/SkillPlugins.tsx` — Plugins group, plugin pane (accounts, Update, Install, read-only skills), Add a plugin browser (marketplaces, install), Propose a skill form (`config/plugins.ts` builds the task)
 - `packages/console/src/pages/Prototypes.tsx` — Liveframe launcher: local frames, create/pull, push, Open agent (a general session in the frame folder)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
 - `packages/console/src/components/TaskLinks.tsx` — GitHub and Open in editor buttons
@@ -180,7 +180,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
-- `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`
+- `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
 - `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB
 

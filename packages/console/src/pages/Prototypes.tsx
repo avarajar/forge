@@ -5,6 +5,7 @@ import type { CWSession, LiveframeFrame, LiveframeStatus } from '@forge-dev/core
 import { PageHeader } from '../components/PageHeader.js'
 import { Field } from '../components/Field.js'
 import { secondaryButton, secondaryClass } from '../components/TaskLinks.js'
+import { errorText, postJson } from '../config/api.js'
 import { soft } from '../config/types.js'
 
 interface PrototypesProps {
@@ -16,15 +17,6 @@ interface PrototypesProps {
 const card = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)' }
 const note = { padding: '10px 14px', borderRadius: '12px', fontSize: '12.5px' }
 const inputValue = (e: Event) => (e.target as HTMLInputElement).value
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const data = await res.json().catch(() => ({})) as T & { error?: string }
-  if (!res.ok || data.error) throw new Error(data.error ?? `Request failed (${res.status})`)
-  return data
-}
-
-const errorText = (err: unknown) => err instanceof Error ? err.message : String(err)
 
 export const Prototypes: FunctionComponent<PrototypesProps> = ({ accounts, onOpenSession, onFramesChanged }) => {
   const [status, setStatus] = useState<LiveframeStatus | null>(null)

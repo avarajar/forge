@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export interface FixturePlugin {
@@ -40,4 +40,18 @@ export function writePluginFixture(configDir: string, plugins: FixturePlugin[]):
   writeFileSync(join(configDir, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: installed }))
   writeFileSync(join(configDir, 'plugins', 'known_marketplaces.json'), JSON.stringify(marketplaces))
   writeFileSync(join(configDir, 'settings.json'), JSON.stringify({ enabledPlugins: enabled }))
+}
+
+// adds a marketplace to known_marketplaces.json; a catalog is cloned under plugins/marketplaces like Claude Code does
+export function writeMarketplaceFixture(configDir: string, name: string, source: Record<string, string>, catalog?: Array<Record<string, string>>): void {
+  const file = join(configDir, 'plugins', 'known_marketplaces.json')
+  const known = existsSync(file) ? JSON.parse(readFileSync(file, 'utf-8')) as Record<string, unknown> : {}
+  const installLocation = join(configDir, 'plugins', 'marketplaces', name)
+  if (catalog) {
+    mkdirSync(join(installLocation, '.claude-plugin'), { recursive: true })
+    writeFileSync(join(installLocation, '.claude-plugin', 'marketplace.json'), JSON.stringify({ name, plugins: catalog }))
+  }
+  known[name] = { source, installLocation }
+  mkdirSync(join(configDir, 'plugins'), { recursive: true })
+  writeFileSync(file, JSON.stringify(known))
 }
