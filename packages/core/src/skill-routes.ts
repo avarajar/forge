@@ -1,14 +1,15 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
-import type { ExploreResult, SkillScope } from './cw-types.js'
+import type { ExploreResult, PluginTarget, SkillScope } from './cw-types.js'
 import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync, cpSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { envWithoutHarness } from './cw-doctor.js'
 import { createRunner, runCommand, type Runner, type RunResult } from './task-review.js'
-import { createRemoteLookup, listPlugins, readPluginSkill, type RemoteLookup } from './plugins.js'
+import { createRemoteLookup, knowsMarketplace, listMarketplaces, listPlugins, marketplaceSourceOf, readPluginSkill, splitPluginId, type RemoteLookup } from './plugins.js'
 
 const INSTALL_TIMEOUT_MS = 120_000
 const SKILL_NAME_RE = /^\w[\w.-]*$/
+const PLUGIN_ID_RE = /^\w[\w.-]*@\w[\w.-]*$/
 
 // the CLI prints one JSON entry per requested skill; a non-installed one carries the reason
 function installFailure(result: RunResult): string {
@@ -33,8 +34,34 @@ export function skillRoutes(
   const runnerFor = options.runnerFor ?? ((env) => createRunner(env, INSTALL_TIMEOUT_MS))
   const remoteOf = options.remoteOf ?? createRemoteLookup(runCommand)
   const app = new Hono()
-  // one update per config dir: two CLIs rewriting installed_plugins.json would race
-  const updating = new Set<string>()
+  // one plugin command per config dir: two CLIs rewriting installed_plugins.json would race
+  const busy = new Set<string>()
+
+  type PluginScope = PluginTarget['scope']
+  type Outcome = { error: string; status: 404 | 409 | 500 } | null
+  // runs `claude` commands in a config dir, holding its lock; the first failure stops the rest
+  const runClaude = async (scope: PluginScope, ref: string, commands: string[][], failure: string): Promise<Outcome> => {
+    const configDir = reader.getSkillConfigDir(scope, ref)
+    if (busy.has(configDir)) return { error: `A plugin command is already running for ${ref}`, status: 409 }
+    busy.add(configDir)
+    try {
+      // the CLI relocates .claude.json when CLAUDE_CONFIG_DIR is set to ~/.claude; accounts keep it, global does not
+      const { CLAUDE_CONFIG_DIR: _ignored, ...base } = envWithoutHarness()
+      const run = runnerFor(scope === 'global' ? base : { ...base, CLAUDE_CONFIG_DIR: configDir })
+      for (const args of commands) {
+        const result = await run('claude', args, configDir)
+        if (result.code !== 0) return { error: `${failure}: ${commandFailure(result)}`, status: 500 }
+      }
+      return null
+    } finally {
+      busy.delete(configDir)
+    }
+  }
+  const pluginScope = (body: { scope?: string; scopeRef?: string }): { scope: PluginScope; ref: string } | null => {
+    if (body.scope !== 'global' && body.scope !== 'account') return null
+    const ref = refOf(body.scope, body.scopeRef)
+    return knownScope(body.scope, ref) ? { scope: body.scope, ref } : null
+  }
 
   const refOf = (scope: SkillScope, scopeRef?: string) => scope === 'global' ? 'global' : scopeRef ?? ''
   // a scope ref must be a known account or project
@@ -279,22 +306,45 @@ export function skillRoutes(
     const install = plugin?.installs.find(i => i.scope === scope && i.scopeRef === ref)
     if (!plugin || !install) return c.json({ error: `${id} is not installed in ${ref || 'that scope'}` }, 404)
 
-    const configDir = reader.getSkillConfigDir(install.scope, install.scopeRef)
-    if (updating.has(configDir)) return c.json({ error: `An update is already running for ${ref}` }, 409)
-    updating.add(configDir)
-    try {
-      // the CLI relocates .claude.json when CLAUDE_CONFIG_DIR is set to ~/.claude; accounts keep it, global does not
-      const { CLAUDE_CONFIG_DIR: _ignored, ...base } = envWithoutHarness()
-      const run = runnerFor(install.scope === 'global' ? base : { ...base, CLAUDE_CONFIG_DIR: configDir })
-      for (const args of [['plugin', 'marketplace', 'update', plugin.marketplace], ['plugin', 'update', plugin.id]]) {
-        const result = await run('claude', args, configDir)
-        if (result.code !== 0) return c.json({ error: `Failed to update ${plugin.name}: ${commandFailure(result)}` }, 500)
-      }
-    } finally {
-      updating.delete(configDir)
-    }
+    const failed = await runClaude(install.scope, ref, [['plugin', 'marketplace', 'update', plugin.marketplace], ['plugin', 'update', plugin.id]], `Failed to update ${plugin.name}`)
+    if (failed) return c.json({ error: failed.error }, failed.status)
     const version = (await find())?.installs.find(i => i.scope === install.scope && i.scopeRef === ref)?.version ?? install.version
     return c.json({ ok: true, version })
+  })
+
+  app.get('/marketplaces', (c) => c.json(listMarketplaces(reader)))
+
+  app.post('/marketplaces', async (c) => {
+    type Body = { source?: string; scope?: string; scopeRef?: string }
+    const body = await c.req.json<Body>().catch((): Body => ({}))
+    const source = body.source?.trim() ?? ''
+    // a leading dash would reach the CLI as an option
+    if (!source || source.startsWith('-')) return c.json({ error: 'A GitHub repo, URL or path is required' }, 400)
+    const target = pluginScope(body)
+    if (!target) return c.json({ error: 'Unknown scope' }, 404)
+    const failed = await runClaude(target.scope, target.ref, [['plugin', 'marketplace', 'add', source]], `Failed to add ${source}`)
+    if (failed) return c.json({ error: failed.error }, failed.status)
+    return c.json({ ok: true })
+  })
+
+  app.post('/plugins/install', async (c) => {
+    type Body = { id?: string; scope?: string; scopeRef?: string }
+    const body = await c.req.json<Body>().catch((): Body => ({}))
+    const id = body.id ?? ''
+    if (!PLUGIN_ID_RE.test(id)) return c.json({ error: 'Invalid plugin id' }, 400)
+    const target = pluginScope(body)
+    if (!target) return c.json({ error: 'Unknown scope' }, 404)
+    const { name, marketplace } = splitPluginId(id)
+    const commands = [['plugin', 'install', id]]
+    // an account that lacks the marketplace gets it from wherever it is known
+    if (!knowsMarketplace(reader.getSkillConfigDir(target.scope, target.ref), marketplace)) {
+      const source = marketplaceSourceOf(reader, marketplace)
+      if (!source) return c.json({ error: `Unknown marketplace ${marketplace}` }, 404)
+      commands.unshift(['plugin', 'marketplace', 'add', source])
+    }
+    const failed = await runClaude(target.scope, target.ref, commands, `Failed to install ${name}`)
+    if (failed) return c.json({ error: failed.error }, failed.status)
+    return c.json({ ok: true })
   })
 
   return app

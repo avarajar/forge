@@ -3,8 +3,8 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CWReader } from './cw-reader.js'
-import { createRemoteLookup, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
-import { writePluginFixture, type FixturePlugin } from './test-plugins.js'
+import { createRemoteLookup, knowsMarketplace, listMarketplaces, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
+import { writeMarketplaceFixture, writePluginFixture, type FixturePlugin } from './test-plugins.js'
 import { makeFixtureRepo } from './test-git.js'
 
 const noRemote = async () => null
@@ -224,5 +224,49 @@ describe('listPlugins project match', () => {
     const [plugin] = await listPlugins(reader, lookup)
     expect(calls).toBe(1)
     expect(plugin?.project).toBe('web')
+  })
+})
+
+describe('listMarketplaces', () => {
+  let home: string
+  let cw: string
+  const prevHome = process.env.HOME
+
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), 'forge-marketplaces-home-'))
+    cw = join(home, '.cw')
+    process.env.HOME = home
+    mkdirSync(join(cw, 'accounts', 'monoku'), { recursive: true })
+    mkdirSync(join(cw, 'accounts', 'meridian'), { recursive: true })
+    writeFileSync(join(cw, 'projects.json'), '{}')
+  })
+
+  afterEach(() => {
+    process.env.HOME = prevHome
+    rmSync(home, { recursive: true, force: true })
+  })
+
+  it('merges a marketplace known by several config dirs and reads its catalog', () => {
+    writeMarketplaceFixture(join(home, '.claude'), 'official', { source: 'github', repo: 'anthropics/claude-plugins-official' })
+    writeMarketplaceFixture(join(cw, 'accounts', 'monoku'), 'official', { source: 'github', repo: 'anthropics/claude-plugins-official' }, [
+      { name: 'zeta', description: 'Z', category: 'dev' },
+      { name: 'alpha', description: 'A' },
+    ])
+    writeMarketplaceFixture(join(cw, 'accounts', 'monoku'), 'local', { source: 'directory', path: '/tmp/plugins' })
+
+    const [local, official] = listMarketplaces(new CWReader(cw))
+    expect(local).toEqual({ name: 'local', source: '/tmp/plugins', scopes: [{ scope: 'account', scopeRef: 'monoku' }], plugins: [] })
+    expect(official?.source).toBe('anthropics/claude-plugins-official')
+    expect(official?.scopes).toEqual([{ scope: 'global', scopeRef: 'global' }, { scope: 'account', scopeRef: 'monoku' }])
+    expect(official?.plugins).toEqual([
+      { id: 'alpha@official', name: 'alpha', description: 'A', category: undefined },
+      { id: 'zeta@official', name: 'zeta', description: 'Z', category: 'dev' },
+    ])
+  })
+
+  it('knowsMarketplace reads one config dir only', () => {
+    writeMarketplaceFixture(join(cw, 'accounts', 'monoku'), 'official', { source: 'github', repo: 'a/b' })
+    expect(knowsMarketplace(join(cw, 'accounts', 'monoku'), 'official')).toBe(true)
+    expect(knowsMarketplace(join(cw, 'accounts', 'meridian'), 'official')).toBe(false)
   })
 })

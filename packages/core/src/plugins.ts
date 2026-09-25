@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, join, resolve, sep } from 'node:path'
 import type { CWReader } from './cw-reader.js'
-import type { PluginEntry, PluginInstall, PluginSkill } from './cw-types.js'
+import type { MarketplaceEntry, MarketplacePlugin, PluginEntry, PluginInstall, PluginSkill, PluginTarget } from './cw-types.js'
 import type { Runner } from './task-review.js'
 
 // origin URL of a project's repository, or null when it has none
@@ -84,13 +84,26 @@ function manifestRepo(manifest: Json): string | undefined {
   return undefined
 }
 
-function marketplaceRepo(marketplaces: Json, marketplace: string): string | undefined {
-  const entry = marketplaces[marketplace]
+// what `claude plugin marketplace add` takes: a GitHub repo, a git or JSON URL, or a local path
+function marketplaceSource(entry: unknown): string | undefined {
   const source = isRecord(entry) ? entry['source'] : undefined
   if (!isRecord(source)) return undefined
-  const value = source['repo'] ?? source['url']
+  const value = source['repo'] ?? source['url'] ?? source['path']
   return typeof value === 'string' ? value : undefined
 }
+
+// "name@marketplace"; the name may itself hold an @
+export function splitPluginId(id: string): { name: string; marketplace: string } {
+  const at = id.lastIndexOf('@')
+  return { name: id.slice(0, at), marketplace: id.slice(at + 1) }
+}
+
+const pluginScopes = (reader: CWReader): PluginTarget[] => [
+  { scope: 'global', scopeRef: 'global' },
+  ...reader.getAccounts().map(a => ({ scope: 'account' as const, scopeRef: a })),
+]
+
+const knownMarketplaces = (configDir: string) => readJson(join(configDir, 'plugins', 'known_marketplaces.json'))
 
 interface Found { install: PluginInstall; repo?: string }
 
@@ -104,24 +117,19 @@ function projectSkillNames(projectPath: string): string[] {
 }
 
 export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Promise<PluginEntry[]> {
-  const scopes: Array<Pick<PluginInstall, 'scope' | 'scopeRef'>> = [
-    { scope: 'global', scopeRef: 'global' },
-    ...reader.getAccounts().map(a => ({ scope: 'account' as const, scopeRef: a })),
-  ]
   const found = new Map<string, Found[]>()
 
-  for (const { scope, scopeRef } of scopes) {
+  for (const { scope, scopeRef } of pluginScopes(reader)) {
     const configDir = reader.getSkillConfigDir(scope, scopeRef)
     const installed = readJson(join(configDir, 'plugins', 'installed_plugins.json'))['plugins']
     if (!isRecord(installed)) continue
-    const marketplaces = readJson(join(configDir, 'plugins', 'known_marketplaces.json'))
+    const marketplaces = knownMarketplaces(configDir)
     const enabledPlugins = readJson(join(configDir, 'settings.json'))['enabledPlugins']
     for (const [id, entries] of Object.entries(installed)) {
       if (!Array.isArray(entries)) continue
       // project and local scopes belong to one project, not the account
       const user = entries.find((e): e is Json => isRecord(e) && e['scope'] === 'user' && typeof e['installPath'] === 'string')
       if (!user) continue
-      const marketplace = id.slice(id.lastIndexOf('@') + 1)
       const install: PluginInstall = {
         scope,
         scopeRef,
@@ -131,7 +139,7 @@ export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Pro
         lastUpdated: typeof user['lastUpdated'] === 'string' ? user['lastUpdated'] : undefined,
       }
       const list = found.get(id) ?? []
-      list.push({ install, repo: marketplaceRepo(marketplaces, marketplace) })
+      list.push({ install, repo: marketplaceSource(marketplaces[splitPluginId(id).marketplace]) })
       found.set(id, list)
     }
   }
@@ -147,8 +155,7 @@ export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Pro
     const match = repo ? remotes.find(r => r.repo === repo) : undefined
     plugins.push({
       id,
-      name: id.slice(0, id.lastIndexOf('@')),
-      marketplace: id.slice(id.lastIndexOf('@') + 1),
+      ...splitPluginId(id),
       description: String(manifest['description'] ?? ''),
       repo,
       installs: list.map(f => f.install),
@@ -169,4 +176,45 @@ export function readPluginSkill(plugin: PluginEntry, name: string): { name: stri
   } catch {
     return null
   }
+}
+
+function readCatalog(location: string, marketplace: string): MarketplacePlugin[] {
+  const listed = readJson(join(location, '.claude-plugin', 'marketplace.json'))['plugins']
+  return (Array.isArray(listed) ? listed : [])
+    .filter((p): p is Json => isRecord(p) && typeof p['name'] === 'string')
+    .map(p => ({
+      id: `${String(p['name'])}@${marketplace}`,
+      name: String(p['name']),
+      description: String(p['description'] ?? ''),
+      category: typeof p['category'] === 'string' ? p['category'] : undefined,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+// every marketplace a config dir knows, with the plugins the first readable clone lists
+export function listMarketplaces(reader: CWReader): MarketplaceEntry[] {
+  const byName = new Map<string, MarketplaceEntry>()
+  for (const target of pluginScopes(reader)) {
+    for (const [name, entry] of Object.entries(knownMarketplaces(reader.getSkillConfigDir(target.scope, target.scopeRef)))) {
+      const source = marketplaceSource(entry)
+      if (!source) continue
+      const known = byName.get(name) ?? { name, source, scopes: [], plugins: [] }
+      known.scopes.push(target)
+      const location = isRecord(entry) ? entry['installLocation'] : undefined
+      if (known.plugins.length === 0 && typeof location === 'string') known.plugins = readCatalog(location, name)
+      byName.set(name, known)
+    }
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export const knowsMarketplace = (configDir: string, marketplace: string) => isRecord(knownMarketplaces(configDir)[marketplace])
+
+// the source any config dir registered this marketplace from
+export function marketplaceSourceOf(reader: CWReader, marketplace: string): string | undefined {
+  for (const { scope, scopeRef } of pluginScopes(reader)) {
+    const source = marketplaceSource(knownMarketplaces(reader.getSkillConfigDir(scope, scopeRef))[marketplace])
+    if (source) return source
+  }
+  return undefined
 }

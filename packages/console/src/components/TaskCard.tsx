@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, projectOf, sessionLabel, shortAgo, soft } from '../config/types.js'
 import { rowStatus } from '../config/review.js'
+import { copyText } from '../config/api.js'
 import { HarnessBadge } from './HarnessBadge.js'
 import { Dot } from './Dot.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
@@ -36,8 +37,8 @@ export const Chip: FunctionComponent<{ label: string; href?: string }> = ({ labe
     : <span class="shrink-0" style={style}>{label}</span>
 }
 
-const fallbackBranch = (s: CWSession): string =>
-  s.type === 'review' ? `review/pr-${s.pr}` : s.type === 'loop' ? `loop/${s.task ?? 'loop'}` : s.type === 'task' ? `task/${s.task}` : '—'
+const fallbackBranch = (s: CWSession): string | null =>
+  s.type === 'review' ? `review/pr-${s.pr}` : s.type === 'loop' ? `loop/${s.task ?? 'loop'}` : s.type === 'task' ? `task/${s.task}` : null
 
 // only task and review rows read review state
 const ReviewedLine: FunctionComponent<{ session: CWSession; project?: string }> = ({ session, project }) => {
@@ -47,10 +48,23 @@ const ReviewedLine: FunctionComponent<{ session: CWSession; project?: string }> 
   return <MetaLine branch={branch} status={status} project={project} />
 }
 
-const MetaLine: FunctionComponent<{ branch: string; status: string; project?: string }> = ({ branch, status, project }) => (
+const MetaLine: FunctionComponent<{ branch: string | null; status: string; project?: string }> = ({ branch, status, project }) => (
   <div class="task-meta flex items-center min-w-0" style={{ gap: '9px', marginTop: '2px' }}>
     {project && <span class="shrink-0" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)' }}>{project}</span>}
-    <span class="mono truncate" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{branch}</span>
+    {branch === null
+      ? <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>—</span>
+      : (
+        <button
+          type="button"
+          class="mono truncate min-w-0 cursor-copy hover:text-ink transition-colors duration-160"
+          style={{ fontSize: '11.5px', color: 'var(--ink-3)', padding: 0, border: 0, background: 'transparent' }}
+          title="Copy branch name"
+          onClick={(e: Event) => { e.stopPropagation(); copyText(branch, 'Branch') }}
+          onKeyDown={(e: KeyboardEvent) => e.stopPropagation()}
+        >
+          {branch}
+        </button>
+      )}
     <span class="whitespace-nowrap truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{status}</span>
   </div>
 )

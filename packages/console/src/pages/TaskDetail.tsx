@@ -1,9 +1,10 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
-import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
+import { ActionButton, ForgeTerminal } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
 import { reviewSummary, unpushedCount } from '../config/review.js'
+import { copyText } from '../config/api.js'
 import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
@@ -164,7 +165,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
                 class="text-left cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m min-w-0"
                 style={{ padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', color: 'var(--ink)', animation: 'riseIn .34s var(--ease) 300ms both' }}
                 title="Copy branch name"
-                onClick={() => { void navigator.clipboard.writeText(shownBranch); showToast('Branch copied', 'info') }}
+                onClick={() => copyText(shownBranch, 'Branch')}
               >
                 <div class="flex items-center" style={{ gap: '4px', fontSize: '11.5px', color: 'var(--ink-2)' }}>
                   Branch <span class="i-lucide-copy" style={{ width: '11px', height: '11px' }} />

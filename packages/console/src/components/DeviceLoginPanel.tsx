@@ -2,6 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import { findCell, getHarnessStyle } from '../config/types.js'
+import { copyText } from '../config/api.js'
 import { loadHarnesses, watchUntil } from '../hooks/useHarnesses.js'
 
 interface LoginState {
@@ -169,7 +170,7 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
             {login.code && (
               <>
                 <span class="mono" style={{ fontSize: '19px', fontWeight: 650, letterSpacing: '.12em' }}>{login.code}</span>
-                <ActionButton label="Copy" variant="secondary" size="sm" onClick={() => { void navigator.clipboard.writeText(login.code ?? ''); showToast('Code copied', 'info') }} />
+                <ActionButton label="Copy" variant="secondary" size="sm" onClick={() => copyText(login.code ?? '', 'Code')} />
               </>
             )}
           </div>

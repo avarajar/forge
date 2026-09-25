@@ -4,7 +4,7 @@ import { skillRoutes } from './skill-routes.js'
 import { CWReader } from './cw-reader.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { writePluginFixture } from './test-plugins.js'
+import { writeMarketplaceFixture, writePluginFixture } from './test-plugins.js'
 
 const TEST_HOME = join(import.meta.dirname, '../.test-skill-routes-home')
 const TEST_CW = join(import.meta.dirname, '../.test-skill-routes-cw')
@@ -366,6 +366,7 @@ describe('Plugin routes', () => {
     }
     writePluginFixture(join(CW, 'accounts', 'monoku'), [fixture])
     writePluginFixture(join(HOME, '.claude'), [fixture])
+    writeMarketplaceFixture(join(CW, 'accounts', 'monoku'), 'monoku-skills', { source: 'github', repo: 'monoku/skills' }, [{ name: 'monoku-skills', description: 'Skills' }])
     app = new Hono()
     app.route('/api/skills', skillRoutes(new CWReader(CW), {
       remoteOf: async () => 'git@github.com:monoku/skills.git',
@@ -468,5 +469,62 @@ describe('Plugin routes', () => {
     expect(second.status).toBe(409)
     release()
     expect((await first).status).toBe(200)
+  })
+
+  const post = (path: string, body: Record<string, unknown>) => app.request(`/api/skills${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  it('GET /marketplaces lists each marketplace with its catalog', async () => {
+    const res = await app.request('/api/skills/marketplaces')
+    const [market] = await res.json() as Array<{ name: string; scopes: unknown[]; plugins: Array<{ id: string }> }>
+    expect(market?.name).toBe('monoku-skills')
+    expect(market?.scopes).toEqual([{ scope: 'global', scopeRef: 'global' }, { scope: 'account', scopeRef: 'monoku' }])
+    expect(market?.plugins.map(p => p.id)).toEqual(['monoku-skills@monoku-skills'])
+  })
+
+  it('POST /plugins/install installs into an account that knows the marketplace', async () => {
+    const res = await post('/plugins/install', { id: 'monoku-skills@monoku-skills', scope: 'account', scopeRef: 'monoku' })
+    expect(res.status).toBe(200)
+    expect(calls.map(c => [c.bin, ...c.args])).toEqual([['claude', 'plugin', 'install', 'monoku-skills@monoku-skills']])
+    expect(calls[0]?.configDir).toBe(join(CW, 'accounts', 'monoku'))
+  })
+
+  it('POST /plugins/install adds the marketplace first to an account that lacks it', async () => {
+    const res = await post('/plugins/install', { id: 'monoku-skills@monoku-skills', scope: 'account', scopeRef: 'meridian' })
+    expect(res.status).toBe(200)
+    expect(calls.map(c => c.args)).toEqual([
+      ['plugin', 'marketplace', 'add', 'monoku/skills'],
+      ['plugin', 'install', 'monoku-skills@monoku-skills'],
+    ])
+  })
+
+  it('POST /plugins/install rejects bad ids, unknown scopes and unknown marketplaces', async () => {
+    expect((await post('/plugins/install', { id: '--help', scope: 'global' })).status).toBe(400)
+    expect((await post('/plugins/install', { id: 'a@monoku-skills', scope: 'project', scopeRef: 'skills' })).status).toBe(404)
+    expect((await post('/plugins/install', { id: 'a@monoku-skills', scope: 'account', scopeRef: 'nobody' })).status).toBe(404)
+    expect((await post('/plugins/install', { id: 'a@nowhere', scope: 'account', scopeRef: 'meridian' })).status).toBe(404)
+    expect(calls).toEqual([])
+  })
+
+  it('POST /plugins/install reports the CLI failure', async () => {
+    results = [{ code: 1, stdout: '', stderr: 'Error: Plugin "a" not found in marketplace' }]
+    const res = await post('/plugins/install', { id: 'a@monoku-skills', scope: 'account', scopeRef: 'monoku' })
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Failed to install a: Error: Plugin "a" not found in marketplace' })
+  })
+
+  it('POST /marketplaces adds a marketplace in the chosen scope', async () => {
+    const res = await post('/marketplaces', { source: ' acme/plugins ', scope: 'global' })
+    expect(res.status).toBe(200)
+    expect(calls.map(c => [c.args, c.configDir])).toEqual([[['plugin', 'marketplace', 'add', 'acme/plugins'], undefined]])
+  })
+
+  it('POST /marketplaces rejects an empty source or one that looks like an option', async () => {
+    expect((await post('/marketplaces', { source: '', scope: 'global' })).status).toBe(400)
+    expect((await post('/marketplaces', { source: '--scope=project', scope: 'global' })).status).toBe(400)
+    expect(calls).toEqual([])
   })
 })

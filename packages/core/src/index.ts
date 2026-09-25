@@ -19,7 +19,7 @@ export type { CWProject, CWSession, CWConfig, StackDetection } from './cw-types.
 export type { HarnessStatus, ProviderKind, CWDoctor, CWDoctorHarness, CWDoctorAccount, CWDoctorCell, CWDoctorFinding, CWLocalDetail } from './cw-types.js'
 export { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 export type { Capability } from './harness-capabilities.js'
-export type { SkillScope, SkillEntry, SkillDetail, ExploreResult, PluginEntry, PluginInstall, PluginSkill } from './cw-types.js'
+export type { SkillScope, SkillEntry, SkillDetail, ExploreResult, PluginEntry, PluginInstall, PluginSkill, MarketplaceEntry, MarketplacePlugin, PluginTarget } from './cw-types.js'
 export type { ChecksSummary, PullRequestInfo, CloseWarning, DiffStat, GitHubLink, TaskReviewState } from './cw-types.js'
 export type { UsageState, UsageSeverity, UsageWindow, AccountUsage } from './cw-types.js'
 export { ACCOUNT_NAME_RE, HARNESS_NAME_RE, PROVIDER_NAME_RE, MODEL_NAME_RE } from './cw-types.js'

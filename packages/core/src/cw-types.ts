@@ -165,6 +165,8 @@ export interface PluginInstall {
   lastUpdated?: string
 }
 
+export type PluginTarget = Pick<PluginInstall, 'scope' | 'scopeRef'>
+
 export interface PluginSkill {
   name: string
   description: string
@@ -182,6 +184,20 @@ export interface PluginEntry {
   project?: string
   contributing: boolean
   projectSkills: string[]
+}
+
+export interface MarketplacePlugin {
+  id: string
+  name: string
+  description: string
+  category?: string
+}
+
+export interface MarketplaceEntry {
+  name: string
+  source: string
+  scopes: PluginTarget[]
+  plugins: MarketplacePlugin[]
 }
 
 export type ChecksSummary = 'passing' | 'failing' | 'pending' | 'none'
