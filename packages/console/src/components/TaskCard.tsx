@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { getTypeStyle, projectOf, sessionLabel, shortAgo, soft } from '../config/types.js'
+import { getTypeStyle, projectOf, sessionLabel, shortAgo, soft, ticketLink } from '../config/types.js'
 import { rowStatus } from '../config/review.js'
 import { copyText } from '../config/api.js'
 import { HarnessBadge } from './HarnessBadge.js'
@@ -33,9 +33,33 @@ export const LivePill: FunctionComponent = () => (
 export const Chip: FunctionComponent<{ label: string; href?: string }> = ({ label, href }) => {
   const style = { padding: '1px 7px', borderRadius: '99px', background: 'var(--elev)', border: '1px solid var(--hair)', color: 'var(--ink-2)', fontSize: '11px' }
   return href
-    ? <a class="shrink-0 hover:text-ink" style={style} href={href} target="_blank" rel="noopener noreferrer" onClick={(e: Event) => e.stopPropagation()}>{label}</a>
+    ? (
+      <a
+        class="inline-flex items-center gap-1 shrink-0 hover:text-ink"
+        style={style}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={href}
+        onClick={(e: Event) => e.stopPropagation()}
+        onKeyDown={(e: KeyboardEvent) => e.stopPropagation()}
+      >
+        {label} <span class="i-lucide-external-link" style={{ width: '10px', height: '10px' }} />
+      </a>
+    )
     : <span class="shrink-0" style={style}>{label}</span>
 }
+
+const TicketChip: FunctionComponent<{ session: CWSession }> = ({ session }) => {
+  const ticket = ticketLink(session)
+  return ticket && <Chip label={ticket.label} href={ticket.url} />
+}
+
+// a ticket stays reachable at every width, other sources hide with the row's meta
+const SourceChip: FunctionComponent<{ session: CWSession }> = ({ session }) =>
+  ticketLink(session) ? <TicketChip session={session} />
+  : session.source ? <span class="task-chip contents"><Chip label={session.source} href={session.source_url} /></span>
+  : null
 
 const fallbackBranch = (s: CWSession): string | null =>
   s.type === 'review' ? `review/pr-${s.pr}` : s.type === 'loop' ? `loop/${s.task ?? 'loop'}` : s.type === 'task' ? `task/${s.task}` : null
@@ -113,7 +137,7 @@ export const TaskRow: FunctionComponent<{
         <div class="flex items-center min-w-0" style={{ gap: '8px' }}>
           <span class="truncate" style={{ fontSize: '14px', fontWeight: 600 }}>{sessionLabel(session)}</span>
           {isOpenInTab && session.status === 'active' && <LivePill />}
-          {session.source && <span class="task-chip contents"><Chip label={session.source} href={session.source_url} /></span>}
+          <SourceChip session={session} />
         </div>
         {reviewed
           ? <ReviewedLine session={session} project={project} />
@@ -165,6 +189,7 @@ export const DoneRow: FunctionComponent<{ session: CWSession; onSelect: () => vo
     <span class="flex-1 min-w-0 truncate" style={{ fontSize: '13px' }}>
       {sessionLabel(session)} <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{projectOf(session)}</span>
     </span>
+    <TicketChip session={session} />
     <span class="mono shrink-0" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{shortAgo(session.closed ?? session.last_opened)}</span>
   </div>
 )

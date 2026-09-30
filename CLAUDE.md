@@ -124,7 +124,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/SkillPlugins.tsx` — Plugins group, plugin pane (accounts, Update, Install, read-only skills), Add a plugin browser (marketplaces, install), Propose a skill form (`config/plugins.ts` builds the task)
 - `packages/console/src/pages/Prototypes.tsx` — Liveframe launcher: local frames, create/pull, push, Open agent (a general session in the frame folder)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
-- `packages/console/src/components/TaskLinks.tsx` — GitHub and Open in editor buttons
+- `packages/console/src/components/TaskLinks.tsx` — Linear/Notion ticket, GitHub and Open in editor buttons
 - `packages/console/src/components/CloseTaskDialog.tsx` — Confirmation before closing a task that could lose work
 
 ## Development
