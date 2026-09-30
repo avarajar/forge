@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.5 (2026-09-30)
+
 ### Added
 
 - A task started from a Linear or Notion link shows a Linear (or Notion) button next to GitHub in its header, and a link chip in the task list, done tasks included and at every width.
