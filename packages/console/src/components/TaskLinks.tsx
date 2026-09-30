@@ -4,6 +4,7 @@ import { showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import type { ReviewEntry } from '../hooks/useTaskReview.js'
 import { editorsInfo, loadEditors, openTaskInEditor } from '../hooks/useEditors.js'
+import { ticketLink } from '../config/types.js'
 
 export const secondaryButton = {
   padding: '6px 12px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)',
@@ -12,6 +13,12 @@ export const secondaryButton = {
 export const secondaryClass = 'inline-flex items-center gap-1 cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m hover:text-ink'
 
 const disabledButton = { ...secondaryButton, color: 'var(--ink-3)', boxShadow: 'none' }
+
+const LinkButton: FunctionComponent<{ href: string; title: string }> = ({ href, title, children }) => (
+  <a class={secondaryClass} style={secondaryButton} href={href} target="_blank" rel="noopener noreferrer" title={title}>
+    {children} <span class="i-lucide-external-link" style={{ width: '12px', height: '12px' }} />
+  </a>
+)
 
 // always rendered, so the action stays findable while review state loads or when it does not apply
 export const GitHubButton: FunctionComponent<{ entry: ReviewEntry | null }> = ({ entry }) => {
@@ -24,11 +31,13 @@ export const GitHubButton: FunctionComponent<{ entry: ReviewEntry | null }> = ({
       </button>
     )
   }
-  return (
-    <a class={secondaryClass} style={secondaryButton} href={github.url} target="_blank" rel="noopener noreferrer" title={github.label}>
-      GitHub <span class="i-lucide-external-link" style={{ width: '12px', height: '12px' }} />
-    </a>
-  )
+  return <LinkButton href={github.url} title={github.label}>GitHub</LinkButton>
+}
+
+// only tasks started from a Linear or Notion link have one
+export const TicketButton: FunctionComponent<{ session: CWSession }> = ({ session }) => {
+  const ticket = ticketLink(session)
+  return ticket && <LinkButton href={ticket.url} title={ticket.url}>{ticket.label}</LinkButton>
 }
 
 export const EditorButton: FunctionComponent<{ session: CWSession; entry: ReviewEntry | null }> = ({ session, entry }) => {

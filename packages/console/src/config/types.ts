@@ -94,6 +94,14 @@ export const sessionLabel = (s: CWSession) =>
   : s.type === 'login' ? `Login: ${s.account} · ${getHarnessStyle(s.harness).label}`
   : (s.task ?? 'unknown')
 
+const TICKET_SOURCES: Record<string, string> = { linear: 'Linear', notion: 'Notion' }
+
+// the ticket a task was started from, when CW recorded its URL
+export const ticketLink = (s: CWSession): { label: string; url: string } | null => {
+  const label = s.source ? TICKET_SOURCES[s.source] : undefined
+  return label && s.source_url?.startsWith('https://') ? { label, url: s.source_url } : null
+}
+
 // compact form for fixed-width columns
 export const shortAgo = (date: string): string => {
   const minutes = Math.floor((Date.now() - new Date(date).getTime()) / 60000)

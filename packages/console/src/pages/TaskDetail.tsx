@@ -5,7 +5,7 @@ import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
 import { reviewSummary, unpushedCount } from '../config/review.js'
 import { copyText } from '../config/api.js'
-import { EditorButton, GitHubButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
+import { EditorButton, GitHubButton, TicketButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
 import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
@@ -139,6 +139,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
                 {contextOpen ? 'Hide context' : `Context · ${mcpList.length} MCP, ${pluginList.length} plugins`}
               </button>
             )}
+            {!isLogin && <TicketButton session={session} />}
             {!isLogin && <GitHubButton entry={review} />}
             {!isLogin && <EditorButton session={session} entry={review} />}
             {ptyExited && <ActionButton label="Restart" variant="secondary" size="sm" onClick={handleRestart} />}
