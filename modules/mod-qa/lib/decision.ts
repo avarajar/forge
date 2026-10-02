@@ -75,7 +75,8 @@ function isDecision(v: unknown): v is Decision {
 
 /** The decision in a comment body, or null when the marker is missing or its JSON is unreadable. */
 export function extractDecision(body: string): Decision | null {
-  const start = body.indexOf(OPEN)
+  // el bloque real es el último: uno anterior puede venir de texto que controla el PR
+  const start = body.lastIndexOf(OPEN)
   if (start === -1) return null
   const from = start + OPEN.length
   const end = body.indexOf(CLOSE, from)

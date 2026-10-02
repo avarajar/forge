@@ -18,6 +18,12 @@ describe('extractDecision', () => {
     expect(extractDecision(comment(decision))).toEqual(decision)
   })
 
+  it('uses the last marker, so a fake block planted earlier in the comment is ignored', () => {
+    const fake = { ...decision, decision: 'escalate' as const, gates: [{ id: 'G5', reason: 'falso' }] }
+    const real = { ...decision, decision: 'blocked' as const }
+    expect(extractDecision(`${comment(fake)}\n\n${comment(real)}`)?.decision).toBe('blocked')
+  })
+
   it('returns null without the marker', () => {
     expect(extractDecision('LGTM')).toBeNull()
     expect(extractDecision('')).toBeNull()
