@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (536 tests, all in `packages/core`) |
+| Tests | Vitest (536 tests in `packages/core`, plus `modules/mod-qa`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -33,7 +33,7 @@ modules/
   mod-scaffold/   — Project creation wizard
   mod-planning/   — Linear + Notion + diagrams
   mod-design/     — Figma + tokens + wireframes
-  mod-qa/         — Tests, security, load, visual
+  mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
 tests/integration/ — Cross-package tests (not wired, see Development)
@@ -134,7 +134,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 pnpm start            # Install + build + launch on http://localhost:3000 (one command)
 pnpm dev              # Watchers: tsc --watch for packages, Vite for console (no API server)
 pnpm build            # Build all
-pnpm test             # Run all tests (only packages/core has a test script)
+pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + vitest)
 ```
 
 `pnpm dev` does not start the API. Vite serves the console on `:5173` and proxies `/api` and `/ws` to `:3000`, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` alongside it and restart that after core changes.

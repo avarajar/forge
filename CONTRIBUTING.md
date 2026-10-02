@@ -115,7 +115,7 @@ forge/
     mod-scaffold/   — Project creation wizard
     mod-planning/   — Linear, Notion, diagrams
     mod-design/     — Figma, tokens, wireframes
-    mod-qa/         — Tests, security, load, visual
+    mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
     mod-release/    — Deploy, feature flags, rollback, changelog
     mod-monitor/    — Health, errors, uptime, costs
   docs/

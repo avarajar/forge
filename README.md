@@ -252,7 +252,7 @@ modules/
   mod-scaffold/   — Project creation wizard
   mod-planning/   — Linear + Notion + diagrams
   mod-design/     — Figma + tokens + wireframes
-  mod-qa/         — Tests, security, load, visual
+  mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
 ```
@@ -313,13 +313,16 @@ Forge supports extensible modules via `forge-module.json` manifests. Each module
   "displayName": "QA",
   "icon": "test-tube",
   "actions": [
-    { "id": "run-tests", "label": "Run Tests", "command": "pnpm vitest", "streaming": true }
+    { "id": "run-tests", "label": "Run Tests", "command": "pnpm vitest", "streaming": true },
+    { "id": "approve", "label": "Approve", "command": "gh pr edit \"$FORGE_PARAM_PR\" --add-label qa:approved", "params": { "PR": { "pattern": "\\d+" } } }
   ],
   "detectors": [
     { "tool": "vitest", "files": ["vitest.config.*"], "suggestion": "Vitest detected" }
   ]
 }
 ```
+
+An action with `params` takes them in the request body (`{ "projectId": …, "params": { "PR": "42" } }`). Every declared param is required and must match its whole pattern; anything else gets a 400. The command reads the values only from `FORGE_PARAM_<NAME>` environment variables, so quote them (`"$FORGE_PARAM_PR"`) and never build the command from them.
 
 Panels are Preact components using `definePanel()` from `@forge-dev/sdk`.
 

@@ -22,6 +22,7 @@
 
 ### Added
 
+- `mod-qa` is qa-pilot's escalation inbox: the Escalamientos panel lists the open pull requests labelled `qa:needs-human` (through `gh`), shows the gates, checks and findings of the decision qa-pilot posted, this week's counts by label, and lets you approve (`qa:approved`), ask for changes (a PR comment) or open the pull request. Only decisions posted by `github-actions[bot]` count, and a decision made on an older commit cannot be approved. Needs `gh auth login`.
 - Module actions take validated parameters: `params` in an action declares each name and a pattern, `POST /api/actions/:module/:action[/stream]` reads `params` from the body and answers 400 when one is missing, undeclared, not a string or does not match the whole pattern. Values reach the command only as `FORGE_PARAM_<NAME>` environment variables, never inside the command string.
 - Skills installed from skills.sh go to an account, a project or global, and any skill can be copied to another scope with its files (`POST /api/skills/copy`). Global skills reach CW sessions through the CW that links `~/.claude/skills` into each account at launch.
 - The npm package `forge-cw` (`npm i -g forge-cw` or `npx forge-cw`) carries CW. On start Forge installs it into `~/.cw` when it is missing, updates the CW it installed when a newer Forge carries a newer one, and leaves a CW you installed yourself alone unless the bundled one has a higher version. It never edits your shell rc files and puts `~/.cw/bin` on the PATH of its own sessions. `FORGE_SKIP_CW_INSTALL=1` turns it off.
@@ -95,6 +96,7 @@
 
 ### Removed
 
+- `mod-qa`'s shell actions (unit, E2E, Semgrep, k6, Lost Pixel, full suite, reports) and its Overview, Test Runner, Coverage and Reports panels. The module is now qa-pilot's escalation inbox.
 - The Plan task type, which launched `cw work`.
 - Design from New Task, the quick buttons and the filters.
 - Forge's own prototype sandboxes (generate, preview, Share as PR, Graduate), the sandbox template, the `prototype` skill and `/api/prototype`. Liveframe does the prototyping now.
