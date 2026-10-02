@@ -22,6 +22,7 @@
 
 ### Added
 
+- Module actions take validated parameters: `params` in an action declares each name and a pattern, `POST /api/actions/:module/:action[/stream]` reads `params` from the body and answers 400 when one is missing, undeclared, not a string or does not match the whole pattern. Values reach the command only as `FORGE_PARAM_<NAME>` environment variables, never inside the command string.
 - Skills installed from skills.sh go to an account, a project or global, and any skill can be copied to another scope with its files (`POST /api/skills/copy`). Global skills reach CW sessions through the CW that links `~/.claude/skills` into each account at launch.
 - The npm package `forge-cw` (`npm i -g forge-cw` or `npx forge-cw`) carries CW. On start Forge installs it into `~/.cw` when it is missing, updates the CW it installed when a newer Forge carries a newer one, and leaves a CW you installed yourself alone unless the bundled one has a higher version. It never edits your shell rc files and puts `~/.cw/bin` on the PATH of its own sessions. `FORGE_SKIP_CW_INSTALL=1` turns it off.
 - `forge-cw` can be published: `pnpm pack` in `packages/platform` bundles the server, the console and the CW commit pinned in `cw.lock.json`. A daily workflow opens a pull request when CW's `main` moves.

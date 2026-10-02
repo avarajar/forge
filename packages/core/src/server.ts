@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import { ForgeDB } from './db.js'
 import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
+import { validateParams } from './action-params.js'
 import type { ActionDef } from '@forge-dev/sdk'
 import { join, basename, resolve } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
@@ -86,16 +87,22 @@ export function createForgeServer(options: ServerOptions) {
   })
 
   async function resolveAction(c: Context): Promise<
-    | { action: ActionDef; cwd: string; logId: string }
+    | { action: ActionDef; cwd: string; logId: string; env: Record<string, string> }
     | Response
   > {
     const moduleName = c.req.param('module') as string
     const actionId = c.req.param('action') as string
-    const { projectId } = await c.req.json<{ projectId: string | null }>()
+    const { projectId, params } = await c.req.json<{ projectId: string | null; params?: unknown }>()
 
     const action = loader.getAction(moduleName, actionId)
     if (!action) {
       return c.json({ error: 'Action not found' }, 404)
+    }
+
+    // values reach the command only as FORGE_PARAM_* env vars, never in the command string
+    const checked = validateParams(action, params)
+    if ('error' in checked) {
+      return c.json({ error: checked.error }, 400)
     }
 
     const project = projectId ? db.getProject(projectId) : undefined
@@ -108,7 +115,7 @@ export function createForgeServer(options: ServerOptions) {
       command: action.command
     })
 
-    return { action, cwd, logId }
+    return { action, cwd, logId, env: checked.env }
   }
 
   app.get('/api/health', (c) => {
@@ -152,9 +159,9 @@ export function createForgeServer(options: ServerOptions) {
   app.post('/api/actions/:module/:action', async (c) => {
     const resolved = await resolveAction(c)
     if (resolved instanceof Response) return resolved
-    const { action, cwd, logId } = resolved
+    const { action, cwd, logId, env } = resolved
 
-    const result = await runner.exec(action.command, { cwd })
+    const result = await runner.exec(action.command, { cwd, env })
     db.completeAction(logId, result.exitCode)
 
     return c.json({
@@ -168,7 +175,7 @@ export function createForgeServer(options: ServerOptions) {
   app.post('/api/actions/:module/:action/stream', async (c) => {
     const resolved = await resolveAction(c)
     if (resolved instanceof Response) return resolved
-    const { action, cwd, logId } = resolved
+    const { action, cwd, logId, env } = resolved
 
     return new Response(
       new ReadableStream({
@@ -182,6 +189,7 @@ export function createForgeServer(options: ServerOptions) {
 
           const result = await runner.exec(action.command, {
             cwd,
+            env,
             onData: (chunk) => send('output', { chunk })
           })
 
