@@ -28,6 +28,8 @@ interface ServerOptions {
   db?: IForgeDB
   authToken?: string
   localOnly?: boolean
+  // carpeta de CW (por defecto ~/.cw); los tests la cambian
+  cwDir?: string
 }
 
 export function createForgeServer(options: ServerOptions) {
@@ -49,7 +51,7 @@ export function createForgeServer(options: ServerOptions) {
     app.use('/api/*', bearerAuth(authToken))
   }
 
-  const cwReader = new CWReader()
+  const cwReader = new CWReader(options.cwDir)
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
   app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
   app.route('/api/skills', skillRoutes(cwReader))
@@ -92,7 +94,7 @@ export function createForgeServer(options: ServerOptions) {
   > {
     const moduleName = c.req.param('module') as string
     const actionId = c.req.param('action') as string
-    const { projectId, params } = await c.req.json<{ projectId: string | null; params?: unknown }>()
+    const { projectId, cwProject, params } = await c.req.json<{ projectId: string | null; cwProject?: string; params?: unknown }>()
 
     const action = loader.getAction(moduleName, actionId)
     if (!action) {
@@ -105,8 +107,16 @@ export function createForgeServer(options: ServerOptions) {
       return c.json({ error: checked.error }, 400)
     }
 
-    const project = projectId ? db.getProject(projectId) : undefined
-    const cwd = project?.path ?? process.cwd()
+    // la consola trabaja con proyectos de CW; projectId es el de la base de Forge, de antes
+    let cwd: string
+    if (cwProject !== undefined) {
+      const projects = cwReader.getProjects()
+      const path = Object.hasOwn(projects, cwProject) ? projects[cwProject]?.path : undefined
+      if (!path) return c.json({ error: `Unknown CW project: ${cwProject}` }, 400)
+      cwd = path
+    } else {
+      cwd = (projectId ? db.getProject(projectId) : undefined)?.path ?? process.cwd()
+    }
 
     const logId = db.logAction({
       projectId: projectId ?? null,

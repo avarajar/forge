@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'preact/hooks'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
-import { latestDecision, weekStats, isStale, type Decision, type PrComment, type WeekStats } from '../lib/decision.js'
-import { readGh, readGhRun, timeAgo, checkMark, type ActionResponse } from '../lib/inbox.js'
+import { latestDecision, weekStats, isStale, visualChanges, type Decision, type EvidenceFile, type PrComment, type VisualChange, type WeekStats } from '../lib/decision.js'
+import { readGh, readGhRun, readPng, timeAgo, checkMark, type ActionResponse } from '../lib/inbox.js'
 
 interface EscalatedPr {
   number: number
@@ -31,19 +31,19 @@ const soft = (token: string, pct = 16) => `color-mix(in srgb, var(${token}) ${pc
 const card = { background: 'var(--card)', border: '1px solid var(--hair)', borderRadius: '12px' }
 const CHECK_TONE = { pass: '--green', fail: '--red', warn: '--orange' } as const
 
-function useAction(moduleId: string, projectId: string | null) {
+function useAction(moduleId: string, projectId: string | null, cwProject?: string | null) {
   return useCallback(async (action: string, params?: Record<string, string>): Promise<ActionResponse> => {
     try {
       const res = await fetch(`/api/actions/${moduleId}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, params }),
+        body: JSON.stringify({ projectId, ...(cwProject ? { cwProject } : {}), params }),
       })
       return await res.json() as ActionResponse
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Forge no respondió' }
     }
-  }, [moduleId, projectId])
+  }, [moduleId, projectId, cwProject])
 }
 
 function GhError({ message, onRetry }: { message: string; onRetry: () => void }) {
@@ -123,6 +123,93 @@ function DecisionView({ decision }: { decision: Decision }) {
   )
 }
 
+// las imágenes viven en la rama qa-pilot/evidence; se leen con gh porque el repo puede ser privado
+function EvidenceImage({ file, label, run, onOpen }: {
+  file?: EvidenceFile
+  label: string
+  run: ReturnType<typeof useAction>
+  onOpen: (src: string, label: string) => void
+}) {
+  const [img, setImg] = useState<Load<string>>({ state: 'loading' })
+  useEffect(() => {
+    if (!file) return
+    let live = true
+    setImg({ state: 'loading' })
+    void run('get-evidence', { REF: file.ref, PATH: file.path }).then((r) => {
+      const png = readPng(r)
+      if (live) setImg(png.ok ? { state: 'ok', data: png.data } : { state: 'error', message: png.message })
+    })
+    return () => { live = false }
+  }, [file?.ref, file?.path, run])
+
+  const frame = { ...card, borderRadius: '8px', overflow: 'hidden', aspectRatio: '4 / 3', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--elev)' }
+  return (
+    <figure style={{ margin: 0, minWidth: 0 }}>
+      <figcaption style={{ fontSize: '11.5px', color: 'var(--ink-2)', marginBottom: '4px' }}>{label}</figcaption>
+      {!file ? (
+        <div style={{ ...frame, fontSize: '12px', color: 'var(--ink-3)' }}>—</div>
+      ) : img.state === 'loading' ? (
+        <div style={frame} class="animate-pulse" />
+      ) : img.state === 'error' ? (
+        <div style={{ ...frame, fontSize: '11.5px', color: 'var(--ink-3)', padding: '8px', textAlign: 'center' }}>{img.message}</div>
+      ) : (
+        <button type="button" onClick={() => onOpen(img.data, label)} class="cursor-zoom-in" style={{ ...frame, padding: 0 }} title="Ver en grande">
+          <img src={img.data} alt={label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        </button>
+      )}
+    </figure>
+  )
+}
+
+function VisualChanges({ changes, run }: { changes: VisualChange[]; run: ReturnType<typeof useAction> }) {
+  const [open, setOpen] = useState<{ src: string; label: string } | null>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [open])
+  const show = (src: string, label: string) => setOpen({ src, label })
+
+  return (
+    <div>
+      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '6px' }}>Cambios visuales</div>
+      <ul class="flex flex-col gap-2.5" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {changes.map((c) => (
+          <li key={c.name} style={{ ...card, borderRadius: '10px', padding: '10px 12px' }}>
+            <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{c.name}{c.journey ? ` · ${c.journey}` : ''}</div>
+            {c.ai && (
+              <p style={{ fontSize: '13px', margin: '4px 0 0' }}>
+                {c.ai} <span title="Descripción hecha por Claude mirando Antes y Después; puede equivocarse" style={{ fontSize: '10.5px', padding: '1px 5px', borderRadius: '4px', background: soft('--purple'), color: 'var(--purple)' }}>IA</span>
+              </p>
+            )}
+            {c.summary && <p style={{ fontSize: '12px', color: 'var(--ink-2)', margin: '3px 0 0' }}>Cambió: {c.summary}</p>}
+            <div class="grid gap-2 mt-2" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+              <EvidenceImage file={c.before} label="Antes" run={run} onOpen={show} />
+              <EvidenceImage file={c.after} label="Después" run={run} onOpen={show} />
+              <EvidenceImage file={c.diff} label="Diferencia" run={run} onOpen={show} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p style={{ fontSize: '11.5px', color: 'var(--ink-3)', marginTop: '6px' }}>
+        El recuadro rojo en Después marca la zona que cambió. En Diferencia, lo rojo son los píxeles distintos y lo amarillo, bordes suavizados que no cuentan.
+      </p>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={open.label}
+          onClick={() => setOpen(null)}
+          class="cursor-zoom-out"
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'color-mix(in srgb, black 70%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+        >
+          <img src={open.src} alt={open.label} style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '8px', background: 'white' }} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Detail({ pr, run, onDone }: {
   pr: EscalatedPr
   run: ReturnType<typeof useAction>
@@ -153,6 +240,7 @@ function Detail({ pr, run, onDone }: {
   const decision = latestDecision(data.comments)
   const stale = decision ? isStale(decision, data.headRefOid) : false
   const canApprove = decision !== null && decision.decision === 'escalate' && !stale
+  const changes = decision ? visualChanges(decision) : []
   const diff = decision?.diff ?? { files: data.changedFiles, added: data.additions, removed: data.deletions }
 
   const approve = async () => {
@@ -197,6 +285,7 @@ function Detail({ pr, run, onDone }: {
             </p>
           )}
           <DecisionView decision={decision} />
+          {changes.length > 0 && <VisualChanges changes={changes} run={run} />}
         </>
       )}
 
@@ -241,8 +330,9 @@ function Detail({ pr, run, onDone }: {
   )
 }
 
-function EscalationsPanel({ moduleId, projectId }: PanelProps) {
-  const run = useAction(moduleId, projectId)
+function EscalationsPanel({ moduleId, projectId, cwProject }: PanelProps) {
+  const run = useAction(moduleId, projectId, cwProject)
+  const hasProject = Boolean(projectId || cwProject)
   const [list, setList] = useState<Load<EscalatedPr[]>>({ state: 'loading' })
   const [stats, setStats] = useState<Load<WeekStats>>({ state: 'loading' })
   const [selected, setSelected] = useState<number | null>(null)
@@ -259,10 +349,10 @@ function EscalationsPanel({ moduleId, projectId }: PanelProps) {
   }, [run])
 
   useEffect(() => {
-    if (projectId) void refresh()
-  }, [projectId, refresh])
+    if (hasProject) void refresh()
+  }, [hasProject, refresh])
 
-  if (!projectId) {
+  if (!hasProject) {
     return <EmptyState icon="i-lucide-folder-search" title="Elige un proyecto" description="Los escalamientos se leen del repositorio de GitHub del proyecto." />
   }
 

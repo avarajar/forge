@@ -152,6 +152,9 @@ importers:
       '@forge-dev/core':
         specifier: workspace:*
         version: link:../core
+      '@forge-dev/mod-qa':
+        specifier: workspace:*
+        version: link:../../modules/mod-qa
       '@forge-dev/sdk':
         specifier: workspace:*
         version: link:../sdk

@@ -39,7 +39,7 @@ modules/
 tests/integration/ — Cross-package tests (not wired, see Development)
 ```
 
-Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`), not from the repo's `modules/`, and runs their actions through `/api/actions`. The console has not rendered module panels since its rewrite as a CW task launcher: there is no panel registry.
+Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`), not from the repo's `modules/`, and runs their actions through `/api/actions`. The console has no panel registry: the only module panel it renders is mod-qa's escalations, imported directly by the QA view (`pages/Qa.tsx`). Install the module locally with `forge module add @forge-dev/mod-qa` from the repo root (it copies `modules/mod-qa` to `~/.forge/modules/mod-qa` when npm does not have it).
 
 ## Console Architecture
 
@@ -55,11 +55,12 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── state/startTask.ts → start card / drawer shared input and type override
 │
 ├── Sidebar → nav, projects, live session cards, usage limit meters, appearance
-├── Views (view: list | accounts | skills | prototypes)
+├── Views (view: list | accounts | skills | prototypes | qa)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
 │   ├── Skills (rail + editor/create/explore pane, Plugins group → plugin/propose pane)
-│   └── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
+│   ├── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
+│   └── Qa → mod-qa escalations for a CW project: gates, checks, findings, visual changes (images read with gh)
 ├── Tabs layer (kept mounted, hidden on the list)
 │   ├── TabBar → pill tabs, add menu
 │   └── TaskDetail → identity, metric strip, context panel, framed xterm terminal
@@ -183,7 +184,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 - `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
-- `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars
+- `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars. An action runs in the folder of `cwProject` (a CW project name, what the console sends) or of `projectId` (Forge's DB)
 
 ## MCP Reading
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ActionDef } from '@forge-dev/sdk'
 import { validateParams } from './action-params.js'
@@ -97,9 +97,13 @@ describe('action params over HTTP', () => {
       icon: 'x',
       color: '#000',
       panels: [],
-      actions: [prAction, { id: 'plain', label: 'Plain', icon: 'x', command: 'echo plain' }],
+      actions: [prAction, { id: 'plain', label: 'Plain', icon: 'x', command: 'echo plain' }, { id: 'where', label: 'Where', icon: 'x', command: 'pwd' }],
     }))
-    server = createForgeServer({ dataDir: TEST_DIR, port: 0 })
+    // un proyecto de CW: la consola nombra proyectos de CW, no los de la base de Forge
+    mkdirSync(join(TEST_DIR, 'cw'), { recursive: true })
+    mkdirSync(join(TEST_DIR, 'app'), { recursive: true })
+    writeFileSync(join(TEST_DIR, 'cw', 'projects.json'), JSON.stringify({ app: { path: join(TEST_DIR, 'app'), account: 'default' } }))
+    server = createForgeServer({ dataDir: TEST_DIR, port: 0, cwDir: join(TEST_DIR, 'cw') })
   })
 
   afterAll(() => {
@@ -150,6 +154,19 @@ describe('action params over HTTP', () => {
     expect(res.status).toBe(200)
     const body = await res.json() as { output: string }
     expect(body.output.trim()).toBe('plain')
+  })
+
+  it('runs in the folder of a CW project when the console names one', async () => {
+    const res = await post('/api/actions/mod-params/where', { projectId: null, cwProject: 'app' })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { output: string }
+    expect(realpathSync(body.output.trim())).toBe(realpathSync(join(TEST_DIR, 'app')))
+  })
+
+  it('answers 400 for a CW project that does not exist', async () => {
+    const res = await post('/api/actions/mod-params/where', { projectId: null, cwProject: 'nope' })
+    expect(res.status).toBe(400)
+    expect((await res.json() as { error: string }).error).toMatch(/nope/)
   })
 
   it('does not leak a FORGE_PARAM_ from one call into another', async () => {

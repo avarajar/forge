@@ -1,8 +1,8 @@
 {
   "name": "@forge-dev/mod-qa",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "Quality Assurance",
-  "description": "qa-pilot escalation inbox: pull requests that need a human, with the decision's gates, checks and findings",
+  "description": "qa-pilot escalation inbox: pull requests that need a human, with the decision's gates, checks, findings and visual changes",
   "icon": "shield-check",
   "color": "#10b981",
   "panels": [
@@ -23,6 +23,18 @@
       "icon": "file-search",
       "command": "gh pr view \"$FORGE_PARAM_PR\" --json number,title,url,headRefOid,headRefName,author,comments,additions,deletions,changedFiles",
       "params": { "PR": { "pattern": "\\d+" } },
+      "tags": ["qa"],
+      "hidden": true
+    },
+    {
+      "id": "get-evidence",
+      "label": "Get Evidence Image",
+      "icon": "image",
+      "command": "node -e \"const out = require('child_process').execFileSync('gh', ['api', '-H', 'Accept: application/vnd.github.raw', 'repos/{owner}/{repo}/contents/' + process.env.FORGE_PARAM_PATH + '?ref=' + process.env.FORGE_PARAM_REF], { maxBuffer: 8e6 }); process.stdout.write(out.toString('base64'))\"",
+      "params": {
+        "REF": { "pattern": "[0-9a-f]{40}" },
+        "PATH": { "pattern": "pr-\\d+/[0-9a-f]{7}/artifacts/[A-Za-z0-9._-]+\\.png" }
+      },
       "tags": ["qa"],
       "hidden": true
     },

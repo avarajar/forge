@@ -26,6 +26,8 @@ export interface Decision {
   diff: { files: number; added: number; removed: number }
   checks: Record<string, CheckStatus>
   findings: Finding[]
+  // base de las imágenes que qa-pilot subió a la rama qa-pilot/evidence: <evidence><ruta>
+  evidence?: string
 }
 
 export interface WeekStats {
@@ -133,4 +135,60 @@ export function weekStats(prs: readonly LabeledPr[]): WeekStats {
 /** A decision only stands for the commit it saw; once the head moves, approving it means nothing. */
 export function isStale(decision: Decision, headSha: string): boolean {
   return decision.sha !== headSha
+}
+
+/** A file on the evidence branch, read with `gh` (the repo can be private, so no plain <img> to github.com). */
+export interface EvidenceFile {
+  ref: string
+  path: string
+}
+
+export interface VisualChange {
+  name: string
+  journey?: string
+  ai?: string
+  summary?: string
+  before?: EvidenceFile
+  after?: EvidenceFile
+  diff?: EvidenceFile
+}
+
+// lo que publica qa-pilot: https://github.com/<dueño>/<repo>/raw/<commit>/pr-<n>/<sha corto>/
+const EVIDENCE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/raw\/([0-9a-f]{40})\/(pr-\d+\/[0-9a-f]{7}\/)$/
+const IMAGE_PATH = /^artifacts\/[A-Za-z0-9._-]+\.png$/
+
+function summaryOf(img: Record<string, unknown>): string | undefined {
+  const c = img.change
+  if (!isObject(c) || !isCount(c.pixels) || !isCount(c.percent) || !isString(c.zone)) return undefined
+  const amount = `${c.percent < 0.1 ? 'menos de 0,1 %' : `${String(c.percent).replace('.', ',')} %`} de la captura`
+  const elements = Array.isArray(img.elements) && img.elements.every(isString) && img.elements.length ? `${img.elements.join(', ')} · ` : ''
+  return `${elements}${amount} · ${c.zone}`
+}
+
+/** The snapshots that changed, with what changed and where to fetch Before, After (zone marked) and the diff. */
+export function visualChanges(decision: Decision): VisualChange[] {
+  const m = EVIDENCE.exec(decision.evidence ?? '')
+  if (!m) return []
+  const [, ref, prefix] = m as unknown as [string, string, string]
+  const file = (p: unknown): EvidenceFile | undefined => (isString(p) && IMAGE_PATH.test(p) ? { ref, path: prefix + p } : undefined)
+  const out: VisualChange[] = []
+  for (const f of decision.findings as Array<Finding & { images?: unknown }>) {
+    if (!Array.isArray(f.images)) continue
+    for (const img of f.images) {
+      if (!isObject(img) || !isString(img.name)) continue
+      const v: VisualChange = { name: img.name }
+      if (f.journey) v.journey = f.journey
+      if (isString(img.ai) && img.ai) v.ai = img.ai.slice(0, 200)
+      const summary = summaryOf(img)
+      if (summary) v.summary = summary
+      const before = file(img.expected)
+      const after = file(img.marked) ?? file(img.actual)
+      const diff = file(img.diff)
+      if (before) v.before = before
+      if (after) v.after = after
+      if (diff) v.diff = diff
+      if (before || after || diff) out.push(v)
+    }
+  }
+  return out
 }

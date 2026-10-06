@@ -51,6 +51,8 @@ export interface SettingDef {
 export interface PanelProps {
   moduleId: string
   projectId: string | null
+  // proyecto de CW por nombre: lo usa la consola; las acciones corren en su carpeta
+  cwProject?: string | null
 }
 
 export interface PanelConfig {

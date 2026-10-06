@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractDecision, latestDecision, weekStats, isStale, type Decision } from './decision.js'
+import { extractDecision, latestDecision, weekStats, isStale, visualChanges, type Decision } from './decision.js'
 
 const decision: Decision = {
   version: 1,
@@ -128,5 +128,47 @@ describe('isStale', () => {
 
   it('is stale when the head moved', () => {
     expect(isStale(decision, 'def456')).toBe(true)
+  })
+})
+
+describe('visualChanges', () => {
+  const evidence = `https://github.com/acme/app/raw/${'a'.repeat(40)}/pr-12/88fc2b1/`
+  const withImages = (images: unknown, ev: unknown = evidence) => ({
+    ...decision,
+    evidence: ev,
+    findings: [{ check: 'e2e', kind: 'visual-diff', message: 'cambió', journey: 'J1', images }],
+  }) as unknown as Decision
+
+  it('turns each snapshot into images Forge can fetch from the evidence branch, with what changed', () => {
+    const [v] = visualChanges(withImages([{
+      name: 'admin-desktop · notas-light', expected: 'artifacts/e.png', actual: 'artifacts/a.png', diff: 'artifacts/d.png', marked: 'artifacts/m.png',
+      change: { pixels: 672, percent: 0.1, zone: 'arriba a la derecha' }, elements: ['botón «Borrar» ×3'], ai: 'Los botones «Borrar» pasaron de rojo a verde.',
+    }]))
+    expect(v).toEqual({
+      name: 'admin-desktop · notas-light', journey: 'J1',
+      ai: 'Los botones «Borrar» pasaron de rojo a verde.',
+      summary: 'botón «Borrar» ×3 · 0,1 % de la captura · arriba a la derecha',
+      before: { ref: 'a'.repeat(40), path: 'pr-12/88fc2b1/artifacts/e.png' },
+      after: { ref: 'a'.repeat(40), path: 'pr-12/88fc2b1/artifacts/m.png' },
+      diff: { ref: 'a'.repeat(40), path: 'pr-12/88fc2b1/artifacts/d.png' },
+    })
+  })
+
+  it('without elements the summary is the amount and the zone; under 0.1 % it does not say 0', () => {
+    const [v] = visualChanges(withImages([{ name: 'n', actual: 'artifacts/a.png', change: { pixels: 3, percent: 0, zone: 'en el centro' } }]))
+    expect(v!.summary).toBe('menos de 0,1 % de la captura · en el centro')
+    expect(v!.after).toEqual({ ref: 'a'.repeat(40), path: 'pr-12/88fc2b1/artifacts/a.png' })
+    expect(v!.before).toBeUndefined()
+  })
+
+  it('ignores evidence from another host, odd paths and fields with the wrong type', () => {
+    expect(visualChanges(withImages([{ name: 'n', actual: 'artifacts/a.png' }], 'https://evil.test/raw/x/'))).toEqual([])
+    const [v] = visualChanges(withImages([{ name: 'n', actual: '../../secret.png', diff: 'artifacts/d.png', ai: 42, elements: 'botón' }]))
+    expect(v).toEqual({ name: 'n', journey: 'J1', diff: { ref: 'a'.repeat(40), path: 'pr-12/88fc2b1/artifacts/d.png' } })
+    expect(visualChanges(withImages('no es una lista'))).toEqual([])
+  })
+
+  it('a decision without images has no visual changes', () => {
+    expect(visualChanges(decision)).toEqual([])
   })
 })

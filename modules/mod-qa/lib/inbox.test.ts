@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readGh, readGhRun, timeAgo, checkMark } from './inbox.js'
+import { readGh, readGhRun, readPng, timeAgo, checkMark } from './inbox.js'
 
 describe('readGh', () => {
   it('parses the JSON gh printed', () => {
@@ -57,5 +57,16 @@ describe('checkMark', () => {
     expect(checkMark('pass')).toBe('✓')
     expect(checkMark('fail')).toBe('✗')
     expect(checkMark('warn')).toBe('!')
+  })
+})
+
+describe('readPng', () => {
+  const png = btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2))
+  it('turns the base64 gh printed into a data URL', () => {
+    expect(readPng({ exitCode: 0, output: `${png}\n` })).toEqual({ ok: true, data: `data:image/png;base64,${png}` })
+  })
+  it('refuses anything that is not a PNG, and keeps gh errors', () => {
+    expect(readPng({ exitCode: 0, output: btoa('<svg onload=x>') })).toEqual({ ok: false, message: 'la imagen no es un PNG' })
+    expect(readPng({ exitCode: 1, output: 'HTTP 404: Not Found' })).toEqual({ ok: false, message: 'HTTP 404: Not Found' })
   })
 })
