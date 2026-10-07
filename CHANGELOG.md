@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.6 (2026-10-07)
+
 ### Added
 
 - `mod-qa` is qa-pilot's escalation inbox: the Escalamientos panel lists the open pull requests labelled `qa:needs-human` (through `gh`), shows the gates, checks and findings of the decision qa-pilot posted, this week's counts by label, and lets you approve (`qa:approved`), ask for changes (a PR comment) or open the pull request. Only decisions posted by `github-actions[bot]` count, and a decision made on an older commit cannot be approved. Needs `gh auth login`.
