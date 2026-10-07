@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (536 tests in `packages/core`, plus `modules/mod-qa`) |
+| Tests | Vitest (567 tests in `packages/core`, plus `modules/mod-qa`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -39,7 +39,7 @@ modules/
 tests/integration/ — Cross-package tests (not wired, see Development)
 ```
 
-Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`), not from the repo's `modules/`, and runs their actions through `/api/actions`. The console has no panel registry: the only module panel it renders is mod-qa's escalations, imported directly by the QA view (`pages/Qa.tsx`). Install the module locally with `forge module add @forge-dev/mod-qa` from the repo root (it copies `modules/mod-qa` to `~/.forge/modules/mod-qa` when npm does not have it).
+Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`) and runs their actions through `/api/actions`. The console has no panel registry: the only module panel it renders is mod-qa's escalations, imported directly by the QA view (`pages/Qa.tsx`). mod-qa is a bundled module (`BUNDLED_MODULES` in `modules.ts`): `createForgeServer` takes `bundledModulesDir`, which is the repo's `modules/` in a checkout (`packages/platform/src/index.ts`, `forge console`) and the package's `modules/` once published (`pack.mjs` copies only the manifest there). The bundled copy wins over `~/.forge/modules/mod-qa`, since the console was built against it, so `forge module add @forge-dev/mod-qa` is no longer needed; an installed copy is used only when the bundled manifest is missing.
 
 ## Console Architecture
 
@@ -83,7 +83,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
 - `packages/core/src/action-params.ts` — `validateParams`: an action's declared params, matched in full, mapped to `FORGE_PARAM_*` env vars
-- `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`)
+- `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`, plus the bundled modules, which win)
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
 - `packages/core/src/usage.ts` — Usage limit windows per account and harness: normalisation, severity, 45 s cache, stale fallback (`usage-claude.ts` reads the keychain and Claude's OAuth usage endpoint, `usage-codex.ts` asks the Codex app server over JSON-RPC)
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
@@ -97,7 +97,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
 - `packages/core/src/cw-install.ts` — Installs or updates the CW the npm package carries (`install.sh --no-shell`), leaves a CW installed by hand alone, puts `~/.cw/bin` on PATH; `.forge-cw.json` in `~/.cw` records what it installed
-- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin (daily or on CW's `cw-updated` dispatch), raises the patch version and merges; `release.yml` publishes every push to `main` that changes what the package ships: it raises the patch when npm already has the version (a version raised by hand is published as is), starts the packed tarball until `/api/health` answers, commits the version with the CHANGELOG section and a `v` tag, then publishes (trusted publishing)
+- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console, the bundled modules' manifests (`modules/`) and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin (daily or on CW's `cw-updated` dispatch), raises the patch version and merges; `release.yml` publishes every push to `main` that changes what the package ships: it raises the patch when npm already has the version (a version raised by hand is published as is), starts the packed tarball until `/api/health` answers, commits the version with the CHANGELOG section and a `v` tag, then publishes (trusted publishing)
 - `packages/core/src/test-git.ts` — Fixture repositories for tests, isolated from the global git config (not built)
 
 ### Console
