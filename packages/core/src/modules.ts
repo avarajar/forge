@@ -2,23 +2,38 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ModuleManifest, ActionDef } from '@forge-dev/sdk'
 
+// módulos que viajan con Forge porque la consola los usa (la vista QA llama a mod-qa)
+export const BUNDLED_MODULES = ['mod-qa']
+
 export class ModuleLoader {
   private modulesDir: string
+  private bundledDir: string | undefined
   private loaded = new Map<string, ModuleManifest>()
 
-  constructor(modulesDir: string) {
+  constructor(modulesDir: string, bundledDir?: string) {
     this.modulesDir = modulesDir
+    this.bundledDir = bundledDir
   }
 
   discover(): ModuleManifest[] {
     this.loaded.clear()
-    if (!existsSync(this.modulesDir)) return []
-
-    const entries = readdirSync(this.modulesDir, { withFileTypes: true })
     const manifests: ModuleManifest[] = []
 
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
+    // el incluido gana sobre uno instalado con el mismo nombre: la consola se compiló contra él
+    const bundled = new Set<string>()
+    if (this.bundledDir) {
+      for (const name of BUNDLED_MODULES) {
+        const manifest = this.loadFrom(this.bundledDir, name)
+        if (!manifest) continue
+        bundled.add(name)
+        manifests.push(manifest)
+      }
+    }
+
+    if (!existsSync(this.modulesDir)) return manifests
+
+    for (const entry of readdirSync(this.modulesDir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || bundled.has(entry.name)) continue
       const manifest = this.load(entry.name)
       if (manifest) manifests.push(manifest)
     }
@@ -27,7 +42,11 @@ export class ModuleLoader {
   }
 
   load(dirName: string): ModuleManifest | undefined {
-    const manifestPath = join(this.modulesDir, dirName, 'forge-module.json')
+    return this.loadFrom(this.modulesDir, dirName)
+  }
+
+  private loadFrom(dir: string, dirName: string): ModuleManifest | undefined {
+    const manifestPath = join(dir, dirName, 'forge-module.json')
     if (!existsSync(manifestPath)) return undefined
 
     try {

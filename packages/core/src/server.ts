@@ -30,6 +30,8 @@ interface ServerOptions {
   localOnly?: boolean
   // carpeta de CW (por defecto ~/.cw); los tests la cambian
   cwDir?: string
+  // carpeta con los módulos incluidos (BUNDLED_MODULES); sin ella solo se leen los instalados
+  bundledModulesDir?: string
 }
 
 export function createForgeServer(options: ServerOptions) {
@@ -38,7 +40,7 @@ export function createForgeServer(options: ServerOptions) {
   const modulesDir = join(dataDir, 'modules')
 
   const db: IForgeDB = externalDb ?? new ForgeDB(dbPath)
-  const loader = new ModuleLoader(modulesDir)
+  const loader = new ModuleLoader(modulesDir, options.bundledModulesDir)
   const runner = new ActionRunner()
 
   loader.discover()

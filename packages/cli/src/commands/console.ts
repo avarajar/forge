@@ -46,7 +46,8 @@ export function consoleCommand() {
         port,
         db,
         authToken: isTeam ? authToken : undefined,
-        localOnly
+        localOnly,
+        bundledModulesDir: join(import.meta.dirname, '../../../../modules')
       })
 
       const { serveStatic } = await import('@hono/node-server/serve-static')

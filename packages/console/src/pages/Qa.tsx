@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader.js'
 import type { ProjectMap } from '../components/StartCard.js'
 
 const STORAGE_KEY = 'forge.qa.project'
-// las acciones de mod-qa viven en ~/.forge/modules/mod-qa (forge module add @forge-dev/mod-qa)
+// el servidor carga mod-qa como módulo incluido (BUNDLED_MODULES en core)
 const MODULE_ID = 'mod-qa'
 
 function remembered(): string {
