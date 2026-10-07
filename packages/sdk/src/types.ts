@@ -27,6 +27,13 @@ export interface ActionDef {
   streaming?: boolean
   tags?: string[]
   hidden?: boolean
+  /** Named parameters the caller must send, each matched in full against `pattern`.
+   *  They reach the command only as `FORGE_PARAM_<NAME>` env vars, never interpolated. */
+  params?: Record<string, ActionParamDef>
+}
+
+export interface ActionParamDef {
+  pattern: string
 }
 
 export interface DetectorDef {
@@ -44,6 +51,8 @@ export interface SettingDef {
 export interface PanelProps {
   moduleId: string
   projectId: string | null
+  // proyecto de CW por nombre: lo usa la consola; las acciones corren en su carpeta
+  cwProject?: string | null
 }
 
 export interface PanelConfig {

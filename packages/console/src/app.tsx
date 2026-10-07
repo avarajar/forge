@@ -10,6 +10,7 @@ import { TaskList } from './pages/TaskList.js'
 import { TaskDetail } from './pages/TaskDetail.js'
 import { NewTask } from './pages/NewTask.js'
 import { Skills } from './pages/Skills.js'
+import { Qa } from './pages/Qa.js'
 import { Prototypes } from './pages/Prototypes.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
@@ -400,6 +401,8 @@ function App() {
       onRefresh={() => fetchData()}
       onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
     />
+  ) : view === 'qa' ? (
+    <Qa projects={projects} preferred={filters.filterProject ?? undefined} />
   ) : view === 'prototypes' ? (
     <Prototypes accounts={filters.accountNames} onOpenSession={openSession} onFramesChanged={setFrameCount} />
   ) : view === 'accounts' ? (

@@ -9,6 +9,14 @@ describe('ActionRunner', () => {
     expect(result.output).toContain('hello world')
   })
 
+  it('merges env over the process environment', async () => {
+    const runner = new ActionRunner()
+    const result = await runner.exec('printf "%s|%s" "$FORGE_PARAM_X" "$PATH"', { cwd: '/tmp', env: { FORGE_PARAM_X: '1; echo no' } })
+    const [value, path] = result.output.split('|')
+    expect(value).toBe('1; echo no')
+    expect(path).toBe(process.env.PATH)
+  })
+
   it('captures non-zero exit codes', async () => {
     const runner = new ActionRunner()
     const result = await runner.exec('exit 1', { cwd: '/tmp' })

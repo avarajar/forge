@@ -21,6 +21,7 @@ function parseArgs(argv: string[]): { port?: string; open: boolean } {
 const packageRoot = join(import.meta.dirname, '..')
 const isCheckout = existsSync(join(packageRoot, 'src'))
 const consoleDist = isCheckout ? join(packageRoot, '../console/dist') : join(packageRoot, 'console')
+const bundledModulesDir = isCheckout ? join(packageRoot, '../../modules') : join(packageRoot, 'modules')
 
 async function main() {
   const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, ensureCw, pathWithCw, quietSqliteWarning, waitForListening, probePort, portInUseMessage } = await import('@forge-dev/core')
@@ -59,7 +60,8 @@ async function main() {
     port,
     db,
     authToken: isTeam ? authToken : undefined,
-    localOnly
+    localOnly,
+    bundledModulesDir
   })
 
   const { serveStatic } = await import('@hono/node-server/serve-static')

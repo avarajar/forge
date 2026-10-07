@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@forge-dev/core": "workspace:*",
+    "@forge-dev/mod-qa": "workspace:*",
     "@forge-dev/sdk": "workspace:*",
     "@forge-dev/ui": "workspace:*",
     "@preact/signals": "^2.0.0",

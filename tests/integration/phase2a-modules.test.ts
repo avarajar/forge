@@ -34,11 +34,11 @@ describe('Phase 2a: All ecosystem modules', () => {
     expect(names).toContain('@forge-dev/mod-release')
   })
 
-  it('total panels across 3 modules is 13', async () => {
+  it('total panels across 3 modules is 10', async () => {
     const res = await server.fetch('/api/modules/available')
     const modules = await res.json() as { panels: { id: string }[] }[]
     const totalPanels = modules.reduce((sum, m) => sum + m.panels.length, 0)
-    expect(totalPanels).toBe(13)
+    expect(totalPanels).toBe(10)
   })
 
   it('each module has detectors defined', async () => {

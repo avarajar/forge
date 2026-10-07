@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
-  "description": "E2E, unit, visual, security, and load testing",
+  "description": "qa-pilot escalation inbox: pull requests that need a human",
   "exports": { "./panels": "./panels/index.ts" },
+  "scripts": {
+    "test": "tsc --noEmit -p . && vitest run"
+  },
   "peerDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "workspace:*", "@forge-dev/ui": "workspace:*" },
-  "devDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "workspace:*", "@forge-dev/ui": "workspace:*", "typescript": "^5.8.0" }
+  "devDependencies": { "preact": "^10.0.0", "@forge-dev/sdk": "workspace:*", "@forge-dev/ui": "workspace:*", "typescript": "^5.8.0", "vitest": "^4.0.0" }
 }

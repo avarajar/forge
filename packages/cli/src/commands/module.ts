@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { execSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { cpSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -39,7 +39,12 @@ export function moduleCommand() {
           console.log(`Failed to install ${name}. Is it published to npm?`)
           return
         }
-        console.log(`Found local module at ${localPath}`)
+        // el servidor lee ~/.forge/modules/<carpeta>/forge-module.json: copiarlo es lo que lo instala
+        cpSync(localPath, join(modulesDir, shortName), {
+          recursive: true,
+          filter: (src) => !/[\\/](node_modules|\.turbo)([\\/]|$)/.test(src),
+        })
+        console.log(`Installed local module from ${localPath}`)
       }
 
       try {

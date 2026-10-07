@@ -115,7 +115,7 @@ forge/
     mod-scaffold/   — Project creation wizard
     mod-planning/   — Linear, Notion, diagrams
     mod-design/     — Figma, tokens, wireframes
-    mod-qa/         — Tests, security, load, visual
+    mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
     mod-release/    — Deploy, feature flags, rollback, changelog
     mod-monitor/    — Health, errors, uptime, costs
   docs/
@@ -134,7 +134,7 @@ forge/
 | `packages/core/src/pty-manager.ts` / `pty-routes.ts` | node-pty sessions and the terminal WebSocket |
 | `packages/core/src/origin-guard.ts` | Same-machine check and `FORGE_HOST` bind address |
 | `packages/core/src/db.ts` | SQLite database layer (`db-postgres.ts` for team mode) |
-| `packages/core/src/modules.ts` | Module discovery from `~/.forge/modules` |
+| `packages/core/src/modules.ts` | Module discovery from `~/.forge/modules` and the bundled modules (mod-qa) |
 | `packages/core/src/runner.ts` | Command execution with SSE streaming |
 | `packages/console/src/app.tsx` | Dashboard root: list view, tabs view, sub-views |
 | `packages/console/src/shell.tsx` | Dashboard layout |

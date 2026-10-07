@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (536 tests, all in `packages/core`) |
+| Tests | Vitest (567 tests in `packages/core`, plus `modules/mod-qa`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -33,13 +33,13 @@ modules/
   mod-scaffold/   — Project creation wizard
   mod-planning/   — Linear + Notion + diagrams
   mod-design/     — Figma + tokens + wireframes
-  mod-qa/         — Tests, security, load, visual
+  mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
 tests/integration/ — Cross-package tests (not wired, see Development)
 ```
 
-Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`), not from the repo's `modules/`, and runs their actions through `/api/actions`. The console has not rendered module panels since its rewrite as a CW task launcher: there is no panel registry.
+Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`) and runs their actions through `/api/actions`. The console has no panel registry: the only module panel it renders is mod-qa's escalations, imported directly by the QA view (`pages/Qa.tsx`). mod-qa is a bundled module (`BUNDLED_MODULES` in `modules.ts`): `createForgeServer` takes `bundledModulesDir`, which is the repo's `modules/` in a checkout (`packages/platform/src/index.ts`, `forge console`) and the package's `modules/` once published (`pack.mjs` copies only the manifest there). The bundled copy wins over `~/.forge/modules/mod-qa`, since the console was built against it, so `forge module add @forge-dev/mod-qa` is no longer needed; an installed copy is used only when the bundled manifest is missing.
 
 ## Console Architecture
 
@@ -55,11 +55,12 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── state/startTask.ts → start card / drawer shared input and type override
 │
 ├── Sidebar → nav, projects, live session cards, usage limit meters, appearance
-├── Views (view: list | accounts | skills | prototypes)
+├── Views (view: list | accounts | skills | prototypes | qa)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
 │   ├── Skills (rail + editor/create/explore pane, Plugins group → plugin/propose pane)
-│   └── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
+│   ├── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
+│   └── Qa → mod-qa escalations for a CW project: gates, checks, findings, visual changes (images read with gh)
 ├── Tabs layer (kept mounted, hidden on the list)
 │   ├── TabBar → pill tabs, add menu
 │   └── TaskDetail → identity, metric strip, context panel, framed xterm terminal
@@ -81,7 +82,8 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/session-state.ts` — `StateTracker`: a live terminal's state (working, waiting, permission, error, exited, idle), read when the output settles; `state-classifier-local.ts` holds the Claude Code rules (latest marker wins, fixtures in `__fixtures__/terminal/claude`), `state-classifier-jev.ts` the optional TypeSafe Jev classifier; `terminal-screen.ts` keeps each terminal's screen in `@xterm/headless`, and that screen is what Jev reads, not text stripped from the raw stream
 - `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
-- `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`)
+- `packages/core/src/action-params.ts` — `validateParams`: an action's declared params, matched in full, mapped to `FORGE_PARAM_*` env vars
+- `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`, plus the bundled modules, which win)
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
 - `packages/core/src/usage.ts` — Usage limit windows per account and harness: normalisation, severity, 45 s cache, stale fallback (`usage-claude.ts` reads the keychain and Claude's OAuth usage endpoint, `usage-codex.ts` asks the Codex app server over JSON-RPC)
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
@@ -95,7 +97,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
 - `packages/core/src/cw-install.ts` — Installs or updates the CW the npm package carries (`install.sh --no-shell`), leaves a CW installed by hand alone, puts `~/.cw/bin` on PATH; `.forge-cw.json` in `~/.cw` records what it installed
-- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin (daily or on CW's `cw-updated` dispatch), raises the patch version and merges; `release.yml` publishes every push to `main` that changes what the package ships: it raises the patch when npm already has the version (a version raised by hand is published as is), starts the packed tarball until `/api/health` answers, commits the version with the CHANGELOG section and a `v` tag, then publishes (trusted publishing)
+- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console, the bundled modules' manifests (`modules/`) and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin (daily or on CW's `cw-updated` dispatch), raises the patch version and merges; `release.yml` publishes every push to `main` that changes what the package ships: it raises the patch when npm already has the version (a version raised by hand is published as is), starts the packed tarball until `/api/health` answers, commits the version with the CHANGELOG section and a `v` tag, then publishes (trusted publishing)
 - `packages/core/src/test-git.ts` — Fixture repositories for tests, isolated from the global git config (not built)
 
 ### Console
@@ -133,7 +135,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 pnpm start            # Install + build + launch on http://localhost:3000 (one command)
 pnpm dev              # Watchers: tsc --watch for packages, Vite for console (no API server)
 pnpm build            # Build all
-pnpm test             # Run all tests (only packages/core has a test script)
+pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + vitest)
 ```
 
 `pnpm dev` does not start the API. Vite serves the console on `:5173` and proxies `/api` and `/ws` to `:3000`, so run `FORGE_NO_OPEN=1 node packages/platform/dist/index.js` alongside it and restart that after core changes.
@@ -182,7 +184,7 @@ pnpm test             # Run all tests (only packages/core has a test script)
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 - `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
-- `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB
+- `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars. An action runs in the folder of `cwProject` (a CW project name, what the console sends) or of `projectId` (Forge's DB)
 
 ## MCP Reading
 

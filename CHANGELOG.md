@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- `mod-qa` is qa-pilot's escalation inbox: the Escalamientos panel lists the open pull requests labelled `qa:needs-human` (through `gh`), shows the gates, checks and findings of the decision qa-pilot posted, this week's counts by label, and lets you approve (`qa:approved`), ask for changes (a PR comment) or open the pull request. Only decisions posted by `github-actions[bot]` count, and a decision made on an older commit cannot be approved. Needs `gh auth login`.
+- Module actions take validated parameters: `params` in an action declares each name and a pattern, `POST /api/actions/:module/:action[/stream]` reads `params` from the body and answers 400 when one is missing, undeclared, not a string or does not match the whole pattern. Values reach the command only as `FORGE_PARAM_<NAME>` environment variables, never inside the command string.
+- A QA view in the sidebar: pick a CW project and see mod-qa's escalation inbox for it, with each decision's gates, checks, findings and visual changes (before, after and difference, read through `gh api`, opened full size with a click). Module actions take `cwProject` to run in that project's folder.
+- `forge-cw` carries mod-qa's manifest, so the QA view works without `forge module add`. The bundled copy wins over one installed in `~/.forge/modules/mod-qa`.
+
+### Removed
+
+- `mod-qa`'s shell actions (unit, E2E, Semgrep, k6, Lost Pixel, full suite, reports) and its Overview, Test Runner, Coverage and Reports panels. The module is now qa-pilot's escalation inbox.
+
 ## 0.1.5 (2026-09-30)
 
 ### Added

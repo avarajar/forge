@@ -4,6 +4,7 @@ import type { Context } from 'hono'
 import { ForgeDB } from './db.js'
 import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
+import { validateParams } from './action-params.js'
 import type { ActionDef } from '@forge-dev/sdk'
 import { join, basename, resolve } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
@@ -27,6 +28,10 @@ interface ServerOptions {
   db?: IForgeDB
   authToken?: string
   localOnly?: boolean
+  // carpeta de CW (por defecto ~/.cw); los tests la cambian
+  cwDir?: string
+  // carpeta con los módulos incluidos (BUNDLED_MODULES); sin ella solo se leen los instalados
+  bundledModulesDir?: string
 }
 
 export function createForgeServer(options: ServerOptions) {
@@ -35,7 +40,7 @@ export function createForgeServer(options: ServerOptions) {
   const modulesDir = join(dataDir, 'modules')
 
   const db: IForgeDB = externalDb ?? new ForgeDB(dbPath)
-  const loader = new ModuleLoader(modulesDir)
+  const loader = new ModuleLoader(modulesDir, options.bundledModulesDir)
   const runner = new ActionRunner()
 
   loader.discover()
@@ -48,7 +53,7 @@ export function createForgeServer(options: ServerOptions) {
     app.use('/api/*', bearerAuth(authToken))
   }
 
-  const cwReader = new CWReader()
+  const cwReader = new CWReader(options.cwDir)
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
   app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
   app.route('/api/skills', skillRoutes(cwReader))
@@ -86,20 +91,34 @@ export function createForgeServer(options: ServerOptions) {
   })
 
   async function resolveAction(c: Context): Promise<
-    | { action: ActionDef; cwd: string; logId: string }
+    | { action: ActionDef; cwd: string; logId: string; env: Record<string, string> }
     | Response
   > {
     const moduleName = c.req.param('module') as string
     const actionId = c.req.param('action') as string
-    const { projectId } = await c.req.json<{ projectId: string | null }>()
+    const { projectId, cwProject, params } = await c.req.json<{ projectId: string | null; cwProject?: string; params?: unknown }>()
 
     const action = loader.getAction(moduleName, actionId)
     if (!action) {
       return c.json({ error: 'Action not found' }, 404)
     }
 
-    const project = projectId ? db.getProject(projectId) : undefined
-    const cwd = project?.path ?? process.cwd()
+    // values reach the command only as FORGE_PARAM_* env vars, never in the command string
+    const checked = validateParams(action, params)
+    if ('error' in checked) {
+      return c.json({ error: checked.error }, 400)
+    }
+
+    // la consola trabaja con proyectos de CW; projectId es el de la base de Forge, de antes
+    let cwd: string
+    if (cwProject !== undefined) {
+      const projects = cwReader.getProjects()
+      const path = Object.hasOwn(projects, cwProject) ? projects[cwProject]?.path : undefined
+      if (!path) return c.json({ error: `Unknown CW project: ${cwProject}` }, 400)
+      cwd = path
+    } else {
+      cwd = (projectId ? db.getProject(projectId) : undefined)?.path ?? process.cwd()
+    }
 
     const logId = db.logAction({
       projectId: projectId ?? null,
@@ -108,7 +127,7 @@ export function createForgeServer(options: ServerOptions) {
       command: action.command
     })
 
-    return { action, cwd, logId }
+    return { action, cwd, logId, env: checked.env }
   }
 
   app.get('/api/health', (c) => {
@@ -152,9 +171,9 @@ export function createForgeServer(options: ServerOptions) {
   app.post('/api/actions/:module/:action', async (c) => {
     const resolved = await resolveAction(c)
     if (resolved instanceof Response) return resolved
-    const { action, cwd, logId } = resolved
+    const { action, cwd, logId, env } = resolved
 
-    const result = await runner.exec(action.command, { cwd })
+    const result = await runner.exec(action.command, { cwd, env })
     db.completeAction(logId, result.exitCode)
 
     return c.json({
@@ -168,7 +187,7 @@ export function createForgeServer(options: ServerOptions) {
   app.post('/api/actions/:module/:action/stream', async (c) => {
     const resolved = await resolveAction(c)
     if (resolved instanceof Response) return resolved
-    const { action, cwd, logId } = resolved
+    const { action, cwd, logId, env } = resolved
 
     return new Response(
       new ReadableStream({
@@ -182,6 +201,7 @@ export function createForgeServer(options: ServerOptions) {
 
           const result = await runner.exec(action.command, {
             cwd,
+            env,
             onData: (chunk) => send('output', { chunk })
           })
 
