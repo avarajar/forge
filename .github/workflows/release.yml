@@ -15,6 +15,7 @@ on:
       - packages/ui/**
       - packages/sdk/**
       - packages/platform/**
+      - modules/mod-qa/**
       - pnpm-lock.yaml
       - '!**/*.test.ts'
       - '!**/__fixtures__/**'
