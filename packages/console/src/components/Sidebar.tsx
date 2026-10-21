@@ -4,7 +4,7 @@ import type { CWSession, UsageWindow } from '@forge-dev/core'
 import { Tabs, ToggleSwitch, UsageMeter, showToast } from '@forge-dev/ui'
 import { projectOf, soft, sessionLabel, getHarnessStyle, usageBars, formatReset, needsYou, stateLabel, stateToken } from '../config/types.js'
 import { theme, setTheme, sidebarOpen } from '../shell.js'
-import { harnesses } from '../hooks/useHarnesses.js'
+import { forgeVersion, loadForgeVersion } from '../hooks/useForgeVersion.js'
 import { skills } from '../hooks/useSkills.js'
 import { Dot } from './Dot.js'
 import { ProjectNav, type ProjectNavItem } from './ProjectNav.js'
@@ -121,9 +121,10 @@ const LimitCard: FunctionComponent<{ account: string; harness: string; windows: 
 export const Sidebar: FunctionComponent<SidebarProps> = ({
   view, counts, projects, accounts, selectedProject, live, onNavigate, onSelectProject, onAddProject, onOpenLive, onSearch,
 }) => {
-  const version = harnesses.value?.available ? harnesses.value.doctor.cw_version : null
+  const version = forgeVersion.value
   const nav = NAV.map(n => ({ ...n, count: n.view === 'skills' ? skills.value?.length ?? null : counts[n.view] ?? null }))
   useEffect(() => watchUsage(), [])
+  useEffect(() => { loadForgeVersion().catch(() => {}) }, [])
   // sessions waiting on the user go first
   const liveOrdered = [...live].sort((a, b) => Number(needsYou(sessionStates.value[b.key])) - Number(needsYou(sessionStates.value[a.key])))
   const limits = usage.value?.available ? usage.value.usage.filter(u => u.state === 'ok' && u.windows.some(w => !w.scope)) : []
@@ -143,7 +144,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
       <span class="grid place-items-center shrink-0" style={{ width: '22px', height: '22px', borderRadius: '7px', background: 'linear-gradient(160deg, var(--blue), var(--purple))', boxShadow: 'var(--shadow-s)', fontSize: '12px', fontWeight: 700, color: '#fff' }}>F</span>
       <span class="sb-label" style={{ fontSize: '15px', fontWeight: 600, letterSpacing: '-0.015em' }}>Forge</span>
       <span class="flex-1 sb-label" />
-      {version && <span class="mono sb-label" style={{ fontSize: '10px', color: 'var(--ink-3)' }} title="CW version">{version}</span>}
+      {version && <span class="mono sb-label" style={{ fontSize: '10px', color: 'var(--ink-3)' }} title="Forge version">{version}</span>}
     </div>
 
     {onSearch && (
