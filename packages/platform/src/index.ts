@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
@@ -21,6 +21,7 @@ function parseArgs(argv: string[]): { port?: string; open: boolean } {
 const packageRoot = join(import.meta.dirname, '..')
 const isCheckout = existsSync(join(packageRoot, 'src'))
 const consoleDist = isCheckout ? join(packageRoot, '../console/dist') : join(packageRoot, 'console')
+const forgeVersion = (JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf-8')) as { version: string }).version
 const bundledModulesDir = isCheckout ? join(packageRoot, '../../modules') : join(packageRoot, 'modules')
 
 async function main() {
@@ -61,11 +62,11 @@ async function main() {
     db,
     authToken: isTeam ? authToken : undefined,
     localOnly,
-    bundledModulesDir
+    bundledModulesDir,
+    version: forgeVersion
   })
 
   const { serveStatic } = await import('@hono/node-server/serve-static')
-  const { readFileSync } = await import('node:fs')
   if (existsSync(join(consoleDist, 'index.html'))) {
     server.app.use('/*', serveStatic({ root: consoleDist }))
     // SPA fallback: serve index.html for non-API routes

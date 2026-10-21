@@ -12,7 +12,8 @@ describe('Forge Server', () => {
     mkdirSync(join(TEST_DIR, 'modules'), { recursive: true })
     server = createForgeServer({
       dataDir: TEST_DIR,
-      port: 0
+      port: 0,
+      version: '9.8.7'
     })
   })
 
@@ -26,6 +27,7 @@ describe('Forge Server', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe('ok')
+    expect(body.version).toBe('9.8.7')
   })
 
   it('GET /api/cw/session-states lists no states before any terminal starts', async () => {

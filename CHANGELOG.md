@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- The sidebar shows Forge's version, read from the installed `forge-cw` package, instead of CW's, and `GET /api/health` reports that version instead of a hardcoded `0.1.0`.
+
 ## 0.1.6 (2026-10-07)
 
 ### Added

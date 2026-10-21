@@ -32,6 +32,8 @@ interface ServerOptions {
   cwDir?: string
   // carpeta con los módulos incluidos (BUNDLED_MODULES); sin ella solo se leen los instalados
   bundledModulesDir?: string
+  // versión de Forge que reporta /api/health
+  version?: string
 }
 
 export function createForgeServer(options: ServerOptions) {
@@ -133,7 +135,7 @@ export function createForgeServer(options: ServerOptions) {
   app.get('/api/health', (c) => {
     return c.json({
       status: 'ok',
-      version: '0.1.0',
+      version: options.version ?? null,
       modules: loader.getLoadedCount()
     })
   })
