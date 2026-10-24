@@ -95,7 +95,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/auth.ts` — Bearer token middleware (team mode)
 - `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install
 - `packages/core/src/plugins.ts` — Claude Code plugins per config dir (global and each account): installs, skills from `plugin.json`, repository matched to a CW project by git remote, marketplaces and their catalogs
-- `packages/core/src/kioku.ts` / `kioku-routes.ts` — Kioku reader and launcher: kioku answers for the chain of the folder it runs in, so each brain's kinds (`namespace list`) and writes (`brain log`) are read from its own folder and each CW project's chain from the project's (`brain list`), six at a time, kept 60 s; one `kioku web --json --no-open` child whose address (token included) the console opens in a new tab
+- `packages/core/src/kioku.ts` / `kioku-routes.ts` — Kioku reader and launcher: kioku answers for the chain of the folder it runs in, so each brain's kinds (`namespace list`) and writes (`brain log`) are read from its own folder and each CW project's chain from the project's (`brain list`), six at a time, kept 5 min and served stale while the next reading runs; one `kioku web --json --no-open` child whose address (token included) the console opens in a new tab
 - `packages/core/src/liveframe.ts` / `liveframe-routes.ts` — Liveframe frames in `~/liveframe/<project>/<frame>` through the `lf` CLI (new, pull, push); reads only the API base from `~/.liveframe/config.json`
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
@@ -187,7 +187,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 - `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
-- `/api/kioku` — `GET /status` (installed, version, brains with pages by kind, each CW project's chain, recent writes, running viewer; 60 s cache, `?fresh=1`), `POST /viewer` (starts or reuses `kioku web`, returns its address), `DELETE /viewer`
+- `/api/kioku` — `GET /status` (installed, version, brains with pages by kind, each CW project's chain, recent writes, running viewer; 5 min cache served stale while it refreshes, `?fresh=1` waits for a new one), `POST /viewer` (starts or reuses `kioku web`, returns its address), `DELETE /viewer`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
 - `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars. An action runs in the folder of `cwProject` (a CW project name, what the console sends) or of `projectId` (Forge's DB)
 
