@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import { createRunner, type Runner } from './task-review.js'
+import { envWithoutHost } from './cw-doctor.js'
 import { findOnPath } from './cw-install.js'
 import { tailOutput } from './output.js'
 
@@ -17,6 +18,7 @@ export interface KiokuBrain {
   personal: boolean
   pages: number
   kinds: Record<string, number>
+  namespaces: string[]
   // the latest write in the activity window, null when it was quiet
   touched: string | null
 }
@@ -45,22 +47,52 @@ export interface KiokuStatus {
   viewer: string | null
 }
 
+// what the console's form calls a page, mapped to kioku's kind and subkind
+const PAGE_TYPES: Record<string, { kind: string; sub?: string }> = {
+  memory: { kind: 'memory' },
+  instinct: { kind: 'memory', sub: 'instinct' },
+  decision: { kind: 'knowledge', sub: 'decision' },
+  playbook: { kind: 'knowledge', sub: 'playbook' },
+  context: { kind: 'knowledge', sub: 'context' },
+  rule: { kind: 'rule' },
+}
+
+export interface KiokuSaveInput {
+  brain: string
+  type: string
+  title: string
+  summary: string
+  body: string
+  namespace?: string
+  // saves even when kioku finds similar pages
+  create?: boolean
+}
+
+export type KiokuSaveResult =
+  | { status: 'done'; brain: string; path: string; publication: string | null }
+  | { status: 'similar'; similar: { brain: string; path: string; title: string; summary: string | null }[] }
+  | { status: 'namespace'; namespaces: { namespace: string; summary: string | null }[] }
+
+
 export interface KiokuOptions {
   bin?: string
   run?: Runner
+  // kioku page save, which commits and may push, so it gets longer than a read
+  write?: Runner
   startTimeoutMs?: number
   projects?: () => Record<string, { path: string }>
   now?: () => number
 }
 
 export class KiokuError extends Error {
-  constructor(message: string, readonly status: 404 | 502 = 502) {
+  constructor(message: string, readonly status: 400 | 404 | 502 = 502) {
     super(message)
   }
 }
 
 const NOT_INSTALLED = 'kioku is not installed on this machine'
 const START_TIMEOUT_MS = 20_000
+const WRITE_TIMEOUT_MS = 60_000
 // brains change slowly and Refresh asks for a fresh reading, so a stale one is served while the next is read
 const CACHE_MS = 5 * 60_000
 const ACTIVITY_SINCE = '2w'
@@ -76,6 +108,11 @@ const MISSING: Snapshot = { installed: false, version: null, brains: [], project
 export function resolveKiokuBin(pathVar = process.env.PATH, home = homedir()): string {
   const fallback = join(home, '.local', 'bin', 'kioku')
   return findOnPath('kioku', pathVar) ?? (existsSync(fallback) ? fallback : 'kioku')
+}
+
+// what Forge types into an agent's terminal so it saves the note with its kioku skill
+export function rememberPrompt(text: string): string {
+  return `Remember this with kioku: ${text.replace(/\s+/g, ' ').trim()}`
 }
 
 function parseJson<T>(text: string): T | null {
@@ -109,6 +146,7 @@ interface Viewer {
 
 export class Kioku {
   private readonly run: Runner
+  private readonly write: Runner
   private readonly startTimeoutMs: number
   private readonly projects: () => Record<string, { path: string }>
   private readonly now: () => number
@@ -119,6 +157,7 @@ export class Kioku {
   constructor(options: KiokuOptions = {}) {
     this.binPath = options.bin
     this.run = options.run ?? createRunner()
+    this.write = options.write ?? createRunner(envWithoutHost(), WRITE_TIMEOUT_MS)
     this.startTimeoutMs = options.startTimeoutMs ?? START_TIMEOUT_MS
     this.projects = options.projects ?? (() => ({}))
     this.now = options.now ?? Date.now
@@ -158,16 +197,17 @@ export class Kioku {
 
     // kioku answers for the chain of the folder it runs in, so each brain is read from its own folder
     const readBrain = async (b: ListedBrain) => {
-      if (!b.onDisk) return { kinds: {}, writes: [] as KiokuWrite[] }
+      if (!b.onDisk) return { kinds: {}, namespaces: [] as string[], writes: [] as KiokuWrite[] }
       const [ns, log] = await Promise.all([
-        this.json<{ brains?: { brain: string; namespaces: { pages: Record<string, number> }[] }[] }>(['namespace', 'list', '--brain', b.key], b.folder),
+        this.json<{ brains?: { brain: string; namespaces: { namespace: string; pages: Record<string, number> }[] }[] }>(['namespace', 'list', '--brain', b.key], b.folder),
         this.json<{ writes?: KiokuWrite[] }>(['brain', 'log', '--since', ACTIVITY_SINCE, '--brain', b.key], b.folder),
       ])
       const kinds: Record<string, number> = {}
-      for (const n of ns?.brains?.find(x => x.brain === brainName(b))?.namespaces ?? []) {
+      const namespaces = ns?.brains?.find(x => x.brain === brainName(b))?.namespaces ?? []
+      for (const n of namespaces) {
         for (const [kind, count] of Object.entries(n.pages)) kinds[kind] = (kinds[kind] ?? 0) + count
       }
-      return { kinds, writes: log?.writes ?? [] }
+      return { kinds, namespaces: namespaces.map(n => n.namespace), writes: log?.writes ?? [] }
     }
     const readChain = async (path: string) =>
       (await this.json<{ chain?: { name: string; tier: string }[] }>(['brain', 'list'], path))?.chain ?? []
@@ -178,12 +218,13 @@ export class Kioku {
 
     const activity = perBrain.flatMap(p => p.writes).sort((x, y) => y.date.localeCompare(x.date))
     const brains = listed.map((b, i): KiokuBrain => {
-      const { kinds } = perBrain[i]
+      const { kinds, namespaces } = perBrain[i]
       const name = brainName(b)
       return {
         ...b,
         pages: Object.values(kinds).reduce((sum, n) => sum + n, 0),
         kinds,
+        namespaces,
         touched: activity.find(w => w.brain === name)?.date ?? null,
       }
     })
@@ -197,6 +238,40 @@ export class Kioku {
       projects,
       activity: activity.slice(0, ACTIVITY_LIMIT).map(({ verb, title, path, date, author, brain }) => ({ verb, title, path, date, author, brain })),
     }
+  }
+
+  // writes through kioku, which validates, commits and pushes a shared brain; Forge never writes a brain's files
+  async save(input: KiokuSaveInput): Promise<KiokuSaveResult> {
+    const type = PAGE_TYPES[input.type]
+    if (!type) throw new KiokuError(`unknown page type ${input.type}`, 400)
+    // the cached reading when there is one, else only the list of brains
+    const brains = this.snapshot
+      ? (await this.snapshot.value).brains
+      : (await this.json<{ brains?: ListedBrain[] }>(['brain', 'list'], homedir()))?.brains ?? []
+    const brain = brains.find(b => b.key === input.brain)
+    if (!brain?.onDisk) throw new KiokuError(`no brain ${input.brain} on this machine`, 404)
+    const args = [
+      'page', 'save', '--brain', brain.key, '--kind', type.kind, ...(type.sub ? ['--sub', type.sub] : []),
+      '--title', input.title, '--summary', input.summary, '--source', 'Forge',
+      ...(input.namespace ? ['--namespace', input.namespace] : []), ...(input.create ? ['--create'] : []), '--json',
+    ]
+    const result = await this.write(this.bin, args, brain.folder, input.body)
+    if (result.code === 127) throw new KiokuError(NOT_INSTALLED, 404)
+    const out = parseJson<{
+      status?: string
+      path?: string
+      publication?: string | null
+      similar?: { brain: string; path: string; title: string; summary: string | null }[]
+      namespaces?: { namespace: string; summary: string | null }[]
+      error?: { message: string }
+    }>(result.stdout)
+    if (out?.status === 'done' && out.path) {
+      this.snapshot = null
+      return { status: 'done', brain: brainName(brain), path: out.path, publication: out.publication ?? null }
+    }
+    if (out?.status === 'similar') return { status: 'similar', similar: (out.similar ?? []).map(({ brain, path, title, summary }) => ({ brain, path, title, summary })) }
+    if (out?.status === 'namespace') return { status: 'namespace', namespaces: (out.namespaces ?? []).map(({ namespace, summary }) => ({ namespace, summary })) }
+    throw new KiokuError(out?.error?.message ?? (tailOutput(result.stderr, 1) || 'kioku could not save the page'), 400)
   }
 
   // one viewer at a time; a second call reuses the running one

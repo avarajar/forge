@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Kioku, resolveKiokuBin } from './kioku.js'
+import { Kioku, rememberPrompt, resolveKiokuBin } from './kioku.js'
 import { kiokuRoutes } from './kioku-routes.js'
 import type { Runner, RunResult } from './task-review.js'
 
@@ -18,8 +18,8 @@ const LOGS: Record<string, unknown[]> = {
 }
 
 const NAMESPACES: Record<string, unknown> = {
-  [ME.key]: { brains: [{ brain: 'me', namespaces: [{ pages: { memory: 2, rule: 1 } }, { pages: { memory: 1 } }] }] },
-  [ACME.key]: { brains: [{ brain: 'me', namespaces: [{ pages: { memory: 9 } }] }, { brain: 'acme', namespaces: [{ pages: { decision: 4 } }] }] },
+  [ME.key]: { brains: [{ brain: 'me', namespaces: [{ namespace: 'me', pages: { memory: 2, rule: 1 } }, { namespace: 'me/tools', pages: { memory: 1 } }] }] },
+  [ACME.key]: { brains: [{ brain: 'me', namespaces: [{ namespace: 'me', pages: { memory: 9 } }] }, { brain: 'acme', namespaces: [{ namespace: 'payments', pages: { decision: 4 } }] }] },
 }
 
 const ok = (value: unknown): RunResult => ({ code: 0, stdout: JSON.stringify(value), stderr: '' })
@@ -71,9 +71,9 @@ describe('Kioku', () => {
     const { brains, activity, version } = await make('kioku').status()
     expect(version).toBe('4.0.0')
     expect(brains).toEqual([
-      { ...ME, pages: 4, kinds: { memory: 3, rule: 1 }, touched: '2026-10-20T10:00:00Z' },
-      { ...ACME, pages: 4, kinds: { decision: 4 }, touched: '2026-10-22T10:00:00Z' },
-      { ...GONE, pages: 0, kinds: {}, touched: null },
+      { ...ME, pages: 4, kinds: { memory: 3, rule: 1 }, namespaces: ['me', 'me/tools'], touched: '2026-10-20T10:00:00Z' },
+      { ...ACME, pages: 4, kinds: { decision: 4 }, namespaces: ['payments'], touched: '2026-10-22T10:00:00Z' },
+      { ...GONE, pages: 0, kinds: {}, namespaces: [], touched: null },
     ])
     expect(activity.map(w => w.title)).toEqual(['postgres over mysql', 'tabs over spaces', 'deploy on tuesdays'])
     expect(activity[0]).toEqual({ verb: 'save', title: 'postgres over mysql', path: 'memory/postgres over mysql.md', date: '2026-10-22T10:00:00Z', author: 'Sam', brain: 'acme' })
@@ -140,6 +140,66 @@ describe('Kioku', () => {
   })
 })
 
+describe('Kioku.save', () => {
+  const answer = (value: unknown, code = 0) => {
+    const calls: { args: string[]; cwd: string; input: string }[] = []
+    const write: Runner = async (_bin, args, cwd, input = '') => {
+      calls.push({ args, cwd, input })
+      return { code, stdout: JSON.stringify(value), stderr: '' }
+    }
+    return { kioku: new Kioku({ bin: 'kioku', run: fakeRun().run, write }), calls }
+  }
+  const page = { brain: ACME.key, type: 'decision', title: 'Postgres', summary: 'We use Postgres', body: '## Decision\n\nPostgres.\n' }
+
+  it('saves through kioku page save in the brain folder, with the body on stdin', async () => {
+    const { kioku, calls } = answer({ status: 'done', brain: 'acme', path: 'knowledge/payments/decisions/postgres.md', commit: 'abc', publication: 'pushed' })
+    expect(await kioku.save({ ...page, namespace: 'payments' })).toEqual({ status: 'done', brain: 'acme', path: 'knowledge/payments/decisions/postgres.md', publication: 'pushed' })
+    expect(calls[0]).toEqual({
+      args: ['page', 'save', '--brain', ACME.key, '--kind', 'knowledge', '--sub', 'decision', '--title', 'Postgres', '--summary', 'We use Postgres', '--source', 'Forge', '--namespace', 'payments', '--json'],
+      cwd: ACME.folder,
+      input: page.body,
+    })
+  })
+
+  it('reads the brains again after a save', async () => {
+    const { run, calls } = fakeRun()
+    const kioku = new Kioku({ bin: 'kioku', run, write: async () => ({ code: 0, stdout: JSON.stringify({ status: 'done', path: 'memory/x.md' }), stderr: '' }) })
+    await kioku.status()
+    await kioku.save({ ...page, type: 'memory' })
+    await kioku.status()
+    expect(calls.filter(c => c[0] === '--version')).toHaveLength(2)
+  })
+
+  it('hands back similar pages and the namespaces to choose from', async () => {
+    const similar = { brain: 'acme', path: 'a.md', title: 'Postgres', kind: 'knowledge', subkind: 'decision', summary: 'x', touched: '2026-10-01' }
+    expect(await answer({ status: 'similar', similar: [similar] }).kioku.save(page)).toEqual({ status: 'similar', similar: [{ brain: 'acme', path: 'a.md', title: 'Postgres', summary: 'x' }] })
+    expect(await answer({ status: 'namespace', namespaces: [{ namespace: 'payments', summary: 'Money', pages: 3, below: 0 }] }).kioku.save(page))
+      .toEqual({ status: 'namespace', namespaces: [{ namespace: 'payments', summary: 'Money' }] })
+  })
+
+  it('passes --create to save next to similar pages', async () => {
+    const { kioku, calls } = answer({ status: 'done', path: 'b.md' })
+    await kioku.save({ ...page, create: true })
+    expect(calls[0].args).toContain('--create')
+  })
+
+  it("turns kioku's refusal into a 400 with its message", async () => {
+    const { kioku } = answer({ status: 'error', error: { code: 'invalid_page', message: 'the section `## Why` is missing' } }, 1)
+    await expect(kioku.save(page)).rejects.toMatchObject({ status: 400, message: 'the section `## Why` is missing' })
+  })
+
+  it('refuses an unknown type and a brain that is not on disk', async () => {
+    await expect(answer({}).kioku.save({ ...page, type: 'skill' })).rejects.toMatchObject({ status: 400 })
+    await expect(answer({}).kioku.save({ ...page, brain: GONE.key })).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+describe('rememberPrompt', () => {
+  it('keeps the note on one line', () => {
+    expect(rememberPrompt('  payments retry\n three   times ')).toBe('Remember this with kioku: payments retry three times')
+  })
+})
+
 describe('resolveKiokuBin', () => {
   let home: string
 
@@ -168,6 +228,28 @@ describe('kiokuRoutes', () => {
     const res = await app.request('/viewer', { method: 'POST' })
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual({ error: 'kioku is not installed on this machine' })
+  })
+
+  it('checks a page before saving it', async () => {
+    const app = kiokuRoutes(new Kioku({ bin: 'kioku', run: fakeRun().run }))
+    const res = await app.request('/pages', { method: 'POST', body: JSON.stringify({ brain: ACME.key, type: 'memory', title: ' ' }) })
+    expect(res.status).toBe(400)
+  })
+
+  it('types the note into the live session, and says when there is none', async () => {
+    const typed: string[][] = []
+    const app = kiokuRoutes(new Kioku({ bin: 'kioku', run: fakeRun().run }), {
+      type: (project, sessionDir, text) => { typed.push([project, sessionDir, text]); return sessionDir === 'task-a' },
+      canRemember: (_project, sessionDir) => sessionDir !== 'task-codex',
+    })
+    const send = (sessionDir: string, text = 'cap retries') => app.request('/remember', { method: 'POST', body: JSON.stringify({ project: 'forge', sessionDir, text }) })
+
+    expect((await send('task-a')).status).toBe(200)
+    expect(typed[0]).toEqual(['forge', 'task-a', 'Remember this with kioku: cap retries'])
+    expect((await send('task-b')).status).toBe(409)
+    expect((await send('task-codex')).status).toBe(400)
+    expect((await send('task-a', ' ')).status).toBe(400)
+    expect((await send('task-a', 'x'.repeat(501))).status).toBe(400)
   })
 
   it('serves the status, fresh on request', async () => {

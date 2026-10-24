@@ -1,15 +1,16 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
-import { ActionButton, ForgeTerminal } from '@forge-dev/ui'
+import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft, tierToken } from '../config/types.js'
 import { reviewSummary, unpushedCount } from '../config/review.js'
-import { copyText } from '../config/api.js'
+import { copyText, errorText, postJson } from '../config/api.js'
 import { EditorButton, GitHubButton, TicketButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
 import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
 import { brainName, sumPages, useKiokuChain } from '../hooks/useKioku.js'
+import { useAutoFocus } from '../hooks/useAutoFocus.js'
 import { theme } from '../shell.js'
 
 interface ToolsMcp { name: string; type: string; source: string; url?: string }
@@ -42,16 +43,57 @@ const Metric: FunctionComponent<{ label: string; index: number; color?: string; 
   </div>
 )
 
-// the brains this session loads, in the order kioku chains them
-const MemoryMetric: FunctionComponent<{ project: string; onOpen?: (project: string) => void }> = ({ project, onOpen }) => {
+const RememberForm: FunctionComponent<{ value: string; onChange: (value: string) => void; onSend: () => void; onCancel: () => void }> = ({ value, onChange, onSend, onCancel }) => {
+  const ref = useAutoFocus<HTMLInputElement>()
+  return (
+    <form class="flex items-center" style={{ gap: '6px', marginTop: '6px' }} onSubmit={(e) => { e.preventDefault(); onSend() }}>
+      <input
+        ref={ref}
+        type="text"
+        class="field flex-1"
+        style={{ height: '28px', fontSize: '12.5px' }}
+        value={value}
+        maxLength={500}
+        placeholder="Payments retry at most three times"
+        onInput={(e) => onChange((e.target as HTMLInputElement).value)}
+        onKeyDown={(e) => { if (e.key === 'Escape') onCancel() }}
+      />
+      <ActionButton label="Send" variant="primary" size="sm" disabled={!value.trim()} onClick={onSend} />
+    </form>
+  )
+}
+
+// the brains this session loads, in the order kioku chains them; Remember asks the agent to save a note
+const MemoryMetric: FunctionComponent<{ session: CWSession; onOpen?: (project: string) => void }> = ({ session, onOpen }) => {
+  const project = projectOf(session)
   const chain = useKiokuChain(project)
+  const [note, setNote] = useState<string | null>(null)
   if (chain.length === 0) return null
+  // kioku's plugin, and so its skill, exists only for Claude Code
+  const canRemember = session.harness === 'claude' && session.status === 'active'
+  const remember = async () => {
+    if (!note?.trim()) return
+    try {
+      await postJson('/api/kioku/remember', { project, sessionDir: sessionDirOf(session), text: note })
+      showToast('Sent to the agent to remember', 'success')
+      setNote(null)
+    } catch (err) {
+      showToast(errorText(err), 'error')
+    }
+  }
   return (
     <div
       class="min-w-0"
       style={{ gridColumn: 'span 2', padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: 'riseIn .34s var(--ease) 360ms both' }}
     >
-      <div style={{ fontSize: '11.5px', color: 'var(--ink-2)' }}>Memory · {sumPages(chain)} pages</div>
+      <div class="flex items-center" style={{ fontSize: '11.5px', color: 'var(--ink-2)' }}>
+        Memory · {sumPages(chain)} pages
+        <span class="flex-1" />
+        {canRemember && note === null && (
+          <button type="button" class="cursor-pointer hover:text-ink" style={{ border: 0, background: 'none', padding: 0, fontSize: '11.5px', fontWeight: 600, color: 'var(--blue)' }} onClick={() => setNote('')}>Remember…</button>
+        )}
+      </div>
+      {note !== null && <RememberForm value={note} onChange={setNote} onSend={remember} onCancel={() => setNote(null)} />}
       <div class="flex items-center flex-wrap" style={{ gap: '4px', marginTop: '6px' }}>
         {chain.map((b, i) => (
           <span key={b.key} class="inline-flex items-center" style={{ gap: '4px' }}>
@@ -190,7 +232,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
                 {state ? unpushedCount(state) : '—'}
               </Metric>
             )}
-            <MemoryMetric project={projectOf(session)} onOpen={onOpenMemory} />
+            <MemoryMetric session={session} onOpen={onOpenMemory} />
             {shownBranch && (
               <button
                 type="button"
