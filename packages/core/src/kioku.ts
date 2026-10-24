@@ -310,7 +310,8 @@ export class Kioku {
         const missing = err.code === 'ENOENT'
         fail(new KiokuError(missing ? NOT_INSTALLED : err.message, missing ? 404 : 502))
       })
-      child.on('exit', (code) => {
+      // close, not exit: exit can fire before stderr is read, losing kioku's reason
+      child.on('close', (code) => {
         if (this.viewer === started) this.viewer = null
         fail(new KiokuError(tailOutput(stderr, 1) || `kioku web exited with code ${code}`))
       })
