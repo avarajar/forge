@@ -5,6 +5,7 @@ import { getTypeStyle, projectOf, sessionLabel, shortAgo, soft, ticketLink } fro
 import { rowStatus } from '../config/review.js'
 import { copyText } from '../config/api.js'
 import { HarnessBadge } from './HarnessBadge.js'
+import { MemoryPill } from './MemoryPill.js'
 import { Dot } from './Dot.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 
@@ -143,6 +144,7 @@ export const TaskRow: FunctionComponent<{
           ? <ReviewedLine session={session} project={project} />
           : <MetaLine branch={fallbackBranch(session)} status={plainStatus(session)} project={project} />}
       </div>
+      <MemoryPill project={projectOf(session)} />
       <HarnessBadge session={session} />
       <span class="mono shrink-0 text-right" style={{ width: '52px', fontSize: '11.5px', color: 'var(--ink-3)' }} title={new Date(session.last_opened).toLocaleString()}>
         {shortAgo(session.last_opened)}

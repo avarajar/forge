@@ -13,6 +13,12 @@ export const soft = (token: string, pct = 18): string => `color-mix(in srgb, var
 export const pageCard = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)' }
 export const pageNote = { padding: '10px 14px', borderRadius: '12px', fontSize: '12.5px' }
 
+// kioku brain tiers and page kinds, one token each
+const TIER_TOKEN: Record<string, string> = { personal: '--blue', project: '--green', client: '--green', team: '--purple' }
+export const tierToken = (tier?: string): string => TIER_TOKEN[tier ?? ''] ?? '--ink-2'
+const KIND_TOKEN: Record<string, string> = { decision: '--purple', context: '--teal', playbook: '--green', memory: '--orange', instinct: '--red', rule: '--blue', skill: '--ink-2' }
+export const kindToken = (kind: string): string => KIND_TOKEN[kind] ?? '--ink-3'
+
 export interface TypeStyle {
   label: string
   glyph: string

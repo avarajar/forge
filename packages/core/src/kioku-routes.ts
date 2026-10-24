@@ -9,7 +9,7 @@ export function kiokuRoutes(kioku = new Kioku()): Hono {
     throw err
   })
 
-  app.get('/status', async (c) => c.json(await kioku.status()))
+  app.get('/status', async (c) => c.json(await kioku.status(c.req.query('fresh') === '1')))
 
   app.post('/viewer', async (c) => c.json({ address: await kioku.openViewer() }))
 

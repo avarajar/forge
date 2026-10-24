@@ -82,7 +82,7 @@ export function createForgeServer(options: ServerOptions) {
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())
-  const kioku = new Kioku()
+  const kioku = new Kioku({ projects: () => cwReader.getProjects() })
   app.route('/api/kioku', kiokuRoutes(kioku))
 
   // states only, never terminal text

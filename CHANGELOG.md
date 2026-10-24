@@ -4,7 +4,8 @@
 
 ### Added
 
-- A Memory page lists the Kioku brains on this machine and opens Kioku's own viewer (`kioku web`) in a new tab; Forge keeps one viewer running, reuses it, and stops it when Forge stops. Needs `kioku` on PATH or in `~/.local/bin`.
+- A Memory page shows the Kioku brains on this machine, grouped as personal, project and team, with their pages by kind, the projects that load them and the last two weeks of writes; picking a project shows the chain its sessions load. Open viewer starts Kioku's own viewer (`kioku web`) in a new tab; Forge keeps one running, reuses it, and stops it when Forge stops. Needs `kioku` on PATH or in `~/.local/bin`.
+- Each task row shows a memory pill (a dot per brain its project loads, and their pages; hover lists them), and a task's metric strip shows the chain, each brain opening the Memory page on that project.
 
 ## 0.1.7 (2026-10-21)
 
