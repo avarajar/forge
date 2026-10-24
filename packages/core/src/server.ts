@@ -21,6 +21,8 @@ import { createTerminalWss } from './pty-routes.js'
 import { LoginManager } from './login-manager.js'
 import { GeneralSessions } from './general-sessions.js'
 import { liveframeRoutes } from './liveframe-routes.js'
+import { kiokuRoutes } from './kioku-routes.js'
+import { Kioku } from './kioku.js'
 
 interface ServerOptions {
   dataDir: string
@@ -80,6 +82,8 @@ export function createForgeServer(options: ServerOptions) {
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())
+  const kioku = new Kioku({ projects: () => cwReader.getProjects() })
+  app.route('/api/kioku', kiokuRoutes(kioku))
 
   // states only, never terminal text
   app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))
@@ -300,6 +304,6 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); states.dispose(); loginManager.dispose(); db.close() }
+    close: () => { ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
   }
 }

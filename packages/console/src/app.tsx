@@ -12,6 +12,7 @@ import { NewTask } from './pages/NewTask.js'
 import { Skills } from './pages/Skills.js'
 import { Qa } from './pages/Qa.js'
 import { Prototypes } from './pages/Prototypes.js'
+import { Memory } from './pages/Memory.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
@@ -158,8 +159,14 @@ function App() {
 
   const selectProject = useCallback((project: string) => {
     filters.setFilterProject(filters.filterProject === project ? null : project)
-    navigate('list')
-  }, [filters.filterProject, filters.setFilterProject, navigate])
+    // the memory page filters by the same project, so picking one there stays there
+    navigate(view === 'memory' ? 'memory' : 'list')
+  }, [filters.filterProject, filters.setFilterProject, navigate, view])
+
+  const openMemory = useCallback((project: string) => {
+    filters.setFilterProject(project)
+    navigate('memory')
+  }, [filters.setFilterProject, navigate])
 
   const openSession = useCallback((session: CWSession) => {
     sidebarOpen.value = false
@@ -403,6 +410,8 @@ function App() {
     />
   ) : view === 'qa' ? (
     <Qa projects={projects} preferred={filters.filterProject ?? undefined} />
+  ) : view === 'memory' ? (
+    <Memory project={filters.filterProject} onProject={filters.setFilterProject} />
   ) : view === 'prototypes' ? (
     <Prototypes accounts={filters.accountNames} onOpenSession={openSession} onFramesChanged={setFrameCount} />
   ) : view === 'accounts' ? (
@@ -465,6 +474,7 @@ function App() {
                     session={session}
                     active={shown}
                     onDone={() => requestClose(session, () => { void tabs.closeTabByKey(sessionKey(session)) })}
+                    onOpenMemory={openMemory}
                   />
                 </div>
               )

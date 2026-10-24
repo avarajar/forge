@@ -13,7 +13,7 @@ import { usage, watchUsage } from '../hooks/useUsage.js'
 import { sessionStates } from '../hooks/useSessionStates.js'
 import { notificationsSupported, notifySessions, setNotifySessions } from '../state/notifications.js'
 
-export type View = 'list' | 'accounts' | 'skills' | 'prototypes' | 'qa'
+export type View = 'list' | 'accounts' | 'skills' | 'prototypes' | 'qa' | 'memory'
 
 export const NAV: Array<{ view: View; label: string; glyph: string; token: string }> = [
   { view: 'list', label: 'Tasks', glyph: 'T', token: '--blue' },
@@ -21,6 +21,7 @@ export const NAV: Array<{ view: View; label: string; glyph: string; token: strin
   { view: 'skills', label: 'Skills', glyph: 'S', token: '--green' },
   { view: 'prototypes', label: 'Prototypes', glyph: 'P', token: '--orange' },
   { view: 'qa', label: 'QA', glyph: 'Q', token: '--teal' },
+  { view: 'memory', label: 'Memory', glyph: 'M', token: '--red' },
 ]
 
 export interface SidebarProps {

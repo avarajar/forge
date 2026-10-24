@@ -2,13 +2,14 @@ import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft } from '../config/types.js'
+import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft, tierToken } from '../config/types.js'
 import { reviewSummary, unpushedCount } from '../config/review.js'
 import { copyText } from '../config/api.js'
 import { EditorButton, GitHubButton, TicketButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { useTaskReview } from '../hooks/useTaskReview.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
 import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetrics.js'
+import { brainName, sumPages, useKiokuChain } from '../hooks/useKioku.js'
 import { theme } from '../shell.js'
 
 interface ToolsMcp { name: string; type: string; source: string; url?: string }
@@ -19,6 +20,7 @@ interface TaskDetailProps {
   session: CWSession
   active: boolean
   onDone: () => void | Promise<void>
+  onOpenMemory?: (project: string) => void
 }
 
 // the second stop of each type's avatar gradient
@@ -39,6 +41,34 @@ const Metric: FunctionComponent<{ label: string; index: number; color?: string; 
     )}
   </div>
 )
+
+// the brains this session loads, in the order kioku chains them
+const MemoryMetric: FunctionComponent<{ project: string; onOpen?: (project: string) => void }> = ({ project, onOpen }) => {
+  const chain = useKiokuChain(project)
+  if (chain.length === 0) return null
+  return (
+    <div
+      class="min-w-0"
+      style={{ gridColumn: 'span 2', padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: 'riseIn .34s var(--ease) 360ms both' }}
+    >
+      <div style={{ fontSize: '11.5px', color: 'var(--ink-2)' }}>Memory · {sumPages(chain)} pages</div>
+      <div class="flex items-center flex-wrap" style={{ gap: '4px', marginTop: '6px' }}>
+        {chain.map((b, i) => (
+          <span key={b.key} class="inline-flex items-center" style={{ gap: '4px' }}>
+            {i > 0 && <span style={{ color: 'var(--ink-3)', fontSize: '11px' }}>→</span>}
+            <button
+              type="button"
+              class="cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px"
+              style={{ padding: '2px 9px', borderRadius: '99px', fontSize: '12px', fontWeight: 600, border: 0, background: soft(tierToken(b.tier)), color: `var(${tierToken(b.tier)})` }}
+              title={`${b.tier ?? 'brain'} · ${b.pages} pages`}
+              onClick={() => onOpen?.(project)}
+            >{brainName(b)}</button>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 const ChipCard: FunctionComponent<{ title: string; items: Array<{ name: string; title?: string; muted?: boolean }>; tone: string | null; empty: string }> = ({ title, items, tone, empty }) => (
   <div style={{ padding: '11px 13px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)' }}>
@@ -61,7 +91,7 @@ const ChipCard: FunctionComponent<{ title: string; items: Array<{ name: string; 
   </div>
 )
 
-export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active, onDone }) => {
+export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active, onDone, onOpenMemory }) => {
   const [branch, setBranch] = useState<string>('')
   const [ptyExited, setPtyExited] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -160,6 +190,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
                 {state ? unpushedCount(state) : '—'}
               </Metric>
             )}
+            <MemoryMetric project={projectOf(session)} onOpen={onOpenMemory} />
             {shownBranch && (
               <button
                 type="button"
