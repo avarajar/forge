@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.8 (2026-10-24)
+
 ### Added
 
 - A Memory page shows the Kioku brains on this machine, grouped as personal, project and team, with their pages by kind, the projects that load them and the last two weeks of writes; picking a project shows the chain its sessions load. Open viewer starts Kioku's own viewer (`kioku web`) in a new tab; Forge keeps one running, reuses it, and stops it when Forge stops. Needs `kioku` on PATH or in `~/.local/bin`.
