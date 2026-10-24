@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.9 (2026-10-24)
+
 ### Added
 
 - New memory on the Memory page writes a page through `kioku page save`: brain, area, type (memory, decision, playbook, instinct, rule, context), title, summary and the sections kioku requires; when the brain already has similar pages it lists them and offers Save anyway. Kioku commits it, and pushes a shared brain, with no review step.
