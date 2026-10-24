@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (580 tests in `packages/core`, plus `modules/mod-qa`) |
+| Tests | Vitest (590 tests in `packages/core`, plus `modules/mod-qa`) |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -23,7 +23,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 packages/
   core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe launcher, DB, action runner
   console/    → Preact dashboard
-  ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast...)
+  ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast, Modal, Drawer...)
   sdk/        → Module SDK (definePanel, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
   platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
@@ -66,7 +66,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── Tabs layer (kept mounted, hidden on the list)
 │   ├── TabBar → pill tabs, add menu
 │   └── TaskDetail → identity, metric strip, context panel, framed xterm terminal
-├── NewTask (right drawer) → HarnessPicker
+├── NewTask (right drawer, ui `Drawer`) → HarnessPicker
 ├── CommandPalette (⌘K, /)
 ├── CreateProjectModal → DirectoryPicker
 └── CloseTaskDialog (shared by TaskRow and TaskDetail)
@@ -95,7 +95,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/auth.ts` — Bearer token middleware (team mode)
 - `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install
 - `packages/core/src/plugins.ts` — Claude Code plugins per config dir (global and each account): installs, skills from `plugin.json`, repository matched to a CW project by git remote, marketplaces and their catalogs
-- `packages/core/src/kioku.ts` / `kioku-routes.ts` — Kioku reader and launcher: kioku answers for the chain of the folder it runs in, so each brain's kinds (`namespace list`) and writes (`brain log`) are read from its own folder and each CW project's chain from the project's (`brain list`), six at a time, kept 5 min and served stale while the next reading runs; one `kioku web --json --no-open` child whose address (token included) the console opens in a new tab
+- `packages/core/src/kioku.ts` / `kioku-routes.ts` — Kioku reader and launcher: kioku answers for the chain of the folder it runs in, so each brain's kinds (`namespace list`) and writes (`brain log`) are read from its own folder and each CW project's chain from the project's (`brain list`), six at a time, kept 5 min and served stale while the next reading runs; one `kioku web --json --no-open` child whose address (token included) the console opens in a new tab; `save` runs `kioku page save` in the brain's folder with the body on stdin (`createRunner` takes an `input`) and `envWithoutHost()` from `cw-doctor.ts`, so the commit is not signed as an agent's
 - `packages/core/src/liveframe.ts` / `liveframe-routes.ts` — Liveframe frames in `~/liveframe/<project>/<frame>` through the `lf` CLI (new, pull, push); reads only the API base from `~/.liveframe/config.json`
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
@@ -127,7 +127,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/Accounts.tsx` — Account cards, Connect flows, account removal
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
 - `packages/console/src/pages/SkillPlugins.tsx` — Plugins group, plugin pane (accounts, Update, Install, read-only skills), Add a plugin browser (marketplaces, install), Propose a skill form (`config/plugins.ts` builds the task)
-- `packages/console/src/pages/Memory.tsx` — Kioku brains by tier or one project's chain (the task filter's project), recent writes, Open viewer; `hooks/useKioku.ts` is the shared store (60 s polling) and `chainFor(project)`; `components/MemoryPill.tsx` is the task row's pill, and TaskDetail's `MemoryMetric` the chain
+- `packages/console/src/pages/Memory.tsx` — Kioku brains by tier or one project's chain (the task filter's project), recent writes, Open viewer; `hooks/useKioku.ts` is the shared store (60 s polling) and `chainFor(project)`; `components/MemoryPill.tsx` is the task row's pill, `components/NewMemory.tsx` the New memory drawer (`PAGE_TYPES` in `config/types.ts` holds each type's sections), and TaskDetail's `MemoryMetric` the chain plus Remember…
 - `packages/console/src/pages/Prototypes.tsx` — Liveframe launcher: local frames, create/pull, push, Open agent (a general session in the frame folder)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
 - `packages/console/src/components/TaskLinks.tsx` — Linear/Notion ticket, GitHub and Open in editor buttons
@@ -187,7 +187,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
 - `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
-- `/api/kioku` — `GET /status` (installed, version, brains with pages by kind, each CW project's chain, recent writes, running viewer; 5 min cache served stale while it refreshes, `?fresh=1` waits for a new one), `POST /viewer` (starts or reuses `kioku web`, returns its address), `DELETE /viewer`
+- `/api/kioku` — `GET /status` (installed, version, brains with pages by kind, each CW project's chain, recent writes, running viewer; 5 min cache served stale while it refreshes, `?fresh=1` waits for a new one), `POST /pages` (`kioku page save`: `done`, `similar` with the pages, or `namespace`; 400 with kioku's message when it refuses), `POST /remember` (types the note into a live Claude Code session's terminal with `PTYManager.typeLine`, 400 for another harness, 409 without a terminal), `POST /viewer` (starts or reuses `kioku web`, returns its address), `DELETE /viewer`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
 - `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars. An action runs in the folder of `cwProject` (a CW project name, what the console sends) or of `projectId` (Forge's DB)
 

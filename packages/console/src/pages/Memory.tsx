@@ -7,6 +7,7 @@ import { errorText, postJson } from '../config/api.js'
 import { kindToken, pageCard as card, pageNote as note, shortAgo, soft, tierToken } from '../config/types.js'
 import { brainName, chainFor, kioku, loadKioku, sumPages, watchKioku } from '../hooks/useKioku.js'
 import { Dot } from '../components/Dot.js'
+import { NewMemory } from '../components/NewMemory.js'
 
 interface MemoryProps {
   project: string | null
@@ -82,6 +83,7 @@ const Activity: FunctionComponent<{ writes: KiokuWrite[] }> = ({ writes }) => (
 
 export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) => {
   const [opening, setOpening] = useState(false)
+  const [creating, setCreating] = useState(false)
   useEffect(() => watchKioku(), [])
   const status = kioku.value
 
@@ -128,6 +130,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
       <PageHeader title="Memory" subtitle={subtitle}>
         {status?.viewer && <ActionButton label="Stop viewer" variant="secondary" onClick={stopViewer} />}
         <ActionButton label="Refresh" variant="secondary" onClick={() => loadKioku(true)} />
+        <ActionButton label="New memory" variant="secondary" disabled={!brains.some(b => b.onDisk)} onClick={() => setCreating(true)} />
         <ActionButton label={status?.viewer ? 'Viewer open ↗' : 'Open viewer'} variant="primary" disabled={!status?.installed || opening} onClick={openViewer} />
       </PageHeader>
 
@@ -194,6 +197,8 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
           </p>
         )}
       </div>
+
+      {creating && <NewMemory project={project} onClose={() => setCreating(false)} />}
     </>
   )
 }

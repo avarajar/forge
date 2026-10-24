@@ -1,7 +1,18 @@
 import { Hono } from 'hono'
-import { Kioku, KiokuError } from './kioku.js'
+import { Kioku, KiokuError, rememberPrompt, type KiokuSaveInput } from './kioku.js'
 
-export function kiokuRoutes(kioku = new Kioku()): Hono {
+export interface KiokuRouteOptions {
+  // types a line into a live session's terminal; false when the session has none
+  type?: (project: string, sessionDir: string, text: string) => boolean
+  // whether the session's agent has kioku's skill
+  canRemember?: (project: string, sessionDir: string) => boolean
+}
+
+interface RememberBody { project?: string; sessionDir?: string; text?: string }
+
+const REMEMBER_MAX = 500
+
+export function kiokuRoutes(kioku = new Kioku(), options: KiokuRouteOptions = {}): Hono {
   const app = new Hono()
 
   app.onError((err, c) => {
@@ -10,6 +21,26 @@ export function kiokuRoutes(kioku = new Kioku()): Hono {
   })
 
   app.get('/status', async (c) => c.json(await kioku.status(c.req.query('fresh') === '1')))
+
+  app.post('/pages', async (c) => {
+    const input = await c.req.json<Partial<KiokuSaveInput>>().catch((): Partial<KiokuSaveInput> => ({}))
+    const brain = input.brain?.trim()
+    const title = input.title?.trim()
+    const summary = input.summary?.trim()
+    if (!brain || !input.type || !title || !summary || !input.body?.trim()) return c.json({ error: 'brain, type, title, summary and body are required' }, 400)
+    const result = await kioku.save({ brain, type: input.type, title, summary, body: input.body, namespace: input.namespace?.trim() || undefined, create: input.create === true })
+    return c.json(result, result.status === 'done' ? 201 : 200)
+  })
+
+  app.post('/remember', async (c) => {
+    const { project, sessionDir, text } = await c.req.json<RememberBody>().catch((): RememberBody => ({}))
+    const line = text?.trim()
+    if (!project || !sessionDir || !line) return c.json({ error: 'project, sessionDir and text are required' }, 400)
+    if (line.length > REMEMBER_MAX) return c.json({ error: `keep it under ${REMEMBER_MAX} characters` }, 400)
+    if (options.canRemember && !options.canRemember(project, sessionDir)) return c.json({ error: "only Claude Code sessions have kioku's skill" }, 400)
+    if (!options.type?.(project, sessionDir, rememberPrompt(line))) return c.json({ error: 'the session has no live terminal' }, 409)
+    return c.json({ ok: true })
+  })
 
   app.post('/viewer', async (c) => c.json({ address: await kioku.openViewer() }))
 

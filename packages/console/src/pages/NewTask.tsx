@@ -1,6 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useEffect, useRef } from 'preact/hooks'
-import { ActionButton, CloseButton, Tabs, ToggleSwitch, showToast } from '@forge-dev/ui'
+import { ActionButton, Drawer, Tabs, ToggleSwitch, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { CLAUDE_MODELS, findCell, getHarnessStyle, resolveHarness, soft } from '../config/types.js'
 import { effectiveType, inferTask, slugOf } from '../config/inference.js'
@@ -56,12 +56,6 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const nameRef = useAutoFocus<HTMLInputElement>()
 
   useEffect(() => { loadHarnesses() }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   const response = harnesses.value
   const doctor = response?.available ? response.doctor : null
@@ -193,163 +187,142 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
     : `cw work ${project || '<project>'} ${!task.trim() ? '<task>' : quote(inferTask(task)?.kind === 'name' ? slugOf(task) : task.trim())}`
 
   return (
-    <div
-      class="fixed inset-0 z-50 flex justify-end"
-      style={{ background: 'rgba(0,0,0,.38)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-      onClick={onClose}
-    >
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={TITLES[type]}
-        class="flex flex-col h-full overflow-auto"
-        style={{ width: 'min(492px, 100%)', background: 'var(--bg-2)', borderLeft: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)', animation: 'slideIn .3s var(--ease) both' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div class="glass flex items-center sticky top-0 z-1" style={{ gap: '10px', padding: '14px 18px', borderBottom: '1px solid var(--hair)' }}>
-          <h2 style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em' }}>{TITLES[type]}</h2>
-          <span class="flex-1" />
-          <CloseButton onClick={onClose} />
-        </div>
+    <Drawer title={TITLES[type]} onClose={onClose}>
+      <TypeSegmented fill />
+      <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', lineHeight: 1.5 }}>{HELP[type]}</p>
 
-        <div class="flex flex-col" style={{ padding: '16px 18px 24px', gap: '14px' }}>
-          <TypeSegmented fill />
-          <p style={{ fontSize: '12.5px', color: 'var(--ink-2)', lineHeight: 1.5 }}>{HELP[type]}</p>
-
-          {!isGeneral && (
-            <div class="flex flex-col" style={{ gap: '5px' }}>
-              <Field label={NAME_LABEL[type]}>
-                <input
-                  class="field"
-                  style={{ ...fieldStyle, fontSize: '14px' }}
-                  placeholder={NAME_HINT[type]}
-                  value={task}
-                  ref={nameRef}
-                  onInput={(e) => {
-                    const value = (e.target as HTMLInputElement).value
-                    // a loop prompt is free text, so typing it keeps the loop pick
-                    if (isLoop) startInput.value = value
-                    else setStartInput(value)
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void handleStart() }}
-                />
-              </Field>
-              {!isLoop && <InferenceLine ctx={{ type, project, account: selectedAccount, harness }} size="sm" />}
-            </div>
-          )}
-
-          <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <Field label="Account">
-              <select class="field" value={selectedAccount} onChange={(e) => { const v = (e.target as HTMLSelectElement).value; handleAccountChange(v); startAccount.value = v }}>
-                {accountList.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </Field>
-            <Field plain label={isGeneral ? 'Project · optional' : 'Project'}>
-              <Combobox
-                label="Project"
-                size="md"
-                width="100%"
-                value={project}
-                placeholder={isGeneral ? 'No project' : 'Choose…'}
-                onChange={(v) => { setProject(v); startProject.value = v }}
-                options={[...(isGeneral ? [{ value: '', label: 'No project' }] : []), ...projectOptions(projects, accountList, filteredProjectNames)]}
-              />
-            </Field>
-          </div>
-
-          {isLoop && (
-            <Field label="Interval · optional">
-              <input
-                class="field mono"
-                style={{ ...fieldStyle, borderColor: loopIntervalValid ? undefined : 'var(--red)' }}
-                value={loopInterval}
-                placeholder="auto — Claude decides the pace"
-                onInput={(e) => setLoopInterval((e.target as HTMLInputElement).value)}
-              />
-              {!loopIntervalValid && <span style={{ fontSize: '12px', color: 'var(--red)' }}>Use forms like 30s, 5m, 2h — or leave it empty to self-pace</span>}
-            </Field>
-          )}
-
-          {(type === 'dev' || isReview) && (
-            <Field label="Description (optional)">
-              <textarea
-                class="field"
-                rows={3}
-                style={fieldStyle}
-                placeholder="Context the agent reads first…"
-                value={description}
-                onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-              />
-            </Field>
-          )}
-
-          {doctor && (
-            <HarnessPicker
-              doctor={doctor}
-              account={selectedAccount}
-              value={harness}
-              defaultHarness={defaultHarness}
-              isLoop={isLoop}
-              onChange={setHarness}
-              onOpenAccounts={onOpenAccounts}
+      {!isGeneral && (
+        <div class="flex flex-col" style={{ gap: '5px' }}>
+          <Field label={NAME_LABEL[type]}>
+            <input
+              class="field"
+              style={{ ...fieldStyle, fontSize: '14px' }}
+              placeholder={NAME_HINT[type]}
+              value={task}
+              ref={nameRef}
+              onInput={(e) => {
+                const value = (e.target as HTMLInputElement).value
+                // a loop prompt is free text, so typing it keeps the loop pick
+                if (isLoop) startInput.value = value
+                else setStartInput(value)
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleStart() }}
             />
-          )}
-
-          {showModel && (
-            <div class="grid" style={{ gridTemplateColumns: type === 'dev' ? '1fr 1fr' : '1fr', gap: '10px' }}>
-              <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
-                  <span style={labelStyle}>Model</span>
-                  {usesClaudeModels ? (
-                    <Tabs fill size="sm" label="Model" tabs={CLAUDE_MODELS.map(m => ({ id: m.id, label: m.label }))} active={model} onChange={setModel} />
-                  ) : (
-                    <input
-                      class="field mono"
-                      style={{ height: '32px', fontSize: '12.5px' }}
-                      value={model}
-                      placeholder="the account's model"
-                      aria-label="Model"
-                      onInput={(e) => setModel((e.target as HTMLInputElement).value)}
-                    />
-                  )}
-              </div>
-              {type === 'dev' && (
-                <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
-                  <span style={labelStyle}>Workflow</span>
-                  <Tabs fill size="sm" label="Workflow" tabs={WORKFLOWS} active={workflow} onChange={setWorkflow} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {canSkipPermissions && (
-            <div class="flex items-center" style={{ gap: '10px', padding: '10px 12px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)' }}>
-              <span class="flex-1" style={{ fontSize: '13px' }}>
-                Bypass permissions <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>--skip-permissions</span>
-              </span>
-              <ToggleSwitch checked={skipPermissions} onChange={setSkipPermissions} label="Bypass permissions" />
-            </div>
-          )}
-
-          {missingToken && (
-            <p style={{ fontSize: '12.5px', padding: '10px 12px', borderRadius: '12px', background: soft('--orange'), color: 'var(--ink)' }}>
-              {harnessName} has no MCP and CW has no {ticketSource === 'linear' ? 'LINEAR_API_KEY' : 'NOTION_TOKEN'}, so
-              the ticket will not reach TASK_NOTES.md. The task still starts, without the ticket.
-            </p>
-          )}
-
-          <ActionButton
-            label={starting ? 'Starting…' : isGeneral ? 'Launch session' : isLoop ? 'Start loop' : isReview ? 'Start review' : 'Start task'}
-            variant="primary"
-            size="lg"
-            block
-            loading={starting}
-            disabled={disabled}
-            onClick={handleStart}
-          />
-          {harnessBlocked && <p style={{ fontSize: '12px', color: 'var(--red)', textAlign: 'center' }}>{harnessBlocked}</p>}
-          <p class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)', textAlign: 'center', overflowWrap: 'anywhere' }}>{command}</p>
+          </Field>
+          {!isLoop && <InferenceLine ctx={{ type, project, account: selectedAccount, harness }} size="sm" />}
         </div>
-      </aside>
-    </div>
+      )}
+
+      <div class="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <Field label="Account">
+          <select class="field" value={selectedAccount} onChange={(e) => { const v = (e.target as HTMLSelectElement).value; handleAccountChange(v); startAccount.value = v }}>
+            {accountList.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </Field>
+        <Field plain label={isGeneral ? 'Project · optional' : 'Project'}>
+          <Combobox
+            label="Project"
+            size="md"
+            width="100%"
+            value={project}
+            placeholder={isGeneral ? 'No project' : 'Choose…'}
+            onChange={(v) => { setProject(v); startProject.value = v }}
+            options={[...(isGeneral ? [{ value: '', label: 'No project' }] : []), ...projectOptions(projects, accountList, filteredProjectNames)]}
+          />
+        </Field>
+      </div>
+
+      {isLoop && (
+        <Field label="Interval · optional">
+          <input
+            class="field mono"
+            style={{ ...fieldStyle, borderColor: loopIntervalValid ? undefined : 'var(--red)' }}
+            value={loopInterval}
+            placeholder="auto — Claude decides the pace"
+            onInput={(e) => setLoopInterval((e.target as HTMLInputElement).value)}
+          />
+          {!loopIntervalValid && <span style={{ fontSize: '12px', color: 'var(--red)' }}>Use forms like 30s, 5m, 2h — or leave it empty to self-pace</span>}
+        </Field>
+      )}
+
+      {(type === 'dev' || isReview) && (
+        <Field label="Description (optional)">
+          <textarea
+            class="field"
+            rows={3}
+            style={fieldStyle}
+            placeholder="Context the agent reads first…"
+            value={description}
+            onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
+          />
+        </Field>
+      )}
+
+      {doctor && (
+        <HarnessPicker
+          doctor={doctor}
+          account={selectedAccount}
+          value={harness}
+          defaultHarness={defaultHarness}
+          isLoop={isLoop}
+          onChange={setHarness}
+          onOpenAccounts={onOpenAccounts}
+        />
+      )}
+
+      {showModel && (
+        <div class="grid" style={{ gridTemplateColumns: type === 'dev' ? '1fr 1fr' : '1fr', gap: '10px' }}>
+          <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
+              <span style={labelStyle}>Model</span>
+              {usesClaudeModels ? (
+                <Tabs fill size="sm" label="Model" tabs={CLAUDE_MODELS.map(m => ({ id: m.id, label: m.label }))} active={model} onChange={setModel} />
+              ) : (
+                <input
+                  class="field mono"
+                  style={{ height: '32px', fontSize: '12.5px' }}
+                  value={model}
+                  placeholder="the account's model"
+                  aria-label="Model"
+                  onInput={(e) => setModel((e.target as HTMLInputElement).value)}
+                />
+              )}
+          </div>
+          {type === 'dev' && (
+            <div class="flex flex-col min-w-0" style={{ gap: '5px' }}>
+              <span style={labelStyle}>Workflow</span>
+              <Tabs fill size="sm" label="Workflow" tabs={WORKFLOWS} active={workflow} onChange={setWorkflow} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {canSkipPermissions && (
+        <div class="flex items-center" style={{ gap: '10px', padding: '10px 12px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)' }}>
+          <span class="flex-1" style={{ fontSize: '13px' }}>
+            Bypass permissions <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>--skip-permissions</span>
+          </span>
+          <ToggleSwitch checked={skipPermissions} onChange={setSkipPermissions} label="Bypass permissions" />
+        </div>
+      )}
+
+      {missingToken && (
+        <p style={{ fontSize: '12.5px', padding: '10px 12px', borderRadius: '12px', background: soft('--orange'), color: 'var(--ink)' }}>
+          {harnessName} has no MCP and CW has no {ticketSource === 'linear' ? 'LINEAR_API_KEY' : 'NOTION_TOKEN'}, so
+          the ticket will not reach TASK_NOTES.md. The task still starts, without the ticket.
+        </p>
+      )}
+
+      <ActionButton
+        label={starting ? 'Starting…' : isGeneral ? 'Launch session' : isLoop ? 'Start loop' : isReview ? 'Start review' : 'Start task'}
+        variant="primary"
+        size="lg"
+        block
+        loading={starting}
+        disabled={disabled}
+        onClick={handleStart}
+      />
+      {harnessBlocked && <p style={{ fontSize: '12px', color: 'var(--red)', textAlign: 'center' }}>{harnessBlocked}</p>}
+      <p class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)', textAlign: 'center', overflowWrap: 'anywhere' }}>{command}</p>
+    </Drawer>
   )
 }

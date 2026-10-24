@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseGitHubRemote, summarizeChecks, parseShortstat, githubLink, closeWarningsFor, type LinkInput, type WarningInput } from './task-review.js'
+import { parseGitHubRemote, summarizeChecks, parseShortstat, githubLink, closeWarningsFor, createRunner, type LinkInput, type WarningInput } from './task-review.js'
 import type { PullRequestInfo } from './cw-types.js'
 
 const openPr: PullRequestInfo = {
@@ -139,5 +139,11 @@ describe('closeWarningsFor', () => {
   it('never warns for a missing or worktree-less workspace', () => {
     expect(closeWarningsFor({ ...clean, workspace: 'missing', base: null, commits: null })).toEqual([])
     expect(closeWarningsFor({ ...clean, workspace: 'none', base: null, commits: null })).toEqual([])
+  })
+})
+
+describe('createRunner', () => {
+  it('sends input to the command', async () => {
+    expect(await createRunner()('cat', [], process.cwd(), 'hello')).toEqual({ code: 0, stdout: 'hello', stderr: '' })
   })
 })
