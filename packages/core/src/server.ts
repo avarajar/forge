@@ -83,7 +83,11 @@ export function createForgeServer(options: ServerOptions) {
 
   app.route('/api/liveframe', liveframeRoutes())
   const kioku = new Kioku({ projects: () => cwReader.getProjects() })
-  app.route('/api/kioku', kiokuRoutes(kioku))
+  app.route('/api/kioku', kiokuRoutes(kioku, {
+    type: (project, sessionDir, text) => ptyManager.typeLine(project, sessionDir, text),
+    // kioku's plugin, and so its skill, exists only for Claude Code
+    canRemember: (project, sessionDir) => cwReader.getSession(project, sessionDir)?.harness === 'claude',
+  }))
 
   // states only, never terminal text
   app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))

@@ -8,6 +8,15 @@ export type DoctorResult = { available: true; doctor: CWDoctor } | { available: 
 const CACHE_MS = 2000
 const TIMEOUT_MS = 15000
 
+// an agent host's markers, which would make kioku sign Forge's own writes as that agent's
+export function envWithoutHost(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(env)) {
+    if (value !== undefined && key !== 'CLAUDECODE' && !key.startsWith('CLAUDE_CODE_')) out[key] = value
+  }
+  return out
+}
+
 export function envWithoutHarness(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {

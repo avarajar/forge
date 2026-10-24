@@ -239,6 +239,15 @@ export class PTYManager {
     return this.sessions.get(sessionId)
   }
 
+  // types a line into a live session, then Enter apart, so the agent's prompt takes it as typed and not as a paste
+  typeLine(project: string, sessionDir: string, text: string): boolean {
+    const session = this.sessions.get(this.makeKey(project, sessionDir))
+    if (!session) return false
+    session.pty.write(text)
+    setTimeout(() => session.pty.write('\r'), 150)
+    return true
+  }
+
   // the state tracker reads the screen at the size the user sees it
   resize(sessionId: string, cols: number, rows: number): void {
     const session = this.sessions.get(sessionId)

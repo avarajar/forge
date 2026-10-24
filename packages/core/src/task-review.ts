@@ -93,19 +93,24 @@ export function closeWarningsFor(input: WarningInput): CloseWarning[] {
 }
 
 export interface RunResult { code: number; stdout: string; stderr: string }
-export type Runner = (bin: string, args: string[], cwd: string) => Promise<RunResult>
+// input, when given, goes to the command's standard input
+export type Runner = (bin: string, args: string[], cwd: string, input?: string) => Promise<RunResult>
 
 const COMMAND_TIMEOUT_MS = 10_000
 
 // env replaces the inherited environment, e.g. for tests that must not see the developer's git config
 export function createRunner(env?: NodeJS.ProcessEnv, timeoutMs = COMMAND_TIMEOUT_MS): Runner {
-  return (bin, args, cwd) => new Promise((resolve) => {
-    execFile(bin, args, { cwd, env, timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
+  return (bin, args, cwd, input) => new Promise((resolve) => {
+    const child = execFile(bin, args, { cwd, env, timeout: timeoutMs, maxBuffer: 5 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (!err) return resolve({ code: 0, stdout: String(stdout), stderr: String(stderr) })
       const { code } = err as NodeJS.ErrnoException & { code?: number | string }
       if (code === 'ENOENT') return resolve({ code: 127, stdout: '', stderr: 'ENOENT' })
       resolve({ code: typeof code === 'number' ? code : 1, stdout: String(stdout), stderr: String(stderr) || err.message })
     })
+    if (input !== undefined) {
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(input)
+    }
   })
 }
 

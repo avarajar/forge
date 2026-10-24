@@ -19,6 +19,16 @@ export const tierToken = (tier?: string): string => TIER_TOKEN[tier ?? ''] ?? '-
 const KIND_TOKEN: Record<string, string> = { decision: '--purple', context: '--teal', playbook: '--green', memory: '--orange', instinct: '--red', rule: '--blue', skill: '--ink-2' }
 export const kindToken = (kind: string): string => KIND_TOKEN[kind] ?? '--ink-3'
 
+// the pages Forge's form writes, with the sections kioku requires of each; context is free text
+export const PAGE_TYPES: Array<{ id: string; label: string; sections: string[] }> = [
+  { id: 'memory', label: 'Memory', sections: ['What happened', 'Lesson', 'Rule of thumb'] },
+  { id: 'decision', label: 'Decision', sections: ['Decision', 'Why', 'Consequences'] },
+  { id: 'playbook', label: 'Playbook', sections: ['When', 'Steps'] },
+  { id: 'instinct', label: 'Instinct', sections: ['When', 'Do', 'Evidence'] },
+  { id: 'rule', label: 'Rule', sections: ['Rule', 'Why'] },
+  { id: 'context', label: 'Context', sections: [] },
+]
+
 export interface TypeStyle {
   label: string
   glyph: string
