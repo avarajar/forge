@@ -12,6 +12,7 @@ import { NewTask } from './pages/NewTask.js'
 import { Skills } from './pages/Skills.js'
 import { Qa } from './pages/Qa.js'
 import { Prototypes } from './pages/Prototypes.js'
+import { Memory } from './pages/Memory.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
@@ -403,6 +404,8 @@ function App() {
     />
   ) : view === 'qa' ? (
     <Qa projects={projects} preferred={filters.filterProject ?? undefined} />
+  ) : view === 'memory' ? (
+    <Memory />
   ) : view === 'prototypes' ? (
     <Prototypes accounts={filters.accountNames} onOpenSession={openSession} onFramesChanged={setFrameCount} />
   ) : view === 'accounts' ? (

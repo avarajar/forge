@@ -9,6 +9,10 @@ export const avatarPair = (index: number): [string, string] => AVATAR_PAIRS[inde
 
 export const soft = (token: string, pct = 18): string => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 
+// a page's card and its inline notice
+export const pageCard = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)' }
+export const pageNote = { padding: '10px 14px', borderRadius: '12px', fontSize: '12.5px' }
+
 export interface TypeStyle {
   label: string
   glyph: string

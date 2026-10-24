@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- A Memory page lists the Kioku brains on this machine and opens Kioku's own viewer (`kioku web`) in a new tab; Forge keeps one viewer running, reuses it, and stops it when Forge stops. Needs `kioku` on PATH or in `~/.local/bin`.
+
 ## 0.1.7 (2026-10-21)
 
 ### Fixed

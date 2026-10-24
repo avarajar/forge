@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import type { CWDoctorAccount, CWSession } from '@forge-dev/core'
-import { avatarPair, findCell, getHarnessStyle, soft } from '../config/types.js'
+import { avatarPair, findCell, getHarnessStyle, pageCard, pageNote as note, soft } from '../config/types.js'
 import { harnesses, loadHarnesses, supportsIn } from '../hooks/useHarnesses.js'
 import { AccountCell, cellDetailLine, cellView } from '../components/AccountCell.js'
 import { AccountLimits } from '../components/AccountLimits.js'
@@ -20,8 +20,7 @@ interface AccountsProps {
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
-const card = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', overflow: 'hidden' }
-const note = { padding: '10px 14px', borderRadius: '12px', fontSize: '12.5px' }
+const card = { ...pageCard, overflow: 'hidden' }
 
 const RemoveAccount: FunctionComponent<{ account: string; onRemoved: () => void }> = ({ account, onRemoved }) => {
   const [confirming, setConfirming] = useState(false)

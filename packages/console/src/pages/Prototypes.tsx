@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader.js'
 import { Field } from '../components/Field.js'
 import { secondaryButton, secondaryClass } from '../components/TaskLinks.js'
 import { errorText, postJson } from '../config/api.js'
-import { soft } from '../config/types.js'
+import { pageCard as card, pageNote as note, soft } from '../config/types.js'
 
 interface PrototypesProps {
   accounts: string[]
@@ -14,8 +14,6 @@ interface PrototypesProps {
   onFramesChanged: (count: number) => void
 }
 
-const card = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)' }
-const note = { padding: '10px 14px', borderRadius: '12px', fontSize: '12.5px' }
 const inputValue = (e: Event) => (e.target as HTMLInputElement).value
 
 export const Prototypes: FunctionComponent<PrototypesProps> = ({ accounts, onOpenSession, onFramesChanged }) => {
