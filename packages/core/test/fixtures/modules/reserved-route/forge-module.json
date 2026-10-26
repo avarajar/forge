@@ -1,0 +1,1 @@
+{ "id": "reserved-route", "name": "x", "version": "1", "sdk": "^1.0.0", "displayName": "S", "server": "./dist/server.js" }
