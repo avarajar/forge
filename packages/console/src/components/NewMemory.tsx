@@ -2,10 +2,11 @@ import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
 import { ActionButton, Drawer, Tabs, showToast } from '@forge-dev/ui'
 import type { KiokuBrain, KiokuSaveResult } from '@forge-dev/core'
-import { Field } from './Field.js'
+import { Field, inputValue } from './Field.js'
 import { errorText, postJson } from '../config/api.js'
 import { PAGE_TYPES, pageNote as note, soft } from '../config/types.js'
 import { brainName, chainFor, kioku, loadKioku } from '../hooks/useKioku.js'
+import { AreaForm } from './BrainForms.js'
 
 interface NewMemoryProps {
   // the project picked on the Memory page; its project brain is the default
@@ -14,8 +15,6 @@ interface NewMemoryProps {
 }
 
 type Similar = Extract<KiokuSaveResult, { status: 'similar' }>['similar']
-
-const inputValue = (e: Event) => (e.target as HTMLInputElement).value
 
 function defaultBrain(brains: KiokuBrain[], project: string | null): string {
   const chain = project ? chainFor(project) : []
@@ -33,6 +32,7 @@ export const NewMemory: FunctionComponent<NewMemoryProps> = ({ project, onClose 
   const [sections, setSections] = useState<Record<string, string>>({})
   const [similar, setSimilar] = useState<Similar | null>(null)
   const [saving, setSaving] = useState(false)
+  const [addingArea, setAddingArea] = useState(false)
 
   const brain = brains.find(b => b.key === brainKey)
   const namespaces = brain?.namespaces ?? []
@@ -77,9 +77,10 @@ export const NewMemory: FunctionComponent<NewMemoryProps> = ({ project, onClose 
       </Field>
 
       {brain && namespaces.length === 0 && (
-        <p style={{ ...note, background: soft('--orange') }}>
-          {brainName(brain)} has no areas yet. Kioku asks a person to confirm each one: run <code>kioku namespace add &lt;name&gt; --summary "…"</code> in its folder.
-        </p>
+        <div class="flex items-center" style={{ ...note, gap: '12px', background: soft('--orange') }}>
+          <span class="flex-1">{brainName(brain)} has no areas yet. Each page goes in one, and a person names them.</span>
+          <ActionButton label="Add area" variant="secondary" size="sm" onClick={() => setAddingArea(true)} />
+        </div>
       )}
       {namespaces.length > 1 && (
         <Field label="Area">
@@ -127,6 +128,7 @@ export const NewMemory: FunctionComponent<NewMemoryProps> = ({ project, onClose 
         <ActionButton label="Cancel" variant="secondary" onClick={onClose} />
         <ActionButton label={similar ? 'Save anyway' : 'Save'} variant="primary" disabled={!complete || saving} onClick={() => save(similar !== null)} />
       </div>
+      {addingArea && brain && <AreaForm brain={brain} onClose={() => setAddingArea(false)} />}
     </Drawer>
   )
 }

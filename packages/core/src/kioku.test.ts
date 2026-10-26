@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Kioku, rememberPrompt, resolveKiokuBin } from './kioku.js'
+import { Kioku, createTerminalRunner, rememberPrompt, resolveKiokuBin } from './kioku.js'
 import { kiokuRoutes } from './kioku-routes.js'
 import type { Runner, RunResult } from './task-review.js'
 
@@ -135,6 +135,12 @@ describe('Kioku', () => {
     await expect(kioku.openViewer()).rejects.toThrow('did not start in time')
   })
 
+  it('reads the last JSON line a command prints in a terminal, past progress with braces', async () => {
+    const bin = script(`echo 'pushing {main}' >&2; echo '{"brain":"me","status":"pushed"}'; echo 'done {ok' >&2`)
+    const result = await createTerminalRunner({ PATH: process.env.PATH ?? '' }, 5_000)(bin, [], dir)
+    expect(result).toMatchObject({ code: 0, stdout: '{"brain":"me","status":"pushed"}' })
+  })
+
   it('says kioku is not installed when the binary is missing', async () => {
     await expect(make(join(dir, 'missing')).openViewer()).rejects.toThrow('kioku is not installed')
   })
@@ -194,6 +200,66 @@ describe('Kioku.save', () => {
   })
 })
 
+describe('Kioku brains', () => {
+  const PROJECT_DIR = mkdtempSync(join(tmpdir(), 'forge-kioku-project-'))
+  afterAll(() => rmSync(PROJECT_DIR, { recursive: true, force: true }))
+
+  const answer = (answers: Record<string, unknown> = {}, code = 0) => {
+    const calls: { args: string[]; cwd: string }[] = []
+    const write: Runner = async (_bin, args, cwd) => {
+      calls.push({ args, cwd })
+      return { code, stdout: JSON.stringify(answers[args.slice(0, 2).join(' ')] ?? answers[args[0]] ?? {}), stderr: '' }
+    }
+    const kioku = new Kioku({ bin: 'kioku', run: fakeRun().run, write, projects: () => ({ shop: { path: PROJECT_DIR }, gone: { path: '/nowhere' } }) })
+    return { kioku, calls }
+  }
+
+  it('makes a brain on this machine with kioku brain create', async () => {
+    const { kioku, calls } = answer({ 'brain create': { action: 'created', brain: 'github.com/acme/brain-shop', name: 'shop', tier: 'project', path: '/b/shop', commit: 'abc', publication: 'local' } })
+    expect(await kioku.createBrain({ repo: 'acme/brain-shop', tier: 'project', team: 'acme/brain', language: 'es' })).toEqual({ brain: 'github.com/acme/brain-shop', name: 'shop', path: '/b/shop' })
+    expect(calls[0].args).toEqual(['brain', 'create', 'acme/brain-shop', '--tier', 'project', '--team', 'acme/brain', '--language', 'es', '--json'])
+  })
+
+  it('refuses names kioku would read as flags, and passes on its own refusals', async () => {
+    const { kioku, calls } = answer({ 'brain create': { error: { code: 'brain_exists', message: '/b/shop already holds a brain' } } }, 1)
+    await expect(kioku.createBrain({ repo: '--dir=/x', tier: 'project' })).rejects.toMatchObject({ status: 400 })
+    await expect(kioku.createBrain({ repo: 'acme/shop', tier: 'client' })).rejects.toMatchObject({ status: 400 })
+    await expect(kioku.addArea(ACME.key, '-x', 'y')).rejects.toMatchObject({ status: 400 })
+    expect(calls).toHaveLength(0)
+    await expect(kioku.createBrain({ repo: 'acme/shop', tier: 'project' })).rejects.toMatchObject({ status: 400, message: '/b/shop already holds a brain' })
+  })
+
+  it('adds an area in the brain folder', async () => {
+    const { kioku, calls } = answer({ 'namespace add': { status: 'done', brain: 'acme', namespace: 'payments', commit: 'abc', publication: 'pushed' } })
+    expect(await kioku.addArea(ACME.key, 'payments', '-money in and out')).toEqual({ brain: 'acme', namespace: 'payments' })
+    expect(calls[0]).toEqual({ args: ['namespace', 'add', 'payments', '--summary=-money in and out', '--brain', ACME.key, '--json'], cwd: ACME.folder })
+  })
+
+  it('links a project, making the brains this machine does not know first', async () => {
+    const { kioku, calls } = answer({ init: { file: `${PROJECT_DIR}/kioku.yaml`, wrote: true }, 'brain create': { brain: 'github.com/acme/brain-shop', name: 'shop', path: '/b' } })
+    expect(await kioku.linkProject({ project: 'shop', brain: 'acme/brain-shop', team: 'acme/brain' })).toEqual({ file: `${PROJECT_DIR}/kioku.yaml`, created: ['github.com/acme/brain-shop'] })
+    expect(calls.map(c => c.args.slice(0, 3))).toEqual([['brain', 'create', 'acme/brain-shop'], ['init', 'acme/brain-shop', '--team']])
+    expect(calls[1].cwd).toBe(PROJECT_DIR)
+  })
+
+  it('publishes through the terminal runner, never the piped one', async () => {
+    const calls: { args: string[]; cwd: string }[] = []
+    const terminal: Runner = async (_bin, args, cwd) => {
+      calls.push({ args, cwd })
+      return { code: 0, stdout: JSON.stringify({ brain: ME.key, status: 'made', remote: 'github.com/me/brain' }), stderr: '' }
+    }
+    const kioku = new Kioku({ bin: 'kioku', run: fakeRun().run, write: async () => { throw new Error('piped') }, terminal })
+    expect(await kioku.publish(ME.key)).toEqual({ brain: ME.key, status: 'made', remote: 'github.com/me/brain' })
+    expect(calls[0]).toEqual({ args: ['brain', 'publish', ME.key, '--json'], cwd: ME.folder })
+    await expect(kioku.publish(ACME.key)).rejects.toMatchObject({ status: 400 })
+    await expect(kioku.publish(ME.key, '--upload-pack=x')).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('refuses a project that is not on this machine', async () => {
+    await expect(answer().kioku.linkProject({ project: 'gone', brain: 'acme/x' })).rejects.toMatchObject({ status: 404 })
+  })
+})
+
 describe('rememberPrompt', () => {
   it('keeps the note on one line', () => {
     expect(rememberPrompt('  payments retry\n three   times ')).toBe('Remember this with kioku: payments retry three times')
@@ -250,6 +316,14 @@ describe('kiokuRoutes', () => {
     expect((await send('task-codex')).status).toBe(400)
     expect((await send('task-a', ' ')).status).toBe(400)
     expect((await send('task-a', 'x'.repeat(501))).status).toBe(400)
+  })
+
+  it('checks a new brain and an area before asking kioku', async () => {
+    const app = kiokuRoutes(new Kioku({ bin: 'kioku', run: fakeRun().run }))
+    expect((await app.request('/brains', { method: 'POST', body: JSON.stringify({ repo: 'acme/x' }) })).status).toBe(400)
+    expect((await app.request('/areas', { method: 'POST', body: JSON.stringify({ brain: ACME.key, area: 'x' }) })).status).toBe(400)
+    expect((await app.request('/link', { method: 'POST', body: JSON.stringify({}) })).status).toBe(400)
+    expect((await app.request('/publish', { method: 'POST', body: JSON.stringify({ brain: ME.key }) })).status).toBe(400)
   })
 
   it('serves the status, fresh on request', async () => {

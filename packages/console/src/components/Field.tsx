@@ -2,6 +2,9 @@ import { type FunctionComponent, type ComponentChildren } from 'preact'
 
 export const labelStyle = { fontSize: '12px', color: 'var(--ink-2)' }
 
+// the value of the input, select or textarea an event came from
+export const inputValue = (e: Event): string => (e.target as HTMLInputElement).value
+
 // a label above one control; the control carries class="field"
 // plain skips the label element, for custom controls that open popovers
 export const Field: FunctionComponent<{ label: ComponentChildren; plain?: boolean; children: ComponentChildren }> = ({ label, plain, children }) => {

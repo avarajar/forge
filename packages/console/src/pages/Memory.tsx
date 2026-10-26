@@ -8,6 +8,7 @@ import { kindToken, pageCard as card, pageNote as note, shortAgo, soft, tierToke
 import { brainName, chainFor, kioku, loadKioku, sumPages, watchKioku } from '../hooks/useKioku.js'
 import { Dot } from '../components/Dot.js'
 import { NewMemory } from '../components/NewMemory.js'
+import { AreaForm, LinkBrain, NewBrain, PublishBrain } from '../components/BrainForms.js'
 
 interface MemoryProps {
   project: string | null
@@ -40,7 +41,12 @@ const KindBar: FunctionComponent<{ brain: KiokuBrain }> = ({ brain }) => {
   )
 }
 
-const BrainCard: FunctionComponent<{ brain: KiokuBrain; usedBy?: string[]; showTier?: boolean }> = ({ brain, usedBy, showTier }) => {
+const cardAction = { fontSize: '11.5px', fontWeight: 500, color: 'var(--blue)', background: 'none', border: 0, padding: 0, cursor: 'pointer' }
+
+// one dialog of the page at a time
+type Dialog = { kind: 'memory' | 'brain' | 'link' } | { kind: 'area' | 'publish'; brain: KiokuBrain }
+
+const BrainCard: FunctionComponent<{ brain: KiokuBrain; usedBy?: string[]; showTier?: boolean; onDialog: (d: Dialog) => void }> = ({ brain, usedBy, showTier, onDialog }) => {
   const token = tierToken(brain.tier)
   return (
     <div class="flex flex-col min-w-0" style={{ ...card, gap: '9px', padding: '14px 16px', borderTop: `3px solid var(${token})` }}>
@@ -63,6 +69,18 @@ const BrainCard: FunctionComponent<{ brain: KiokuBrain; usedBy?: string[]; showT
               : usedBy.map(p => <Badge key={p} label={p} variant="neutral" />)}
         </div>
       )}
+      {brain.onDisk && (
+        <div class="flex items-center" style={{ gap: '12px', paddingTop: '8px', marginTop: 'auto', borderTop: '1px solid var(--hair)' }}>
+          <button type="button" style={cardAction} onClick={() => onDialog({ kind: 'area', brain })}>+ Area</button>
+          <span class="flex-1" />
+          {!brain.remote && (
+            <>
+              <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>only on this machine</span>
+              <button type="button" style={cardAction} onClick={() => onDialog({ kind: 'publish', brain })}>Publish…</button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -83,7 +101,8 @@ const Activity: FunctionComponent<{ writes: KiokuWrite[] }> = ({ writes }) => (
 
 export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) => {
   const [opening, setOpening] = useState(false)
-  const [creating, setCreating] = useState(false)
+  const [dialog, setDialog] = useState<Dialog | null>(null)
+  const closeDialog = () => setDialog(null)
   useEffect(() => watchKioku(), [])
   const status = kioku.value
 
@@ -130,7 +149,8 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
       <PageHeader title="Memory" subtitle={subtitle}>
         {status?.viewer && <ActionButton label="Stop viewer" variant="secondary" onClick={stopViewer} />}
         <ActionButton label="Refresh" variant="secondary" onClick={() => loadKioku(true)} />
-        <ActionButton label="New memory" variant="secondary" disabled={!brains.some(b => b.onDisk)} onClick={() => setCreating(true)} />
+        <ActionButton label="New brain" variant="secondary" disabled={!status?.installed} onClick={() => setDialog({ kind: 'brain' })} />
+        <ActionButton label="New memory" variant="secondary" disabled={!brains.some(b => b.onDisk)} onClick={() => setDialog({ kind: 'memory' })} />
         <ActionButton label={status?.viewer ? 'Viewer open ↗' : 'Open viewer'} variant="primary" disabled={!status?.installed || opening} onClick={openViewer} />
       </PageHeader>
 
@@ -142,7 +162,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
         )}
 
         {status?.installed && brains.length === 0 && (
-          <EmptyState icon="i-lucide-brain" title="No brains yet" description="Create your personal brain with 'kioku brain create <name> --tier personal' in a terminal, or run 'kioku init' in a repository." />
+          <EmptyState icon="i-lucide-brain" title="No brains yet" description="New brain makes one on this machine: a personal one for what you learn anywhere, a project or team one to share." />
         )}
 
         {brains.length > 0 && options.length > 0 && (
@@ -164,7 +184,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
                     {list.length > 1 && <span style={{ color: 'var(--ink-3)' }}>{list.length}</span>}
                   </h2>
                   <div class="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '12px' }}>
-                    {list.map(b => <BrainCard key={b.key} brain={b} usedBy={usedBy(b)} />)}
+                    {list.map(b => <BrainCard key={b.key} brain={b} usedBy={usedBy(b)} onDialog={setDialog} />)}
                   </div>
                 </section>
               )
@@ -177,16 +197,17 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
             {chain.map((b, i) => (
               <Fragment key={b.key}>
                 {i > 0 && <span style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: '16px' }}>→</span>}
-                <BrainCard brain={b} showTier />
+                <BrainCard brain={b} showTier onDialog={setDialog} />
               </Fragment>
             ))}
           </div>
         )}
 
         {project && status?.installed && !chain.some(b => b.tier !== 'personal') && (
-          <p style={{ ...note, background: 'var(--elev)', color: 'var(--ink-2)' }}>
-            {project} has no project or team brain. Run <code>kioku init</code> in its repository to give it one.
-          </p>
+          <div class="flex items-center" style={{ ...note, gap: '12px', background: 'var(--elev)', color: 'var(--ink-2)' }}>
+            <span class="flex-1">{project} has no project or team brain, so its sessions recall only yours.</span>
+            <ActionButton label="Give it a brain" variant="secondary" size="sm" onClick={() => setDialog({ kind: 'link' })} />
+          </div>
         )}
 
         {brains.length > 0 && <Activity writes={activity} />}
@@ -198,7 +219,11 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
         )}
       </div>
 
-      {creating && <NewMemory project={project} onClose={() => setCreating(false)} />}
+      {dialog?.kind === 'memory' && <NewMemory project={project} onClose={closeDialog} />}
+      {dialog?.kind === 'brain' && <NewBrain onClose={closeDialog} />}
+      {dialog?.kind === 'link' && project && <LinkBrain project={project} onClose={closeDialog} />}
+      {dialog?.kind === 'area' && <AreaForm brain={dialog.brain} onClose={closeDialog} />}
+      {dialog?.kind === 'publish' && <PublishBrain brain={dialog.brain} onClose={closeDialog} />}
     </>
   )
 }
