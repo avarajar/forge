@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ModuleManifest, ActionDef } from '@forge-dev/sdk'
+import type { LegacyManifest as ModuleManifest, LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 
 // módulos que viajan con Forge porque la consola los usa (la vista QA llama a mod-qa)
 export const BUNDLED_MODULES = ['mod-qa']

@@ -1,4 +1,4 @@
-import type { ActionDef } from '@forge-dev/sdk'
+import type { LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 
 export type ParamsResult = { env: Record<string, string> } | { error: string }
 
