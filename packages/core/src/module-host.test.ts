@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { cpSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, utimesSync } from 'node:fs'
+import { cpSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ForgeDB } from './db.js'
@@ -109,6 +109,15 @@ describe('ModuleHost', () => {
     const pkg = join(modulesDir, 'node_modules/@test/mod-valid')
     install('valid', pkg)
     writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: '@test/mod-valid', forge: {} }))
+    await make().scan()
+    expect(status('valid')).toMatchObject({ state: 'enabled', source: 'node_modules' })
+  })
+
+  it('follows a package that npm linked from a folder', async () => {
+    const src = install('valid', join(root, 'src-valid'))
+    writeFileSync(join(src, 'package.json'), JSON.stringify({ name: '@test/mod-valid', forge: {} }))
+    mkdirSync(join(modulesDir, 'node_modules/@test'), { recursive: true })
+    symlinkSync(src, join(modulesDir, 'node_modules/@test/mod-valid'))
     await make().scan()
     expect(status('valid')).toMatchObject({ state: 'enabled', source: 'node_modules' })
   })

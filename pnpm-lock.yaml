@@ -140,6 +140,9 @@ importers:
         specifier: ^10.0.0
         version: 10.2.0
     devDependencies:
+      '@forge-dev/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19

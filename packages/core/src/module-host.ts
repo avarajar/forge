@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, ModuleSource, ModuleStatus, ShellExecutor } from '@forge-dev/sdk'
@@ -248,16 +248,23 @@ function packages(root: string, source: ModuleSource, packaged: boolean): Candid
     out.push({ dir, source, manifestFile: join(dir, manifest), packaged: packaged && Boolean(forge) })
   }
   for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    if (!isDir(root, entry) || entry.name.startsWith('.')) continue
     if (entry.name.startsWith('@')) {
       for (const sub of readdirSync(join(root, entry.name), { withFileTypes: true })) {
-        if (sub.isDirectory()) consider(join(root, entry.name, sub.name), `${entry.name}/${sub.name}`)
+        if (isDir(join(root, entry.name), sub)) consider(join(root, entry.name, sub.name), `${entry.name}/${sub.name}`)
       }
     } else {
       consider(join(root, entry.name), entry.name)
     }
   }
   return out
+}
+
+// npm links a package installed from a folder, so a symlink to a folder counts
+function isDir(parent: string, entry: Dirent): boolean {
+  if (entry.isDirectory()) return true
+  if (!entry.isSymbolicLink()) return false
+  try { return statSync(join(parent, entry.name)).isDirectory() } catch { return false }
 }
 
 function isShell(run: unknown): run is ShellExecutor {
