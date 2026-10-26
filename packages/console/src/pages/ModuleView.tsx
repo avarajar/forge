@@ -6,6 +6,7 @@ import { PageHeader } from '../components/PageHeader.js'
 import { modules, moduleWarning, refreshModules } from '../hooks/useModules.js'
 import { markModuleSeen } from '../hooks/useModuleNotifications.js'
 import { createPanelClient } from '../config/moduleClient.js'
+import { ModuleSettings } from '../components/ModuleSettings.js'
 
 interface Props {
   moduleId: string
@@ -119,7 +120,9 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
       ) : (
         <div class="py-20 text-center text-ink2">Loading {name}…</div>
       )}
-      {settingsOpen && null}
+      {settingsOpen && status.settingsSchema && (
+        <ModuleSettings moduleId={moduleId} displayName={name} schema={status.settingsSchema} onClose={() => setSettingsOpen(false)} onSaved={() => { void client.reloadSettings(); void refreshModules() }} />
+      )}
     </div>
   )
 }
