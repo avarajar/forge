@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.10 (2026-10-26)
+
 ### Added
 
 - New brain on the Memory page makes a personal, project or team brain on this machine (`kioku brain create`), with no repository.
