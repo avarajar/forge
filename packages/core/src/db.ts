@@ -302,6 +302,10 @@ export class ForgeDB implements IForgeDB {
     this.db.prepare("UPDATE module_notifications SET seen_at = datetime('now') WHERE module_id = ? AND seen_at IS NULL").run(moduleId)
   }
 
+  deleteModuleSetting(moduleId: string, key: string): void {
+    this.db.prepare('DELETE FROM module_settings WHERE module_id = ? AND key = ?').run(moduleId, key)
+  }
+
   listActionLogs(opts: { moduleId?: string; limit?: number }): ActionLog[] {
     const { moduleId, limit = 50 } = opts
     let sql = 'SELECT * FROM action_logs'

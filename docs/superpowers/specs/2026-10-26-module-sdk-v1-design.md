@@ -176,7 +176,9 @@ fields but no sdk range".
 
 - **Templates.** `{key}` expands a scalar setting; `{list[].field}` expands to one grant
   per list item. A grant whose template resolves to nothing (empty list, unset value) is
-  dropped, never widened. Grants are recomputed when settings change.
+  dropped, never widened. A value may not change what the literal text means: one that fills a host may not
+  contain `/ ? # @ \` or spaces, and one that fills the middle of a path may not contain a `..` segment; such a
+  grant is dropped. Grants are recomputed when settings change.
 - **Paths** are compared after `realpath` of both sides, so a symlink cannot escape a grant.
   `~` expands to the user's home.
 - **Load-time checks** (module disabled with the reason): a `defineAction` with the shell

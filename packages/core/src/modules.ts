@@ -51,7 +51,9 @@ export class ModuleLoader {
 
     try {
       const raw = readFileSync(manifestPath, 'utf-8')
-      const manifest: ModuleManifest = JSON.parse(raw)
+      const manifest = JSON.parse(raw) as ModuleManifest & { sdk?: unknown }
+      // v1 modules run actions through the module host, never as shell commands here
+      if (manifest.sdk !== undefined) return undefined
       this.loaded.set(dirName, manifest)
       return manifest
     } catch {

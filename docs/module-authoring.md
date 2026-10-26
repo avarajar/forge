@@ -95,7 +95,8 @@ the tool keeps it, through `fs:read`.
 | `pty` | `true` | `ctx.pty.spawn` |
 
 `{key}` fills in a setting and `{list[].field}` gives one grant per list item. A grant whose setting is empty is
-dropped, never widened. Paths are compared after resolving symlinks. A call outside the grants throws
+dropped, never widened, and a value that would change the literal part (`evil.com#` in a host, `..` in the middle
+of a path) drops the grant too. Paths are compared after resolving symlinks. A call outside the grants throws
 `PermissionError`, the route answers 403, and the module shows a warning with the last denial.
 
 **Permissions are a contract, not a sandbox.** Module code runs inside Forge's process: code that imports `node:fs`

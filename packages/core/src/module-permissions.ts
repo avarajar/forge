@@ -16,20 +16,28 @@ const TEMPLATE_RE = /\{([a-zA-Z0-9_]+)(\[\]\.([a-zA-Z0-9_]+))?\}/g
 export function expandGrants(permissions: ModulePermissions | undefined, settings: ModuleSettings): Grants {
   const p = permissions ?? {}
   return {
-    network: expandAll(p.network, settings).map(normalizeOrigin).filter((o): o is string => o !== null),
-    fsRead: expandAll(p['fs:read'], settings).map(expandHome),
-    fsWrite: expandAll(p['fs:write'], settings).map(expandHome),
-    shell: expandAll(p.shell, settings).map(expandHome),
+    network: expandAll(p.network, settings, 'origin').map(normalizeOrigin).filter((o): o is string => o !== null),
+    fsRead: expandAll(p['fs:read'], settings, 'path').map(expandHome),
+    fsWrite: expandAll(p['fs:write'], settings, 'path').map(expandHome),
+    shell: expandAll(p.shell, settings, 'path').map(expandHome),
     pty: p.pty === true,
   }
 }
 
-function expandAll(templates: string[] | undefined, settings: ModuleSettings): string[] {
-  return (templates ?? []).flatMap(t => expandOne(t, settings))
+type Kind = 'origin' | 'path'
+
+function expandAll(templates: string[] | undefined, settings: ModuleSettings, kind: Kind): string[] {
+  return (templates ?? []).flatMap(t => expandOne(t, settings, kind))
+}
+
+// a value may fill its placeholder but never change what the literal text around it means
+function safeValue(value: string, kind: Kind, atStart: boolean): boolean {
+  if (kind === 'origin') return !/[/?#@\\\s]/.test(value)
+  return atStart || !value.split(/[/\\]/).includes('..')
 }
 
 // one string per list item; any unresolved placeholder drops that string, never widens it
-function expandOne(template: string, settings: ModuleSettings): string[] {
+function expandOne(template: string, settings: ModuleSettings, kind: Kind): string[] {
   const lists = new Set<string>()
   for (const m of template.matchAll(TEMPLATE_RE)) if (m[2]) lists.add(m[1])
   if (lists.size > 1) return []
@@ -41,10 +49,10 @@ function expandOne(template: string, settings: ModuleSettings): string[] {
   const out: string[] = []
   for (const item of items) {
     let missing = false
-    const text = template.replace(TEMPLATE_RE, (_all, key: string, isList?: string, field?: string) => {
+    const text = template.replace(TEMPLATE_RE, (_all, key: string, isList: string | undefined, field: string | undefined, offset: number) => {
       const v = isList ? item?.[field as string] : settings[key]
-      if (typeof v === 'string' && v !== '') return v
-      if (typeof v === 'number' && Number.isFinite(v)) return String(v)
+      const s = typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : ''
+      if (s && safeValue(s, kind, offset === 0)) return s
       missing = true
       return ''
     })

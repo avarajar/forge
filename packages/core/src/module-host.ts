@@ -54,7 +54,19 @@ export class ModuleHost {
     return this.loaded.get(id)
   }
 
-  async scan(): Promise<ModuleStatus[]> {
+  // scans, reloads and dev changes run one at a time: each one awaits imports midway
+  private queue: Promise<unknown> = Promise.resolve()
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.queue.then(fn, fn)
+    this.queue = next.catch(() => {})
+    return next
+  }
+
+  scan(): Promise<ModuleStatus[]> {
+    return this.serial(() => this.scanNow())
+  }
+
+  private async scanNow(): Promise<ModuleStatus[]> {
     for (const id of [...this.loaded.keys()]) this.unload(id)
     const statuses: ModuleStatus[] = []
     const seen = new Map<string, string>()
@@ -67,10 +79,14 @@ export class ModuleHost {
   }
 
   // only this module is unloaded and loaded again; the others keep running
-  async reload(id: string): Promise<void> {
+  reload(id: string): Promise<void> {
+    return this.serial(() => this.reloadNow(id))
+  }
+
+  private async reloadNow(id: string): Promise<void> {
     const mod = this.loaded.get(id)
     if (!mod) {
-      await this.scan()
+      await this.scanNow()
     } else {
       this.unload(id)
       const seen = new Map([...this.loaded.values()].map(m => [m.status.id, m.dir]))
@@ -79,18 +95,24 @@ export class ModuleHost {
     }
   }
 
-  async addDev(path: string): Promise<ModuleStatus | undefined> {
+  addDev(path: string): Promise<ModuleStatus | undefined> {
+    return this.serial(() => this.addDevNow(path))
+  }
+
+  private async addDevNow(path: string): Promise<ModuleStatus | undefined> {
     const dirs = this.devDirs()
     const dir = resolve(path)
     if (!dirs.includes(dir)) writeFileSync(this.opts.devFile, JSON.stringify([...dirs, dir], null, 2))
-    await this.scan()
+    await this.scanNow()
     return this.statuses.find(s => this.loaded.get(s.id)?.dir === dir) ?? this.statuses.find(s => s.state !== 'enabled' && s.id === basename(dir))
   }
 
-  async removeDev(path: string): Promise<void> {
-    const dir = resolve(path)
-    writeFileSync(this.opts.devFile, JSON.stringify(this.devDirs().filter(d => d !== dir), null, 2))
-    await this.scan()
+  removeDev(path: string): Promise<void> {
+    return this.serial(async () => {
+      const dir = resolve(path)
+      writeFileSync(this.opts.devFile, JSON.stringify(this.devDirs().filter(d => d !== dir), null, 2))
+      await this.scanNow()
+    })
   }
 
   settings(id: string): ModuleSettings {
@@ -102,7 +124,11 @@ export class ModuleHost {
     if (!mod) return { ok: false, errors: [{ path: '', message: 'module not loaded' }] }
     const result = validateSettings(mod.manifest.settings?.schema ?? {}, values)
     if (!result.ok) return result
-    for (const [key, value] of Object.entries(result.value)) this.opts.deps.db.setModuleSetting(id, key, JSON.stringify(value))
+    // a key the form cleared is deleted, or the old value would come back on the next load
+    for (const key of Object.keys(mod.manifest.settings?.schema ?? {})) {
+      if (result.value[key] === undefined) this.opts.deps.db.deleteModuleSetting(id, key)
+      else this.opts.deps.db.setModuleSetting(id, key, JSON.stringify(result.value[key]))
+    }
     mod.settings = result.value
     mod.grants = expandGrants(mod.manifest.permissions, result.value)
     this.opts.hooks?.settingsChanged?.(mod)
@@ -209,6 +235,7 @@ export class ModuleHost {
       () => mod.grants,
       (permission, value) => { status.lastDenial = { permission, value, at: new Date().toISOString() } },
     )
+    this.unload(m.id)
     this.loaded.set(m.id, mod)
     this.opts.hooks?.loaded?.(mod)
     return status

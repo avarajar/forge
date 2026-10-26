@@ -109,6 +109,10 @@ export class PostgresDB implements IForgeDB {
     this.sql`INSERT INTO module_settings (module_id, key, value) VALUES (${moduleId}, ${key}, ${value}) ON CONFLICT (module_id, key) DO UPDATE SET value = EXCLUDED.value`.execute()
   }
 
+  deleteModuleSetting(moduleId: string, key: string): void {
+    this.sql`DELETE FROM module_settings WHERE module_id = ${moduleId} AND key = ${key}`.execute()
+  }
+
   kvGet(_moduleId: string, _key: string): string | undefined { return teamModeOnly() }
   kvSet(_moduleId: string, _key: string, _json: string): void { teamModeOnly() }
   kvDelete(_moduleId: string, _key: string): void { teamModeOnly() }

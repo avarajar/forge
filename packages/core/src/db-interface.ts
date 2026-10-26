@@ -14,6 +14,7 @@ export interface IForgeDB {
   completeAction(id: string, exitCode: number): void
   getModuleSettings(moduleId: string): Record<string, string>
   setModuleSetting(moduleId: string, key: string, value: string): void
+  deleteModuleSetting(moduleId: string, key: string): void
   listActionLogs(opts: { moduleId?: string; limit?: number }): ActionLog[]
   kvGet(moduleId: string, key: string): string | undefined
   kvSet(moduleId: string, key: string, json: string): void

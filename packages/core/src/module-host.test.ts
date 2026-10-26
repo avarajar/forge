@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { cpSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, utimesSync } from 'node:fs'
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ForgeDB } from './db.js'
@@ -178,6 +178,27 @@ describe('ModuleHost', () => {
     expect(host.saveSettings('valid', { port: 7000 })).toEqual({ ok: true })
     expect(host.get('valid')!.grants.network).toEqual(['http://localhost:7000'])
     expect(host.saveSettings('valid', { port: 'x' })).toMatchObject({ ok: false, errors: [{ path: 'port' }] })
+  })
+
+  it('a cleared optional setting stays cleared after a rescan', async () => {
+    const dir = install('valid')
+    const manifest = JSON.parse(readFileSync(join(dir, 'forge-module.json'), 'utf-8'))
+    manifest.settings.schema.label = { type: 'string' }
+    writeFileSync(join(dir, 'forge-module.json'), JSON.stringify(manifest))
+    await make().scan()
+    host.saveSettings('valid', { port: 7000, label: 'x' })
+    host.saveSettings('valid', { port: 7000 })
+    await host.scan()
+    expect(host.settings('valid')).toEqual({ port: 7000 })
+  })
+
+  it('two reloads at once leave one loaded copy of the module', async () => {
+    install('valid')
+    let live = 0
+    await make({ hooks: { loaded: () => { live++ }, unloading: () => { live-- } } }).scan()
+    await Promise.all([host.reload('valid'), host.reload('valid'), host.scan()])
+    expect(live).toBe(1)
+    expect(host.list().filter(s => s.id === 'valid')).toHaveLength(1)
   })
 
   it('records the last permission denial on the status', async () => {

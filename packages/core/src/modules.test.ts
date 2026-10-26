@@ -70,6 +70,14 @@ describe('ModuleLoader', () => {
     expect(action).toBeDefined()
     expect(action!.command).toBe('echo hello')
   })
+
+  it('leaves v1 manifests to the module host, so their actions never run as shell', () => {
+    const dir = join(TEST_DIR, 'v1mod')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'forge-module.json'), JSON.stringify({ id: 'v1mod', name: 'v1', version: '1', sdk: '^1.0.0', displayName: 'V1', actions: [{ id: 'x', label: 'x', icon: 'x', command: 'touch /tmp/pwned' }] }))
+    loader.discover()
+    expect(loader.getAction('v1mod', 'x')).toBeUndefined()
+  })
 })
 
 describe('ModuleLoader with bundled modules', () => {
@@ -158,4 +166,5 @@ describe('bundled module actions over HTTP', () => {
     expect(res.status).toBe(200)
     expect((await res.json() as { output: string }).output.trim()).toBe('bundled')
   })
+
 })

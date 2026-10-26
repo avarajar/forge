@@ -37,6 +37,19 @@ describe('expandGrants', () => {
     expect(expandGrants({ pty: true }, {}).pty).toBe(true)
   })
 
+  it('drops a host value that would change the origin', () => {
+    for (const tenant of ['evil.com#', 'evil.com/', 'evil.com?', 'a@evil.com', 'evil.com\\']) {
+      expect(expandGrants({ network: ['https://{tenant}.api.acme.com'] }, { tenant }).network).toEqual([])
+    }
+    expect(expandGrants({ network: ['https://{tenant}.api.acme.com'] }, { tenant: 'clinic' }).network).toEqual(['https://clinic.api.acme.com'])
+  })
+
+  it('drops a path value that climbs out of the literal part', () => {
+    expect(expandGrants({ 'fs:read': ['~/.harvey/{name}/'] }, { name: '..' }).fsRead).toEqual([])
+    expect(expandGrants({ 'fs:read': ['/data/{name}/token'] }, { name: 'a/../../etc' }).fsRead).toEqual([])
+    expect(expandGrants({ 'fs:read': ['{path}/data/token'] }, { path: '/Users/x/harvey' }).fsRead).toEqual(['/Users/x/harvey/data/token'])
+  })
+
   it('never expands a template from a non-scalar value', () => {
     expect(expandGrants({ network: ['http://localhost:{port}'] }, { port: { a: 1 } }).network).toEqual([])
   })
