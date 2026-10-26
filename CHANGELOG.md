@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- New brain on the Memory page makes a personal, project or team brain on this machine (`kioku brain create`), with no repository.
+- Give it a brain, on a project with no project or team brain, links it to an existing brain or a new one (`kioku init`), and kioku writes `kioku.yaml` in the project's repository to commit with the code.
+- + Area on a brain card, and Add area in New memory when a brain has none, declare an area (`kioku namespace add`).
+- Publish… on a brain that lives only on this machine gives it a repository (`kioku brain publish`): an empty one at the address given, or a private GitHub one made with `gh`. A warning says publishing may need approval and that it is the person's decision; Publish stays off until they tick that they accept it. Kioku runs publish only at a terminal, so Forge runs it in a PTY.
+
 ## 0.1.9 (2026-10-24)
 
 ### Added

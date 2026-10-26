@@ -3,10 +3,11 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
+import * as pty from 'node-pty'
 import { createRunner, type Runner } from './task-review.js'
 import { envWithoutHost } from './cw-doctor.js'
 import { findOnPath } from './cw-install.js'
-import { tailOutput } from './output.js'
+import { stripAnsi, tailOutput } from './output.js'
 
 export interface KiokuBrain {
   key: string
@@ -73,12 +74,28 @@ export type KiokuSaveResult =
   | { status: 'similar'; similar: { brain: string; path: string; title: string; summary: string | null }[] }
   | { status: 'namespace'; namespaces: { namespace: string; summary: string | null }[] }
 
+export interface KiokuBrainInput {
+  // owner/repo, or host/owner/repo: the repository it gets once published
+  repo: string
+  tier: string
+  // a project brain's team brain
+  team?: string
+  language?: string
+}
+
+export interface KiokuLinkInput {
+  project: string
+  brain?: string
+  team?: string
+}
 
 export interface KiokuOptions {
   bin?: string
   run?: Runner
   // kioku page save, which commits and may push, so it gets longer than a read
   write?: Runner
+  // the verbs kioku keeps for a person at a terminal
+  terminal?: Runner
   startTimeoutMs?: number
   projects?: () => Record<string, { path: string }>
   now?: () => number
@@ -93,11 +110,25 @@ export class KiokuError extends Error {
 const NOT_INSTALLED = 'kioku is not installed on this machine'
 const START_TIMEOUT_MS = 20_000
 const WRITE_TIMEOUT_MS = 60_000
+// publishing may make a GitHub repository and push every page
+const PUBLISH_TIMEOUT_MS = 3 * 60_000
 // brains change slowly and Refresh asks for a fresh reading, so a stale one is served while the next is read
 const CACHE_MS = 5 * 60_000
 const ACTIVITY_SINCE = '2w'
 const ACTIVITY_LIMIT = 40
 const PARALLEL = 6
+const TIERS = ['personal', 'project', 'team']
+// kioku's own forms; checked here too so no value reaches it as a flag
+const REPO = /^[\w.-]+\/[\w.-]+(\/[\w.-]+)?$/
+const AREA = /^[A-Za-z0-9][\w.-]*(\/[A-Za-z0-9][\w.-]*)*$/
+const LANGUAGE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]+)*$/
+
+function assertRepo(repo: string, what: string): void {
+  if (!REPO.test(repo)) throw new KiokuError(`${what} is named as owner/repo, not "${repo}"`, 400)
+}
+
+// what every kioku verb that writes may print
+type Answer = { status?: string; error?: { message: string } }
 
 type Snapshot = Omit<KiokuStatus, 'viewer'>
 type ListedBrain = Omit<KiokuBrain, 'pages' | 'kinds' | 'touched'>
@@ -113,6 +144,27 @@ export function resolveKiokuBin(pathVar = process.env.PATH, home = homedir()): s
 // what Forge types into an agent's terminal so it saves the note with its kioku skill
 export function rememberPrompt(text: string): string {
   return `Remember this with kioku: ${text.replace(/\s+/g, ' ').trim()}`
+}
+
+// a PTY rather than pipes: kioku runs publish only when stdin and stdout are a terminal
+export function createTerminalRunner(env: Record<string, string>, timeoutMs: number): Runner {
+  return (bin, args, cwd) => new Promise((resolve) => {
+    let proc: ReturnType<typeof pty.spawn>
+    try {
+      proc = pty.spawn(bin, args, { name: 'xterm-256color', cols: 400, rows: 40, cwd, env })
+    } catch {
+      return resolve({ code: 127, stdout: '', stderr: 'ENOENT' })
+    }
+    let output = ''
+    const timer = setTimeout(() => proc.kill(), timeoutMs)
+    proc.onData((data) => { output = (output + data).slice(-64 * 1024) })
+    proc.onExit(({ exitCode }) => {
+      clearTimeout(timer)
+      // the terminal mixes in stderr and control characters, so the answer is the last line that reads as JSON
+      const json = stripAnsi(output).split(/\r?\n/).reverse().map(line => line.slice(line.indexOf('{')).trim()).find(line => parseJson(line) !== null)
+      resolve({ code: exitCode, stdout: json ?? '', stderr: output })
+    })
+  })
 }
 
 function parseJson<T>(text: string): T | null {
@@ -147,6 +199,7 @@ interface Viewer {
 export class Kioku {
   private readonly run: Runner
   private readonly write: Runner
+  private terminal: Runner | undefined
   private readonly startTimeoutMs: number
   private readonly projects: () => Record<string, { path: string }>
   private readonly now: () => number
@@ -158,6 +211,7 @@ export class Kioku {
     this.binPath = options.bin
     this.run = options.run ?? createRunner()
     this.write = options.write ?? createRunner(envWithoutHost(), WRITE_TIMEOUT_MS)
+    this.terminal = options.terminal
     this.startTimeoutMs = options.startTimeoutMs ?? START_TIMEOUT_MS
     this.projects = options.projects ?? (() => ({}))
     this.now = options.now ?? Date.now
@@ -244,34 +298,107 @@ export class Kioku {
   async save(input: KiokuSaveInput): Promise<KiokuSaveResult> {
     const type = PAGE_TYPES[input.type]
     if (!type) throw new KiokuError(`unknown page type ${input.type}`, 400)
-    // the cached reading when there is one, else only the list of brains
-    const brains = this.snapshot
-      ? (await this.snapshot.value).brains
-      : (await this.json<{ brains?: ListedBrain[] }>(['brain', 'list'], homedir()))?.brains ?? []
-    const brain = brains.find(b => b.key === input.brain)
-    if (!brain?.onDisk) throw new KiokuError(`no brain ${input.brain} on this machine`, 404)
+    const brain = await this.findBrain(input.brain)
     const args = [
       'page', 'save', '--brain', brain.key, '--kind', type.kind, ...(type.sub ? ['--sub', type.sub] : []),
       '--title', input.title, '--summary', input.summary, '--source', 'Forge',
       ...(input.namespace ? ['--namespace', input.namespace] : []), ...(input.create ? ['--create'] : []), '--json',
     ]
-    const result = await this.write(this.bin, args, brain.folder, input.body)
-    if (result.code === 127) throw new KiokuError(NOT_INSTALLED, 404)
-    const out = parseJson<{
-      status?: string
+    const { out, fail } = await this.invoke<{
       path?: string
       publication?: string | null
       similar?: { brain: string; path: string; title: string; summary: string | null }[]
       namespaces?: { namespace: string; summary: string | null }[]
-      error?: { message: string }
-    }>(result.stdout)
+    }>(args, brain.folder, this.write, input.body)
     if (out?.status === 'done' && out.path) {
-      this.snapshot = null
+      this.expire()
       return { status: 'done', brain: brainName(brain), path: out.path, publication: out.publication ?? null }
     }
     if (out?.status === 'similar') return { status: 'similar', similar: (out.similar ?? []).map(({ brain, path, title, summary }) => ({ brain, path, title, summary })) }
     if (out?.status === 'namespace') return { status: 'namespace', namespaces: (out.namespaces ?? []).map(({ namespace, summary }) => ({ namespace, summary })) }
-    throw new KiokuError(out?.error?.message ?? (tailOutput(result.stderr, 1) || 'kioku could not save the page'), 400)
+    throw fail('kioku could not save the page')
+  }
+
+  // the cached reading when there is one, else only the list of brains
+  private async listBrains(): Promise<ListedBrain[]> {
+    return this.snapshot
+      ? (await this.snapshot.value).brains
+      : (await this.json<{ brains?: ListedBrain[] }>(['brain', 'list'], homedir()))?.brains ?? []
+  }
+
+  private async findBrain(key: string): Promise<ListedBrain> {
+    const brain = (await this.listBrains()).find(b => b.key === key)
+    if (!brain?.onDisk) throw new KiokuError(`no brain ${key} on this machine`, 404)
+    return brain
+  }
+
+  // the next status reads again, while the old reading still answers a poll that is not fresh
+  private expire(): void {
+    if (this.snapshot) this.snapshot.at = -Infinity
+  }
+
+  // runs a verb that writes; fail turns kioku's refusal into a 400 with its message
+  private async invoke<T>(args: string[], cwd: string, run: Runner, input?: string): Promise<{ out: (T & Answer) | null; ok: boolean; fail: (fallback: string) => KiokuError }> {
+    const result = await run(this.bin, args, cwd, input)
+    if (result.code === 127) throw new KiokuError(NOT_INSTALLED, 404)
+    const out = parseJson<T & Answer>(result.stdout)
+    return { out, ok: result.code === 0 && out !== null && !out.error, fail: (fallback) => new KiokuError(out?.error?.message ?? (tailOutput(result.stderr, 1) || fallback), 400) }
+  }
+
+  private async change<T>(args: string[], cwd: string, run = this.write): Promise<T> {
+    const { out, ok, fail } = await this.invoke<T>([...args, '--json'], cwd, run)
+    if (!ok || !out) throw fail(`kioku ${args.slice(0, 2).join(' ')} failed`)
+    this.expire()
+    return out
+  }
+
+  // makes a brain on this machine only; kioku never makes a repository here
+  async createBrain(input: KiokuBrainInput): Promise<{ brain: string; name: string; path: string }> {
+    assertRepo(input.repo, 'the brain')
+    if (!TIERS.includes(input.tier)) throw new KiokuError(`the tier is one of ${TIERS.join(', ')}`, 400)
+    if (input.team) assertRepo(input.team, 'the team brain')
+    if (input.language && !LANGUAGE.test(input.language)) throw new KiokuError('the language is a tag such as en or es', 400)
+    const args = [
+      'brain', 'create', input.repo, '--tier', input.tier,
+      ...(input.team && input.tier === 'project' ? ['--team', input.team] : []), ...(input.language ? ['--language', input.language] : []),
+    ]
+    const { brain, name, path } = await this.change<{ brain: string; name: string; path: string }>(args, homedir())
+    return { brain, name, path }
+  }
+
+  async addArea(key: string, area: string, summary: string): Promise<{ brain: string; namespace: string }> {
+    if (!AREA.test(area)) throw new KiokuError('an area is letters, digits, dots, dashes and underscores, with / between parts', 400)
+    if (!summary) throw new KiokuError('say what the area is for', 400)
+    const brain = await this.findBrain(key)
+    const out = await this.change<{ brain: string; namespace: string }>(['namespace', 'add', area, `--summary=${summary}`, '--brain', brain.key], brain.folder)
+    return { brain: out.brain, namespace: out.namespace }
+  }
+
+  // writes the project's kioku.yaml; a brain the machine does not know is made first, since kioku links only known brains without a terminal
+  async linkProject(input: KiokuLinkInput): Promise<{ file: string; created: string[] }> {
+    if (!input.brain && !input.team) throw new KiokuError('name a project brain, a team brain, or both', 400)
+    const path = this.projects()[input.project]?.path
+    if (!path || !existsSync(path)) throw new KiokuError(`no CW project ${input.project} on this machine`, 404)
+    if (input.brain) assertRepo(input.brain, 'the project brain')
+    if (input.team) assertRepo(input.team, 'the team brain')
+    const known = await this.listBrains()
+    // a key is host/owner/repo, and owner/repo names it on any host
+    const isKnown = (repo: string) => known.some(b => b.key === repo || b.key.endsWith(`/${repo}`))
+    const created: string[] = []
+    if (input.team && !isKnown(input.team)) created.push((await this.createBrain({ repo: input.team, tier: 'team' })).brain)
+    if (input.brain && !isKnown(input.brain)) created.push((await this.createBrain({ repo: input.brain, tier: 'project', team: input.team })).brain)
+    const args = ['init', ...(input.brain ? [input.brain] : []), ...(input.team ? ['--team', input.team] : [])]
+    const { file } = await this.change<{ file: string }>(args, path)
+    return { file, created }
+  }
+
+  // the only verb that reaches a git host: without `to`, kioku makes a private GitHub repository with gh
+  async publish(key: string, to?: string): Promise<{ brain: string; status: string; remote: string | null }> {
+    if (to?.startsWith('-')) throw new KiokuError('the address cannot start with -', 400)
+    const brain = await this.findBrain(key)
+    if (brain.remote) throw new KiokuError(`${brainName(brain)} already has a repository: ${brain.remote}`, 400)
+    const out = await this.change<{ brain: string; status: string; remote?: string }>(['brain', 'publish', brain.key, ...(to ? ['--to', to] : [])], brain.folder, this.terminal ??= createTerminalRunner(envWithoutHost(), PUBLISH_TIMEOUT_MS))
+    return { brain: out.brain, status: out.status, remote: out.remote ?? null }
   }
 
   // one viewer at a time; a second call reuses the running one
