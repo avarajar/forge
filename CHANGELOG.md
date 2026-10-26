@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.12 (2026-10-26)
+
 ### Added
 
 - Saving, deleting a reference or deleting a skill on the Skills page first copies the whole skill to `~/.forge/skill-backups/<scope>/<ref>/<skill>/<time>/`, keeping the newest 10 copies per skill. If the copy fails, nothing is changed and the page shows why.
