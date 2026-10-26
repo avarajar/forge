@@ -1,5 +1,6 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useLayoutEffect } from 'preact/hooks'
+import { createPortal } from 'preact/compat'
 import { CloseButton } from './Modal.js'
 
 interface DrawerProps {
@@ -16,7 +17,8 @@ export const Drawer: FunctionComponent<DrawerProps> = ({ title, onClose, childre
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  // on body, so a parent with a blur or transform cannot trap the fixed overlay
+  return createPortal(
     <div
       class="fixed inset-0 z-50 flex justify-end"
       style={{ background: 'rgba(0,0,0,.38)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
@@ -39,6 +41,7 @@ export const Drawer: FunctionComponent<DrawerProps> = ({ title, onClose, childre
           {children}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   )
 }

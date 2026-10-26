@@ -15,7 +15,8 @@ import { Prototypes } from './pages/Prototypes.js'
 import { Memory } from './pages/Memory.js'
 import { ModuleView } from './pages/ModuleView.js'
 import { ConfirmActionHost } from './components/ConfirmAction.js'
-import { modules, sidebarModules, watchModules } from './hooks/useModules.js'
+import { AddModule } from './components/AddModule.js'
+import { addModuleOpen, modules, sidebarModules, watchModules } from './hooks/useModules.js'
 import { watchModuleNotifications } from './hooks/useModuleNotifications.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
@@ -367,6 +368,7 @@ function App() {
     { id: 'add-project', label: 'Add project', hint: 'P', glyph: 'P', token: '--green', run: () => setShowCreateProject(true) },
     ...NAV.map(n => ({ id: n.view, label: n.label, hint: n.view === 'list' ? '⌘L' : '', glyph: n.glyph, token: n.token, run: () => navigate(n.view) })),
     ...sidebarModules(modules.value).map(m => ({ id: `module:${m.id}`, label: m.displayName, hint: '', glyph: m.displayName.charAt(0).toUpperCase(), token: null, run: () => navigate(`module:${m.id}`) })),
+    { id: 'add-module', label: 'Add a module', hint: '', glyph: '+', token: null, run: () => { addModuleOpen.value = true } },
     { id: 'appearance', label: 'Toggle appearance', hint: '⌘J', glyph: '◐', token: null, run: toggleTheme },
   ], [navigate, modules.value])
 
@@ -534,6 +536,9 @@ function App() {
       />
       {closeDialog}
       <ConfirmActionHost />
+      {addModuleOpen.value && (
+        <AddModule onClose={() => { addModuleOpen.value = false }} onInstalled={(m) => { if (m.view) navigate(`module:${m.id}`) }} />
+      )}
     </Shell>
   )
 }

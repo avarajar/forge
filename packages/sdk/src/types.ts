@@ -137,6 +137,8 @@ export interface ModuleStatus {
   lastJobError?: string
   lastEventError?: string
   lastDenial?: { permission: string; value: string; at: string }
+  // installed into Forge's modules folder, so the console can remove it
+  removable?: boolean
 }
 
 // core data shapes handed to modules

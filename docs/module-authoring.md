@@ -243,6 +243,11 @@ forge module list
 forge module remove <id | package name>
 ```
 
+The console does the same: the + next to Modules in the sidebar takes the same specs, shows the module's
+permissions, and installs only after you confirm, the exact version it showed (`npm install --ignore-scripts`). A
+module installed into `~/.forge/modules` gets a Remove button on its page. Its settings stay in Forge's database, so
+installing it again brings them back. Installing from the console works in local mode only.
+
 Forge finds modules, first match by `id` wins: the modules it ships with, folders registered by `forge module dev`,
 folders in `~/.forge/modules/<dir>`, packages in `~/.forge/modules/node_modules` with a `forge` field in
 `package.json`, and `@forge-dev/mod-*` packages next to Forge itself.

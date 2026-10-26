@@ -1,12 +1,13 @@
 import { Component, type ComponentChildren, type FunctionComponent } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import { ActionButton, EmptyState } from '@forge-dev/ui'
+import { ActionButton, EmptyState, Modal, showToast } from '@forge-dev/ui'
 import type { ModuleStatus, PanelConfig, PanelProps } from '@forge-dev/sdk'
 import { PageHeader } from '../components/PageHeader.js'
 import { modules, moduleWarning, refreshModules } from '../hooks/useModules.js'
 import { markModuleSeen, moduleCounts } from '../hooks/useModuleNotifications.js'
 import { createPanelClient } from '../config/moduleClient.js'
 import { ModuleSettings } from '../components/ModuleSettings.js'
+import { errorText, requestJson } from '../config/api.js'
 
 interface Props {
   moduleId: string
@@ -35,6 +36,40 @@ const ViewError: FunctionComponent<{ title: string; message: string; onReload: (
   </div>
 )
 
+// settings stay in Forge's database, so installing the module again brings them back
+const RemoveModule: FunctionComponent<{ status: ModuleStatus; onClose: () => void; onRemoved: () => void }> = ({ status, onClose, onRemoved }) => {
+  const [busy, setBusy] = useState(false)
+  const remove = async () => {
+    setBusy(true)
+    try {
+      modules.value = await requestJson<ModuleStatus[]>('DELETE', `/api/modules/${encodeURIComponent(status.id)}`)
+      showToast(`Removed ${status.displayName}`, 'success')
+      onRemoved()
+    } catch (err) {
+      showToast(errorText(err), 'error')
+      setBusy(false)
+    }
+  }
+  return (
+    <Modal
+      open
+      title={`Remove ${status.displayName}?`}
+      onClose={onClose}
+      footer={
+        <>
+          <span class="flex-1" />
+          <ActionButton label="Cancel" variant="secondary" onClick={onClose} />
+          <ActionButton label="Remove" variant="destructive" loading={busy} onClick={remove} />
+        </>
+      }
+    >
+      <p style={{ fontSize: '13px', color: 'var(--ink-2)' }}>
+        Forge uninstalls <span class="mono">{status.name}</span> and stops it now. Its settings stay saved, so installing it again brings them back.
+      </p>
+    </Modal>
+  )
+}
+
 const loadedViews = new Map<string, Promise<PanelConfig>>()
 
 function importView(status: ModuleStatus): Promise<PanelConfig> {
@@ -54,6 +89,7 @@ function importView(status: ModuleStatus): Promise<PanelConfig> {
 export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBack }) => {
   const status = modules.value.find(m => m.id === moduleId)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const [panel, setPanel] = useState<{ version: string; config?: PanelConfig; error?: string } | null>(null)
   const [attempt, setAttempt] = useState(0)
   // a removed module keeps the name it had while it was loaded
@@ -84,6 +120,10 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
       {status?.settingsSchema && Object.keys(status.settingsSchema).length > 0 && (
         <ActionButton label="Settings" icon="i-lucide-settings" variant="secondary" size="sm" onClick={() => setSettingsOpen(true)} />
       )}
+      {status?.removable && (
+        <ActionButton label="Remove" icon="i-lucide-trash-2" variant="secondary" size="sm" onClick={() => setRemoving(true)} />
+      )}
+      {removing && status && <RemoveModule status={status} onClose={() => setRemoving(false)} onRemoved={onBack} />}
     </PageHeader>
   )
 

@@ -306,7 +306,7 @@ Design tokens (colors, shadows, motion) live in `styles/theme.css` for both them
 A module adds a page to the sidebar and code to the server, and installs into a running Forge with no rebuild:
 
 ```bash
-forge module install @yourorg/mod-yourname   # shows its permissions and asks first
+forge module install @yourorg/mod-yourname   # shows its permissions and asks first (or + next to Modules in the sidebar)
 forge module create mod-yourname             # scaffold one
 forge module dev ./mod-yourname              # load it, rebuild and reload on change
 ```
