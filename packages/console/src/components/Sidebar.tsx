@@ -12,10 +12,13 @@ import { metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetric
 import { usage, watchUsage } from '../hooks/useUsage.js'
 import { sessionStates } from '../hooks/useSessionStates.js'
 import { notificationsSupported, notifySessions, setNotifySessions } from '../state/notifications.js'
+import { modules, moduleWarning, sidebarModules } from '../hooks/useModules.js'
+import { moduleCounts } from '../hooks/useModuleNotifications.js'
 
-export type View = 'list' | 'accounts' | 'skills' | 'prototypes' | 'qa' | 'memory'
+export type BuiltinView = 'list' | 'accounts' | 'skills' | 'prototypes' | 'qa' | 'memory'
+export type View = BuiltinView | `module:${string}`
 
-export const NAV: Array<{ view: View; label: string; glyph: string; token: string }> = [
+export const NAV: Array<{ view: BuiltinView; label: string; glyph: string; token: string }> = [
   { view: 'list', label: 'Tasks', glyph: 'T', token: '--blue' },
   { view: 'accounts', label: 'Accounts', glyph: 'A', token: '--purple' },
   { view: 'skills', label: 'Skills', glyph: 'S', token: '--green' },
@@ -26,7 +29,7 @@ export const NAV: Array<{ view: View; label: string; glyph: string; token: strin
 
 export interface SidebarProps {
   view: View
-  counts: Partial<Record<View, number | null>>
+  counts: Partial<Record<BuiltinView, number | null>>
   projects: ProjectNavItem[]
   accounts: string[]
   selectedProject: string | null
@@ -87,12 +90,53 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
   )
 }
 
+// one entry per module view; disabled ones stay listed with their reason
+const ModuleNav: FunctionComponent<{ view: View; onNavigate: (view: View) => void }> = ({ view, onNavigate }) => {
+  const list = sidebarModules(modules.value)
+  if (list.length === 0) return null
+  const counts = moduleCounts.value
+  return (
+    <nav class="flex flex-col sb-section" style={{ gap: '2px' }} aria-label="Modules">
+      <span style={{ padding: '0 9px 4px' }}><Label>Modules</Label></span>
+      {list.map(m => {
+        const target: View = `module:${m.id}`
+        const on = view === target
+        const off = m.state !== 'enabled'
+        const warning = off ? null : moduleWarning(m)
+        const c = counts[m.id]
+        const tint = m.color ?? 'var(--ink-3)'
+        return (
+          <button
+            key={`${m.id}-${m.source}`}
+            type="button"
+            aria-current={on ? 'page' : undefined}
+            title={off ? `${m.displayName} is disabled: ${m.reason ?? ''}` : warning ?? m.displayName}
+            class={rowBase}
+            style={{ ...selectedRow(on), gap: '9px', height: '32px', padding: '0 9px', fontSize: '13.5px', fontWeight: on ? 600 : 450, opacity: off ? 0.5 : 1 }}
+            onClick={() => onNavigate(target)}
+          >
+            <span class="grid place-items-center shrink-0" style={{
+              width: '18px', height: '18px', borderRadius: '5px', fontSize: '10px', fontWeight: 600,
+              background: on ? `color-mix(in srgb, ${tint} 18%, transparent)` : 'var(--elev)',
+              color: on ? tint : 'var(--ink-3)',
+            }}>{m.displayName.charAt(0).toUpperCase()}</span>
+            <span class="flex-1 sb-label truncate">{m.displayName}</span>
+            {warning && <span class="sb-label" aria-label="Has a warning" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--orange)' }} />}
+            {c && c.attention > 0 && <span class="mono sb-label" aria-label={`${c.attention} need you`} style={{ fontSize: '10.5px', fontWeight: 700, padding: '0 6px', borderRadius: '99px', color: '#fff', background: 'var(--red)' }}>{c.attention}</span>}
+            {c && c.badge > 0 && <span class="mono sb-label" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{c.badge}</span>}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
+
 const NotifySwitch: FunctionComponent = () => (
   <label class="flex items-center justify-between" style={{ gap: '8px', padding: '0 9px', fontSize: '12px', color: 'var(--ink-2)' }}>
-    <span class="sb-label">Notify when a session needs me</span>
+    <span class="sb-label">Notify me when a session or module needs me</span>
     <ToggleSwitch
       checked={notifySessions.value}
-      label="Notify when a session needs me"
+      label="Notify me when a session or module needs me"
       onChange={(on) => {
         void setNotifySessions(on).then((ok) => { if (!ok) showToast('The browser blocked notifications for Forge', 'error') })
       }}
@@ -186,6 +230,8 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
         )
       })}
     </nav>
+
+    <ModuleNav view={view} onNavigate={onNavigate} />
 
     <ProjectNav projects={projects} accounts={accounts} selected={selectedProject} onSelect={onSelectProject} onAdd={onAddProject} />
 

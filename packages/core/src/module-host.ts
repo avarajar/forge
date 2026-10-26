@@ -189,6 +189,7 @@ export class ModuleHost {
     const status: ModuleStatus = {
       id: m.id, name: m.name, version: m.version, displayName: m.displayName, source: c.source, state: 'enabled',
       icon: m.icon, color: m.color, settingsSchema: m.settings?.schema, permissions: m.permissions,
+      actions: server?.actions?.map(a => ({ id: a.id, label: a.label, effect: a.effect })),
     }
     if (m.view) {
       const entry = resolve(c.dir, m.view.entry)

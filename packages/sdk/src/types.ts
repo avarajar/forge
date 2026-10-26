@@ -133,6 +133,7 @@ export interface ModuleStatus {
   settingsSchema?: Record<string, SettingDef>
   permissions?: ModulePermissions
   view?: { url: string; title: string; version: string }
+  actions?: Array<{ id: string; label: string; effect: ActionEffect }>
   lastJobError?: string
   lastEventError?: string
   lastDenial?: { permission: string; value: string; at: string }

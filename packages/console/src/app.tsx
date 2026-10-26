@@ -13,6 +13,10 @@ import { Skills } from './pages/Skills.js'
 import { Qa } from './pages/Qa.js'
 import { Prototypes } from './pages/Prototypes.js'
 import { Memory } from './pages/Memory.js'
+import { ModuleView } from './pages/ModuleView.js'
+import { ConfirmActionHost } from './components/ConfirmAction.js'
+import { modules, sidebarModules, watchModules } from './hooks/useModules.js'
+import { watchModuleNotifications } from './hooks/useModuleNotifications.js'
 import { CreateProjectModal } from './pages/CreateProjectModal.js'
 import { Accounts } from './pages/Accounts.js'
 import { TabBar } from './components/TabBar.js'
@@ -319,6 +323,14 @@ function App() {
     notify(`${sessionLabel(session)}: ${stateLabel(entry).toLowerCase()}`, projectOf(session) || session.account, key, () => open(session))
   }), [])
 
+  useEffect(() => watchModules(), [])
+  const navigateRef = useRef(navigate)
+  navigateRef.current = navigate
+  useEffect(() => watchModuleNotifications((n) => {
+    const name = modules.value.find(m => m.id === n.moduleId)?.displayName ?? n.moduleId
+    notify(`${name}: ${n.title}`, n.body ?? '', `module:${n.moduleId}:${n.key}`, () => navigateRef.current(`module:${n.moduleId}`))
+  }), [])
+
   const waitingCount = Object.values(sessionStates.value).filter(needsYou).length
   useEffect(() => {
     document.title = waitingCount > 0 ? `(${waitingCount}) Forge Console` : 'Forge Console'
@@ -354,8 +366,9 @@ function App() {
     { id: 'new-task', label: 'New task', hint: 'N', glyph: '+', token: '--blue', run: () => handleNewTask() },
     { id: 'add-project', label: 'Add project', hint: 'P', glyph: 'P', token: '--green', run: () => setShowCreateProject(true) },
     ...NAV.map(n => ({ id: n.view, label: n.label, hint: n.view === 'list' ? '⌘L' : '', glyph: n.glyph, token: n.token, run: () => navigate(n.view) })),
+    ...sidebarModules(modules.value).map(m => ({ id: `module:${m.id}`, label: m.displayName, hint: '', glyph: m.displayName.charAt(0).toUpperCase(), token: null, run: () => navigate(`module:${m.id}`) })),
     { id: 'appearance', label: 'Toggle appearance', hint: '⌘J', glyph: '◐', token: null, run: toggleTheme },
-  ], [navigate])
+  ], [navigate, modules.value])
 
   const sidebar = (
     <Sidebar
@@ -408,6 +421,8 @@ function App() {
       onRefresh={() => fetchData()}
       onStarted={(session) => { if (session) openSession(session); refreshAfterAction() }}
     />
+  ) : view.startsWith('module:') ? (
+    <ModuleView key={view} moduleId={view.slice('module:'.length)} cwProject={filters.filterProject} onBack={handleGoToList} />
   ) : view === 'qa' ? (
     <Qa projects={projects} preferred={filters.filterProject ?? undefined} />
   ) : view === 'memory' ? (
@@ -518,6 +533,7 @@ function App() {
         onCreated={(session) => { setShowCreateProject(false); if (session) openSession(session); refreshAfterAction() }}
       />
       {closeDialog}
+      <ConfirmActionHost />
     </Shell>
   )
 }

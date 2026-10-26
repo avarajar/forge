@@ -1,0 +1,26 @@
+{
+  "id": "demo",
+  "name": "@test/mod-demo",
+  "version": "0.1.0",
+  "sdk": "^1.0.0",
+  "displayName": "Demo",
+  "color": "#e8a33d",
+  "server": "./dist/server.js",
+  "view": { "entry": "./dist/view.js", "title": "Demo module" },
+  "settings": {
+    "schema": {
+      "instances": {
+        "type": "list",
+        "label": "Instances",
+        "item": {
+          "name": { "type": "string", "label": "Name", "required": true, "pattern": "^[a-z0-9-]+$" },
+          "path": { "type": "string", "label": "Folder", "format": "path" },
+          "port": { "type": "number", "label": "Port", "default": 5555, "min": 1, "max": 65535 },
+          "provider": { "type": "enum", "label": "Provider", "values": ["claude", "codex"], "default": "claude" },
+          "project": { "type": "string", "label": "CW project", "format": "cw-project" }
+        }
+      },
+      "verbose": { "type": "boolean", "label": "Verbose", "default": false }
+    }
+  }
+}

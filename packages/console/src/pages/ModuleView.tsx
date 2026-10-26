@@ -1,0 +1,125 @@
+import { Component, type ComponentChildren, type FunctionComponent } from 'preact'
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { ActionButton, EmptyState } from '@forge-dev/ui'
+import type { ModuleStatus, PanelConfig, PanelProps } from '@forge-dev/sdk'
+import { PageHeader } from '../components/PageHeader.js'
+import { modules, moduleWarning, refreshModules } from '../hooks/useModules.js'
+import { markModuleSeen } from '../hooks/useModuleNotifications.js'
+import { createPanelClient } from '../config/moduleClient.js'
+
+interface Props {
+  moduleId: string
+  cwProject: string | null
+  onBack: () => void
+}
+
+// one broken view never takes the rest of the console with it
+class ViewBoundary extends Component<{ name: string; onReload: () => void; children: ComponentChildren }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  componentDidCatch(error: Error) {
+    this.setState({ error })
+  }
+  render() {
+    const { error } = this.state
+    if (!error) return this.props.children
+    return <ViewError title={`${this.props.name}'s view crashed`} message={error.message} onReload={() => { this.setState({ error: null }); this.props.onReload() }} />
+  }
+}
+
+const ViewError: FunctionComponent<{ title: string; message: string; onReload: () => void }> = ({ title, message, onReload }) => (
+  <div style={{ margin: '24px 22px', padding: '16px 18px', borderRadius: '14px', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
+    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--red)' }}>{title}</div>
+    <pre class="mono" style={{ marginTop: '8px', fontSize: '12px', color: 'var(--ink-2)', whiteSpace: 'pre-wrap' }}>{message}</pre>
+    <div style={{ marginTop: '12px' }}><ActionButton label="Reload view" variant="secondary" size="sm" onClick={onReload} /></div>
+  </div>
+)
+
+const loadedViews = new Map<string, Promise<PanelConfig>>()
+
+function importView(status: ModuleStatus): Promise<PanelConfig> {
+  const url = `${status.view!.url}?v=${encodeURIComponent(status.view!.version)}`
+  let p = loadedViews.get(url)
+  if (!p) {
+    p = import(/* @vite-ignore */ url).then((m: { default?: PanelConfig }) => {
+      if (!m.default || typeof m.default.component !== 'function') throw new Error('view.js must default-export definePanel({...})')
+      return m.default
+    })
+    p.catch(() => loadedViews.delete(url))
+    loadedViews.set(url, p)
+  }
+  return p
+}
+
+export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBack }) => {
+  const status = modules.value.find(m => m.id === moduleId)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [panel, setPanel] = useState<{ version: string; config?: PanelConfig; error?: string } | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  // a removed module keeps the name it had while it was loaded
+  const lastName = useRef(moduleId)
+  if (status) lastName.current = status.displayName
+  const name = lastName.current
+  const client = useMemo(() => createPanelClient(moduleId, name, () => setSettingsOpen(true)), [moduleId, name])
+  const version = status?.state === 'enabled' ? status.view?.version : undefined
+
+  useEffect(() => { void markModuleSeen(moduleId) }, [moduleId])
+
+  useEffect(() => {
+    if (!status || !version) return
+    let live = true
+    importView(status).then(
+      config => { if (live) setPanel({ version, config }) },
+      (err: Error) => { if (live) setPanel({ version, error: err.message }) },
+    )
+    return () => { live = false }
+  }, [moduleId, version, attempt])
+
+  const warning = status ? moduleWarning(status) : null
+
+  const header = (
+    <PageHeader title={status?.view?.title ?? name} subtitle={status ? `${status.name} ${status.version}` : undefined}>
+      {warning && <span class="mono truncate" title={warning} style={{ maxWidth: '320px', fontSize: '11.5px', color: 'var(--orange)' }}>⚠ {warning}</span>}
+      {status?.settingsSchema && Object.keys(status.settingsSchema).length > 0 && (
+        <ActionButton label="Settings" icon="i-lucide-settings" variant="secondary" size="sm" onClick={() => setSettingsOpen(true)} />
+      )}
+    </PageHeader>
+  )
+
+  if (!status) {
+    return (
+      <div>
+        {header}
+        <div style={{ padding: '56px 22px' }}>
+          <EmptyState icon="i-lucide-package-x" title={`${name} was removed`} description="The module is no longer installed." action={{ label: 'Back to Tasks', onClick: onBack }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (status.state !== 'enabled') {
+    return (
+      <div>
+        {header}
+        <ViewError title={`${name} is disabled`} message={status.reason ?? 'No reason given'} onReload={() => { void refreshModules() }} />
+      </div>
+    )
+  }
+
+  const current = panel && panel.version === version ? panel : null
+  const Panel = current?.config?.component as FunctionComponent<PanelProps> | undefined
+  return (
+    <div>
+      {header}
+      {current?.error ? (
+        <ViewError title={`${name}'s view did not load`} message={current.error} onReload={() => setAttempt(a => a + 1)} />
+      ) : Panel ? (
+        <ViewBoundary key={`${version}-${attempt}`} name={name} onReload={() => setAttempt(a => a + 1)}>
+          <Panel moduleId={moduleId} projectId={null} cwProject={cwProject} forge={client} />
+        </ViewBoundary>
+      ) : (
+        <div class="py-20 text-center text-ink2">Loading {name}…</div>
+      )}
+      {settingsOpen && null}
+    </div>
+  )
+}

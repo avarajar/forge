@@ -55,6 +55,16 @@ describe('ModuleHost', () => {
     expect(host.get('valid')?.server?.routes).toHaveLength(6)
   })
 
+  it('lists each action with its effect', async () => {
+    install('valid')
+    await make().scan()
+    expect(status('valid')?.actions).toEqual([
+      { id: 'count', label: 'Count', effect: 'read' },
+      { id: 'send', label: 'Send', effect: 'external' },
+      { id: 'talk', label: 'Talk', effect: 'local' },
+    ])
+  })
+
   it('lists a legacy manifest under its folder name', async () => {
     install('legacy')
     await make().scan()
