@@ -60,7 +60,7 @@ export function createForgeServer(options: ServerOptions) {
   const cwReader = new CWReader(options.cwDir)
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
   app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
-  app.route('/api/skills', skillRoutes(cwReader))
+  app.route('/api/skills', skillRoutes(cwReader, { backupDir: join(dataDir, 'skill-backups') }))
 
   const { remote, shadow, warning } = remoteClassifierFromEnv()
   if (warning) console.warn(`[state] ${warning}`)

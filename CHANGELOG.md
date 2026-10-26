@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Saving, deleting a reference or deleting a skill on the Skills page first copies the whole skill to `~/.forge/skill-backups/<scope>/<ref>/<skill>/<time>/`, keeping the newest 10 copies per skill. If the copy fails, nothing is changed and the page shows why.
+
 ## 0.1.11 (2026-10-26)
+
+### Changed
+
+- Bundles CW `4fa95d7`: `cw work` adds `~/.cw/templates/work_init.md`, when it exists, to every new task's prompt for all accounts.
 
 ## 0.1.10 (2026-10-26)
 

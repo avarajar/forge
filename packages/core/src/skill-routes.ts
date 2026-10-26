@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { CWReader } from './cw-reader.js'
 import type { ExploreResult, PluginTarget, SkillScope } from './cw-types.js'
-import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync, cpSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync, cpSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { envWithoutHarness } from './cw-doctor.js'
 import { createRunner, runCommand, type Runner, type RunResult } from './task-review.js'
@@ -10,6 +10,17 @@ import { createRemoteLookup, knowsMarketplace, listMarketplaces, listPlugins, ma
 const INSTALL_TIMEOUT_MS = 120_000
 const SKILL_NAME_RE = /^\w[\w.-]*$/
 const PLUGIN_ID_RE = /^\w[\w.-]*@\w[\w.-]*$/
+const BACKUPS_KEPT = 10
+
+// copies a skill aside before Forge changes it, keeping the newest BACKUPS_KEPT copies
+function backUpSkill(backupDir: string, scope: SkillScope, ref: string, name: string, dir: string): void {
+  const root = join(backupDir, scope, ref, name)
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  let dest = join(root, stamp)
+  for (let n = 1; existsSync(dest); n++) dest = join(root, `${stamp}-${String(n).padStart(3, '0')}`)
+  cpSync(dir, dest, { recursive: true, dereference: true })
+  for (const old of readdirSync(root).sort().slice(0, -BACKUPS_KEPT)) rmSync(join(root, old), { recursive: true, force: true })
+}
 
 // the CLI prints one JSON entry per requested skill; a non-installed one carries the reason
 function installFailure(result: RunResult): string {
@@ -29,7 +40,7 @@ function commandFailure(result: RunResult): string {
 
 export function skillRoutes(
   reader: CWReader,
-  options: { runnerFor?: (env: NodeJS.ProcessEnv) => Runner; remoteOf?: RemoteLookup } = {},
+  options: { runnerFor?: (env: NodeJS.ProcessEnv) => Runner; remoteOf?: RemoteLookup; backupDir?: string } = {},
 ): Hono {
   const runnerFor = options.runnerFor ?? ((env) => createRunner(env, INSTALL_TIMEOUT_MS))
   const remoteOf = options.remoteOf ?? createRemoteLookup(runCommand)
@@ -59,6 +70,17 @@ export function skillRoutes(
   }
   // CW sessions read plugins from the account's config dir only, so new installs go to an account
   const knownAccount = (account: string | undefined) => account && reader.getAccounts().includes(account) ? account : null
+
+  // an error message when the copy could not be saved, so the change is refused
+  const backup = (scope: SkillScope, ref: string, name: string, dir: string): string | null => {
+    if (!options.backupDir) return null
+    try {
+      backUpSkill(options.backupDir, scope, ref, name, dir)
+      return null
+    } catch (err) {
+      return `Could not back up ${name}, nothing was changed: ${err instanceof Error ? err.message : 'Unknown error'}`
+    }
+  }
 
   const refOf = (scope: SkillScope, scopeRef?: string) => scope === 'global' ? 'global' : scopeRef ?? ''
   // a scope ref must be a known account or project
@@ -156,6 +178,8 @@ export function skillRoutes(
       }
 
       const { content } = await c.req.json<{ content: string }>()
+      const failed = backup(scope, scopeRef, name, dir)
+      if (failed) return c.json({ error: failed }, 500)
       try {
         writeFileSync(skillMd, content, 'utf-8')
         return c.json({ ok: true })
@@ -178,6 +202,8 @@ export function skillRoutes(
       }
 
       const { content } = await c.req.json<{ content: string }>()
+      const failed = backup(scope, scopeRef, name, dir)
+      if (failed) return c.json({ error: failed }, 500)
       try {
         const refsDir = join(dir, 'references')
         mkdirSync(refsDir, { recursive: true })
@@ -201,6 +227,8 @@ export function skillRoutes(
         return c.json({ error: 'Reference not found' }, 404)
       }
 
+      const failed = backup(scope, scopeRef, name, dir)
+      if (failed) return c.json({ error: failed }, 500)
       try {
         unlinkSync(refFile)
         return c.json({ ok: true })
@@ -220,6 +248,8 @@ export function skillRoutes(
         return c.json({ error: 'Skill not found' }, 404)
       }
 
+      const failed = backup(scope, scopeRef, name, dir)
+      if (failed) return c.json({ error: failed }, 500)
       try {
         rmSync(dir, { recursive: true, force: true })
         return c.json({ ok: true })
