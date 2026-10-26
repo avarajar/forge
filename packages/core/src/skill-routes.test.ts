@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 import { Hono } from 'hono'
 import { skillRoutes } from './skill-routes.js'
 import { CWReader } from './cw-reader.js'
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeMarketplaceFixture, writePluginFixture } from './test-plugins.js'
 
@@ -232,6 +232,78 @@ describe('Skill Routes', () => {
     const body = await res.json() as { name: string; scope: string }
     expect(body.name).toBe('Test Account Skill')
     expect(body.scope).toBe('account')
+  })
+})
+
+describe('Skill backups', () => {
+  const HOME = join(import.meta.dirname, '../.test-skill-backups-home')
+  const CW = join(import.meta.dirname, '../.test-skill-backups-cw')
+  const BACKUPS = join(import.meta.dirname, '../.test-skill-backups-data')
+  const skillDir = join(HOME, '.claude', 'skills', 'notes')
+  let app: Hono
+
+  // the saved copies of the global skill "notes", oldest first
+  const backups = () => existsSync(join(BACKUPS, 'global', 'global', 'notes'))
+    ? readdirSync(join(BACKUPS, 'global', 'global', 'notes')).sort().map(d => join(BACKUPS, 'global', 'global', 'notes', d))
+    : []
+  const send = (path: string, method: string, content?: string) => app.request(`/api/skills/global/notes${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    ...(content === undefined ? {} : { body: JSON.stringify({ content }) }),
+  })
+
+  beforeEach(() => {
+    for (const dir of [HOME, CW, BACKUPS]) rmSync(dir, { recursive: true, force: true })
+    process.env.HOME = HOME
+    mkdirSync(join(skillDir, 'references'), { recursive: true })
+    writeFileSync(join(skillDir, 'SKILL.md'), 'original', 'utf-8')
+    writeFileSync(join(skillDir, 'references', 'a.md'), 'ref a', 'utf-8')
+    mkdirSync(join(CW, 'accounts'), { recursive: true })
+    writeFileSync(join(CW, 'projects.json'), '{}')
+    app = new Hono()
+    app.route('/api/skills', skillRoutes(new CWReader(CW), { backupDir: BACKUPS }))
+  })
+
+  afterAll(() => {
+    for (const dir of [HOME, CW, BACKUPS]) rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('saves the whole skill before SKILL.md is overwritten', async () => {
+    expect((await send('', 'PUT', 'edited')).status).toBe(200)
+    const [copy] = backups()
+    expect(readFileSync(join(copy!, 'SKILL.md'), 'utf-8')).toBe('original')
+    expect(readFileSync(join(copy!, 'references', 'a.md'), 'utf-8')).toBe('ref a')
+    expect(readFileSync(join(skillDir, 'SKILL.md'), 'utf-8')).toBe('edited')
+  })
+
+  it('saves the skill before a reference is replaced or deleted', async () => {
+    expect((await send('/references/a.md', 'PUT', 'ref a v2')).status).toBe(200)
+    expect((await send('/references/a.md', 'DELETE')).status).toBe(200)
+    const copies = backups()
+    expect(copies).toHaveLength(2)
+    expect(readFileSync(join(copies[0]!, 'references', 'a.md'), 'utf-8')).toBe('ref a')
+    expect(readFileSync(join(copies[1]!, 'references', 'a.md'), 'utf-8')).toBe('ref a v2')
+  })
+
+  it('keeps a copy of a deleted skill', async () => {
+    expect((await send('', 'DELETE')).status).toBe(200)
+    expect(existsSync(skillDir)).toBe(false)
+    expect(readFileSync(join(backups()[0]!, 'SKILL.md'), 'utf-8')).toBe('original')
+  })
+
+  it('keeps only the newest copies of a skill', async () => {
+    for (let i = 0; i < 12; i++) expect((await send('', 'PUT', `v${i}`)).status).toBe(200)
+    const copies = backups()
+    expect(copies).toHaveLength(10)
+    expect(readFileSync(join(copies[9]!, 'SKILL.md'), 'utf-8')).toBe('v10')
+  })
+
+  it('refuses the change when the copy cannot be saved', async () => {
+    writeFileSync(BACKUPS, 'a file where the backup folder should be')
+    const res = await send('', 'DELETE')
+    expect(res.status).toBe(500)
+    expect((await res.json() as { error: string }).error).toMatch(/back up/)
+    expect(existsSync(join(skillDir, 'SKILL.md'))).toBe(true)
   })
 })
 
