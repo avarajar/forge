@@ -86,6 +86,13 @@ describe('ModuleHost', () => {
     expect(status(id)?.reason).toMatch(reason)
   })
 
+  it('explains an ES module server loaded as CommonJS', async () => {
+    writeFileSync(join(modulesDir, 'package.json'), JSON.stringify({ type: 'commonjs' }))
+    install('valid')
+    await make().scan()
+    expect(status('valid')?.reason).toMatch(/add "type": "module" to the module's package.json/)
+  })
+
   it('disables a duplicate id, naming where the first came from', async () => {
     const first = install('duplicate-a', join(modulesDir, 'a'))
     install('duplicate-b', join(modulesDir, 'b'))

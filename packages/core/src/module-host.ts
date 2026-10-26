@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, ModuleSource, ModuleStatus, ShellExecutor } from '@forge-dev/sdk'
 import { checkManifest, validateSettings, type SettingsResult } from './module-manifest.js'
@@ -176,6 +176,8 @@ export class ModuleHost {
     let server: ModuleServer | undefined
     if (m.server) {
       const file = resolve(c.dir, m.server)
+      const owner = file.endsWith('.js') ? nearestPackage(dirname(file)) : null
+      if (owner?.type === 'commonjs') return disabled(m.id, c, `${m.server} is an ES module but ${owner.path} says "type": "commonjs"; add "type": "module" to the module's package.json`, m)
       try {
         const imported = await import(`${pathToFileURL(file).href}?v=${statSync(file).mtimeMs}`)
         server = imported.default
@@ -258,6 +260,17 @@ function packages(root: string, source: ModuleSource, packaged: boolean): Candid
     }
   }
   return out
+}
+
+// the package.json that decides whether Node reads a .js file as ESM or CommonJS
+function nearestPackage(dir: string): { path: string; type?: string } | null {
+  for (let d = dir; ; d = dirname(d)) {
+    const path = join(d, 'package.json')
+    if (existsSync(path)) {
+      try { return { path, type: (JSON.parse(readFileSync(path, 'utf-8')) as { type?: string }).type } } catch { return { path } }
+    }
+    if (dirname(d) === d) return null
+  }
 }
 
 // npm links a package installed from a folder, so a symlink to a folder counts

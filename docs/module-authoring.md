@@ -35,7 +35,7 @@ mod-yourname/
   src/view.tsx        default export definePanel({...})
 ```
 
-A module can have only a server half, only a view, or both.
+A module can have only a server half, only a view, or both. Its `package.json` needs `"type": "module"` (the scaffold has it): Forge refuses a `.js` server under a `package.json` that says CommonJS.
 
 ---
 
