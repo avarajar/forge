@@ -112,6 +112,9 @@ export class PTYManager {
   private sessions = new Map<string, PTYSession>()
   private cleanupTimer: ReturnType<typeof setInterval> | null = null
 
+  // told when a session's agent starts and when its process exits
+  onLifecycle?: (event: 'started' | 'ended', session: CWSession) => void
+
   constructor(private readonly states: StateTracker | null = null) {
     this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS)
   }
@@ -187,9 +190,11 @@ export class PTYManager {
         } catch {}
       }
       this.sessions.delete(key)
+      this.onLifecycle?.('ended', session)
     })
 
     this.sessions.set(key, ptySession)
+    this.onLifecycle?.('started', session)
     return ptySession
   }
 

@@ -42,3 +42,16 @@ export interface TeamConfig {
   databaseUrl: string
   authToken: string
 }
+
+export interface ModuleNotificationRow {
+  moduleId: string
+  key: string
+  kind: 'attention' | 'badge'
+  title: string
+  body?: string
+  version?: string
+  count?: number
+  label?: string
+  createdAt?: string
+  seenAt?: string | null
+}

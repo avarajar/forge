@@ -1,5 +1,5 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
-import { useEffect } from 'preact/hooks'
+import { useLayoutEffect } from 'preact/hooks'
 
 interface ModalProps {
   open: boolean
@@ -25,7 +25,7 @@ export const CloseButton: FunctionComponent<{ onClick: () => void; label?: strin
 export const Modal: FunctionComponent<ModalProps> = ({
   open, title, onClose, footer, width = 540, children
 }) => {
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)

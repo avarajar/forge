@@ -1,0 +1,29 @@
+{
+  "name": "__NAME__",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A Forge module",
+  "keywords": ["forge-module"],
+  "forge": { "manifest": "forge-module.json" },
+  "files": ["dist", "forge-module.json"],
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "test": "tsc --noEmit && vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@forge-dev/sdk": "^1.0.0",
+    "@forge-dev/ui": "^1.0.0",
+    "preact": "^10.0.0"
+  },
+  "devDependencies": {
+    "@forge-dev/sdk": "__SDK__",
+    "@forge-dev/ui": "__UI__",
+    "@preact/signals": "^2.0.0",
+    "esbuild": "^0.25.0",
+    "preact": "^10.25.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
+  }
+}

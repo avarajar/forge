@@ -14,7 +14,7 @@ Forge is the web dashboard for CW (Coding Workspace). It reads `~/.cw/` and `~/.
 | Database | node:sqlite (local) / PostgreSQL (team) |
 | CLI | Commander.js |
 | Build | Turborepo |
-| Tests | Vitest (598 tests in `packages/core`, plus `modules/mod-qa`) |
+| Tests | Vitest (`packages/core`, `packages/sdk`, `modules/mod-qa`) plus `packages/console/scripts/check-shared.mjs` |
 | Language | TypeScript (strict) |
 
 ## Monorepo Structure
@@ -24,8 +24,8 @@ packages/
   core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe launcher, DB, action runner
   console/    → Preact dashboard
   ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast, Modal, Drawer...)
-  sdk/        → Module SDK (definePanel, types)
-  cli/        → CLI commands (forge init/console/doctor/module/project/run)
+  sdk/        → Module SDK v1 1.0.0 (types, define* helpers, errors, forge-module.schema.json); `pnpm --filter @forge-dev/sdk reference` writes docs/sdk-reference.md
+  cli/        → CLI commands (forge init/console/doctor/module install|remove|list|dev|create/project/run); `templates/module` is the scaffold
   platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
 modules/
   mod-hello/      — Minimal example manifest
@@ -39,7 +39,7 @@ modules/
 tests/integration/ — Cross-package tests (not wired, see Development)
 ```
 
-Modules are `forge-module.json` manifests plus panels. The server loads manifests from `~/.forge/modules` (installed with `forge module add`) and runs their actions through `/api/actions`. The console has no panel registry: the only module panel it renders is mod-qa's escalations, imported directly by the QA view (`pages/Qa.tsx`). mod-qa is a bundled module (`BUNDLED_MODULES` in `modules.ts`): `createForgeServer` takes `bundledModulesDir`, which is the repo's `modules/` in a checkout (`packages/platform/src/index.ts`, `forge console`) and the package's `modules/` once published (`pack.mjs` copies only the manifest there). The bundled copy wins over `~/.forge/modules/mod-qa`, since the console was built against it, so `forge module add @forge-dev/mod-qa` is no longer needed; an installed copy is used only when the bundled manifest is missing.
+Modules follow SDK v1 (`docs/module-authoring.md`, spec in `docs/superpowers/specs/2026-10-26-module-sdk-v1-design.md`). `ModuleHost` (`module-host.ts`) discovers them (bundled, `forge module dev` folders in `<dataDir>/dev-modules.json`, `~/.forge/modules/<dir>`, `~/.forge/modules/node_modules` packages with a `forge` field, `@forge-dev/mod-*` next to Forge; first `id` wins), validates the manifest (`module-manifest.ts`), imports `server.js` into Forge's process and hands each handler a `ForgeContext` (`module-context.ts`) that checks the manifest's permissions, templated from settings (`module-permissions.ts`), on every call. Permissions are a contract, not a sandbox. `module-routes.ts` serves everything under `/api/modules/:id/*` through one dispatcher; `external` actions need a single-use token from `/prepare` (`module-confirmations.ts`) and run on the confirmed `plan`. Jobs (`module-jobs.ts`) and events (`module-events.ts`) are wired in `server.ts` through the host's hooks. The console lists modules under Modules in the sidebar and renders a module's `view.js` with dynamic `import()` in `pages/ModuleView.tsx`; Preact, `@forge-dev/ui` and `@forge-dev/sdk` are shared through the import map the build writes into `index.html` (`vite.shared.config.ts` builds them into `dist/shared/`, `scripts/check-shared.mjs` checks there is one Preact), so module views work in the built console only, not under Vite dev. Modules with a server or view do not load in team mode. Legacy manifests (no `sdk`, no server/view/permissions) still run shell actions through `/api/actions` via `ModuleLoader` (`modules.ts`); mod-qa is one, bundled (`BUNDLED_MODULES`), and the QA view imports its panel directly (`pages/Qa.tsx`). `createForgeServer` takes `bundledModulesDir`, which is the repo's `modules/` in a checkout and the package's `modules/` once published (`pack.mjs` copies only the manifest there); the bundled copy wins over `~/.forge/modules/mod-qa`.
 
 ## Console Architecture
 
@@ -56,13 +56,14 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── state/startTask.ts → start card / drawer shared input and type override
 │
 ├── Sidebar → nav, projects, live session cards, usage limit meters, appearance
-├── Views (view: list | accounts | skills | prototypes | qa | memory)
+├── Views (view: list | accounts | skills | prototypes | qa | memory | module:<id>)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
 │   ├── Skills (rail + editor/create/explore pane, Plugins group → plugin/propose pane)
 │   ├── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
 │   ├── Memory → Kioku brains by tier or a project's chain, recent writes, opens `kioku web` in a new tab
-│   └── Qa → mod-qa escalations for a CW project: gates, checks, findings, visual changes (images read with gh)
+│   ├── Qa → mod-qa escalations for a CW project: gates, checks, findings, visual changes (images read with gh)
+│   └── ModuleView → a v1 module's view.js, error boundary, ModuleSettings drawer
 ├── Tabs layer (kept mounted, hidden on the list)
 │   ├── TabBar → pill tabs, add menu
 │   └── TaskDetail → identity, metric strip, context panel, framed xterm terminal
@@ -85,7 +86,8 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
 - `packages/core/src/action-params.ts` — `validateParams`: an action's declared params, matched in full, mapped to `FORGE_PARAM_*` env vars
-- `packages/core/src/modules.ts` — Module manifest discovery (`~/.forge/modules`, plus the bundled modules, which win)
+- `packages/core/src/modules.ts` — Legacy manifest discovery for `/api/actions` (`~/.forge/modules`, plus the bundled modules, which win)
+- `packages/core/src/module-host.ts` — SDK v1 module discovery, loading, status, reload, dev folders, settings; `module-manifest.ts` (schema, semver, settings validation), `module-permissions.ts` (templated grants, realpath checks), `module-context.ts` (the permission-checked `ForgeContext`), `module-routes.ts` (dispatcher, settings, actions with prepare/token, SSE, notifications, view.js), `module-confirmations.ts`, `module-jobs.ts`, `module-events.ts`, `module-install.ts` (manifest preview with `npm pack --ignore-scripts`, install args); fixtures in `packages/core/test/fixtures/modules/`
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
 - `packages/core/src/usage.ts` — Usage limit windows per account and harness: normalisation, severity, 45 s cache, stale fallback (`usage-claude.ts` reads the keychain and Claude's OAuth usage endpoint, `usage-codex.ts` asks the Codex app server over JSON-RPC)
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
@@ -128,6 +130,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
 - `packages/console/src/pages/SkillPlugins.tsx` — Plugins group, plugin pane (accounts, Update, Install, read-only skills), Add a plugin browser (marketplaces, install), Propose a skill form (`config/plugins.ts` builds the task)
 - `packages/console/src/pages/Memory.tsx` — Kioku brains by tier or one project's chain (the task filter's project), recent writes, Open viewer; `hooks/useKioku.ts` is the shared store (60 s polling) and `chainFor(project)`; `components/MemoryPill.tsx` is the task row's pill, `components/NewMemory.tsx` the New memory drawer (`PAGE_TYPES` in `config/types.ts` holds each type's sections), `components/BrainForms.tsx` New brain, Give it a brain, Add area and Publish, and TaskDetail's `MemoryMetric` the chain plus Remember…
+- `packages/console/src/pages/ModuleView.tsx` — A module's page: dynamic import of its `view.js`, error boundary, disabled and removed states, settings button; `hooks/useModules.ts` (10 s poll), `hooks/useModuleNotifications.ts` (5 s poll, red and grey counts), `config/moduleClient.ts` (`PanelClient`), `components/ConfirmAction.tsx` (the confirmation for `external` actions), `components/ModuleSettings.tsx` (settings form from the schema)
 - `packages/console/src/pages/Prototypes.tsx` — Liveframe launcher: local frames, create/pull, push, Open agent (a general session in the frame folder)
 - `packages/console/src/hooks/useTaskReview.ts` — Shared review state per session; TaskDetail's active tab polls every 60 s
 - `packages/console/src/components/TaskLinks.tsx` — Linear/Notion ticket, GitHub and Open in editor buttons
@@ -189,7 +192,8 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 - `/api/skills` — `GET /` (every scope: global, each account, each project), `POST /copy`, `GET|PUT|DELETE /{global,account/:account,project/:project}/:name`, references, `POST /`, `GET /explore` (skills.sh), `POST /install`, `GET /plugins`, `GET /plugins/:id/skills/:name`, `POST /plugins/:id/update`, `POST /plugins/install` (account only), `GET|POST /marketplaces`
 - `/api/kioku` — `GET /status` (installed, version, brains with pages by kind, each CW project's chain, recent writes, running viewer; 5 min cache served stale while it refreshes, `?fresh=1` waits for a new one), `POST /pages` (`kioku page save`: `done`, `similar` with the pages, or `namespace`; 400 with kioku's message when it refuses), `POST /brains` (`kioku brain create`, on this machine only), `POST /areas` (`kioku namespace add`), `POST /link` (`kioku init` in a CW project's folder), `POST /publish` (`kioku brain publish` in a PTY; needs `understood: true`), `POST /remember` (types the note into a live Claude Code session's terminal with `PTYManager.typeLine`, 400 for another harness, 409 without a terminal), `POST /viewer` (starts or reuses `kioku web`, returns its address), `DELETE /viewer`
 - `/api/liveframe` — `GET /status` (agent account, lf installed, signed in, API base), `GET /frames`, `POST /frames` (`lf new`), `POST /pull`, `POST /frames/:project/:frame/push`
-- `/api/modules`, `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars. An action runs in the folder of `cwProject` (a CW project name, what the console sends) or of `projectId` (Forge's DB)
+- `/api/modules` — `GET /` (every module's status: state, reason, view, actions with their effect, settings schema, last job/event error, last denial), `POST /rescan`, `POST|DELETE /dev`, `GET /notifications`, and per module `GET|PUT /:id/settings` (v1: validated JSON, `400 { errors: [{ path, message }] }`; legacy: raw strings), `POST /:id/actions/:action[/prepare|/stream]` (`external` needs the token from prepare, else `409 confirmation_required`), `POST /:id/reload`, `GET /:id/status`, `POST /:id/notifications/seen`, `GET /:id/view.js`, and the module's own routes at `/:id/*`
+- `/api/actions/:module/:action[/stream]`, `/api/action-logs`, `/api/projects`, `/api/registry/search`, `/api/filesystem/browse`, `/api/health` — Module system and Forge's own DB; an action's `params` (name → pattern) are checked by `action-params.ts` and reach the command only as `FORGE_PARAM_<NAME>` env vars. An action runs in the folder of `cwProject` (a CW project name, what the console sends) or of `projectId` (Forge's DB)
 
 ## MCP Reading
 

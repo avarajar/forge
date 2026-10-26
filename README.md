@@ -243,7 +243,153 @@ packages/
   core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe, DB
   console/    → Preact dashboard (app, pages, components, hooks, design tokens)
   ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
-  sdk/        → Module SDK (definePanel, types)
+  sdk/        → Module SDK v1 (definePanel, defineModule, defineAction, defineRoute, defineJob, onEvent, types)
+  cli/        → CLI commands (forge init/console/doctor/module/project/run)
+  platform/   → Entry point and the published package (`forge-cw` on npm), with CW bundled
+modules/
+  mod-hello/      — Minimal example manifest
+  mod-dev/        — CW wrapper (worktrees, sessions)
+  mod-scaffold/   — Project creation wizard
+  mod-planning/   — Linear + Notion + diagrams
+  mod-design/     — Figma + tokens + wireframes
+  mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
+  mod-release/    — Deploy, flags, rollback, changelog
+  mod-monitor/    — Health, errors, uptime, costs
+```
+
+<br />
+
+## Console Architecture
+
+The dashboard is a Preact SPA with this component structure:
+
+```
+App → Shell (sidebar + main column, theme)
+├── useTabManager (tab state, sessionStorage, ⌘1–5 / ⌘W / ⌘L)
+├── useTaskFilters (project/type/harness filters, derived data)
+├── useHarnesses (shared `cw doctor` store, 3 s polling)
+├── useTerminalMetrics (context, tokens and cost from each tab's status line)
+│
+├── Sidebar → nav, projects by account (filter, fold), live session cards, appearance
+├── Views
+│   ├── TaskList → StartCard (type inference), filters, Recent / By project, ProjectBanner
+│   ├── Accounts → account cards, device login, API key
+│   ├── Skills → list + editor, create, skills.sh search
+│   └── Prototypes → Liveframe frames: create, pull, push, open an agent
+├── Tabs (kept mounted while the list is shown)
+│   ├── TabBar → pill tabs, + menu
+│   └── TaskDetail → identity, metric strip, context panel, terminal
+├── NewTask drawer → HarnessPicker
+├── CommandPalette (⌘K, /)
+└── CreateProjectModal → DirectoryPicker
+```
+
+Design tokens (colors, shadows, motion) live in `styles/theme.css` for both themes; type colors and helpers live in `config/types.ts`.
+
+### Keyboard
+
+| Keys | Action |
+|------|--------|
+| `⌘K` or `/` | Command palette |
+| `N` | New task |
+| `P` | Add a project |
+| `⌘J` | Switch light and dark |
+| `⌘1`–`⌘5` | Go to a tab |
+| `⌘←` `⌘→` | Previous or next tab |
+| `⌘W` | Close the tab |
+| `⌘L` | Back to the task list |
+
+<br />
+
+## Modules
+
+A module adds a page to the sidebar and code to the server, and installs into a running Forge with no rebuild:
+
+```bash
+forge module install @yourorg/mod-yourname   # shows its permissions and asks first
+forge module create mod-yourname             # scaffold one
+forge module dev ./mod-yourname              # load it, rebuild and reload on change
+```
+
+A module is an npm package with a `forge-module.json` that declares what it may touch (`network`, `fs:read`,
+`fs:write`, `shell`, `pty`); Forge checks every call against those permissions. Its server half defines routes,
+actions, jobs and event handlers with `@forge-dev/sdk`; its view is a Preact component that shares Forge's Preact and
+`@forge-dev/ui` through an import map. Actions that reach a third party or spend money (`effect: "external"`) always go
+through Forge's confirmation, enforced by the server. A broken module shows as disabled with its reason, and a view
+that crashes stays in its own area.
+
+Permissions are a contract, not a sandbox: module code runs in Forge's process, so install only modules you trust.
+
+See [docs/module-authoring.md](docs/module-authoring.md) and [docs/sdk-reference.md](docs/sdk-reference.md). mod-qa
+still uses the older manifest (shell `actions` with `params` passed as `FORGE_PARAM_<NAME>` environment variables) and
+backs the QA view.
+
+<br />
+
+## Development
+
+To work on Forge itself:
+
+```bash
+pnpm install
+pnpm dev
+```
+
+<br />
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│              FORGE CONSOLE (Preact + UnoCSS)         │
+│    ~130KB gzipped with xterm.js · dark/light themes  │
+└───────────────────────┬──────────────────────────────┘
+                        │ HTTP + WebSocket
+┌───────────────────────┼──────────────────────────────┐
+│              FORGE SERVER (Hono)                       │
+│                                                       │
+│   Origin guard (same machine) · bearer auth (team)    │
+│                                                       │
+│   CW Reader    PTY Manager    Login Manager           │
+│   (sessions,   (node-pty,     (device code,           │
+│    projects,    xterm.js)      API key import)        │
+│    MCPs)                                              │
+│                                                       │
+│   Skills       Liveframe      Module Loader           │
+│   (skills.sh)  (lf CLI)       (forge-module.json)     │
+│                                                       │
+│   SQLite (local) ──── or ──── PostgreSQL (team)       │
+└───────────────────────┬───────────────────────────────┘
+                        │
+          ┌─────────────┼─────────────┐
+          │             │             │
+     ~/.cw/        ~/.claude/     Harness: Claude Code,
+     sessions      settings       Codex, Pi, OpenCode
+     projects      plugins        (spawned via cw work,
+     accounts      MCPs           review, launch)
+```
+
+### Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Server | Hono (Node.js) |
+| Dashboard | Preact + UnoCSS + Vite |
+| Terminal | xterm.js + node-pty (WebSocket) |
+| Database | node:sqlite (local) / PostgreSQL (team) |
+| CLI | Commander.js |
+| Build | Turborepo |
+| Tests | Vitest (349 tests in `packages/core`) |
+| Language | TypeScript (strict) |
+
+### Monorepo Structure
+
+```
+packages/
+  core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe, DB
+  console/    → Preact dashboard (app, pages, components, hooks, design tokens)
+  ui/         → Shared components (Terminal, StatusCard, ActionButton, Toast...)
+  sdk/        → Module SDK v1 (definePanel, defineModule, defineAction, defineRoute, defineJob, onEvent, types)
   cli/        → CLI commands (forge init/console/doctor/module/project/run)
   platform/   → Entry point and the published package (`forge-cw` on npm), with CW bundled
 modules/
@@ -371,7 +517,7 @@ cd packages/console && pnpm vite       # Dashboard dev server
 |-------|--------|------|
 | **0: Foundation** | Done | Core server, dashboard shell, module system, CLI, UI kit |
 | **1: CW Integration** | Done | CW reader, sessions, PTY terminals, multi-tab |
-| **2: Full Ecosystem** | Done | 7 module manifests, team mode (PostgreSQL + auth) |
+| **2: Full Ecosystem** | Done | Module manifests, team mode (PostgreSQL + auth) |
 | **3: Polish** | In progress | UX improvements, error handling, performance |
 | **Harness integration** | Done | Claude Code, Codex, Pi and OpenCode sessions, Accounts screen, same-machine API |
 | **Distribution** | Done | `forge-cw` on npm with CW bundled, ready-made binaries for macOS and Linux |

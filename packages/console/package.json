@@ -4,9 +4,10 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.shared.config.ts",
     "dev": "vite",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "node scripts/check-shared.mjs"
   },
   "dependencies": {
     "@forge-dev/core": "workspace:*",

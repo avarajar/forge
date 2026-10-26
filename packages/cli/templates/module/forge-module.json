@@ -1,0 +1,15 @@
+{
+  "id": "__ID__",
+  "name": "__NAME__",
+  "version": "0.1.0",
+  "sdk": "^1.0.0",
+  "displayName": "__DISPLAY__",
+  "description": "A Forge module",
+  "server": "./dist/server.js",
+  "view": { "entry": "./dist/view.js" },
+  "settings": {
+    "schema": {
+      "greeting": { "type": "string", "label": "Greeting", "default": "Hello from __DISPLAY__" }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{ "id": "schema-error", "name": "x", "version": "1", "sdk": "^1.0.0", "displayName": "S", "permissions": { "camera": true } }

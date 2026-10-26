@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ModuleManifest, ActionDef } from '@forge-dev/sdk'
+import type { LegacyManifest as ModuleManifest, LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 
 // módulos que viajan con Forge porque la consola los usa (la vista QA llama a mod-qa)
 export const BUNDLED_MODULES = ['mod-qa']
@@ -51,7 +51,9 @@ export class ModuleLoader {
 
     try {
       const raw = readFileSync(manifestPath, 'utf-8')
-      const manifest: ModuleManifest = JSON.parse(raw)
+      const manifest = JSON.parse(raw) as ModuleManifest & { sdk?: unknown }
+      // v1 modules run actions through the module host, never as shell commands here
+      if (manifest.sdk !== undefined) return undefined
       this.loaded.set(dirName, manifest)
       return manifest
     } catch {

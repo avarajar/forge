@@ -5,7 +5,7 @@ import { ForgeDB } from './db.js'
 import { ModuleLoader } from './modules.js'
 import { ActionRunner } from './runner.js'
 import { validateParams } from './action-params.js'
-import type { ActionDef } from '@forge-dev/sdk'
+import type { LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 import { join, basename, resolve } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
@@ -22,6 +22,11 @@ import { LoginManager } from './login-manager.js'
 import { GeneralSessions } from './general-sessions.js'
 import { liveframeRoutes } from './liveframe-routes.js'
 import { kiokuRoutes } from './kioku-routes.js'
+import { ModuleHost, type LoadedModule } from './module-host.js'
+import { moduleRoutes } from './module-routes.js'
+import { JobScheduler } from './module-jobs.js'
+import { ModuleEvents } from './module-events.js'
+import type { CWSession } from './cw-types.js'
 import { Kioku } from './kioku.js'
 
 interface ServerOptions {
@@ -34,6 +39,8 @@ interface ServerOptions {
   cwDir?: string
   // carpeta con los módulos incluidos (BUNDLED_MODULES); sin ella solo se leen los instalados
   bundledModulesDir?: string
+  // node_modules where Forge itself is installed, searched for @forge-dev/mod-* packages
+  forgeNodeModules?: string
   // versión de Forge que reporta /api/health
   version?: string
 }
@@ -59,7 +66,7 @@ export function createForgeServer(options: ServerOptions) {
 
   const cwReader = new CWReader(options.cwDir)
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
-  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly }))
+  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
   app.route('/api/skills', skillRoutes(cwReader, { backupDir: join(dataDir, 'skill-backups') }))
 
   const { remote, shadow, warning } = remoteClassifierFromEnv()
@@ -88,6 +95,53 @@ export function createForgeServer(options: ServerOptions) {
     // kioku's plugin, and so its skill, exists only for Claude Code
     canRemember: (project, sessionDir) => cwReader.getSession(project, sessionDir)?.harness === 'claude',
   }))
+
+  const jobs = new JobScheduler({
+    onResult: (id, jobId, error) => {
+      const status = moduleHost.get(id)?.status
+      if (status) status.lastJobError = error ? `${jobId}: ${error}` : undefined
+      if (error) console.warn(`[module ${id}] job ${jobId}: ${error}`)
+    },
+  })
+  const moduleEvents = new ModuleEvents({
+    onError: (id, message) => {
+      const status = moduleHost.get(id)?.status
+      if (status) status.lastEventError = message
+      console.warn(`[module ${id}] ${message}`)
+    },
+  })
+  const startModule = (mod: LoadedModule) => {
+    for (const job of mod.server?.jobs ?? []) jobs.start(mod.status.id, job, mod.ctx)
+  }
+  const moduleHost = new ModuleHost({
+    modulesDir,
+    bundledDir: options.bundledModulesDir,
+    forgeNodeModules: options.forgeNodeModules,
+    devFile: join(dataDir, 'dev-modules.json'),
+    localOnly,
+    deps: { db, reader: cwReader, runner },
+    hooks: {
+      loaded: (mod) => {
+        for (const sub of mod.server?.events ?? []) moduleEvents.subscribe(mod.status.id, sub, mod.ctx)
+        startModule(mod)
+      },
+      unloading: (mod) => {
+        jobs.stopModule(mod.status.id)
+        moduleEvents.unsubscribeModule(mod.status.id)
+      },
+      settingsChanged: (mod) => {
+        jobs.stopModule(mod.status.id)
+        startModule(mod)
+        moduleEvents.emitTo(mod.status.id, 'module.settings.changed', { moduleId: mod.status.id })
+      },
+    },
+  })
+  const sessionEvent = (s: CWSession) => ({
+    project: s.project, sessionDir: s.sessionDir ?? '', type: s.type, account: s.account, harness: s.harness, provider: s.provider, model: s.model,
+  })
+  ptyManager.onLifecycle = (event, session) => moduleEvents.emit(event === 'started' ? 'session.started' : 'session.ended', sessionEvent(session))
+  const modulesReady = moduleHost.scan().catch((err: Error) => console.error(`[modules] scan failed: ${err.message}`))
+  app.route('/api/modules', moduleRoutes(moduleHost, { db, ready: modulesReady }))
 
   // states only, never terminal text
   app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))
@@ -164,15 +218,6 @@ export function createForgeServer(options: ServerOptions) {
     return c.json({ ok: true })
   })
 
-  app.get('/api/modules', (c) => {
-    const installed = db.listModules()
-    const loaded = loader.getLoaded()
-    return c.json(installed.map(m => ({
-      ...m,
-      manifest: loaded.get(m.name) ?? null
-    })))
-  })
-
   app.get('/api/modules/available', (c) => {
     const manifests = loader.discover()
     return c.json(manifests)
@@ -237,20 +282,6 @@ export function createForgeServer(options: ServerOptions) {
     return c.json(db.listActionLogs({ moduleId, limit }))
   })
 
-  app.get('/api/modules/:module/settings', (c) => {
-    const moduleId = c.req.param('module')
-    return c.json(db.getModuleSettings(moduleId))
-  })
-
-  app.put('/api/modules/:module/settings', async (c) => {
-    const moduleId = c.req.param('module')
-    const body = await c.req.json<Record<string, string>>()
-    for (const [key, value] of Object.entries(body)) {
-      db.setModuleSetting(moduleId, key, String(value))
-    }
-    return c.json({ ok: true })
-  })
-
   app.get('/api/registry/search', async (c) => {
     const q = c.req.query('q') ?? 'forge-dev'
     try {
@@ -308,6 +339,7 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
+    modulesReady,
+    close: () => { moduleHost.close(); ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
   }
 }

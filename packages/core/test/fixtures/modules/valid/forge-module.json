@@ -1,0 +1,1 @@
+{ "id": "valid", "name": "@test/mod-valid", "version": "1.2.3", "sdk": "^1.0.0", "displayName": "Valid", "server": "./dist/server.js", "view": { "entry": "./dist/view.js", "title": "Valid view" }, "permissions": { "network": ["http://localhost:{port}"] }, "settings": { "schema": { "port": { "type": "number", "default": 5555 } } } }

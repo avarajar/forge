@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'preact/hooks'
-import { definePanel, type PanelProps } from '@forge-dev/sdk'
+import { definePanel, type LegacyPanelProps as PanelProps } from '@forge-dev/sdk'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { latestDecision, weekStats, isStale, visualChanges, type Decision, type EvidenceFile, type PrComment, type VisualChange, type WeekStats } from '../lib/decision.js'
 import { readGh, readGhRun, readPng, timeAgo, checkMark, type ActionResponse } from '../lib/inbox.js'
@@ -404,4 +404,4 @@ function EscalationsPanel({ moduleId, projectId, cwProject }: PanelProps) {
   )
 }
 
-export default definePanel({ id: 'escalations', title: 'Escalamientos', component: EscalationsPanel })
+export default definePanel<PanelProps>({ id: 'escalations', title: 'Escalamientos', component: EscalationsPanel })

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { ActionDef } from '@forge-dev/sdk'
+import type { LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 import { validateParams } from './action-params.js'
 import { createForgeServer } from './server.js'
 

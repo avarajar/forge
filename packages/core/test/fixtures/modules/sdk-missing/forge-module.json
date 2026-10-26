@@ -1,0 +1,1 @@
+{ "id": "sdk-missing", "name": "x", "version": "1", "displayName": "S", "server": "./dist/server.js" }

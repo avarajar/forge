@@ -3,6 +3,8 @@ import { defineConfig, presetUno, presetIcons } from 'unocss'
 const tokens = ['bg', 'bg-2', 'card', 'elev', 'hair', 'hair-2', 'ink', 'ink-2', 'ink-3', 'blue', 'blue-2', 'green', 'orange', 'red', 'purple', 'teal', 'term']
 
 export default defineConfig({
+  // ui is shared through the import map, so its sources are scanned here instead of through the bundle
+  content: { filesystem: ['../ui/src/**/*.tsx'] },
   presets: [
     presetUno(),
     presetIcons({ scale: 1.2 })
