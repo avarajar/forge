@@ -256,8 +256,8 @@ export class ForgeDB implements IForgeDB {
   }
 
   kvList(moduleId: string, prefix = ''): string[] {
-    const rows = this.db.prepare('SELECT key FROM module_kv WHERE module_id = ? ORDER BY key').all(moduleId) as { key: string }[]
-    return rows.map(r => r.key).filter(k => k.startsWith(prefix))
+    const rows = this.db.prepare('SELECT key FROM module_kv WHERE module_id = ? AND substr(key, 1, ?) = ? ORDER BY key').all(moduleId, prefix.length, prefix) as { key: string }[]
+    return rows.map(r => r.key)
   }
 
   // true when the row is new or its version changed; a changed version is unseen again

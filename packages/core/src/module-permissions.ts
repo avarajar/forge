@@ -1,6 +1,6 @@
-import { realpath } from 'node:fs/promises'
-import { homedir } from 'node:os'
+import { realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve, sep } from 'node:path'
+import { expandHome } from './state-log.js'
 import type { ModulePermissions, ModuleSettings } from '@forge-dev/sdk'
 
 export interface Grants {
@@ -53,10 +53,6 @@ function expandOne(template: string, settings: ModuleSettings): string[] {
   return out
 }
 
-function expandHome(path: string): string {
-  return path === '~' ? homedir() : path.startsWith('~/') ? join(homedir(), path.slice(2)) : path
-}
-
 function normalizeOrigin(value: string): string | null {
   try {
     const url = new URL(value)
@@ -81,22 +77,21 @@ export function allowsCommand(grants: Grants, command: string): boolean {
 }
 
 export async function allowsPath(grants: string[], target: string): Promise<boolean> {
-  const real = await realTarget(resolve(expandHome(target)))
+  const real = realOrParent(resolve(expandHome(target)))
   for (const grant of grants) {
     const folder = grant.endsWith('/')
-    const base = await realTarget(resolve(expandHome(grant)))
+    const base = realOrParent(resolve(expandHome(grant)))
     if (folder ? real === base || real.startsWith(base + sep) : real === base) return true
   }
   return false
 }
 
 // a file that does not exist yet resolves through its nearest existing parent
-async function realTarget(path: string): Promise<string> {
+export function realOrParent(path: string): string {
   try {
-    return await realpath(path)
+    return realpathSync(path)
   } catch {
     const parent = dirname(path)
-    if (parent === path) return path
-    return join(await realTarget(parent), basename(path))
+    return parent === path ? path : join(realOrParent(parent), basename(path))
   }
 }

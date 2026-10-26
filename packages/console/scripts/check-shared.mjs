@@ -3,9 +3,10 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { build } from 'vite'
+import { SHARED_PACKAGES } from '@forge-dev/sdk'
 
 const dist = join(import.meta.dirname, '../dist')
-const SHARED = ['preact', 'preact/hooks', 'preact/jsx-runtime', 'preact/compat', '@preact/signals', '@forge-dev/ui', '@forge-dev/sdk']
+const SHARED = [...SHARED_PACKAGES]
 // only Preact's core defines this; it appears once when Preact is bundled once
 const PREACT_MARKER = 'prototype.forceUpdate='
 const failures = []

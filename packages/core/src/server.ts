@@ -111,8 +111,7 @@ export function createForgeServer(options: ServerOptions) {
     },
   })
   const startModule = (mod: LoadedModule) => {
-    const settings = moduleHost.settings(mod.status.id)
-    for (const job of mod.server?.jobs ?? []) jobs.start(mod.status.id, job, mod.ctx, settings)
+    for (const job of mod.server?.jobs ?? []) jobs.start(mod.status.id, job, mod.ctx)
   }
   const moduleHost = new ModuleHost({
     modulesDir,
@@ -341,6 +340,6 @@ export function createForgeServer(options: ServerOptions) {
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
     modulesReady,
-    close: () => { jobs.stopAll(); void moduleHost.close(); ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
+    close: () => { moduleHost.close(); ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
   }
 }

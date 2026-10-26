@@ -33,10 +33,13 @@ type Listener = (n: ModuleNotification) => void
 let timer: ReturnType<typeof setInterval> | null = null
 let lastLoad = 0
 let loaded = false
+let inFlight = false
 const listeners = new Set<Listener>()
 const idOf = (n: ModuleNotification) => `${n.moduleId}\u0000${n.key}\u0000${n.createdAt}`
 
 async function load(): Promise<void> {
+  if (inFlight) return
+  inFlight = true
   lastLoad = Date.now()
   try {
     const res = await fetch('/api/modules/notifications')
@@ -51,6 +54,8 @@ async function load(): Promise<void> {
     loaded = true
   } catch {
     // the server restarting is not worth a toast; the next poll catches up
+  } finally {
+    inFlight = false
   }
 }
 

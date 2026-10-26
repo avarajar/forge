@@ -39,3 +39,13 @@ export function onEvent<E extends ForgeEventName>(
 export function shell(command: string, args: string[]): ShellExecutor {
   return { kind: 'shell', command, args }
 }
+
+export function isShellExecutor(run: unknown): run is ShellExecutor {
+  return typeof run === 'object' && run !== null && (run as ShellExecutor).kind === 'shell'
+}
+
+// packages a module view gets from Forge through the import map; module builds keep them external
+export const SHARED_PACKAGES = ['preact', 'preact/hooks', 'preact/jsx-runtime', 'preact/compat', '@preact/signals', '@forge-dev/ui', '@forge-dev/sdk'] as const
+
+// a module id: also its URL segment under /api/modules
+export const MODULE_ID_RE = /^[a-z][a-z0-9-]{1,31}$/

@@ -1,4 +1,4 @@
-import type { ForgeContext, JobDef, ModuleSettings } from '@forge-dev/sdk'
+import type { ForgeContext, JobDef } from '@forge-dev/sdk'
 
 const MIN_MS = 30_000
 const UNITS: Record<string, number> = { s: 1000, m: 60_000, h: 3_600_000 }
@@ -23,7 +23,7 @@ export class JobScheduler {
 
   constructor(private readonly opts: { onResult: (moduleId: string, jobId: string, error: string | null) => void }) {}
 
-  start(moduleId: string, job: JobDef, ctx: ForgeContext, settings: ModuleSettings): void {
+  start(moduleId: string, job: JobDef, ctx: ForgeContext): void {
     let ms: number
     try {
       ms = parseEvery(job.every)
@@ -31,7 +31,7 @@ export class JobScheduler {
       this.opts.onResult(moduleId, job.id, (err as Error).message)
       return
     }
-    if (job.enabled && !job.enabled(settings)) return
+    if (job.enabled && !job.enabled(ctx.settings)) return
 
     const entry: Entry = { lastError: null }
     const report = (error: string | null) => {
@@ -72,9 +72,5 @@ export class JobScheduler {
       entry.running = undefined
     }
     this.entries.delete(moduleId)
-  }
-
-  stopAll(): void {
-    for (const id of [...this.entries.keys()]) this.stopModule(id)
   }
 }

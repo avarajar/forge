@@ -1,8 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, ModuleSource, ModuleStatus, ShellExecutor } from '@forge-dev/sdk'
-import { checkManifest, validateSettings, type SettingsResult } from './module-manifest.js'
+import { isShellExecutor } from '@forge-dev/sdk'
+import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, ModuleSource, ModuleStatus } from '@forge-dev/sdk'
+import { checkManifest, manifestFileFor, validateSettings, type SettingsResult } from './module-manifest.js'
 import { expandGrants, type Grants } from './module-permissions.js'
 import { createForgeContext, type ContextDeps } from './module-context.js'
 import { BUNDLED_MODULES } from './modules.js'
@@ -33,6 +34,8 @@ export interface LoadedModule {
   ctx: ForgeContext
   abort: AbortController
   grants: Grants
+  settings: ModuleSettings
+  candidate: Candidate
 }
 
 interface Candidate { dir: string; source: ModuleSource; manifestFile: string; packaged: boolean }
@@ -40,7 +43,6 @@ interface Candidate { dir: string; source: ModuleSource; manifestFile: string; p
 export class ModuleHost {
   private statuses: ModuleStatus[] = []
   private loaded = new Map<string, LoadedModule>()
-  private listeners = new Set<(id: string) => void>()
 
   constructor(private readonly opts: HostOptions) {}
 
@@ -50,11 +52,6 @@ export class ModuleHost {
 
   get(id: string): LoadedModule | undefined {
     return this.loaded.get(id)
-  }
-
-  onChange(listener: (id: string) => void): () => void {
-    this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
   }
 
   async scan(): Promise<ModuleStatus[]> {
@@ -69,9 +66,17 @@ export class ModuleHost {
     return statuses
   }
 
+  // only this module is unloaded and loaded again; the others keep running
   async reload(id: string): Promise<void> {
-    await this.scan()
-    this.emit(id)
+    const mod = this.loaded.get(id)
+    if (!mod) {
+      await this.scan()
+    } else {
+      this.unload(id)
+      const seen = new Map([...this.loaded.values()].map(m => [m.status.id, m.dir]))
+      const status = await this.loadCandidate(mod.candidate, seen)
+      this.statuses = this.statuses.flatMap(s => (s === mod.status ? (status ? [status] : []) : [s]))
+    }
   }
 
   async addDev(path: string): Promise<ModuleStatus | undefined> {
@@ -89,8 +94,7 @@ export class ModuleHost {
   }
 
   settings(id: string): ModuleSettings {
-    const mod = this.loaded.get(id)
-    return mod ? this.readSettings(mod.manifest) : {}
+    return this.loaded.get(id)?.settings ?? {}
   }
 
   saveSettings(id: string, values: unknown): { ok: true } | Extract<SettingsResult, { ok: false }> {
@@ -99,18 +103,14 @@ export class ModuleHost {
     const result = validateSettings(mod.manifest.settings?.schema ?? {}, values)
     if (!result.ok) return result
     for (const [key, value] of Object.entries(result.value)) this.opts.deps.db.setModuleSetting(id, key, JSON.stringify(value))
+    mod.settings = result.value
     mod.grants = expandGrants(mod.manifest.permissions, result.value)
     this.opts.hooks?.settingsChanged?.(mod)
-    this.emit(id)
     return { ok: true }
   }
 
-  async close(): Promise<void> {
+  close(): void {
     for (const id of [...this.loaded.keys()]) this.unload(id)
-  }
-
-  private emit(id: string): void {
-    for (const listener of this.listeners) listener(id)
   }
 
   private unload(id: string): void {
@@ -201,11 +201,11 @@ export class ModuleHost {
 
     const settings = this.readSettings(m)
     const abort = new AbortController()
-    const mod: LoadedModule = { status, dir: c.dir, manifest: m, server, abort, grants: expandGrants(m.permissions, settings), ctx: undefined as unknown as ForgeContext }
+    const mod: LoadedModule = { status, dir: c.dir, manifest: m, server, abort, settings, candidate: c, grants: expandGrants(m.permissions, settings), ctx: undefined as unknown as ForgeContext }
     mod.ctx = createForgeContext(
       this.opts.deps,
       { id: m.id, version: m.version },
-      () => this.readSettings(m),
+      () => mod.settings,
       () => mod.grants,
       (permission, value) => { status.lastDenial = { permission, value, at: new Date().toISOString() } },
     )
@@ -237,17 +237,9 @@ function packages(root: string, source: ModuleSource, packaged: boolean): Candid
   if (!existsSync(root)) return []
   const out: Candidate[] = []
   const consider = (dir: string, name: string) => {
-    const pkgFile = join(dir, 'package.json')
-    let forge: { manifest?: unknown } | undefined
-    try {
-      const pkg = JSON.parse(readFileSync(pkgFile, 'utf-8')) as { forge?: { manifest?: unknown } }
-      forge = pkg.forge
-    } catch {
-      return
-    }
-    if (!forge && !/^@forge-dev\/mod-/.test(name)) return
-    const manifest = typeof forge?.manifest === 'string' ? forge.manifest : 'forge-module.json'
-    out.push({ dir, source, manifestFile: join(dir, manifest), packaged: packaged && Boolean(forge) })
+    const { file, hasForgeField } = manifestFileFor(dir)
+    if (!hasForgeField && !/^@forge-dev\/mod-/.test(name)) return
+    out.push({ dir, source, manifestFile: file, packaged: packaged && hasForgeField })
   }
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!isDir(root, entry) || entry.name.startsWith('.')) continue
@@ -280,10 +272,6 @@ function isDir(parent: string, entry: Dirent): boolean {
   try { return statSync(join(parent, entry.name)).isDirectory() } catch { return false }
 }
 
-function isShell(run: unknown): run is ShellExecutor {
-  return typeof run === 'object' && run !== null && (run as ShellExecutor).kind === 'shell'
-}
-
 function checkServer(server: unknown, m: ModuleManifestV1): string | null {
   if (typeof server !== 'object' || server === null) return 'server.js must default-export defineModule({...})'
   const s = server as ModuleServer
@@ -296,7 +284,7 @@ function checkServer(server: unknown, m: ModuleManifestV1): string | null {
   }
   const shellDeclared = (m.permissions?.shell?.length ?? 0) > 0
   for (const action of s.actions ?? []) {
-    if (isShell(action.run) && !shellDeclared) return `action ${action.id} uses shell but the manifest does not declare it`
+    if (isShellExecutor(action.run) && !shellDeclared) return `action ${action.id} uses shell but the manifest does not declare it`
     if (action.effect === 'external' && typeof action.confirm !== 'function') return `action ${action.id} is external but has no confirm`
   }
   for (const route of s.routes ?? []) {

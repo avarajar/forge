@@ -39,7 +39,7 @@ async function readStream(res: Response, onOutput: (chunk: string) => void): Pro
   throw new ModuleRequestError('module_error', 'the action stream ended early')
 }
 
-export function createPanelClient(moduleId: string, displayName: string, openSettings: () => void): PanelClient & { reloadSettings(): Promise<void> } {
+export function createPanelClient(moduleId: string, displayName: () => string, openSettings: () => void): PanelClient & { reloadSettings(): Promise<void> } {
   const settings = signal<ModuleSettings>({})
   const reloadSettings = async () => {
     const res = await fetch(`${base(moduleId)}/settings`)
@@ -80,7 +80,7 @@ export function createPanelClient(moduleId: string, displayName: string, openSet
       const prep = await post(`${base(moduleId)}/actions/${encodeURIComponent(id)}/prepare`, { input })
       if (!prep.ok) return fail(prep)
       const { confirmation, token } = await prep.json() as { confirmation: Confirmation; token: string }
-      if (!(await confirmAction(confirmation, displayName))) return undefined
+      if (!(await confirmAction(confirmation, displayName()))) return undefined
       const second = await run(id, input, token, opts?.onOutput)
       if ('needsConfirmation' in second) throw new ModuleRequestError('confirmation_required', 'The confirmation expired; try again')
       return second.result as O

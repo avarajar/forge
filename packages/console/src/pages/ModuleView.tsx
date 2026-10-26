@@ -4,7 +4,7 @@ import { ActionButton, EmptyState } from '@forge-dev/ui'
 import type { ModuleStatus, PanelConfig, PanelProps } from '@forge-dev/sdk'
 import { PageHeader } from '../components/PageHeader.js'
 import { modules, moduleWarning, refreshModules } from '../hooks/useModules.js'
-import { markModuleSeen } from '../hooks/useModuleNotifications.js'
+import { markModuleSeen, moduleCounts } from '../hooks/useModuleNotifications.js'
 import { createPanelClient } from '../config/moduleClient.js'
 import { ModuleSettings } from '../components/ModuleSettings.js'
 
@@ -60,10 +60,11 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
   const lastName = useRef(moduleId)
   if (status) lastName.current = status.displayName
   const name = lastName.current
-  const client = useMemo(() => createPanelClient(moduleId, name, () => setSettingsOpen(true)), [moduleId, name])
+  const client = useMemo(() => createPanelClient(moduleId, () => lastName.current, () => setSettingsOpen(true)), [moduleId])
   const version = status?.state === 'enabled' ? status.view?.version : undefined
 
-  useEffect(() => { void markModuleSeen(moduleId) }, [moduleId])
+  const unseen = moduleCounts.value[moduleId]?.attention ?? 0
+  useEffect(() => { if (unseen > 0) void markModuleSeen(moduleId) }, [moduleId, unseen])
 
   useEffect(() => {
     if (!status || !version) return

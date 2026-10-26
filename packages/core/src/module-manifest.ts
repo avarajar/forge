@@ -1,7 +1,8 @@
-import { realpathSync } from 'node:fs'
-import { basename, dirname, join, resolve, sep } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join, resolve, sep } from 'node:path'
 import semver from 'semver'
-import { SDK_VERSION } from '@forge-dev/sdk'
+import { MODULE_ID_RE, SDK_VERSION } from '@forge-dev/sdk'
+import { realOrParent } from './module-permissions.js'
 import type { LegacyManifest, ModuleManifestV1, ModuleSettings, ScalarSettingDef, SettingDef } from '@forge-dev/sdk'
 
 export type ManifestCheck =
@@ -13,7 +14,6 @@ export type SettingsResult =
   | { ok: true; value: ModuleSettings }
   | { ok: false; errors: Array<{ path: string; message: string }> }
 
-const ID_RE = /^[a-z][a-z0-9-]{1,31}$/
 const V1_FIELDS = ['server', 'view', 'permissions', 'id']
 const TOP_LEVEL = new Set(['$schema', 'id', 'name', 'version', 'sdk', 'displayName', 'description', 'icon', 'color', 'server', 'view', 'permissions', 'settings', 'actions', 'detectors', 'panels', 'claude'])
 const PERMISSIONS = new Set(['network', 'fs:read', 'fs:write', 'shell', 'pty'])
@@ -42,7 +42,7 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
   for (const key of ['id', 'name', 'version', 'sdk', 'displayName']) {
     if (typeof raw[key] !== 'string' || raw[key] === '') err(`/${key}`, 'required string')
   }
-  if (typeof raw.id === 'string' && !ID_RE.test(raw.id)) err('/id', `must match ${ID_RE.source}`)
+  if (typeof raw.id === 'string' && !MODULE_ID_RE.test(raw.id)) err('/id', `must match ${MODULE_ID_RE.source}`)
   for (const key of ['description', 'icon', 'color', 'server']) {
     if (raw[key] !== undefined && typeof raw[key] !== 'string') err(`/${key}`, 'must be a string')
   }
@@ -111,13 +111,14 @@ function insideFolder(dir: string, relative: string): boolean {
   return target === root || target.startsWith(root + sep)
 }
 
-// a missing file resolves through its nearest existing parent, so symlinked temp dirs compare equal
-function realOrParent(path: string): string {
+// the manifest a package points at with "forge": { "manifest" }, else forge-module.json
+export function manifestFileFor(dir: string): { file: string; hasForgeField: boolean } {
   try {
-    return realpathSync(path)
+    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8')) as { forge?: { manifest?: unknown } }
+    const manifest = typeof pkg.forge?.manifest === 'string' ? pkg.forge.manifest : 'forge-module.json'
+    return { file: join(dir, manifest), hasForgeField: pkg.forge !== undefined }
   } catch {
-    const parent = dirname(path)
-    return parent === path ? path : join(realOrParent(parent), basename(path))
+    return { file: join(dir, 'forge-module.json'), hasForgeField: false }
   }
 }
 

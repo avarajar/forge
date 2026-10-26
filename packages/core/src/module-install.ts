@@ -1,8 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir, homedir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { isAbsolute, join, resolve } from 'node:path'
 import type { LegacyManifest, ModuleManifestV1 } from '@forge-dev/sdk'
-import { checkManifest } from './module-manifest.js'
+import { checkManifest, manifestFileFor } from './module-manifest.js'
+import { expandHome } from './state-log.js'
 import type { Runner } from './task-review.js'
 
 export const TRUST_NOTE = 'Modules run inside Forge with your access. Forge checks every call against these permissions, but it is not a sandbox: install only modules you trust.'
@@ -15,7 +16,7 @@ export interface ManifestPreview {
 const isPathSpec = (spec: string, cwd: string) =>
   spec.startsWith('.') || spec.startsWith('~') || isAbsolute(spec) || (existsSync(resolve(cwd, spec)) && !spec.startsWith('@'))
 
-const expand = (spec: string, cwd: string) => (spec.startsWith('~/') ? join(homedir(), spec.slice(2)) : resolve(cwd, spec))
+const expand = (spec: string, cwd: string) => resolve(cwd, expandHome(spec))
 
 // the manifest of what would be installed, read without running any of the package's code
 export async function previewManifest(spec: string, opts: { cwd: string; run: Runner }): Promise<ManifestPreview> {
@@ -35,11 +36,7 @@ export async function previewManifest(spec: string, opts: { cwd: string; run: Ru
 }
 
 function readFolder(dir: string): ManifestPreview {
-  let manifestFile = join(dir, 'forge-module.json')
-  try {
-    const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8')) as { forge?: { manifest?: unknown } }
-    if (typeof pkg.forge?.manifest === 'string') manifestFile = join(dir, pkg.forge.manifest)
-  } catch { /* a folder without package.json is fine */ }
+  const manifestFile = manifestFileFor(dir).file
   if (!existsSync(manifestFile)) throw new Error(`${dir} has no forge-module.json`)
   const raw = JSON.parse(readFileSync(manifestFile, 'utf-8')) as unknown
   const check = checkManifest(raw, dir)

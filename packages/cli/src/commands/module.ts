@@ -4,7 +4,7 @@ import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, watch,
 import { join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { createInterface } from 'node:readline/promises'
-import type { ModuleStatus } from '@forge-dev/sdk'
+import { MODULE_ID_RE, type ModuleStatus } from '@forge-dev/sdk'
 
 const modulesDir = () => join(homedir(), '.forge', 'modules')
 const api = (path: string) => `http://localhost:${process.env.FORGE_PORT ?? '3000'}/api/modules${path}`
@@ -125,13 +125,14 @@ export function moduleCommand() {
     .description('Scaffold a module that builds, passes its tests and renders a view')
     .option('-d, --dir <dir>', 'parent folder', '.')
     .action((name: string, opts: { dir: string }) => {
-      const id = name.replace(/^@[^/]+\//, '').replace(/^(forge-)?mod-/, '').toLowerCase()
-      if (!/^[a-z][a-z0-9-]{1,31}$/.test(id)) {
+      const unscoped = name.replace(/^@[^/]+\//, '')
+      const id = unscoped.replace(/^(forge-)?mod-/, '').toLowerCase()
+      if (!MODULE_ID_RE.test(id)) {
         console.error(`"${id}" cannot be a module id: lowercase letters, digits and dashes, 2 to 32 characters`)
         process.exitCode = 1
         return
       }
-      const target = resolve(opts.dir, name.replace(/^@[^/]+\//, ''))
+      const target = resolve(opts.dir, unscoped)
       if (existsSync(target)) {
         console.error(`${target} already exists`)
         process.exitCode = 1

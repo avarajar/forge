@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { Hono, type Context } from 'hono'
-import { PermissionError } from '@forge-dev/sdk'
-import type { ActionContext, ActionDef, Confirmation, RouteDef, ShellExecutor } from '@forge-dev/sdk'
+import { PermissionError, isShellExecutor } from '@forge-dev/sdk'
+import type { ActionContext, ActionDef, Confirmation, RouteDef } from '@forge-dev/sdk'
 import type { IForgeDB } from './db-interface.js'
 import type { LoadedModule, ModuleHost } from './module-host.js'
 import { validateSettings } from './module-manifest.js'
@@ -103,28 +103,19 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
   })
 
   app.post('/:id/actions/:action', async (c) => {
-    const found = await findAction(c)
-    if (found instanceof Response) return found
-    const confirmed = checkToken(found)
-    if (confirmed === false) return c.json({ code: 'confirmation_required', message: `${found.action.label} needs a confirmation first` }, 409)
-    const logId = log(found)
+    const ready = await prepareRun(c)
+    if (ready instanceof Response) return ready
     try {
-      const result = await run(found, confirmed ?? undefined, () => {}, c.req.raw.signal)
-      db.completeAction(logId, 0)
-      return c.json({ result: result ?? null })
+      return c.json({ result: (await ready.run(() => {})) ?? null })
     } catch (err) {
-      db.completeAction(logId, 1)
-      return errorResponse(c, found.mod, err)
+      return errorResponse(c, ready.found.mod, err)
     }
   })
 
   app.post('/:id/actions/:action/stream', async (c) => {
-    const found = await findAction(c)
-    if (found instanceof Response) return found
-    const confirmed = checkToken(found)
-    if (confirmed === false) return c.json({ code: 'confirmation_required', message: `${found.action.label} needs a confirmation first` }, 409)
-    const logId = log(found)
-    const signal = c.req.raw.signal
+    const ready = await prepareRun(c)
+    if (ready instanceof Response) return ready
+    const { found } = ready
     return new Response(new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
@@ -133,11 +124,8 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
         }
         send('start', { action: found.action.id })
         try {
-          const result = await run(found, confirmed ?? undefined, (chunk) => send('output', { chunk }), signal)
-          db.completeAction(logId, 0)
-          send('done', { result: result ?? null })
+          send('done', { result: (await ready.run((chunk) => send('output', { chunk }))) ?? null })
         } catch (err) {
-          db.completeAction(logId, 1)
           send('error', describe(err))
         }
         try { controller.close() } catch { /* already closed */ }
@@ -149,7 +137,7 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
     const id = c.req.param('id')
     const mod = host.get(id)
     if (!mod) return c.json(removed(id), 404)
-    const path = '/' + c.req.path.split('/').slice(4).join('/')
+    const path = c.req.path.slice(c.req.path.indexOf(`/${id}/`) + id.length + 1)
     const match = matchRoute(mod.server?.routes ?? [], c.req.method, path)
     if (!match) return c.json({ code: 'not_found', message: `${c.req.method} ${path} is not a route of ${id}` }, 404)
     try {
@@ -179,20 +167,35 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
     return { mod, action, input, token: typeof body.token === 'string' ? body.token : undefined }
   }
 
-  // null: no confirmation needed; false: missing or invalid; otherwise the stored confirmation
-  function checkToken(found: Found): Confirmation | null | false {
-    if (found.action.effect !== 'external') return null
-    if (!found.token) return false
-    return confirmations.take(found.token, found.mod.status.id, found.action.id, inputHash(found.input)) ?? false
-  }
-
-  function log(found: Found): string {
-    return db.logAction({
+  // an external action needs the token its confirmation issued; the run is logged without its input
+  async function prepareRun(c: Context): Promise<Response | { found: Found; run: (output: (chunk: string) => void) => Promise<unknown> }> {
+    const found = await findAction(c)
+    if (found instanceof Response) return found
+    let confirmation: Confirmation | undefined
+    if (found.action.effect === 'external') {
+      confirmation = found.token ? confirmations.take(found.token, found.mod.status.id, found.action.id, inputHash(found.input)) ?? undefined : undefined
+      if (!confirmation) return c.json({ code: 'confirmation_required', message: `${found.action.label} needs a confirmation first` }, 409)
+    }
+    const logId = db.logAction({
       projectId: null,
       moduleId: found.mod.status.id,
       actionId: found.action.id,
       command: `${found.action.effect} input:${inputHash(found.input).slice(0, 12)}`,
     })
+    const signal = c.req.raw.signal
+    return {
+      found,
+      run: async (output) => {
+        try {
+          const result = await run(found, confirmation, output, signal)
+          db.completeAction(logId, 0)
+          return result
+        } catch (err) {
+          db.completeAction(logId, 1)
+          throw err
+        }
+      },
+    }
   }
 
   return app
@@ -201,17 +204,13 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
 async function run(found: { mod: LoadedModule; action: ActionDef; input: unknown }, confirmation: Confirmation | undefined, output: (chunk: string) => void, requestSignal: AbortSignal): Promise<unknown> {
   const { mod, action, input } = found
   const signal = AbortSignal.any([mod.abort.signal, requestSignal])
-  if (isShell(action.run)) {
+  if (isShellExecutor(action.run)) {
     const result = await mod.ctx.shell.exec(action.run.command, action.run.args)
     output(result.output)
     return result
   }
   const ctx = Object.assign(Object.create(mod.ctx) as ActionContext, { output, signal, confirmed: confirmation?.plan })
   return action.run(input, ctx)
-}
-
-function isShell(run: unknown): run is ShellExecutor {
-  return typeof run === 'object' && run !== null && (run as ShellExecutor).kind === 'shell'
 }
 
 async function readJson(c: Context): Promise<unknown> {

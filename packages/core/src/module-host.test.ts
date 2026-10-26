@@ -152,6 +152,16 @@ describe('ModuleHost', () => {
     expect(host.get('valid')?.server?.routes).toEqual([])
   })
 
+  it('reload leaves the other modules running', async () => {
+    install('valid')
+    install('demo')
+    await make().scan()
+    const other = host.get('demo')!.abort.signal
+    await host.reload('valid')
+    expect(other.aborted).toBe(false)
+    expect(host.list().map(s => [s.id, s.state])).toEqual([['demo', 'enabled'], ['valid', 'enabled']])
+  })
+
   it('close aborts the module signal', async () => {
     install('valid')
     await make().scan()

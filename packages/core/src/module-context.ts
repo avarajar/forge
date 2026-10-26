@@ -6,6 +6,7 @@ import type { IForgeDB } from './db-interface.js'
 import type { ActionRunner } from './runner.js'
 import type { CWReader } from './cw-reader.js'
 import { allowsCommand, allowsOrigin, allowsPath, type Grants } from './module-permissions.js'
+import { expandHome } from './state-log.js'
 
 export interface ContextDeps {
   db: IForgeDB
@@ -112,10 +113,6 @@ export function createForgeContext(
       error: (msg) => log.error(`${prefix} ${msg}`),
     },
   }
-}
-
-function expandHome(path: string): string {
-  return path.startsWith('~/') ? homedir() + path.slice(1) : path
 }
 
 function toSessionInfo(s: ReturnType<CWReader['getSpaces']>[number]): SessionInfo {

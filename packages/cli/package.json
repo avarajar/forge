@@ -15,10 +15,10 @@
     "@forge-dev/core": "workspace:*",
     "@hono/node-server": "^1.14.0",
     "commander": "^14.0.0",
-    "open": "^10.0.0"
+    "open": "^10.0.0",
+    "@forge-dev/sdk": "workspace:*"
   },
   "devDependencies": {
-    "@forge-dev/sdk": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^5.8.0"
   },

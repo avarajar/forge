@@ -14,7 +14,7 @@ export default defineConfig({
       apply: 'build',
       transformIndexHtml: () => [
         { tag: 'script', attrs: { type: 'importmap' }, children: importMap, injectTo: 'head-prepend' },
-        { tag: 'link', attrs: { rel: 'stylesheet', href: '/shared/forge-ui.css' }, injectTo: 'head' },
+        { tag: 'link', attrs: { rel: 'stylesheet', href: '/shared/forge-dev-ui.css' }, injectTo: 'head' },
       ],
     },
   ],
