@@ -213,6 +213,9 @@ importers:
       postgres:
         specifier: ^3.4.0
         version: 3.4.9
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       ws:
         specifier: ^8.18.0
         version: 8.20.1
@@ -220,6 +223,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
@@ -989,6 +995,9 @@ packages:
   '@types/node@22.19.19':
     resolution: {integrity: sha512-dyh/xO2Fh5bYrfWaaqGrRQQGkNdmYw6AmaAUvYeUMNTWQtvb796ikLdmTchRmOlOiIJ1TDXfWgVx1QkUlQ6Hew==}
 
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
+
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
@@ -1442,6 +1451,11 @@ packages:
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
+    hasBin: true
+
+  semver@7.8.5:
+    resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
+    engines: {node: '>=10'}
     hasBin: true
 
   siginfo@2.0.0:
@@ -2191,6 +2205,8 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
+  '@types/semver@7.8.0': {}
+
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 22.19.19
@@ -2730,6 +2746,8 @@ snapshots:
   run-applescript@7.1.0: {}
 
   semver@6.3.1: {}
+
+  semver@7.8.5: {}
 
   siginfo@2.0.0: {}
 
