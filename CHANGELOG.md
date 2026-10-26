@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.13 (2026-10-26)
+
 ### Added
 
 - Module SDK v1 (`@forge-dev/sdk` 1.0.0): a module adds a page under Modules in the sidebar and server code (routes under `/api/modules/<id>/`, actions, jobs, event handlers) and installs into a running Forge with no rebuild. Its manifest declares the permissions Forge checks on every call (`network`, `fs:read`, `fs:write`, `shell`, `pty`, filled in from the module's settings). See `docs/module-authoring.md`.
