@@ -453,6 +453,24 @@ describe('CW Routes', () => {
       expect(readFileSync(argsLog(), 'utf-8').trim()).toBe('loop testproj donetest --done')
     })
 
+    it('emits task.done with the session fields after a good close', async () => {
+      writeCw('exit 0')
+      const emitted: Array<[string, unknown]> = []
+      const eventsApp = new Hono()
+      eventsApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { events: { emit: (name, payload) => emitted.push([name, payload]) } }))
+      await eventsApp.request('/api/cw/done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: 'testproj', task: 'mytask', type: 'task' }) })
+      expect(emitted).toEqual([['task.done', expect.objectContaining({ project: 'testproj', sessionDir: 'task-mytask', type: 'task', command: 'work' })]])
+    })
+
+    it('emits nothing when cw fails to close', async () => {
+      writeCw('exit 3')
+      const emitted: unknown[] = []
+      const eventsApp = new Hono()
+      eventsApp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { events: { emit: (...args) => emitted.push(args) } }))
+      await eventsApp.request('/api/cw/done', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project: 'testproj', task: 'mytask', type: 'task' }) })
+      expect(emitted).toEqual([])
+    })
+
     it('runs cw work --done for a task', async () => {
       writeCw(`echo "$@" > "${argsLog()}"\nexit 0`)
       await done({ project: 'testproj', task: 'mytask', type: 'task' })
@@ -882,6 +900,25 @@ describe('GET /api/cw/harnesses', () => {
     expect(body.capabilities.pi).toEqual(['model_flag'])
     expect(body.contextTokens).toEqual({ linear: false, notion: true })
     expect(text).not.toContain('secret-notion')
+  })
+
+  it('emits harness.changed when a cell changes between readings', async () => {
+    const live = join(DIR, 'doctor-live.json')
+    const doctor = JSON.parse(readFileSync(FIXTURE, 'utf-8')) as { accounts: Array<{ name: string; harnesses: Array<{ harness: string; status: string }> }> }
+    writeFileSync(live, JSON.stringify(doctor))
+    writeFileSync(join(DIR, 'bin/cw'), `#!/bin/sh\ncat '${live}'\n`)
+    const emitted: Array<[string, unknown]> = []
+    const eventsApp = new Hono()
+    eventsApp.route('/api/cw', cwRoutes(new CWReader(DIR), { events: { emit: (name, payload) => emitted.push([name, payload]) } }))
+    await eventsApp.request('/api/cw/harnesses?fresh=1')
+    expect(emitted).toEqual([])
+    const cell = doctor.accounts[0].harnesses[0]
+    const from = cell.status
+    cell.status = from === 'logged_in' ? 'logged_out' : 'logged_in'
+    writeFileSync(live, JSON.stringify(doctor))
+    await eventsApp.request('/api/cw/harnesses?fresh=1')
+    expect(emitted).toEqual([['harness.changed', { account: doctor.accounts[0].name, harness: cell.harness, from, to: cell.status }]])
+    writeFileSync(join(DIR, 'bin/cw'), `#!/bin/sh\ncat '${FIXTURE}'\n`)
   })
 })
 

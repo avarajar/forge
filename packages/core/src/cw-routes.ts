@@ -8,6 +8,7 @@ import type { Dirent } from 'node:fs'
 import { join, resolve, dirname, basename, isAbsolute } from 'node:path'
 import { homedir } from 'node:os'
 import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-doctor.js'
+import type { EventEmitter } from './module-events.js'
 import { createUsageClient, type UsageClientDeps } from './usage.js'
 import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 import { LoginManager } from './login-manager.js'
@@ -58,7 +59,7 @@ async function runCw(bin: string, args: string[], timeoutMs: number): Promise<Ru
   }
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; events?: EventEmitter } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
@@ -73,9 +74,26 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
   const doctor = createDoctorClient(cwBin)
 
+  // the last status of each account and harness, to tell modules what changed
+  let cells: Map<string, string> | null = null
+  const noteHarnesses = (accounts: Array<{ name: string; harnesses: Array<{ harness: string; status: string }> }>) => {
+    const next = new Map<string, string>()
+    for (const a of accounts) for (const h of a.harnesses) next.set(`${a.name}\u0000${h.harness}`, h.status)
+    if (cells && options.events) {
+      for (const [key, to] of next) {
+        const from = cells.get(key)
+        if (from === undefined || from === to) continue
+        const [account, harness] = key.split('\u0000')
+        options.events.emit('harness.changed', { account, harness, from, to })
+      }
+    }
+    cells = next
+  }
+
   app.get('/harnesses', async (c) => {
     const result = await doctor.get(c.req.query('fresh') === '1')
     if (!result.available) return c.json(result)
+    noteHarnesses(result.doctor.accounts)
     const capabilities = Object.fromEntries(
       result.doctor.harnesses.map(h => [h.name, [...(HARNESS_CAPABILITIES[h.name] ?? [])]])
     )
@@ -606,7 +624,14 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     reviewCache.delete(`${project}::${sessionDirName}`)
     // CW closes the session itself; a failed close leaves it active so nothing is lost silently
     const result = await runCw(cwBin, args, cwDoneTimeoutMs)
-    if (result.code === 0) return c.json({ ok: true })
+    if (result.code === 0) {
+      const session = reader.getSession(project, sessionDirName)
+      options.events?.emit('task.done', {
+        project, sessionDir: sessionDirName, type: session?.type ?? type, account: session?.account,
+        harness: session?.harness, provider: session?.provider, model: session?.model, command: args[0] as 'work' | 'review' | 'loop',
+      })
+      return c.json({ ok: true })
+    }
     const output = tailOutput(`${result.stdout}\n${result.stderr}`)
     const error = result.timedOut ? [cwDoneTimeoutMessage(cwDoneTimeoutMs), output].filter(Boolean).join('\n') : output || 'cw --done failed'
     return c.json({ ok: false, error }, 500)
@@ -778,6 +803,7 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
     try {
       await execFileAsync(cwBin, args, { encoding: 'utf-8', timeout: 30000, env: envWithoutHarness() })
+      options.events?.emit('project.registered', { project: projectName, path: projectPath })
       return c.json({ ok: true, project: projectName })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'

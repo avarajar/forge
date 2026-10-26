@@ -134,6 +134,7 @@ export interface ModuleStatus {
   permissions?: ModulePermissions
   view?: { url: string; title: string; version: string }
   lastJobError?: string
+  lastEventError?: string
   lastDenial?: { permission: string; value: string; at: string }
 }
 

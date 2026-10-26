@@ -1,0 +1,1 @@
+{ "id": "watcher", "name": "@test/mod-watcher", "version": "1.0.0", "sdk": "^1.0.0", "displayName": "Watcher", "server": "./dist/server.js" }

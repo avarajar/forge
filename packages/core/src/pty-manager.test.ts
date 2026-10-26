@@ -56,6 +56,17 @@ describe('PTYManager', () => {
     expect(ptySession.clients.size).toBe(0)
   })
 
+  it('reports a session start once and its end on exit', async () => {
+    const seen: Array<[string, string]> = []
+    manager.onLifecycle = (event, session) => seen.push([event, session.harness ?? ''])
+    const session = makeSession({ harness: 'codex' })
+    manager.getOrCreate('testproj', 'task-fix-bug', session)
+    manager.getOrCreate('testproj', 'task-fix-bug', session)
+    expect(seen).toEqual([['started', 'codex']])
+    manager.get('testproj::task-fix-bug')!.pty.kill()
+    await vi.waitFor(() => expect(seen).toEqual([['started', 'codex'], ['ended', 'codex']]))
+  })
+
   it('returns existing PTY session on second call', () => {
     const session = makeSession()
     const first = manager.getOrCreate('testproj', 'task-fix-bug', session)

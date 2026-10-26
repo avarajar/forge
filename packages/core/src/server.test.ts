@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { createForgeServer } from './server.js'
 import { cpSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
@@ -158,6 +158,18 @@ describe('Forge Server modules', () => {
     const server = createForgeServer({ dataDir: join(dir, 'local'), port: 0 })
     const res = await server.fetch('/api/modules/valid/hello?name=forge')
     expect(await res.json()).toEqual({ hello: 'forge' })
+    server.close()
+  })
+
+  it('runs a module job at load and lists what it notified', async () => {
+    mkdirSync(join(dir, 'jobs/modules'), { recursive: true })
+    cpSync(join(fixture, '../watcher'), join(dir, 'jobs/modules/watcher'), { recursive: true })
+    const server = createForgeServer({ dataDir: join(dir, 'jobs'), port: 0 })
+    await server.modulesReady
+    await vi.waitFor(async () => {
+      const { items } = await (await server.fetch('/api/modules/notifications')).json() as { items: Array<{ key: string; kind: string; count?: number }> }
+      expect(items).toEqual([expect.objectContaining({ key: 'reply', kind: 'attention' }), expect.objectContaining({ key: 'outbox', kind: 'badge', count: 3 })])
+    })
     server.close()
   })
 
