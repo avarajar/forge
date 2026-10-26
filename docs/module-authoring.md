@@ -254,4 +254,5 @@ local ones), then `npm run build && npm publish`.
 
 A manifest with no `sdk` and no `server`, `view` or `permissions` still loads as before: shell `actions` run through
 `/api/actions`, with `params` reaching the command only as `FORGE_PARAM_<NAME>` environment variables. mod-qa works
-this way. Modules with a server or a view do not load in team mode (`FORGE_DB_URL`).
+this way. A v1 manifest's `actions` list is ignored: v1 actions live in `server.js`. Modules with a server or a
+view do not load in team mode (`FORGE_DB_URL`).
