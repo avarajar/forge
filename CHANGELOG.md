@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added
+
+- Module SDK v1 (`@forge-dev/sdk` 1.0.0): a module adds a page under Modules in the sidebar and server code (routes under `/api/modules/<id>/`, actions, jobs, event handlers) and installs into a running Forge with no rebuild. Its manifest declares the permissions Forge checks on every call (`network`, `fs:read`, `fs:write`, `shell`, `pty`, filled in from the module's settings). See `docs/module-authoring.md`.
+- Actions that reach a third party or spend money ask for Forge's confirmation, which the server enforces, and run on exactly what was shown.
+- Module notifications: a red count and a browser notification for what needs you, a grey count for the rest. The notification switch now reads "Notify me when a session or module needs me".
+- A settings form generated from each module's schema, including lists.
+- `forge module install` shows a module's permissions and asks before any of its code runs; `forge module create` scaffolds a module, `forge module dev` loads one and reloads it on change, `forge module list` shows each module's state and reason.
+- A module with a bad manifest, an incompatible SDK range or a server that fails to load shows as disabled with the reason; a view that crashes shows an error card in its own area.
+
+### Changed
+
+- The console shares Preact and `@forge-dev/ui` with modules through an import map (`/shared/`); `@forge-dev/ui` is 1.0.0 and builds to `dist`.
+- `GET /api/modules` returns each module's status instead of the install records.
+- Modal and Drawer close on Escape from the moment they open.
+
 ## 0.1.12 (2026-10-26)
 
 ### Added
