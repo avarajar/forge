@@ -1,5 +1,5 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
-import { useEffect } from 'preact/hooks'
+import { useLayoutEffect } from 'preact/hooks'
 import { CloseButton } from './Modal.js'
 
 interface DrawerProps {
@@ -8,9 +8,9 @@ interface DrawerProps {
   children: ComponentChildren
 }
 
-// a panel that slides in from the right over a blurred page; Escape or a click outside closes it
+// a panel that slides in from the right over a blurred page; Escape or a click outside closes it, from its first frame
 export const Drawer: FunctionComponent<DrawerProps> = ({ title, onClose, children }) => {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
