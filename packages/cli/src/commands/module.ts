@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { spawn } from 'node:child_process'
-import { existsSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync, statSync, watch, writeFileSync } from 'node:fs'
+import { join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { createInterface } from 'node:readline/promises'
 import type { ModuleStatus } from '@forge-dev/sdk'
@@ -120,5 +120,101 @@ export function moduleCommand() {
       console.log(`Removed ${name}`)
     })
 
+  cmd
+    .command('create <name>')
+    .description('Scaffold a module that builds, passes its tests and renders a view')
+    .option('-d, --dir <dir>', 'parent folder', '.')
+    .action((name: string, opts: { dir: string }) => {
+      const id = name.replace(/^@[^/]+\//, '').replace(/^(forge-)?mod-/, '').toLowerCase()
+      if (!/^[a-z][a-z0-9-]{1,31}$/.test(id)) {
+        console.error(`"${id}" cannot be a module id: lowercase letters, digits and dashes, 2 to 32 characters`)
+        process.exitCode = 1
+        return
+      }
+      const target = resolve(opts.dir, name.replace(/^@[^/]+\//, ''))
+      if (existsSync(target)) {
+        console.error(`${target} already exists`)
+        process.exitCode = 1
+        return
+      }
+      const pkgName = name.includes('/') || name.startsWith('mod-') || name.startsWith('forge-mod-') ? name : `forge-mod-${id}`
+      const display = id.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
+      const { sdk, ui } = sdkVersions()
+      cpSync(TEMPLATE, target, { recursive: true })
+      const replace = (text: string) => text.replaceAll('__ID__', id).replaceAll('__NAME__', pkgName).replaceAll('__DISPLAY__', display).replaceAll('__SDK__', sdk).replaceAll('__UI__', ui)
+      for (const file of files(target)) writeFileSync(file, replace(readFileSync(file, 'utf-8')))
+      console.log(`Created ${pkgName} in ${target}\n`)
+      console.log(`  cd ${relative(process.cwd(), target) || '.'}`)
+      console.log('  npm install && npm test')
+      console.log('  forge module dev .')
+    })
+
+  cmd
+    .command('dev <path>')
+    .description('Load a module from a folder, rebuild it on change and reload it in the running Forge')
+    .action(async (path: string) => {
+      const dir = resolve(path)
+      let id: string
+      try {
+        id = (JSON.parse(readFileSync(join(dir, 'forge-module.json'), 'utf-8')) as { id?: string }).id ?? ''
+      } catch {
+        console.error(`${dir} has no forge-module.json`)
+        process.exitCode = 1
+        return
+      }
+      const send = (method: string, url: string, body?: unknown) =>
+        fetch(api(url), { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+      let registered: { status?: ModuleStatus }
+      try {
+        registered = await (await send('POST', '/dev', { path: dir })).json() as { status?: ModuleStatus }
+      } catch {
+        console.error('Forge is not running. Start it with `forge console`, then run this again.')
+        process.exitCode = 1
+        return
+      }
+      const report = (s?: ModuleStatus) => console.log(s ? `${s.id}: ${s.state}${s.reason ? ` — ${s.reason}` : ''}` : `${id}: not loaded`)
+      report(registered.status)
+
+      const scripts = (JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8')) as { scripts?: Record<string, string> }).scripts ?? {}
+      const builder = scripts.dev ? spawn('npm', ['run', 'dev'], { cwd: dir, stdio: 'inherit' }) : null
+
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const reload = () => {
+        clearTimeout(timer)
+        timer = setTimeout(async () => {
+          try {
+            report(await (await send('POST', `/${encodeURIComponent(id)}/reload`)).json() as ModuleStatus)
+          } catch {
+            console.error('Forge stopped answering; the module reloads when it is back')
+          }
+        }, 300)
+      }
+      const watchers = [join(dir, 'dist'), join(dir, 'forge-module.json')].filter(existsSync).map(p => watch(p, { recursive: statSync(p).isDirectory() }, reload))
+      console.log(`Watching ${dir}. Ctrl-C stops and unloads it.`)
+
+      process.on('SIGINT', async () => {
+        for (const w of watchers) w.close()
+        builder?.kill('SIGTERM')
+        await send('DELETE', '/dev', { path: dir }).catch(() => {})
+        process.exit(0)
+      })
+    })
+
   return cmd
+}
+
+const TEMPLATE = join(import.meta.dirname, '../../templates/module')
+
+function files(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? files(join(dir, e.name)) : [join(dir, e.name)])
+}
+
+// from a Forge checkout the scaffold links the local SDK and UI; otherwise it uses the published ones
+function sdkVersions(): { sdk: string; ui: string } {
+  const packages = join(import.meta.dirname, '../../..')
+  const local = (name: string) => resolve(packages, name)
+  if (existsSync(join(local('sdk'), 'package.json')) && existsSync(join(local('ui'), 'package.json'))) {
+    return { sdk: `file:${local('sdk')}`, ui: `file:${local('ui')}` }
+  }
+  return { sdk: '^1.0.0', ui: '^1.0.0' }
 }
