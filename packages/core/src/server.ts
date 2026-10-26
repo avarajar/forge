@@ -22,6 +22,8 @@ import { LoginManager } from './login-manager.js'
 import { GeneralSessions } from './general-sessions.js'
 import { liveframeRoutes } from './liveframe-routes.js'
 import { kiokuRoutes } from './kioku-routes.js'
+import { ModuleHost } from './module-host.js'
+import { moduleRoutes } from './module-routes.js'
 import { Kioku } from './kioku.js'
 
 interface ServerOptions {
@@ -34,6 +36,8 @@ interface ServerOptions {
   cwDir?: string
   // carpeta con los módulos incluidos (BUNDLED_MODULES); sin ella solo se leen los instalados
   bundledModulesDir?: string
+  // node_modules where Forge itself is installed, searched for @forge-dev/mod-* packages
+  forgeNodeModules?: string
   // versión de Forge que reporta /api/health
   version?: string
 }
@@ -88,6 +92,17 @@ export function createForgeServer(options: ServerOptions) {
     // kioku's plugin, and so its skill, exists only for Claude Code
     canRemember: (project, sessionDir) => cwReader.getSession(project, sessionDir)?.harness === 'claude',
   }))
+
+  const moduleHost = new ModuleHost({
+    modulesDir,
+    bundledDir: options.bundledModulesDir,
+    forgeNodeModules: options.forgeNodeModules,
+    devFile: join(dataDir, 'dev-modules.json'),
+    localOnly,
+    deps: { db, reader: cwReader, runner },
+  })
+  const modulesReady = moduleHost.scan().catch((err: Error) => console.error(`[modules] scan failed: ${err.message}`))
+  app.route('/api/modules', moduleRoutes(moduleHost, { db, ready: modulesReady }))
 
   // states only, never terminal text
   app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))
@@ -164,15 +179,6 @@ export function createForgeServer(options: ServerOptions) {
     return c.json({ ok: true })
   })
 
-  app.get('/api/modules', (c) => {
-    const installed = db.listModules()
-    const loaded = loader.getLoaded()
-    return c.json(installed.map(m => ({
-      ...m,
-      manifest: loaded.get(m.name) ?? null
-    })))
-  })
-
   app.get('/api/modules/available', (c) => {
     const manifests = loader.discover()
     return c.json(manifests)
@@ -237,20 +243,6 @@ export function createForgeServer(options: ServerOptions) {
     return c.json(db.listActionLogs({ moduleId, limit }))
   })
 
-  app.get('/api/modules/:module/settings', (c) => {
-    const moduleId = c.req.param('module')
-    return c.json(db.getModuleSettings(moduleId))
-  })
-
-  app.put('/api/modules/:module/settings', async (c) => {
-    const moduleId = c.req.param('module')
-    const body = await c.req.json<Record<string, string>>()
-    for (const [key, value] of Object.entries(body)) {
-      db.setModuleSetting(moduleId, key, String(value))
-    }
-    return c.json({ ok: true })
-  })
-
   app.get('/api/registry/search', async (c) => {
     const q = c.req.query('q') ?? 'forge-dev'
     try {
@@ -308,6 +300,7 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
-    close: () => { ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
+    modulesReady,
+    close: () => { void moduleHost.close(); ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
   }
 }

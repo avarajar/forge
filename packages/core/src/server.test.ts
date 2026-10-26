@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createForgeServer } from './server.js'
-import { mkdirSync, rmSync } from 'node:fs'
+import { cpSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 const TEST_DIR = join(import.meta.dirname, '../.test-server')
@@ -143,5 +143,30 @@ describe('Forge Server with auth', () => {
       headers: { Authorization: 'Bearer my-secret' }
     })
     expect(res.status).toBe(200)
+  })
+})
+
+describe('Forge Server modules', () => {
+  const dir = join(import.meta.dirname, '../.test-server-modules')
+  const fixture = join(import.meta.dirname, '../test/fixtures/modules/valid')
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('serves an installed v1 module once the scan is done', async () => {
+    mkdirSync(join(dir, 'local/modules'), { recursive: true })
+    cpSync(fixture, join(dir, 'local/modules/valid'), { recursive: true })
+    const server = createForgeServer({ dataDir: join(dir, 'local'), port: 0 })
+    const res = await server.fetch('/api/modules/valid/hello?name=forge')
+    expect(await res.json()).toEqual({ hello: 'forge' })
+    server.close()
+  })
+
+  it('disables v1 modules when the server is not local only', async () => {
+    mkdirSync(join(dir, 'team/modules'), { recursive: true })
+    cpSync(fixture, join(dir, 'team/modules/valid'), { recursive: true })
+    const server = createForgeServer({ dataDir: join(dir, 'team'), port: 0, localOnly: false })
+    const list = await (await server.fetch('/api/modules')).json() as Array<{ id: string; state: string; reason?: string }>
+    expect(list).toEqual([expect.objectContaining({ id: 'valid', state: 'disabled', reason: 'modules run only in local mode' })])
+    server.close()
   })
 })
