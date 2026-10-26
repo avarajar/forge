@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
-import type { Project, InstalledModule, ActionLog } from './types.js'
+import type { Project, InstalledModule, ActionLog, ModuleNotificationRow } from './types.js'
 import type { IForgeDB } from './db-interface.js'
 
 interface RawInstalledModule {
@@ -89,6 +89,28 @@ export class ForgeDB implements IForgeDB {
         module_id TEXT NOT NULL,
         key TEXT NOT NULL,
         value TEXT NOT NULL,
+        PRIMARY KEY (module_id, key)
+      );
+
+      CREATE TABLE IF NOT EXISTS module_kv (
+        module_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (module_id, key)
+      );
+
+      CREATE TABLE IF NOT EXISTS module_notifications (
+        module_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT,
+        version TEXT,
+        count INTEGER,
+        label TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        seen_at TEXT,
         PRIMARY KEY (module_id, key)
       );
     `)
@@ -216,6 +238,68 @@ export class ForgeDB implements IForgeDB {
     this.db.prepare(
       'INSERT INTO module_settings (module_id, key, value) VALUES (?, ?, ?) ON CONFLICT(module_id, key) DO UPDATE SET value = excluded.value'
     ).run(moduleId, key, value)
+  }
+
+  kvGet(moduleId: string, key: string): string | undefined {
+    const row = this.db.prepare('SELECT value FROM module_kv WHERE module_id = ? AND key = ?').get(moduleId, key) as { value: string } | undefined
+    return row?.value
+  }
+
+  kvSet(moduleId: string, key: string, json: string): void {
+    this.db.prepare(
+      "INSERT INTO module_kv (module_id, key, value) VALUES (?, ?, ?) ON CONFLICT(module_id, key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')"
+    ).run(moduleId, key, json)
+  }
+
+  kvDelete(moduleId: string, key: string): void {
+    this.db.prepare('DELETE FROM module_kv WHERE module_id = ? AND key = ?').run(moduleId, key)
+  }
+
+  kvList(moduleId: string, prefix = ''): string[] {
+    const rows = this.db.prepare('SELECT key FROM module_kv WHERE module_id = ? ORDER BY key').all(moduleId) as { key: string }[]
+    return rows.map(r => r.key).filter(k => k.startsWith(prefix))
+  }
+
+  // true when the row is new or its version changed; a changed version is unseen again
+  upsertNotification(row: ModuleNotificationRow): boolean {
+    const current = this.db.prepare('SELECT version, title, body, count, label FROM module_notifications WHERE module_id = ? AND key = ?')
+      .get(row.moduleId, row.key) as { version: string | null; title: string; body: string | null; count: number | null; label: string | null } | undefined
+    const version = row.version ?? null
+    if (current && current.version === version) {
+      this.db.prepare('UPDATE module_notifications SET title = ?, body = ?, count = ?, label = ? WHERE module_id = ? AND key = ?')
+        .run(row.title, row.body ?? null, row.count ?? null, row.label ?? null, row.moduleId, row.key)
+      return false
+    }
+    this.db.prepare(
+      `INSERT INTO module_notifications (module_id, key, kind, title, body, version, count, label) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(module_id, key) DO UPDATE SET kind = excluded.kind, title = excluded.title, body = excluded.body, version = excluded.version,
+       count = excluded.count, label = excluded.label, created_at = datetime('now'), seen_at = NULL`
+    ).run(row.moduleId, row.key, row.kind, row.title, row.body ?? null, version, row.count ?? null, row.label ?? null)
+    return true
+  }
+
+  deleteNotification(moduleId: string, key: string): void {
+    this.db.prepare('DELETE FROM module_notifications WHERE module_id = ? AND key = ?').run(moduleId, key)
+  }
+
+  listNotifications(): ModuleNotificationRow[] {
+    const rows = this.db.prepare('SELECT * FROM module_notifications ORDER BY created_at, rowid').all() as Array<Record<string, string | number | null>>
+    return rows.map(r => ({
+      moduleId: r.module_id as string,
+      key: r.key as string,
+      kind: r.kind as 'attention' | 'badge',
+      title: r.title as string,
+      body: (r.body as string | null) ?? undefined,
+      version: (r.version as string | null) ?? undefined,
+      count: (r.count as number | null) ?? undefined,
+      label: (r.label as string | null) ?? undefined,
+      createdAt: r.created_at as string,
+      seenAt: (r.seen_at as string | null) ?? null,
+    }))
+  }
+
+  markNotificationsSeen(moduleId: string): void {
+    this.db.prepare("UPDATE module_notifications SET seen_at = datetime('now') WHERE module_id = ? AND seen_at IS NULL").run(moduleId)
   }
 
   listActionLogs(opts: { moduleId?: string; limit?: number }): ActionLog[] {

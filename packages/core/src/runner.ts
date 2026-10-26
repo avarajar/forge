@@ -16,13 +16,22 @@ export interface ExecResult {
 
 export class ActionRunner {
   async exec(command: string, options: ExecOptions): Promise<ExecResult> {
+    return this.run('sh', ['-c', command], options)
+  }
+
+  // no shell: the args reach the program as they are
+  async spawn(command: string, args: string[], options: ExecOptions): Promise<ExecResult> {
+    return this.run(command, args, options)
+  }
+
+  private run(file: string, args: string[], options: ExecOptions): Promise<ExecResult> {
     return new Promise((resolve) => {
       let output = ''
       let timedOut = false
       let timeoutId: ReturnType<typeof setTimeout> | undefined
 
       // its own process group, so a stop reaches what the shell started (dash forks instead of exec'ing)
-      const proc = spawn('sh', ['-c', command], {
+      const proc = spawn(file, args, {
         cwd: options.cwd,
         env: { ...process.env, ...options.env },
         stdio: ['ignore', 'pipe', 'pipe'],

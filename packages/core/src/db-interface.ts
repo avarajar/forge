@@ -1,4 +1,4 @@
-import type { Project, InstalledModule, ActionLog } from './types.js'
+import type { Project, InstalledModule, ActionLog, ModuleNotificationRow } from './types.js'
 
 export interface IForgeDB {
   listTables(): string[]
@@ -15,5 +15,13 @@ export interface IForgeDB {
   getModuleSettings(moduleId: string): Record<string, string>
   setModuleSetting(moduleId: string, key: string, value: string): void
   listActionLogs(opts: { moduleId?: string; limit?: number }): ActionLog[]
+  kvGet(moduleId: string, key: string): string | undefined
+  kvSet(moduleId: string, key: string, json: string): void
+  kvDelete(moduleId: string, key: string): void
+  kvList(moduleId: string, prefix?: string): string[]
+  upsertNotification(row: ModuleNotificationRow): boolean
+  deleteNotification(moduleId: string, key: string): void
+  listNotifications(): ModuleNotificationRow[]
+  markNotificationsSeen(moduleId: string): void
   close(): void
 }

@@ -1,6 +1,6 @@
 import postgres from 'postgres'
 import { randomUUID } from 'node:crypto'
-import type { Project, InstalledModule, ActionLog } from './types.js'
+import type { Project, InstalledModule, ActionLog, ModuleNotificationRow } from './types.js'
 import type { IForgeDB } from './db-interface.js'
 
 export class PostgresDB implements IForgeDB {
@@ -109,6 +109,15 @@ export class PostgresDB implements IForgeDB {
     this.sql`INSERT INTO module_settings (module_id, key, value) VALUES (${moduleId}, ${key}, ${value}) ON CONFLICT (module_id, key) DO UPDATE SET value = EXCLUDED.value`.execute()
   }
 
+  kvGet(_moduleId: string, _key: string): string | undefined { return teamModeOnly() }
+  kvSet(_moduleId: string, _key: string, _json: string): void { teamModeOnly() }
+  kvDelete(_moduleId: string, _key: string): void { teamModeOnly() }
+  kvList(_moduleId: string, _prefix?: string): string[] { return teamModeOnly() }
+  upsertNotification(_row: ModuleNotificationRow): boolean { return teamModeOnly() }
+  deleteNotification(_moduleId: string, _key: string): void { teamModeOnly() }
+  listNotifications(): ModuleNotificationRow[] { return [] }
+  markNotificationsSeen(_moduleId: string): void { teamModeOnly() }
+
   listActionLogs(_opts: { moduleId?: string; limit?: number }): ActionLog[] {
     throw new Error('PostgresDB.listActionLogs() not implemented — team mode is not yet supported')
   }
@@ -116,4 +125,9 @@ export class PostgresDB implements IForgeDB {
   close(): void {
     this.sql.end()
   }
+}
+
+// v1 modules with server or view code do not load in team mode
+function teamModeOnly(): never {
+  throw new Error('not available in team mode')
 }
