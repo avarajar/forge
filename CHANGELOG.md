@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.14 (2026-10-27)
+
 ### Added
 
 - Install a module from the console: the + next to Modules in the sidebar (or "Add a module" in ⌘K) takes an npm package, a folder or a git url, shows what the module asks for, and installs exactly the version it showed. A module installed into `~/.forge/modules` has a Remove button on its page; its settings stay saved. Local mode only.
