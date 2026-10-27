@@ -24,6 +24,8 @@ import { liveframeRoutes } from './liveframe-routes.js'
 import { kiokuRoutes } from './kioku-routes.js'
 import { ModuleHost, type LoadedModule } from './module-host.js'
 import { moduleRoutes } from './module-routes.js'
+import { ModuleInstaller } from './module-install.js'
+import { createRunner } from './task-review.js'
 import { JobScheduler } from './module-jobs.js'
 import { ModuleEvents } from './module-events.js'
 import type { CWSession } from './cw-types.js'
@@ -141,7 +143,9 @@ export function createForgeServer(options: ServerOptions) {
   })
   ptyManager.onLifecycle = (event, session) => moduleEvents.emit(event === 'started' ? 'session.started' : 'session.ended', sessionEvent(session))
   const modulesReady = moduleHost.scan().catch((err: Error) => console.error(`[modules] scan failed: ${err.message}`))
-  app.route('/api/modules', moduleRoutes(moduleHost, { db, ready: modulesReady }))
+  // npm can take minutes on a slow network; team mode never installs from the console
+  const installer = localOnly ? new ModuleInstaller({ modulesDir, host: moduleHost, run: createRunner(undefined, 5 * 60_000) }) : undefined
+  app.route('/api/modules', moduleRoutes(moduleHost, { db, ready: modulesReady, installer }))
 
   // states only, never terminal text
   app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))

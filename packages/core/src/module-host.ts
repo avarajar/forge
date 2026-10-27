@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isShellExecutor } from '@forge-dev/sdk'
 import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, ModuleSource, ModuleStatus } from '@forge-dev/sdk'
@@ -43,6 +43,7 @@ interface Candidate { dir: string; source: ModuleSource; manifestFile: string; p
 export class ModuleHost {
   private statuses: ModuleStatus[] = []
   private loaded = new Map<string, LoadedModule>()
+  private origins = new Map<string, Candidate>()
 
   constructor(private readonly opts: HostOptions) {}
 
@@ -52,6 +53,18 @@ export class ModuleHost {
 
   get(id: string): LoadedModule | undefined {
     return this.loaded.get(id)
+  }
+
+  // where a listed module was found, loaded or not; the first one found wins
+  locate(id: string): { dir: string; removable: boolean } | undefined {
+    const c = this.origins.get(id)
+    return c && { dir: c.dir, removable: this.removable(c) }
+  }
+
+  // only what was installed into the modules folder; bundled, dev and Forge's own packages stay
+  private removable(c: Candidate): boolean {
+    const { modulesDir } = this.opts
+    return (c.source === 'installed' && dirname(c.dir) === modulesDir) || c.dir.startsWith(join(modulesDir, 'node_modules') + sep)
   }
 
   // scans, reloads and dev changes run one at a time: each one awaits imports midway
@@ -70,11 +83,15 @@ export class ModuleHost {
     for (const id of [...this.loaded.keys()]) this.unload(id)
     const statuses: ModuleStatus[] = []
     const seen = new Map<string, string>()
+    const origins = new Map<string, Candidate>()
     for (const candidate of this.candidates()) {
-      const status = await this.loadCandidate(candidate, seen)
-      if (status) statuses.push(status)
+      const status = await this.load(candidate, seen)
+      if (!status) continue
+      statuses.push(status)
+      if (!origins.has(status.id)) origins.set(status.id, candidate)
     }
     this.statuses = statuses
+    this.origins = origins
     return statuses
   }
 
@@ -90,7 +107,7 @@ export class ModuleHost {
     } else {
       this.unload(id)
       const seen = new Map([...this.loaded.values()].map(m => [m.status.id, m.dir]))
-      const status = await this.loadCandidate(mod.candidate, seen)
+      const status = await this.load(mod.candidate, seen)
       this.statuses = this.statuses.flatMap(s => (s === mod.status ? (status ? [status] : []) : [s]))
     }
   }
@@ -169,6 +186,12 @@ export class ModuleHost {
     }
     if (this.opts.forgeNodeModules) out.push(...packages(this.opts.forgeNodeModules, 'node_modules', false))
     return out
+  }
+
+  private async load(c: Candidate, seen: Map<string, string>): Promise<ModuleStatus | undefined> {
+    const status = await this.loadCandidate(c, seen)
+    if (status && this.removable(c)) status.removable = true
+    return status
   }
 
   private async loadCandidate(c: Candidate, seen: Map<string, string>): Promise<ModuleStatus | undefined> {

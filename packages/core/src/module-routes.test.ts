@@ -9,6 +9,7 @@ import { CWReader } from './cw-reader.js'
 import { ModuleHost } from './module-host.js'
 import { moduleRoutes } from './module-routes.js'
 import { Confirmations } from './module-confirmations.js'
+import { InstallError, type ModuleInstaller } from './module-install.js'
 
 const FIXTURES = join(import.meta.dirname, '../test/fixtures/modules')
 
@@ -183,5 +184,72 @@ describe('moduleRoutes', () => {
     rmSync(join(modulesDir, 'legacy'), { recursive: true })
     const list = await (await post('/api/modules/rescan', {})).json() as Array<{ id: string }>
     expect(list.map(m => m.id)).toEqual(['valid'])
+  })
+
+  describe('install and remove', () => {
+    const calls: string[] = []
+    const installer = {
+      preview: async (spec: string) => {
+        calls.push(`preview ${spec}`)
+        if (spec === 'bad') throw new InstallError('bad_request', 'no forge-module.json')
+        return { token: 't1', kind: 'v1', name: '@test/mod-x', version: '1.0.0', displayName: 'X', spec: '@test/mod-x@1.0.0', permissions: [], trustNote: 'trust' }
+      },
+      install: async (token: string) => {
+        calls.push(`install ${token}`)
+        if (token !== 't1') throw new InstallError('confirmation_required', 'Preview the module again before installing it')
+        return { id: 'x', state: 'enabled' }
+      },
+      remove: async (id: string) => {
+        calls.push(`remove ${id}`)
+        if (id === 'bundled') throw new InstallError('bad_request', 'bundled comes with Forge and cannot be removed')
+      },
+    } as unknown as ModuleInstaller
+
+    const withInstaller = (i?: ModuleInstaller) => {
+      app = new Hono()
+      app.route('/api/modules', moduleRoutes(host, { db, installer: i }))
+    }
+    const del = (path: string) => app.request(path, { method: 'DELETE' })
+
+    beforeEach(() => { calls.length = 0; withInstaller(installer) })
+
+    it('previews a spec', async () => {
+      const res = await post('/api/modules/install/preview', { spec: '@test/mod-x' })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ token: 't1', spec: '@test/mod-x@1.0.0' })
+    })
+
+    it('answers 400 with the reason a spec cannot be installed', async () => {
+      const res = await post('/api/modules/install/preview', { spec: 'bad' })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ code: 'bad_request', message: 'no forge-module.json' })
+    })
+
+    it('installs with the preview token and lists the modules', async () => {
+      const res = await post('/api/modules/install', { token: 't1' })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ status: { id: 'x' }, modules: expect.any(Array) })
+    })
+
+    it('answers 409 without a valid preview token', async () => {
+      const res = await post('/api/modules/install', { token: 'other' })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toMatchObject({ code: 'confirmation_required' })
+    })
+
+    it('removes a module and refuses one that came with Forge', async () => {
+      expect((await del('/api/modules/valid')).status).toBe(200)
+      const refused = await del('/api/modules/bundled')
+      expect(refused.status).toBe(400)
+      expect(calls).toEqual(['remove valid', 'remove bundled'])
+    })
+
+    it('answers 403 when this Forge does not install modules', async () => {
+      withInstaller(undefined)
+      expect((await post('/api/modules/install/preview', { spec: '@test/mod-x' })).status).toBe(403)
+      expect((await post('/api/modules/install', { token: 't1' })).status).toBe(403)
+      expect((await del('/api/modules/valid')).status).toBe(403)
+      expect(calls).toEqual([])
+    })
   })
 })

@@ -1,5 +1,6 @@
 import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useLayoutEffect } from 'preact/hooks'
+import { createPortal } from 'preact/compat'
 
 interface ModalProps {
   open: boolean
@@ -34,7 +35,8 @@ export const Modal: FunctionComponent<ModalProps> = ({
 
   if (!open) return null
 
-  return (
+  // on body, so a parent with a blur or transform cannot trap the fixed overlay
+  return createPortal(
     <div
       class="fixed inset-0 z-[55] flex items-start justify-center overflow-auto"
       style={{ background: 'rgba(0,0,0,.42)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: '56px 16px 16px' }}
@@ -64,6 +66,7 @@ export const Modal: FunctionComponent<ModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

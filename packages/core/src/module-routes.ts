@@ -7,14 +7,17 @@ import type { IForgeDB } from './db-interface.js'
 import type { LoadedModule, ModuleHost } from './module-host.js'
 import { validateSettings } from './module-manifest.js'
 import { Confirmations, inputHash } from './module-confirmations.js'
+import { InstallError, type ModuleInstaller } from './module-install.js'
 
 type Json = Record<string, unknown>
 
-const STATUS_BY_CODE: Record<string, 400 | 401 | 404 | 502> = {
+const STATUS_BY_CODE: Record<string, 400 | 401 | 404 | 409 | 502> = {
   bad_request: 400, unauthorized: 401, not_found: 404, unreachable: 502, upstream: 502,
+  busy: 409, confirmation_required: 409, install_failed: 502,
 }
 
-export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmations?: Confirmations; ready?: Promise<unknown> }): Hono {
+// without an installer (team mode) nothing can be installed or removed from the console
+export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmations?: Confirmations; ready?: Promise<unknown>; installer?: ModuleInstaller }): Hono {
   const { db } = opts
   const confirmations = opts.confirmations ?? new Confirmations()
   const app = new Hono()
@@ -37,6 +40,25 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
     return c.json(host.list())
   })
 
+  const installing = async (c: Context, fn: (installer: ModuleInstaller) => Promise<Response>) => {
+    if (!opts.installer) return c.json({ code: 'local_only', message: 'Modules are installed only in local mode' }, 403)
+    try {
+      return await fn(opts.installer)
+    } catch (err) {
+      if (err instanceof InstallError) return c.json({ code: err.code, message: err.message }, STATUS_BY_CODE[err.code])
+      throw err
+    }
+  }
+  app.post('/install/preview', (c) => installing(c, async (installer) => {
+    const { spec } = await c.req.json<{ spec?: unknown }>()
+    return c.json(await installer.preview(typeof spec === 'string' ? spec : ''))
+  }))
+  app.post('/install', (c) => installing(c, async (installer) => {
+    const { token } = await c.req.json<{ token?: unknown }>()
+    const status = await installer.install(typeof token === 'string' ? token : '')
+    return c.json({ status, modules: host.list() })
+  }))
+
   app.get('/notifications', (c) => c.json({
     items: db.listNotifications().map(n => ({
       moduleId: n.moduleId, key: n.key, kind: n.kind, title: n.title, body: n.body, count: n.count, label: n.label,
@@ -53,6 +75,11 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
     await host.reload(c.req.param('id'))
     return c.json(host.list().find(s => s.id === c.req.param('id')) ?? removed(c.req.param('id')))
   })
+
+  app.delete('/:id', (c) => installing(c, async (installer) => {
+    await installer.remove(c.req.param('id'))
+    return c.json(host.list())
+  }))
 
   app.get('/:id/status', (c) => {
     const status = host.list().find(s => s.id === c.req.param('id'))

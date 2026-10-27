@@ -181,4 +181,19 @@ describe('Forge Server modules', () => {
     expect(list).toEqual([expect.objectContaining({ id: 'valid', state: 'disabled', reason: 'modules run only in local mode' })])
     server.close()
   })
+
+  it('previews a module folder in local mode and refuses installs in team mode', async () => {
+    const preview = (server: ReturnType<typeof createForgeServer>) => server.fetch('/api/modules/install/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec: fixture }),
+    })
+    mkdirSync(join(dir, 'preview-local'), { recursive: true })
+    mkdirSync(join(dir, 'preview-team'), { recursive: true })
+    const local = createForgeServer({ dataDir: join(dir, 'preview-local'), port: 0 })
+    const res = await preview(local)
+    expect(await res.json()).toMatchObject({ name: '@test/mod-valid', spec: fixture })
+    local.close()
+    const team = createForgeServer({ dataDir: join(dir, 'preview-team'), port: 0, localOnly: false })
+    expect((await preview(team)).status).toBe(403)
+    team.close()
+  })
 })

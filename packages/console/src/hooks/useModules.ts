@@ -3,6 +3,9 @@ import type { ModuleStatus } from '@forge-dev/sdk'
 
 export const modules = signal<ModuleStatus[]>([])
 
+// the Add a module drawer, opened from the sidebar or the palette
+export const addModuleOpen = signal(false)
+
 const EVERY_MS = 10_000
 let timer: ReturnType<typeof setInterval> | null = null
 let watchers = 0

@@ -120,6 +120,18 @@ describe('ModuleHost', () => {
     expect(status('valid')).toMatchObject({ state: 'enabled', source: 'node_modules' })
   })
 
+  it('marks only what was installed into the modules folder as removable', async () => {
+    install('valid')
+    const own = join(root, 'forge-node-modules')
+    const pkg = install('valid', join(own, '@forge-dev/mod-watcher'))
+    writeFileSync(join(pkg, 'forge-module.json'), JSON.stringify({ ...JSON.parse(readFileSync(join(pkg, 'forge-module.json'), 'utf-8')), id: 'watcher' }))
+    await make({ forgeNodeModules: own }).scan()
+    expect(status('valid')?.removable).toBe(true)
+    expect(status('watcher')?.removable).toBeUndefined()
+    expect(host.locate('valid')).toEqual({ dir: join(modulesDir, 'valid'), removable: true })
+    expect(host.locate('watcher')?.removable).toBe(false)
+  })
+
   it('follows a package that npm linked from a folder', async () => {
     const src = install('valid', join(root, 'src-valid'))
     writeFileSync(join(src, 'package.json'), JSON.stringify({ name: '@test/mod-valid', forge: {} }))

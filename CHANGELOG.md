@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Install a module from the console: the + next to Modules in the sidebar (or "Add a module" in ⌘K) takes an npm package, a folder or a git url, shows what the module asks for, and installs exactly the version it showed. A module installed into `~/.forge/modules` has a Remove button on its page; its settings stay saved. Local mode only.
+- `forge module install` says plainly when a package is not on npm.
+
+### Fixed
+
+- Modal and Drawer render on `document.body`, so one opened inside a blurred header (like a page's) is no longer trapped behind the page.
+
 ## 0.1.13 (2026-10-26)
 
 ### Added

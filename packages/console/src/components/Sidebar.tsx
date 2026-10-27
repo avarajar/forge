@@ -12,7 +12,7 @@ import { metricsFor, formatCost, formatTokens } from '../hooks/useTerminalMetric
 import { usage, watchUsage } from '../hooks/useUsage.js'
 import { sessionStates } from '../hooks/useSessionStates.js'
 import { notificationsSupported, notifySessions, setNotifySessions } from '../state/notifications.js'
-import { modules, moduleWarning, sidebarModules } from '../hooks/useModules.js'
+import { addModuleOpen, modules, moduleWarning, sidebarModules } from '../hooks/useModules.js'
 import { moduleCounts } from '../hooks/useModuleNotifications.js'
 
 export type BuiltinView = 'list' | 'accounts' | 'skills' | 'prototypes' | 'qa' | 'memory'
@@ -93,11 +93,22 @@ const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: numbe
 // one entry per module view; disabled ones stay listed with their reason
 const ModuleNav: FunctionComponent<{ view: View; onNavigate: (view: View) => void }> = ({ view, onNavigate }) => {
   const list = sidebarModules(modules.value)
-  if (list.length === 0) return null
   const counts = moduleCounts.value
+  const add = () => { sidebarOpen.value = false; addModuleOpen.value = true }
   return (
     <nav class="flex flex-col sb-section" style={{ gap: '2px' }} aria-label="Modules">
-      <span style={{ padding: '0 9px 4px' }}><Label>Modules</Label></span>
+      <div class="flex items-center justify-between" style={{ padding: '0 9px 4px' }}>
+        <Label>Modules</Label>
+        <button type="button" aria-label="Add a module" title="Add a module" class="grid place-items-center cursor-pointer" style={{ border: 0, background: 'none', color: 'var(--blue)', padding: '0 2px' }} onClick={add}>
+          <span class="i-lucide-plus" style={{ width: '14px', height: '14px' }} />
+        </button>
+      </div>
+      {list.length === 0 && (
+        <button type="button" class={rowBase} style={{ ...selectedRow(false), gap: '9px', height: '30px', padding: '0 9px', fontSize: '12.5px', color: 'var(--ink-3)' }} onClick={add}>
+          <span class="i-lucide-package-plus shrink-0" style={{ width: '15px', height: '15px' }} />
+          <span class="flex-1 sb-label truncate">Add a module</span>
+        </button>
+      )}
       {list.map(m => {
         const target: View = `module:${m.id}`
         const on = view === target
