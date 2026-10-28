@@ -163,6 +163,8 @@ export interface PluginInstall {
   enabled: boolean
   installPath: string
   lastUpdated?: string
+  latest?: string   // the version the account's marketplace clone lists, when it says
+  update: boolean   // latest is newer than version
 }
 
 export type PluginTarget = Pick<PluginInstall, 'scope' | 'scopeRef'>

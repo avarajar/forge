@@ -12,6 +12,7 @@ export interface FixturePlugin {
   marketplaceSource?: Record<string, string>  // known_marketplaces source
   listed?: string[] | string      // plugin.json "skills" array or string root; omitted → no array
   skills: Array<{ dir: string; name?: string; description?: string }>  // dir relative to installPath
+  catalog?: { version?: string; pluginVersion?: string }  // the marketplace clone's entry; omitted → not in the catalog
 }
 
 // writes installed_plugins.json, known_marketplaces.json, settings.json and each plugin's cache the way Claude Code lays them out
@@ -19,6 +20,7 @@ export function writePluginFixture(configDir: string, plugins: FixturePlugin[]):
   const installed: Record<string, unknown[]> = {}
   const marketplaces: Record<string, unknown> = {}
   const enabled: Record<string, boolean> = {}
+  const catalogs: Record<string, Array<Record<string, unknown>>> = {}
   for (const p of plugins) {
     const id = `${p.name}@${p.marketplace}`
     const installPath = join(configDir, 'plugins', 'cache', p.marketplace, p.name, p.version)
@@ -35,6 +37,18 @@ export function writePluginFixture(configDir: string, plugins: FixturePlugin[]):
     installed[id] = [{ scope: 'user', installPath, version: p.version, lastUpdated: p.lastUpdated ?? '2026-09-01T00:00:00.000Z' }]
     if (p.marketplaceSource) marketplaces[p.marketplace] = { source: p.marketplaceSource }
     if (p.enabled !== undefined) enabled[id] = p.enabled
+    if (p.catalog) {
+      const root = join(configDir, 'plugins', 'marketplaces', p.marketplace)
+      const entry: Record<string, unknown> = { name: p.name, source: `./plugins/${p.name}` }
+      if (p.catalog.version) entry['version'] = p.catalog.version
+      ;(catalogs[p.marketplace] ??= []).push(entry)
+      mkdirSync(join(root, 'plugins', p.name, '.claude-plugin'), { recursive: true })
+      if (p.catalog.pluginVersion) writeFileSync(join(root, 'plugins', p.name, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: p.name, version: p.catalog.pluginVersion }))
+    }
+  }
+  for (const [marketplace, entries] of Object.entries(catalogs)) {
+    mkdirSync(join(configDir, 'plugins', 'marketplaces', marketplace, '.claude-plugin'), { recursive: true })
+    writeFileSync(join(configDir, 'plugins', 'marketplaces', marketplace, '.claude-plugin', 'marketplace.json'), JSON.stringify({ name: marketplace, plugins: entries }))
   }
   mkdirSync(join(configDir, 'plugins'), { recursive: true })
   writeFileSync(join(configDir, 'plugins', 'installed_plugins.json'), JSON.stringify({ version: 2, plugins: installed }))
