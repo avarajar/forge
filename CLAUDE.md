@@ -59,7 +59,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 ├── Views (view: list | accounts | skills | prototypes | qa | memory | module:<id>)
 │   ├── TaskList → StartCard, segmented filters, per-project cards (TaskRow, DoneRow), ProjectBanner
 │   ├── Accounts → AccountCell, AccountLimits, AddAccountForm, DeviceLoginPanel
-│   ├── Skills (rail + editor/create/explore pane, Plugins group → plugin/propose pane)
+│   ├── Skills (rail with Skills | Plugins tabs + editor/create/explore pane, plugin/propose/add-plugin pane)
 │   ├── Prototypes → Liveframe frames: create, pull, push, open an agent in a frame
 │   ├── Memory → Kioku brains by tier or a project's chain, recent writes, opens `kioku web` in a new tab
 │   ├── Qa → mod-qa escalations for a CW project: gates, checks, findings, visual changes (images read with gh)
@@ -128,7 +128,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/console/src/pages/TaskDetail.tsx` — Terminal + git stats + MCP info
 - `packages/console/src/pages/Accounts.tsx` — Account cards, Connect flows, account removal
 - `packages/console/src/pages/Skills.tsx` — Skills browser/editor, "create with AI" session
-- `packages/console/src/pages/SkillPlugins.tsx` — Plugins group, plugin pane (accounts, Update, Install, read-only skills), Add a plugin browser (marketplaces, install), Propose a skill form (`config/plugins.ts` builds the task)
+- `packages/console/src/pages/SkillPlugins.tsx` — Plugins rail grouped by marketplace, plugin pane (versions per account, available update, Update, Install, read-only skills), Add a plugin browser (marketplaces, install), Propose a skill form (`config/plugins.ts` builds the task)
 - `packages/console/src/pages/Memory.tsx` — Kioku brains by tier or one project's chain (the task filter's project), recent writes, Open viewer; `hooks/useKioku.ts` is the shared store (60 s polling) and `chainFor(project)`; `components/MemoryPill.tsx` is the task row's pill, `components/NewMemory.tsx` the New memory drawer (`PAGE_TYPES` in `config/types.ts` holds each type's sections), `components/BrainForms.tsx` New brain, Give it a brain, Add area and Publish, and TaskDetail's `MemoryMetric` the chain plus Remember…
 - `packages/console/src/pages/ModuleView.tsx` — A module's page: dynamic import of its `view.js`, error boundary, disabled and removed states, settings button; `hooks/useModules.ts` (10 s poll), `hooks/useModuleNotifications.ts` (5 s poll, red and grey counts), `config/moduleClient.ts` (`PanelClient`), `components/ConfirmAction.tsx` (the confirmation for `external` actions), `components/ModuleSettings.tsx` (settings form from the schema), `components/AddModule.tsx` (the Add a module drawer, opened from the sidebar's + or ⌘K through `addModuleOpen`)
 - `packages/console/src/pages/Prototypes.tsx` — Liveframe launcher: local frames, create/pull, push, Open agent (a general session in the frame folder)

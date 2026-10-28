@@ -422,6 +422,7 @@ const SkillCreate: FunctionComponent<{
 export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onCreateWithAI, onRunSkill, onProposeSkill }) => {
   const [search, setSearch] = useState('')
   const [pane, setPane] = useState<Pane>({ kind: 'empty' })
+  const [rail, setRail] = useState<'skills' | 'plugins'>('skills')
   const [loading, setLoading] = useState(skills.value === null)
 
   const projectNames = Object.keys(projects)
@@ -444,6 +445,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
 
   const pluginList = plugins.value ?? []
   const activePlugin = pane.kind === 'plugin' || pane.kind === 'propose' ? pluginList.find(p => p.id === pane.id) : undefined
+  const updates = pluginList.filter(p => p.installs.some(i => i.update)).length
 
   // open the first skill once the list arrives
   useEffect(() => {
@@ -459,7 +461,6 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
           <div class="flex items-center" style={{ gap: '10px' }}>
             <MenuButton />
             <h1 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.02em' }}>Skills</h1>
-            <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{list.length}</span>
             <span class="flex-1" />
             <ActionButton label="New" variant="primary" size="sm" onClick={() => setPane({ kind: 'create' })} />
           </div>
@@ -473,13 +474,32 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
             onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) setPane({ kind: 'explore', query: search.trim() }) }}
           />
+          <Tabs
+            fill
+            size="sm"
+            label="Skills or plugins"
+            tabs={[
+              { id: 'skills', label: 'Skills', count: list.length },
+              { id: 'plugins', label: 'Plugins', count: updates > 0 ? `${pluginList.length} · ${updates}↑` : pluginList.length },
+            ]}
+            active={rail}
+            onChange={(id) => {
+              setRail(id as 'skills' | 'plugins')
+              const onPlugins = pane.kind === 'plugin' || pane.kind === 'propose' || pane.kind === 'plugins'
+              if (id === 'plugins' && !onPlugins) setPane(pluginList[0] ? { kind: 'plugin', id: pluginList[0].id } : { kind: 'plugins' })
+              if (id === 'skills' && onPlugins) setPane(list[0] ? { kind: 'editor', skill: list[0] } : { kind: 'empty' })
+            }}
+          />
         </div>
         <div class="overflow-auto min-h-0" style={{ padding: '8px' }}>
           {loading && <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>Loading skills…</p>}
-          {!loading && filtered.length === 0 && pluginList.length === 0 && (
+          {!loading && rail === 'skills' && filtered.length === 0 && (
             <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{q ? 'No installed skill matches.' : 'No skills yet.'}</p>
           )}
-          {filtered.map(s => {
+          {rail === 'plugins' && pluginList.length === 0 && (
+            <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{plugins.value === null ? 'Loading plugins…' : 'No Claude Code plugins installed.'}</p>
+          )}
+          {rail === 'skills' && filtered.map(s => {
             const on = selectedId === skillId(s)
             return (
               <button
@@ -499,13 +519,13 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
               </button>
             )
           })}
-          <PluginRailGroup
+          {rail === 'plugins' && <PluginRailGroup
             list={pluginList}
             query={q}
             selected={pane.kind === 'plugin' || pane.kind === 'propose' ? pane.id : null}
             onSelect={(id) => setPane({ kind: 'plugin', id })}
-          />
-          {!q && (
+          />}
+          {rail === 'plugins' && !q && (
             <button
               type="button"
               aria-current={pane.kind === 'plugins' ? 'true' : undefined}

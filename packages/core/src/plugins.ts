@@ -107,6 +107,41 @@ const knownMarketplaces = (configDir: string) => readJson(join(configDir, 'plugi
 
 interface Found { install: PluginInstall; repo?: string }
 
+// Claude Code keeps a clone of each marketplace; its catalog entry, or the plugin.json at the entry's
+// relative source, says the newest version. Remote sources and versionless entries say nothing.
+function catalogVersion(configDir: string, marketplaces: Json, marketplace: string, name: string): string | undefined {
+  const known = marketplaces[marketplace]
+  const location = isRecord(known) && typeof known['installLocation'] === 'string'
+    ? known['installLocation']
+    : join(configDir, 'plugins', 'marketplaces', marketplace)
+  const entries = readJson(join(location, '.claude-plugin', 'marketplace.json'))['plugins']
+  if (!Array.isArray(entries)) return undefined
+  const entry = entries.find((e): e is Json => isRecord(e) && e['name'] === name)
+  if (!entry) return undefined
+  if (typeof entry['version'] === 'string') return entry['version']
+  const source = entry['source']
+  if (typeof source !== 'string') return undefined
+  const dir = resolve(location, source)
+  if (!inside(location, dir)) return undefined
+  const version = readJson(join(dir, '.claude-plugin', 'plugin.json'))['version']
+  return typeof version === 'string' ? version : undefined
+}
+
+const numeric = (v: string) => /^\d+(\.\d+)*$/.test(v) ? v.split('.').map(Number) : null
+
+// dotted versions compare by number; anything else (commit SHAs) counts as an update when it differs
+export function hasUpdate({ latest, version }: { latest?: string; version: string }): boolean {
+  if (!latest || latest === version) return false
+  const a = numeric(latest)
+  const b = numeric(version)
+  if (!a || !b) return true
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0)
+    if (d !== 0) return d > 0
+  }
+  return false
+}
+
 function projectSkillNames(projectPath: string): string[] {
   const dir = join(projectPath, '.claude', 'skills')
   if (!existsSync(dir)) return []
@@ -130,16 +165,21 @@ export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Pro
       // project and local scopes belong to one project, not the account
       const user = entries.find((e): e is Json => isRecord(e) && e['scope'] === 'user' && typeof e['installPath'] === 'string')
       if (!user) continue
+      const { name, marketplace } = splitPluginId(id)
+      const version = String(user['version'] ?? '')
+      const latest = catalogVersion(configDir, marketplaces, marketplace, name)
       const install: PluginInstall = {
         scope,
         scopeRef,
-        version: String(user['version'] ?? ''),
+        version,
         enabled: !isRecord(enabledPlugins) || enabledPlugins[id] !== false,
         installPath: String(user['installPath']),
         lastUpdated: typeof user['lastUpdated'] === 'string' ? user['lastUpdated'] : undefined,
+        latest,
+        update: hasUpdate({ latest, version }),
       }
       const list = found.get(id) ?? []
-      list.push({ install, repo: marketplaceSource(marketplaces[splitPluginId(id).marketplace]) })
+      list.push({ install, repo: marketplaceSource(marketplaces[marketplace]) })
       found.set(id, list)
     }
   }

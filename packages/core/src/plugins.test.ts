@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CWReader } from './cw-reader.js'
-import { createRemoteLookup, knowsMarketplace, listMarketplaces, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
+import { createRemoteLookup, hasUpdate, knowsMarketplace, listMarketplaces, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
 import { writeMarketplaceFixture, writePluginFixture, type FixturePlugin } from './test-plugins.js'
 import { makeFixtureRepo } from './test-git.js'
 
@@ -161,6 +161,36 @@ describe('listPlugins', () => {
     mkdirSync(join(cw, 'accounts', 'monoku', 'plugins'), { recursive: true })
     writeFileSync(join(cw, 'accounts', 'monoku', 'plugins', 'installed_plugins.json'), '{not json')
     expect(await listPlugins(reader, noRemote)).toEqual([])
+  })
+
+  it('reads the latest version from the marketplace catalog entry', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({ catalog: { version: '2.3.0' } })])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.installs[0]).toMatchObject({ version: '2.1.0', latest: '2.3.0', update: true })
+  })
+
+  it('falls back to the plugin.json in the catalog when the entry has no version', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({ catalog: { pluginVersion: '2.2.0' } })])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.installs[0]?.latest).toBe('2.2.0')
+  })
+
+  it('leaves latest unset when the catalog does not say', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({ catalog: {} })])
+    writePluginFixture(join(cw, 'accounts', 'meridian'), [monoku()])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.installs.map(i => i.latest)).toEqual([undefined, undefined])
+  })
+
+  it.each([
+    ['2.3.0', '2.1.0', true],
+    ['2.1.0', '2.1.0', false],
+    ['2.0.0', '2.1.0', false],
+    ['1.10.0', '1.9.0', true],
+    [undefined, '2.1.0', false],
+    ['abc123', 'def456', true],
+  ])('hasUpdate(latest %s, installed %s) → %s', (latest, version, expected) => {
+    expect(hasUpdate({ latest, version })).toBe(expected)
   })
 
   it('reads one plugin skill', async () => {

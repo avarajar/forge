@@ -32,38 +32,60 @@ export const matchingSkills = (p: PluginEntry, q: string) =>
 
 /* ── Rail ── */
 
+const groupLabel = { padding: '6px 11px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink-3)' } as const
+
+// plugins without a version are pinned to a commit
+const shortVersion = (v: string) => /^[0-9a-f]{12,}$/.test(v) ? v.slice(0, 7) : v
+
+// the newest version any account could move to, when one can
+const pendingUpdate = (p: PluginEntry) => p.installs.find(i => i.update)?.latest
+
 export const PluginRailGroup: FunctionComponent<{
   list: PluginEntry[]
   query: string
   selected: string | null
   onSelect: (id: string) => void
 }> = ({ list, query, selected, onSelect }) => {
-  const shown = list.flatMap(p => {
-    const count = matchingSkills(p, query).length
-    return !query || count > 0 || p.name.toLowerCase().includes(query) ? [{ p, count }] : []
-  })
-  if (shown.length === 0) return null
+  const shown = list.filter(p => !query || matchingSkills(p, query).length > 0 || p.name.toLowerCase().includes(query))
+  if (list.length === 0) return null
+  if (shown.length === 0) return <p style={{ padding: '12px', fontSize: '12.5px', color: 'var(--ink-2)' }}>No plugin matches.</p>
+  // one group per marketplace: a hub such as meridian-plugin-hub ships several plugins
+  const groups = new Map<string, PluginEntry[]>()
+  for (const p of shown) groups.set(p.marketplace, [...(groups.get(p.marketplace) ?? []), p])
   return (
-    <div style={{ marginTop: '10px' }}>
-      <p style={{ padding: '6px 11px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>Plugins</p>
-      {shown.map(({ p, count }) => {
-        const on = selected === p.id
-        return (
-          <button
-            key={p.id}
-            type="button"
-            aria-current={on ? 'true' : undefined}
-            class="flex items-center w-full text-left cursor-pointer transition-all duration-180 ease-spring hover:bg-elev"
-            style={{ gap: '8px', padding: '9px 11px', marginBottom: '4px', borderRadius: '11px', border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`, background: on ? 'var(--card)' : 'transparent', boxShadow: on ? 'var(--shadow-s)' : 'none', color: 'var(--ink)' }}
-            onClick={() => onSelect(p.id)}
-          >
-            <span class="i-lucide-package shrink-0" style={{ width: '13px', height: '13px', color: 'var(--ink-3)' }} />
-            <span class="flex-1 min-w-0 truncate" style={{ fontSize: '13px', fontWeight: 600 }}>{p.name}</span>
-            <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{count}</span>
-          </button>
-        )
-      })}
-    </div>
+    <>
+      {[...groups].map(([marketplace, members]) => (
+        <div key={marketplace} style={{ marginBottom: '8px' }}>
+          <p class="truncate" style={groupLabel}>{marketplace}</p>
+          {members.map(p => {
+            const on = selected === p.id
+            const next = pendingUpdate(p)
+            const versions = [...new Set(p.installs.map(i => shortVersion(i.version)))].join(' · ')
+            return (
+              <button
+                key={p.id}
+                type="button"
+                aria-current={on ? 'true' : undefined}
+                class="block w-full text-left cursor-pointer transition-all duration-180 ease-spring hover:bg-elev"
+                style={{ padding: '9px 11px', marginBottom: '4px', borderRadius: '11px', border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`, background: on ? 'var(--card)' : 'transparent', boxShadow: on ? 'var(--shadow-s)' : 'none', color: 'var(--ink)' }}
+                onClick={() => onSelect(p.id)}
+              >
+                <span class="flex items-center" style={{ gap: '8px' }}>
+                  <span class="i-lucide-package shrink-0" style={{ width: '13px', height: '13px', color: 'var(--ink-3)' }} />
+                  <span class="flex-1 min-w-0 truncate" style={{ fontSize: '13px', fontWeight: 600 }}>{p.name}</span>
+                  {next && <span class="mono shrink-0" title={`Update to ${next} available`} style={{ fontSize: '10.5px', fontWeight: 600, padding: '1px 6px', borderRadius: '6px', color: 'var(--orange)', background: 'color-mix(in srgb, var(--orange) 18%, transparent)' }}>↑ {next}</span>}
+                </span>
+                <span class="flex items-center" style={{ gap: '8px', marginTop: '2px', paddingLeft: '21px', fontSize: '11.5px', color: 'var(--ink-3)' }}>
+                  <span class="mono truncate" style={{ maxWidth: '150px' }}>{versions}</span>
+                  <span>·</span>
+                  <span class="shrink-0">{p.skills.length === 1 ? '1 skill' : `${p.skills.length} skills`}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      ))}
+    </>
   )
 }
 
@@ -85,12 +107,24 @@ const AccountRow: FunctionComponent<{ plugin: PluginEntry; install: PluginInstal
     void loadPlugins().catch(() => {})
   }
 
+  // latest comes from the account's marketplace clone; Update refreshes the clone first, so it also catches newer releases
+  const status = install.update
+    ? { text: `${install.latest} available`, color: 'var(--orange)' }
+    : install.latest ? { text: 'up to date', color: 'var(--green)' } : { text: 'version not published', color: 'var(--ink-3)' }
+
   return (
     <div class="flex items-center" style={rowStyle}>
       <span class="flex-1 min-w-0 truncate" style={{ fontSize: '13px', fontWeight: 600 }}>{label}</span>
       <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{install.version}</span>
+      <span style={{ fontSize: '11.5px', color: status.color }}>{status.text}</span>
       <span style={{ fontSize: '11.5px', color: install.enabled ? 'var(--green)' : 'var(--ink-3)' }}>{install.enabled ? 'on' : 'off'}</span>
-      <ActionButton label={busy ? 'Updating…' : 'Update'} variant="secondary" size="sm" loading={busy} onClick={runUpdate} />
+      <ActionButton
+        label={busy ? 'Updating…' : install.update ? `Update to ${install.latest}` : 'Check & update'}
+        variant={install.update ? 'primary' : 'secondary'}
+        size="sm"
+        loading={busy}
+        onClick={runUpdate}
+      />
     </div>
   )
 }
@@ -169,7 +203,7 @@ export const PluginPane: FunctionComponent<{
             <p style={{ fontSize: '12.5px', color: 'var(--ink-3)', margin: 0 }}>Register <span class="mono">{plugin.repo}</span> as a CW project to propose skills.</p>
           )}
           <section>
-            <h3 style={sectionTitle}>Accounts</h3>
+            <h3 style={sectionTitle}>Accounts · versions</h3>
             <div class="flex flex-col" style={{ gap: '6px' }}>
               {plugin.installs.map(i => <AccountRow key={`${i.scope}/${i.scopeRef}`} plugin={plugin} install={i} />)}
               {missing.map(a => <MissingRow key={a} plugin={plugin} account={a} />)}
@@ -177,6 +211,9 @@ export const PluginPane: FunctionComponent<{
           </section>
           <section>
             <h3 style={sectionTitle}>Skills ({plugin.skills.length})</h3>
+            {plugin.skills.length === 0 && (
+              <p style={{ fontSize: '12.5px', color: 'var(--ink-3)', margin: 0 }}>No skills: this plugin brings MCP servers, commands or hooks.</p>
+            )}
             <div class="flex flex-col" style={{ gap: '4px' }}>
               {matchingSkills(plugin, query).map(s => (
                 <button
