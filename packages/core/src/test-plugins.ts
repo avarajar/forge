@@ -11,7 +11,7 @@ export interface FixturePlugin {
   repository?: string            // plugin.json repository
   marketplaceSource?: Record<string, string>  // known_marketplaces source
   listed?: string[] | string      // plugin.json "skills" array or string root; omitted → no array
-  skills: Array<{ dir: string; name?: string; description?: string }>  // dir relative to installPath
+  skills: Array<{ dir: string; name?: string; description?: string; extra?: string }>  // dir relative to installPath; extra frontmatter lines
   catalog?: { version?: string; pluginVersion?: string }  // the marketplace clone's entry; omitted → not in the catalog
   commands?: Record<string, string>  // commands/<name>.md → its frontmatter lines
 }
@@ -33,7 +33,7 @@ export function writePluginFixture(configDir: string, plugins: FixturePlugin[]):
     for (const s of p.skills) {
       const dir = join(installPath, s.dir)
       mkdirSync(dir, { recursive: true })
-      writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${s.name ?? s.dir.split('/').pop()}\ndescription: ${s.description ?? ''}\n---\n\n# body\n`)
+      writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${s.name ?? s.dir.split('/').pop()}\ndescription: ${s.description ?? ''}\n${s.extra ? `${s.extra}\n` : ''}---\n\n# body\n`)
     }
     for (const [name, frontmatter] of Object.entries(p.commands ?? {})) {
       mkdirSync(join(installPath, 'commands'), { recursive: true })

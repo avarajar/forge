@@ -218,17 +218,20 @@ export const PluginPane: FunctionComponent<{
             )}
             <div class="flex flex-col" style={{ gap: '4px' }}>
               {matchingSkills(plugin, query).map(s => (
-                <button
-                  key={s.name}
-                  type="button"
-                  class="flex items-center w-full text-left cursor-pointer hover:bg-elev"
-                  style={{ gap: '10px', padding: '8px 11px', borderRadius: '10px', border: 0, background: 'transparent', color: 'var(--ink)' }}
-                  onClick={() => onSelectSkill(s.name)}
-                >
-                  <span class="shrink-0" style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</span>
-                  <span class="flex-1 min-w-0 truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{s.description}</span>
-                  <span class="i-lucide-chevron-right shrink-0" style={{ width: '13px', height: '13px', color: 'var(--ink-3)' }} />
-                </button>
+                <div key={s.name} class="flex items-center hover:bg-elev" style={{ gap: '10px', paddingRight: '11px', borderRadius: '10px' }}>
+                  <button
+                    type="button"
+                    class="flex flex-1 min-w-0 items-center text-left cursor-pointer"
+                    style={{ gap: '10px', padding: '8px 11px', border: 0, background: 'transparent', color: 'var(--ink)' }}
+                    onClick={() => onSelectSkill(s.name)}
+                  >
+                    <span class="shrink-0" style={{ fontSize: '13px', fontWeight: 600 }}>{s.name}</span>
+                    <span class="flex-1 min-w-0 truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{s.description}</span>
+                    <span class="i-lucide-chevron-right shrink-0" style={{ width: '13px', height: '13px', color: 'var(--ink-3)' }} />
+                  </button>
+                  {/* a skill takes free text after its name, so with no hint the input stays optional */}
+                  {s.command && <RunCommand command={`${s.command} ${s.argumentHint ?? '[what to do]'}`} plugin={plugin.name} />}
+                </div>
               ))}
             </div>
           </section>

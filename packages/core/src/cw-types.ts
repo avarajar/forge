@@ -173,6 +173,9 @@ export interface PluginSkill {
   name: string
   description: string
   path: string
+  // what a session types to run it, /plugin:skill; absent when the skill is not for the person to call
+  command?: string
+  argumentHint?: string
 }
 
 export interface PluginCommand {
