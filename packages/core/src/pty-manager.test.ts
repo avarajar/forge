@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from 'vitest'
-import { PTYManager } from './pty-manager.js'
+import { PTYManager, slashLine } from './pty-manager.js'
 import { StateTracker } from './session-state.js'
 import type { CWSession } from './cw-types.js'
 import { mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs'
@@ -284,5 +284,21 @@ describe('PTYManager', () => {
     })
     const ptySession = manager.getOrCreate('testproj', 'loop-quotes', session)
     expect(ptySession.command).toContain("'check the '\\''auth'\\'' module'")
+  })
+})
+
+describe('slashLine', () => {
+  it('takes a slash command with its arguments on one line', () => {
+    expect(slashLine(' /kioku-search postgres retries ')).toBe('/kioku-search postgres retries')
+    expect(slashLine('/kioku:kioku-evolve')).toBe('/kioku:kioku-evolve')
+  })
+
+  it('refuses what is not one, or would type more than one line', () => {
+    expect(slashLine('kioku-search x')).toBeNull()
+    expect(slashLine('/kioku-search x\rrm -rf ~')).toBeNull()
+    expect(slashLine('/kioku-search x\u001b[A')).toBeNull()
+    expect(slashLine('/ x')).toBeNull()
+    expect(slashLine(`/a ${'x'.repeat(300)}`)).toBeNull()
+    expect(slashLine(42)).toBeNull()
   })
 })

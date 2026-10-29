@@ -175,6 +175,13 @@ export interface PluginSkill {
   path: string
 }
 
+export interface PluginCommand {
+  // what a session types, /kioku-evolve
+  name: string
+  description: string
+  argumentHint?: string
+}
+
 export interface PluginEntry {
   id: string
   name: string
@@ -183,6 +190,8 @@ export interface PluginEntry {
   repo?: string
   installs: PluginInstall[]
   skills: PluginSkill[]
+  // the slash commands in its commands/ folder
+  commands: PluginCommand[]
   project?: string
   contributing: boolean
   projectSkills: string[]

@@ -14,7 +14,7 @@ import { localOriginGuard } from './origin-guard.js'
 import { CWReader } from './cw-reader.js'
 import { cwRoutes, resolveCwBin } from './cw-routes.js'
 import { skillRoutes } from './skill-routes.js'
-import { PTYManager } from './pty-manager.js'
+import { PTYManager, slashLine } from './pty-manager.js'
 import { StateTracker, remoteClassifierFromEnv } from './session-state.js'
 import { createStateLog } from './state-log.js'
 import { createTerminalWss } from './pty-routes.js'
@@ -156,6 +156,16 @@ export function createForgeServer(options: ServerOptions) {
     const sessionId = `${project}::${sessionDir}`
     ptyManager.kill(sessionId)
     generalSessions.forget(sessionId)
+    return c.json({ ok: true })
+  })
+
+  // types a plugin's slash command into a live Claude Code session, as Remember types its note
+  app.post('/api/cw/terminal/command', async (c) => {
+    const { project, sessionDir, line } = await c.req.json<{ project?: string; sessionDir?: string; line?: string }>().catch(() => ({} as { project?: string; sessionDir?: string; line?: string }))
+    const command = slashLine(line)
+    if (!project || !sessionDir || !command) return c.json({ error: 'project, sessionDir and a slash command on one line are required' }, 400)
+    if (cwReader.getSession(project, sessionDir)?.harness !== 'claude') return c.json({ error: 'only Claude Code sessions run plugin commands' }, 400)
+    if (!ptyManager.typeLine(project, sessionDir, command)) return c.json({ error: 'the session has no live terminal' }, 409)
     return c.json({ ok: true })
   })
 

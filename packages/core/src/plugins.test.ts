@@ -72,6 +72,15 @@ describe('listPlugins', () => {
     }])
   })
 
+  it('lists the slash commands in a plugin\'s commands folder', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({ commands: { 'kioku-evolve': 'description: Turn instincts into Skills.', 'kioku-find': 'description: Find pages\nargument-hint: <words>' } })])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.commands).toEqual([
+      { name: '/kioku-evolve', description: 'Turn instincts into Skills.' },
+      { name: '/kioku-find', description: 'Find pages', argumentHint: '<words>' },
+    ])
+  })
+
   it('returns nothing when no config dir has plugins', async () => {
     expect(await listPlugins(reader, noRemote)).toEqual([])
   })

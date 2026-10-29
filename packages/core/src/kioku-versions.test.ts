@@ -10,7 +10,7 @@ const fail = (value: unknown): RunResult => ({ code: 1, stdout: JSON.stringify(v
 const release = (tag: string, prerelease: boolean, extra: Record<string, unknown> = {}) => ({ tag_name: tag, prerelease, draft: false, published_at: '2026-10-29T19:54:34Z', body: `Kioku ${tag}.`, html_url: `https://github.com/monoku/kioku/releases/tag/${tag}`, ...extra })
 const RELEASES = [release('v5.0.0-rc.1', true), release('v4.0.0', false), release('v4.0.0-rc.4', true), release('v3.3.0', false), release('v6.0.0', false, { draft: true }), release('nightly', true)]
 
-const LAB = { name: 'recall-graph', title: 'Recall graph', about: 'Follows links when it recalls', enabled: false, settings: { depth: 2 } }
+const LAB = { name: 'recall-graph', title: 'Recall graph', about: 'Follows links when it recalls', enabled: false, settings: { depth: 2, limit: null } }
 
 // stands in for kioku and gh; `labs` undefined answers like kioku 4.x
 function fake(opts: { version?: string; labs?: unknown[]; gh?: RunResult } = {}) {
