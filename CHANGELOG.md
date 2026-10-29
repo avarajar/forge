@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.17 (2026-10-29)
+
 ### Added
 
 - Run a plugin's slash command from Forge: Run… next to a Kioku lab's command (Memory) and next to each command in Skills → Plugins picks a live Claude Code session of an account that has the plugin and types the command, with what it takes, into its terminal.
