@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync, unlinkSync, cpSync, readd
 import { dirname, join } from 'node:path'
 import { envWithoutHarness } from './cw-doctor.js'
 import { createRunner, runCommand, type Runner, type RunResult } from './task-review.js'
-import { createRemoteLookup, knowsMarketplace, listMarketplaces, listPlugins, marketplaceSourceOf, readPluginSkill, splitPluginId, type RemoteLookup } from './plugins.js'
+import { createRemoteLookup, knowsMarketplace, listMarketplaces, listPlugins, marketplaceSourceOf, pluginUpdateArgs, readPluginSkill, splitPluginId, type RemoteLookup } from './plugins.js'
 
 const INSTALL_TIMEOUT_MS = 120_000
 const SKILL_NAME_RE = /^\w[\w.-]*$/
@@ -333,7 +333,7 @@ export function skillRoutes(
     const install = plugin?.installs.find(i => i.scope === scope && i.scopeRef === ref)
     if (!plugin || !install) return c.json({ error: `${id} is not installed in ${ref || 'that scope'}` }, 404)
 
-    const failed = await runClaude(install.scope, ref, [['plugin', 'marketplace', 'update', plugin.marketplace], ['plugin', 'update', plugin.id]], `Failed to update ${plugin.name}`)
+    const failed = await runClaude(install.scope, ref, pluginUpdateArgs(plugin.id), `Failed to update ${plugin.name}`)
     if (failed) return c.json({ error: failed.error }, failed.status)
     const version = (await find())?.installs.find(i => i.scope === install.scope && i.scopeRef === ref)?.version ?? install.version
     return c.json({ ok: true, version })

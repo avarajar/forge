@@ -1,8 +1,12 @@
 import { signal } from '@preact/signals'
 import { useEffect } from 'preact/hooks'
-import type { KiokuBrain, KiokuStatus } from '@forge-dev/core'
+import type { KiokuBrain, KiokuLabs, KiokuReleases, KiokuStatus } from '@forge-dev/core'
+import { requestJson } from '../config/api.js'
 
 export const kioku = signal<KiokuStatus | null>(null)
+// only the memory page reads these, so they load when it opens rather than with each poll
+export const kiokuReleases = signal<KiokuReleases | null>(null)
+export const kiokuLabs = signal<KiokuLabs | null>(null)
 
 // the server keeps a reading for a minute, so polling faster gains nothing
 const POLL_MS = 60_000
@@ -21,6 +25,17 @@ export function loadKioku(fresh = false): Promise<void> {
     .finally(() => { inFlight = null })
   return inFlight
 }
+
+export async function loadReleases(fresh = false): Promise<void> {
+  kiokuReleases.value = await requestJson<KiokuReleases>('GET', `/api/kioku/releases${fresh ? '?fresh=1' : ''}`).catch(() => kiokuReleases.value)
+}
+
+export async function loadLabs(): Promise<void> {
+  kiokuLabs.value = await requestJson<KiokuLabs>('GET', '/api/kioku/labs').catch(() => null)
+}
+
+// what the memory page reads besides the status: releases with the plugin mismatch, and the labs when it shows them
+export const loadKiokuVersions = (fresh = false, labs = true): Promise<unknown> => Promise.all([loadReleases(fresh), labs && loadLabs()])
 
 // the memory page, task rows and task detail share one poll
 export function watchKioku(): () => void {

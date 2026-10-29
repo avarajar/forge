@@ -30,6 +30,7 @@ import { JobScheduler } from './module-jobs.js'
 import { ModuleEvents } from './module-events.js'
 import type { CWSession } from './cw-types.js'
 import { Kioku } from './kioku.js'
+import { installsOf } from './plugins.js'
 
 interface ServerOptions {
   dataDir: string
@@ -91,7 +92,7 @@ export function createForgeServer(options: ServerOptions) {
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())
-  const kioku = new Kioku({ projects: () => cwReader.getProjects() })
+  const kioku = new Kioku({ projects: () => cwReader.getProjects(), pluginInstalls: () => installsOf(cwReader, 'kioku') })
   app.route('/api/kioku', kiokuRoutes(kioku, {
     type: (project, sessionDir, text) => ptyManager.typeLine(project, sessionDir, text),
     // kioku's plugin, and so its skill, exists only for Claude Code

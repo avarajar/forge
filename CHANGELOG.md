@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- Memory shows the installed Kioku, the latest stable release and any newer pre-release, with date and notes. Try a version (or Update / Back to stable) after seeing what `kioku update <version> --check` says; once installed, Forge shows `was → version` and what happened to each agent plugin. Releases are read with `gh`, since monoku/kioku is private.
+- Memory warns when Kioku's Claude Code plugin in an account has another major version than the tool, which makes Kioku do nothing in those sessions, and offers the release or plugin update that fixes it.
+- Memory lists the labs the installed Kioku has (5.0 and later) as kioku reports them, with a switch for each; a change applies from the next session.
+- Every one of these actions shows the exact command it runs, with a button to copy it.
+
 ## 0.1.15 (2026-10-28)
 
 ## 0.1.14 (2026-10-27)

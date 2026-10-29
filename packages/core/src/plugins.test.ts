@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CWReader } from './cw-reader.js'
-import { createRemoteLookup, hasUpdate, knowsMarketplace, listMarketplaces, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
+import { createRemoteLookup, hasUpdate, installsOf, knowsMarketplace, listMarketplaces, listPlugins, normalizeRepo, readPluginSkill } from './plugins.js'
 import { writeMarketplaceFixture, writePluginFixture, type FixturePlugin } from './test-plugins.js'
 import { makeFixtureRepo } from './test-git.js'
 
@@ -61,6 +61,15 @@ describe('listPlugins', () => {
   afterEach(() => {
     process.env.HOME = prevHome
     rmSync(home, { recursive: true, force: true })
+  })
+
+  it('finds one plugin by name in each account, with the commands that update it', () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku(), monoku({ name: 'kioku', marketplace: 'kioku', version: '5.0.0-rc.1' })])
+    writePluginFixture(join(cw, 'accounts', 'meridian'), [monoku()])
+    expect(installsOf(reader, 'kioku')).toEqual([{
+      id: 'kioku@kioku', scope: 'account', scopeRef: 'monoku', version: '5.0.0-rc.1', configDir: join(cw, 'accounts', 'monoku'),
+      update: [['plugin', 'marketplace', 'update', 'kioku'], ['plugin', 'update', 'kioku@kioku']],
+    }])
   })
 
   it('returns nothing when no config dir has plugins', async () => {

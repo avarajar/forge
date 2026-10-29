@@ -11,6 +11,8 @@ export interface KiokuRouteOptions {
 interface RememberBody { project?: string; sessionDir?: string; text?: string }
 interface AreaBody { brain: string; area: string; summary: string }
 interface PublishBody { brain: string; to: string; understood: boolean }
+interface VersionBody { version: string }
+interface LabBody { enabled: boolean }
 
 // an empty field reads as not given
 const trim = (value?: string): string | undefined => value?.trim() || undefined
@@ -60,6 +62,20 @@ export function kiokuRoutes(kioku = new Kioku(), options: KiokuRouteOptions = {}
     const { brain, to, understood } = await body<PublishBody>(c)
     if (understood !== true) return c.json({ error: 'publishing needs the warning accepted' }, 400)
     return c.json(await kioku.publish(brain ?? '', trim(to)))
+  })
+
+  app.get('/releases', async (c) => c.json(await kioku.releases(c.req.query('fresh') === '1')))
+
+  app.post('/update/check', async (c) => c.json(await kioku.checkUpdate(trim((await body<VersionBody>(c)).version) ?? '')))
+
+  app.post('/update', async (c) => c.json(await kioku.update(trim((await body<VersionBody>(c)).version) ?? '')))
+
+  app.get('/labs', async (c) => c.json(await kioku.labs()))
+
+  app.post('/labs/:name', async (c) => {
+    const { enabled } = await body<LabBody>(c)
+    if (typeof enabled !== 'boolean') return c.json({ error: 'enabled is true or false' }, 400)
+    return c.json(await kioku.setLab(c.req.param('name'), enabled))
   })
 
   app.post('/remember', async (c) => {
