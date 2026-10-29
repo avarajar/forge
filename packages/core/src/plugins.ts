@@ -69,10 +69,20 @@ function skillDirs(installPath: string, manifest: Json): string[] {
   return scanDirs(join(installPath, 'skills'))
 }
 
-function readSkill(reader: CWReader, dir: string): PluginSkill | null {
+// Claude Code offers a plugin's skill as /plugin:skill unless its frontmatter says user-invocable: false
+function readSkill(reader: CWReader, dir: string, plugin: string): PluginSkill | null {
   try {
     const { frontmatter } = reader.parseFrontmatter(readFileSync(join(dir, 'SKILL.md'), 'utf-8'))
-    return { name: String(frontmatter['name'] ?? basename(dir)), description: String(frontmatter['description'] ?? ''), path: dir }
+    const name = String(frontmatter['name'] ?? basename(dir))
+    const hint = frontmatter['argument-hint']
+    const invocable = String(frontmatter['user-invocable']) !== 'false'
+    return {
+      name,
+      description: String(frontmatter['description'] ?? ''),
+      path: dir,
+      ...(invocable ? { command: `/${plugin}:${name}` } : {}),
+      ...(invocable && typeof hint === 'string' && hint ? { argumentHint: hint } : {}),
+    }
   } catch {
     return null
   }
@@ -232,7 +242,7 @@ export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Pro
       description: String(manifest['description'] ?? ''),
       repo,
       installs: list.map(f => f.install),
-      skills: skillDirs(newest.install.installPath, manifest).flatMap(dir => readSkill(reader, dir) ?? []),
+      skills: skillDirs(newest.install.installPath, manifest).flatMap(dir => readSkill(reader, dir, splitPluginId(id).name) ?? []),
       commands: readCommands(reader, newest.install.installPath),
       project: match?.name,
       contributing: match ? existsSync(join(match.path, 'CONTRIBUTING.md')) : false,

@@ -81,6 +81,23 @@ describe('listPlugins', () => {
     ])
   })
 
+  it('gives each skill the command a session runs it with, unless it is not for the person', async () => {
+    writePluginFixture(join(cw, 'accounts', 'monoku'), [monoku({
+      listed: undefined,
+      skills: [
+        { dir: 'skills/debug', description: 'Hard bugs', extra: 'argument-hint: "<symptom>"' },
+        { dir: 'skills/handoff' },
+        { dir: 'skills/hidden', extra: 'user-invocable: false' },
+      ],
+    })])
+    const [plugin] = await listPlugins(reader, noRemote)
+    expect(plugin?.skills.map(({ name, command, argumentHint }) => ({ name, command, argumentHint }))).toEqual([
+      { name: 'debug', command: '/monoku-skills:debug', argumentHint: '<symptom>' },
+      { name: 'handoff', command: '/monoku-skills:handoff', argumentHint: undefined },
+      { name: 'hidden', command: undefined, argumentHint: undefined },
+    ])
+  })
+
   it('returns nothing when no config dir has plugins', async () => {
     expect(await listPlugins(reader, noRemote)).toEqual([])
   })
