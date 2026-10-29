@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Kioku } from './kioku.js'
 import { kiokuRoutes } from './kioku-routes.js'
-import { commandLine, compareVersions, pickReleases, readLabs, readUpdate } from './kioku-versions.js'
+import { commandLine, pickReleases, readLabs, readUpdate, type PluginInstallRef } from './kioku-versions.js'
 import type { Runner, RunResult } from './task-review.js'
 
 const ok = (value: unknown): RunResult => ({ code: 0, stdout: JSON.stringify(value), stderr: '' })
@@ -37,40 +37,54 @@ function fake(opts: { version?: string; labs?: unknown[]; gh?: RunResult } = {})
   return { kioku: new Kioku({ bin: '/home/me/.local/bin/kioku', run, terminal: term }), calls, terminal }
 }
 
-describe('compareVersions', () => {
-  it('orders releases and pre-releases the semver way', () => {
-    const sorted = ['4.0.0', '5.0.0-rc.10', '4.0.0-rc.4', '5.0.0-rc.2', '5.0.0', '3.3.0', 'v4.1.0'].sort(compareVersions)
-    expect(sorted).toEqual(['3.3.0', '4.0.0-rc.4', '4.0.0', 'v4.1.0', '5.0.0-rc.2', '5.0.0-rc.10', '5.0.0'])
-  })
+const install = (scopeRef: string, version: string, scope: 'global' | 'account' = 'account'): PluginInstallRef => ({
+  id: 'kioku@kioku', scope, scopeRef, version, configDir: `/home/me/.cw/accounts/${scopeRef}`,
+  update: [['plugin', 'marketplace', 'update', 'kioku'], ['plugin', 'update', 'kioku@kioku']],
 })
 
 describe('pickReleases', () => {
   it('finds the stable release and the pre-releases newer than the installed one', () => {
-    const picked = pickReleases(RELEASES, '4.0.0', 'kioku')
+    const picked = pickReleases(RELEASES, '4.0.0', [], 'kioku')
     expect(picked.stable?.version).toBe('4.0.0')
+    expect(picked.stableAction).toBeNull()
     expect(picked.prereleases.map(r => r.version)).toEqual(['5.0.0-rc.1'])
     expect(picked.prereleases[0]).toEqual({ version: '5.0.0-rc.1', prerelease: true, date: '2026-10-29T19:54:34Z', notes: 'Kioku v5.0.0-rc.1.', notesUrl: 'https://github.com/monoku/kioku/releases/tag/v5.0.0-rc.1', install: 'kioku update 5.0.0-rc.1' })
-    expect(picked.all.map(r => r.version)).toEqual(['5.0.0-rc.1', '4.0.0', '4.0.0-rc.4', '3.3.0'])
   })
 
   it('leaves out pre-releases older than the stable release', () => {
-    expect(pickReleases(RELEASES, null, 'kioku').prereleases.map(r => r.version)).toEqual(['5.0.0-rc.1'])
-    const shipped = [release('v5.0.0', false), ...RELEASES]
-    expect(pickReleases(shipped, '4.0.0', 'kioku')).toMatchObject({ stable: { version: '5.0.0' }, prereleases: [] })
+    expect(pickReleases(RELEASES, null, [], 'kioku').prereleases.map(r => r.version)).toEqual(['5.0.0-rc.1'])
+    const shipped = [release('v5.0.0-rc.10', true), release('v5.0.0-rc.2', true), ...RELEASES]
+    expect(pickReleases(shipped, '4.0.0', [], 'kioku').prereleases.map(r => r.version)).toEqual(['5.0.0-rc.10', '5.0.0-rc.2', '5.0.0-rc.1'])
+    expect(pickReleases([release('v5.0.0', false), ...RELEASES], '4.0.0', [], 'kioku')).toMatchObject({ stable: { version: '5.0.0' }, stableAction: 'update', prereleases: [] })
+  })
+
+  it('offers the way back to stable from a pre-release', () => {
+    expect(pickReleases(RELEASES, '5.0.0-rc.1', [], 'kioku').stableAction).toBe('back')
+  })
+
+  it('fixes a plugin ahead with a release of its major and one behind with its own update', () => {
+    const { mismatches } = pickReleases(RELEASES, '4.0.0', [install('monoku', '5.0.0-rc.1'), install('meridian', '4.2.0'), install('global', '3.1.0', 'global'), install('sha', 'abc1234def')], 'kioku')
+    expect(mismatches).toEqual([
+      { scope: 'account', scopeRef: 'monoku', plugin: 'kioku@kioku', version: '5.0.0-rc.1', fix: { kind: 'release', version: '5.0.0-rc.1', command: 'kioku update 5.0.0-rc.1' } },
+      { scope: 'global', scopeRef: 'global', plugin: 'kioku@kioku', version: '3.1.0', fix: { kind: 'plugin', command: 'claude plugin marketplace update kioku && claude plugin update kioku@kioku' } },
+    ])
+    const behind = pickReleases(RELEASES, '5.0.0-rc.1', [install('my acct', '4.0.0')], 'kioku').mismatches[0]
+    expect(behind.fix).toEqual({ kind: 'plugin', command: `CLAUDE_CONFIG_DIR='/home/me/.cw/accounts/my acct' claude plugin marketplace update kioku && CLAUDE_CONFIG_DIR='/home/me/.cw/accounts/my acct' claude plugin update kioku@kioku` })
+    expect(pickReleases(RELEASES, '4.0.0', [install('monoku', '6.0.0')], 'kioku').mismatches[0].fix).toBeNull()
   })
 })
 
 describe('readUpdate and readLabs', () => {
   it('keeps only the fields Forge shows', () => {
     const update = readUpdate({ status: 'updated', version: '5.0.0-rc.1', was: '4.0.0', agents: [{ host: 'claude-code', name: 'kioku@kioku', from: '4.0.0', to: '5.0.0-rc.1', changed: true, error: { message: 'boom' } }], finishError: { message: 'refresh failed' }, extra: 1 }, 'kioku update 5.0.0-rc.1')
-    expect(update).toEqual({ status: 'updated', version: '5.0.0-rc.1', was: '4.0.0', latest: null, agents: [{ host: 'claude-code', name: 'kioku@kioku', from: '4.0.0', to: '5.0.0-rc.1', changed: true, error: 'boom' }], refreshed: null, finishError: 'refresh failed', command: 'kioku update 5.0.0-rc.1' })
+    expect(update).toEqual({ status: 'updated', version: '5.0.0-rc.1', was: '4.0.0', agents: [{ host: 'claude-code', name: 'kioku@kioku', from: '4.0.0', to: '5.0.0-rc.1', changed: true, error: 'boom' }], finishError: 'refresh failed', command: 'kioku update 5.0.0-rc.1' })
   })
 
   it('passes each lab on as kioku lists it, with a command only when it has one', () => {
     const labs = readLabs({ labs: [LAB, { name: 'tidy', title: 'Tidy', about: 'x', enabled: true, command: '/kioku:tidy' }, { name: '--bad' }] }, 'kioku')
     expect(labs).toEqual([
-      { ...LAB, toggle: { on: 'kioku config set labs.recall-graph.enabled true', off: 'kioku config set labs.recall-graph.enabled false' }, set: { depth: 'kioku config set labs.recall-graph.depth 2' } },
-      { name: 'tidy', title: 'Tidy', about: 'x', enabled: true, command: '/kioku:tidy', toggle: { on: 'kioku config set labs.tidy.enabled true', off: 'kioku config set labs.tidy.enabled false' } },
+      { ...LAB, toggle: 'kioku config set labs.recall-graph.enabled true', set: { depth: 'kioku config set labs.recall-graph.depth 2' } },
+      { name: 'tidy', title: 'Tidy', about: 'x', enabled: true, command: '/kioku:tidy', toggle: 'kioku config set labs.tidy.enabled false' },
     ])
   })
 
@@ -108,7 +122,7 @@ describe('Kioku releases, updates and labs', () => {
   it('checks without a terminal and installs in one, showing the command without the resolved path', async () => {
     const { kioku, calls, terminal } = fake()
     const check = await kioku.checkUpdate('5.0.0-rc.1')
-    expect(check).toMatchObject({ status: 'available', was: '4.0.0', command: 'kioku update 5.0.0-rc.1 --check' })
+    expect(check).toMatchObject({ status: 'available', was: '4.0.0', command: 'kioku update 5.0.0-rc.1 --check', install: 'kioku update 5.0.0-rc.1' })
     expect(calls.at(-1)).toEqual({ bin: '/home/me/.local/bin/kioku', args: ['update', '5.0.0-rc.1', '--check', '--json'] })
     const done = await kioku.update('5.0.0-rc.1')
     expect(done).toMatchObject({ status: 'updated', version: '5.0.0-rc.1', was: '4.0.0', command: 'kioku update 5.0.0-rc.1' })
@@ -133,6 +147,7 @@ describe('Kioku releases, updates and labs', () => {
     expect(terminal).toEqual([{ bin: '/home/me/.local/bin/kioku', args: ['config', 'set', 'labs.recall-graph.enabled', 'true', '--json'] }])
     expect(after.labs?.[0].enabled).toBe(true)
     await expect(kioku.setLab('unknown', true)).rejects.toThrow(/no lab unknown/)
+    expect(terminal).toHaveLength(1)
     await expect(kioku.setLab('a.b', true)).rejects.toThrow()
   })
 

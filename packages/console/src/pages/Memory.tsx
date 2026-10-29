@@ -5,8 +5,7 @@ import type { KiokuBrain, KiokuWrite } from '@forge-dev/core'
 import { PageHeader } from '../components/PageHeader.js'
 import { errorText, postJson } from '../config/api.js'
 import { kindToken, pageCard as card, pageNote as note, shortAgo, soft, tierToken } from '../config/types.js'
-import { brainName, chainFor, kioku, loadKioku, loadLabs, loadReleases, sumPages, watchKioku } from '../hooks/useKioku.js'
-import { loadPlugins } from '../hooks/usePlugins.js'
+import { brainName, chainFor, kioku, loadKioku, loadKiokuVersions, sumPages, watchKioku } from '../hooks/useKioku.js'
 import { Dot } from '../components/Dot.js'
 import { NewMemory } from '../components/NewMemory.js'
 import { AreaForm, LinkBrain, NewBrain, PublishBrain } from '../components/BrainForms.js'
@@ -108,9 +107,8 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
   useEffect(() => watchKioku(), [])
   const status = kioku.value
   const installed = status?.installed === true
-  // versions, labs and the plugin's version per account are read only while the page is open
-  const loadVersions = (fresh = false) => Promise.all([loadReleases(fresh), loadLabs(), loadPlugins().catch(() => {})])
-  useEffect(() => { if (installed) void loadVersions() }, [installed])
+  // versions and labs are read only while the page is open, labs only where they show
+  useEffect(() => { if (installed) void loadKiokuVersions(false, !project) }, [installed, project])
   const tryVersion = (version: string) => setDialog({ kind: 'version', version })
 
   const openViewer = async () => {
@@ -145,7 +143,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
   const shown = new Set(chain.map(brainName))
   const activity = (status?.activity ?? []).filter(w => !project || shown.has(w.brain)).slice(0, 15)
 
-  const subtitle = !status?.installed
+  const subtitle = !installed
     ? 'Kioku brains on this machine'
     : project
       ? `${project} · ${sumPages(chain)} pages its sessions can recall`
@@ -155,10 +153,10 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
     <>
       <PageHeader title="Memory" subtitle={subtitle}>
         {status?.viewer && <ActionButton label="Stop viewer" variant="secondary" onClick={stopViewer} />}
-        <ActionButton label="Refresh" variant="secondary" onClick={() => Promise.all([loadKioku(true), installed && loadVersions(true)])} />
-        <ActionButton label="New brain" variant="secondary" disabled={!status?.installed} onClick={() => setDialog({ kind: 'brain' })} />
+        <ActionButton label="Refresh" variant="secondary" onClick={() => loadKioku(true).then(() => installed && loadKiokuVersions(true, !project))} />
+        <ActionButton label="New brain" variant="secondary" disabled={!installed} onClick={() => setDialog({ kind: 'brain' })} />
         <ActionButton label="New memory" variant="secondary" disabled={!brains.some(b => b.onDisk)} onClick={() => setDialog({ kind: 'memory' })} />
-        <ActionButton label={status?.viewer ? 'Viewer open ↗' : 'Open viewer'} variant="primary" disabled={!status?.installed || opening} onClick={openViewer} />
+        <ActionButton label={status?.viewer ? 'Viewer open ↗' : 'Open viewer'} variant="primary" disabled={!installed || opening} onClick={openViewer} />
       </PageHeader>
 
       <div class="flex flex-col w-full" style={{ padding: '18px 22px 40px', gap: '14px', maxWidth: '1180px' }}>
@@ -177,7 +175,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
           </div>
         )}
 
-        {status?.installed && brains.length === 0 && (
+        {installed && brains.length === 0 && (
           <EmptyState icon="i-lucide-brain" title="No brains yet" description="New brain makes one on this machine: a personal one for what you learn anywhere, a project or team one to share." />
         )}
 
@@ -219,7 +217,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
           </div>
         )}
 
-        {project && status?.installed && !chain.some(b => b.tier !== 'personal') && (
+        {project && installed && !chain.some(b => b.tier !== 'personal') && (
           <div class="flex items-center" style={{ ...note, gap: '12px', background: 'var(--elev)', color: 'var(--ink-2)' }}>
             <span class="flex-1">{project} has no project or team brain, so its sessions recall only yours.</span>
             <ActionButton label="Give it a brain" variant="secondary" size="sm" onClick={() => setDialog({ kind: 'link' })} />
@@ -228,7 +226,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
 
         {brains.length > 0 && <Activity writes={activity} />}
 
-        {status?.installed && (
+        {installed && (
           <p style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>
             Open viewer starts <code>kioku web</code>: the graph of every page, each page with its history, lint and the latest changes. It opens in its own tab and stops with Forge.
           </p>

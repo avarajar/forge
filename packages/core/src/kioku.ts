@@ -8,7 +8,7 @@ import { createRunner, type Runner } from './task-review.js'
 import { envWithoutHost } from './cw-doctor.js'
 import { findOnPath } from './cw-install.js'
 import { stripAnsi, tailOutput } from './output.js'
-import { LABS_ARGS, LAB_NAME, RELEASES_ARGS, VERSION, commandLine, labArgs, pickReleases, readLabs, readUpdate, updateArgs, type KiokuLabs, type KiokuReleases, type KiokuUpdate } from './kioku-versions.js'
+import { LABS_ARGS, RELEASES_ARGS, commandLine, isVersion, labArgs, pickReleases, readLabs, readUpdate, updateArgs, type KiokuLabs, type KiokuReleases, type KiokuUpdate, type PluginInstallRef } from './kioku-versions.js'
 
 export interface KiokuBrain {
   key: string
@@ -99,6 +99,8 @@ export interface KiokuOptions {
   terminal?: Runner
   startTimeoutMs?: number
   projects?: () => Record<string, { path: string }>
+  // each account's install of kioku's Claude Code plugin
+  pluginInstalls?: () => PluginInstallRef[]
   now?: () => number
 }
 
@@ -111,8 +113,8 @@ export class KiokuError extends Error {
 const NOT_INSTALLED = 'kioku is not installed on this machine'
 const START_TIMEOUT_MS = 20_000
 const WRITE_TIMEOUT_MS = 60_000
-// publishing may make a GitHub repository and push every page
-const PUBLISH_TIMEOUT_MS = 3 * 60_000
+// publishing may make a GitHub repository and push every page, and an update downloads a release
+const TERMINAL_TIMEOUT_MS = 3 * 60_000
 // brains change slowly and Refresh asks for a fresh reading, so a stale one is served while the next is read
 const CACHE_MS = 5 * 60_000
 // GitHub's release list changes when kioku ships, and gh counts against the rate limit
@@ -129,7 +131,7 @@ const AREA = /^[A-Za-z0-9][\w.-]*(\/[A-Za-z0-9][\w.-]*)*$/
 const LANGUAGE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]+)*$/
 
 function assertVersion(version: string): void {
-  if (!VERSION.test(version)) throw new KiokuError(`a kioku version reads like 5.0.0 or 5.0.0-rc.1, not "${version}"`, 400)
+  if (!isVersion(version)) throw new KiokuError(`a kioku version reads like 5.0.0 or 5.0.0-rc.1, not "${version}"`, 400)
 }
 
 function assertRepo(repo: string, what: string): void {
@@ -211,6 +213,7 @@ export class Kioku {
   private terminal: Runner | undefined
   private readonly startTimeoutMs: number
   private readonly projects: () => Record<string, { path: string }>
+  private readonly pluginInstalls: () => PluginInstallRef[]
   private readonly now: () => number
   private binPath: string | undefined
   private viewer: Promise<Viewer> | null = null
@@ -224,6 +227,7 @@ export class Kioku {
     this.terminal = options.terminal
     this.startTimeoutMs = options.startTimeoutMs ?? START_TIMEOUT_MS
     this.projects = options.projects ?? (() => ({}))
+    this.pluginInstalls = options.pluginInstalls ?? (() => [])
     this.now = options.now ?? Date.now
   }
 
@@ -412,19 +416,15 @@ export class Kioku {
   }
 
   private get terminalRun(): Runner {
-    return this.terminal ??= createTerminalRunner(envWithoutHost(), PUBLISH_TIMEOUT_MS)
-  }
-
-  private async installedVersion(): Promise<string | null> {
-    const result = await this.run(this.bin, ['--version'], homedir())
-    return result.code === 0 ? parseJson<{ version?: string }>(result.stdout)?.version ?? null : null
+    return this.terminal ??= createTerminalRunner(envWithoutHost(), TERMINAL_TIMEOUT_MS)
   }
 
   // kioku has no verb that lists releases and its repository is private, so gh reads them; a failed read keeps the last list
   async releases(fresh = false): Promise<KiokuReleases> {
     const cached = this.releaseList
-    const [installed, listed] = await Promise.all([
-      this.installedVersion(),
+    const [status, listed] = await Promise.all([
+      // the installed version comes from the status reading, which an update renews
+      this.status(),
       !fresh && cached && this.now() - cached.at <= RELEASES_CACHE_MS ? null : this.run('gh', RELEASES_ARGS, homedir()),
     ])
     let error: string | null = null
@@ -433,41 +433,40 @@ export class Kioku {
       if (Array.isArray(raw)) this.releaseList = { at: this.now(), raw }
       else error = listed.code === 127 ? 'gh is not installed, and the releases of monoku/kioku are read with it' : tailOutput(listed.stderr, 1) || 'gh could not read the releases of monoku/kioku'
     }
-    return { ...pickReleases(this.releaseList?.raw ?? [], installed, SHOWN_BIN), command: commandLine('gh', RELEASES_ARGS), error }
+    return { ...pickReleases(this.releaseList?.raw ?? [], status.version, this.pluginInstalls(), SHOWN_BIN), command: commandLine('gh', RELEASES_ARGS), error }
   }
 
   // only looks: kioku answers whether it would install, without a terminal
   async checkUpdate(version: string): Promise<KiokuUpdate> {
     assertVersion(version)
     const args = updateArgs(version, true)
-    const { out, ok, fail } = await this.invoke<Record<string, unknown>>(args, homedir(), this.run)
+    const { out, ok, fail } = await this.invoke<Record<string, unknown>>([...args, '--json'], homedir(), this.run)
     if (!ok || !out) throw fail(`kioku update ${version} --check failed`)
-    return readUpdate(out, commandLine(SHOWN_BIN, args.slice(0, -1)))
+    return { ...readUpdate(out, commandLine(SHOWN_BIN, args)), install: commandLine(SHOWN_BIN, updateArgs(version)) }
   }
 
   // kioku installs a named version only for a person at a terminal
   async update(version: string): Promise<KiokuUpdate> {
     assertVersion(version)
     const args = updateArgs(version)
-    const { out, ok, fail } = await this.invoke<Record<string, unknown>>(args, homedir(), this.terminalRun)
+    const { out, ok, fail } = await this.invoke<Record<string, unknown>>([...args, '--json'], homedir(), this.terminalRun)
     if (!ok || !out) throw fail(`kioku update ${version} failed`)
-    this.expire()
-    return readUpdate(out, commandLine(SHOWN_BIN, args.slice(0, -1)))
+    // starts the next reading, so the status and releases that follow see the new version
+    this.status(true).catch(() => {})
+    return readUpdate(out, commandLine(SHOWN_BIN, args))
   }
 
   // each version brings its own labs; a kioku without the verb has none
   async labs(): Promise<KiokuLabs> {
-    const command = commandLine(SHOWN_BIN, LABS_ARGS.slice(0, -1))
-    const result = await this.run(this.bin, LABS_ARGS, homedir())
+    const result = await this.run(this.bin, [...LABS_ARGS, '--json'], homedir())
     if (result.code === 127) throw new KiokuError(NOT_INSTALLED, 404)
     const out = result.code === 0 ? parseJson<unknown>(result.stdout) : null
-    return { labs: out ? readLabs(out, SHOWN_BIN) : null, command }
+    return { labs: out ? readLabs(out, SHOWN_BIN) : null, command: commandLine(SHOWN_BIN, LABS_ARGS) }
   }
 
+  // only a lab the installed kioku lists, so no other key reaches config set
   async setLab(name: string, enabled: boolean): Promise<KiokuLabs> {
-    if (!LAB_NAME.test(name)) throw new KiokuError(`no lab ${name}`, 400)
-    const known = (await this.labs()).labs ?? []
-    if (!known.some(l => l.name === name)) throw new KiokuError(`this kioku has no lab ${name}`, 404)
+    if (!(await this.labs()).labs?.some(l => l.name === name)) throw new KiokuError(`this kioku has no lab ${name}`, 404)
     const { ok, fail } = await this.invoke([...labArgs(name, enabled), '--json'], homedir(), this.terminalRun)
     if (!ok) throw fail(`kioku config set labs.${name}.enabled failed`)
     return this.labs()

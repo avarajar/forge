@@ -4,22 +4,9 @@ import { ActionButton, showToast } from '@forge-dev/ui'
 import type { PluginEntry, PluginInstall } from '@forge-dev/core'
 import { PaneHeader } from '../components/PaneHeader.js'
 import { Field } from '../components/Field.js'
-import { loadMarketplaces, loadPlugins, marketplaces, plugins } from '../hooks/usePlugins.js'
+import { loadMarketplaces, loadPlugins, marketplaces, pluginPath, plugins, runPluginCommand } from '../hooks/usePlugins.js'
 import { pluginAreas } from '../config/plugins.js'
-import { errorText, postJson } from '../config/api.js'
 
-const pluginPath = (id: string) => `/api/skills/plugins/${encodeURIComponent(id)}`
-
-
-// runs a plugin command; toasts the server's error and resolves to null on failure
-async function runPluginCommand<T>(url: string, body: object): Promise<T | null> {
-  try {
-    return await postJson<T>(url, body)
-  } catch (err) {
-    showToast(errorText(err), 'error')
-    return null
-  }
-}
 
 async function installPlugin(id: string, name: string, account: string): Promise<void> {
   if (!await runPluginCommand('/api/skills/plugins/install', { id, account })) return

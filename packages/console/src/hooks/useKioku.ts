@@ -34,6 +34,9 @@ export async function loadLabs(): Promise<void> {
   kiokuLabs.value = await requestJson<KiokuLabs>('GET', '/api/kioku/labs').catch(() => null)
 }
 
+// what the memory page reads besides the status: releases with the plugin mismatch, and the labs when it shows them
+export const loadKiokuVersions = (fresh = false, labs = true): Promise<unknown> => Promise.all([loadReleases(fresh), labs && loadLabs()])
+
 // the memory page, task rows and task detail share one poll
 export function watchKioku(): () => void {
   watchers += 1

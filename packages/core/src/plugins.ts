@@ -3,6 +3,7 @@ import { basename, join, resolve, sep } from 'node:path'
 import type { CWReader } from './cw-reader.js'
 import type { MarketplaceEntry, MarketplacePlugin, PluginEntry, PluginInstall, PluginSkill, PluginTarget } from './cw-types.js'
 import type { Runner } from './task-review.js'
+import type { PluginInstallRef } from './kioku-versions.js'
 
 // origin URL of a project's repository, or null when it has none
 export type RemoteLookup = (projectPath: string) => Promise<string | null>
@@ -149,6 +150,23 @@ function projectSkillNames(projectPath: string): string[] {
     .filter(e => e.isDirectory() && existsSync(join(dir, e.name, 'SKILL.md')))
     .map(e => e.name)
     .sort()
+}
+
+// what `claude` runs to update a plugin: its marketplace clone first, so a newer release is seen
+export const pluginUpdateArgs = (id: string): string[][] => [['plugin', 'marketplace', 'update', splitPluginId(id).marketplace], ['plugin', 'update', id]]
+
+// each config dir's user install of a plugin, by its name in any marketplace
+export function installsOf(reader: CWReader, name: string): PluginInstallRef[] {
+  return pluginScopes(reader).flatMap(({ scope, scopeRef }) => {
+    const configDir = reader.getSkillConfigDir(scope, scopeRef)
+    const installed = readJson(join(configDir, 'plugins', 'installed_plugins.json'))['plugins']
+    if (!isRecord(installed)) return []
+    return Object.entries(installed).flatMap(([id, entries]) => {
+      const user = Array.isArray(entries) ? entries.find((e): e is Json => isRecord(e) && e['scope'] === 'user') : undefined
+      if (!user || splitPluginId(id).name !== name) return []
+      return [{ id, scope, scopeRef, version: String(user['version'] ?? ''), configDir, update: pluginUpdateArgs(id) }]
+    })
+  })
 }
 
 export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Promise<PluginEntry[]> {
