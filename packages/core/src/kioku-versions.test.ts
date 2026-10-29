@@ -53,8 +53,10 @@ describe('pickReleases', () => {
     expect(picked.all.map(r => r.version)).toEqual(['5.0.0-rc.1', '4.0.0', '4.0.0-rc.4', '3.3.0'])
   })
 
-  it('lists every pre-release when no version is known', () => {
-    expect(pickReleases(RELEASES, null, 'kioku').prereleases.map(r => r.version)).toEqual(['5.0.0-rc.1', '4.0.0-rc.4'])
+  it('leaves out pre-releases older than the stable release', () => {
+    expect(pickReleases(RELEASES, null, 'kioku').prereleases.map(r => r.version)).toEqual(['5.0.0-rc.1'])
+    const shipped = [release('v5.0.0', false), ...RELEASES]
+    expect(pickReleases(shipped, '4.0.0', 'kioku')).toMatchObject({ stable: { version: '5.0.0' }, prereleases: [] })
   })
 })
 
@@ -67,7 +69,7 @@ describe('readUpdate and readLabs', () => {
   it('passes each lab on as kioku lists it, with a command only when it has one', () => {
     const labs = readLabs({ labs: [LAB, { name: 'tidy', title: 'Tidy', about: 'x', enabled: true, command: '/kioku:tidy' }, { name: '--bad' }] }, 'kioku')
     expect(labs).toEqual([
-      { ...LAB, toggle: { on: 'kioku config set labs.recall-graph.enabled true', off: 'kioku config set labs.recall-graph.enabled false' } },
+      { ...LAB, toggle: { on: 'kioku config set labs.recall-graph.enabled true', off: 'kioku config set labs.recall-graph.enabled false' }, set: { depth: 'kioku config set labs.recall-graph.depth 2' } },
       { name: 'tidy', title: 'Tidy', about: 'x', enabled: true, command: '/kioku:tidy', toggle: { on: 'kioku config set labs.tidy.enabled true', off: 'kioku config set labs.tidy.enabled false' } },
     ])
   })

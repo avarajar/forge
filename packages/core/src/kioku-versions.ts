@@ -20,7 +20,7 @@ export interface KiokuRelease {
 export interface KiokuReleases {
   installed: string | null
   stable: KiokuRelease | null
-  // pre-releases newer than the installed version, newest first
+  // pre-releases newer than the installed version and the stable one, newest first
   prereleases: KiokuRelease[]
   // every release, newest first, so the console can find one by major
   all: KiokuRelease[]
@@ -57,6 +57,8 @@ export interface KiokuLab {
   command?: string
   // the commands that turn it on and off
   toggle: { on: string; off: string }
+  // per setting, the command that sets its current value
+  set?: Record<string, string>
 }
 
 export interface KiokuLabs {
@@ -123,12 +125,10 @@ export function pickReleases(listed: unknown, installed: string | null, bin: str
       }
     })
     .sort((a, b) => compareVersions(b.version, a.version))
-  return {
-    installed,
-    stable: all.find(r => !r.prerelease) ?? null,
-    prereleases: all.filter(r => r.prerelease && (!installed || compareVersions(r.version, installed) > 0)),
-    all,
-  }
+  const stable = all.find(r => !r.prerelease) ?? null
+  // a pre-release older than the stable release has nothing left to try
+  const newer = (v: string) => (!installed || compareVersions(v, installed) > 0) && (!stable || compareVersions(v, stable.version) > 0)
+  return { installed, stable, prereleases: all.filter(r => r.prerelease && newer(r.version)), all }
 }
 
 // kioku update's answer with only the fields Forge shows
@@ -159,12 +159,13 @@ export function readLabs(out: unknown, bin: string): KiokuLab[] {
   const listed = isRecord(out) && Array.isArray(out['labs']) ? out['labs'] : []
   return listed.filter(isRecord).filter(l => LAB_NAME.test(String(l['name'] ?? ''))).map((l): KiokuLab => {
     const name = String(l['name'])
+    const settings = isRecord(l['settings']) ? l['settings'] : undefined
     return {
       name,
       title: text(l['title']) ?? name,
       about: text(l['about']) ?? '',
       enabled: l['enabled'] === true,
-      ...(isRecord(l['settings']) ? { settings: l['settings'] } : {}),
+      ...(settings ? { settings, set: Object.fromEntries(Object.entries(settings).map(([key, value]) => [key, commandLine(bin, ['config', 'set', `labs.${name}.${key}`, typeof value === 'string' ? value : JSON.stringify(value)])])) } : {}),
       ...(text(l['command']) ? { command: text(l['command'])! } : {}),
       toggle: { on: commandLine(bin, labArgs(name, true)), off: commandLine(bin, labArgs(name, false)) },
     }

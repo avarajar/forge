@@ -5,10 +5,12 @@ import type { KiokuBrain, KiokuWrite } from '@forge-dev/core'
 import { PageHeader } from '../components/PageHeader.js'
 import { errorText, postJson } from '../config/api.js'
 import { kindToken, pageCard as card, pageNote as note, shortAgo, soft, tierToken } from '../config/types.js'
-import { brainName, chainFor, kioku, loadKioku, sumPages, watchKioku } from '../hooks/useKioku.js'
+import { brainName, chainFor, kioku, loadKioku, loadLabs, loadReleases, sumPages, watchKioku } from '../hooks/useKioku.js'
+import { loadPlugins } from '../hooks/usePlugins.js'
 import { Dot } from '../components/Dot.js'
 import { NewMemory } from '../components/NewMemory.js'
 import { AreaForm, LinkBrain, NewBrain, PublishBrain } from '../components/BrainForms.js'
+import { KiokuLabs, KiokuVersions, PluginMismatch, TryVersion } from '../components/KiokuVersions.js'
 
 interface MemoryProps {
   project: string | null
@@ -44,7 +46,7 @@ const KindBar: FunctionComponent<{ brain: KiokuBrain }> = ({ brain }) => {
 const cardAction = { fontSize: '11.5px', fontWeight: 500, color: 'var(--blue)', background: 'none', border: 0, padding: 0, cursor: 'pointer' }
 
 // one dialog of the page at a time
-type Dialog = { kind: 'memory' | 'brain' | 'link' } | { kind: 'area' | 'publish'; brain: KiokuBrain }
+type Dialog = { kind: 'memory' | 'brain' | 'link' } | { kind: 'area' | 'publish'; brain: KiokuBrain } | { kind: 'version'; version: string }
 
 const BrainCard: FunctionComponent<{ brain: KiokuBrain; usedBy?: string[]; showTier?: boolean; onDialog: (d: Dialog) => void }> = ({ brain, usedBy, showTier, onDialog }) => {
   const token = tierToken(brain.tier)
@@ -105,6 +107,11 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
   const closeDialog = () => setDialog(null)
   useEffect(() => watchKioku(), [])
   const status = kioku.value
+  const installed = status?.installed === true
+  // versions, labs and the plugin's version per account are read only while the page is open
+  const loadVersions = (fresh = false) => Promise.all([loadReleases(fresh), loadLabs(), loadPlugins().catch(() => {})])
+  useEffect(() => { if (installed) void loadVersions() }, [installed])
+  const tryVersion = (version: string) => setDialog({ kind: 'version', version })
 
   const openViewer = async () => {
     // opened before the request so the browser does not treat it as a popup
@@ -148,7 +155,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
     <>
       <PageHeader title="Memory" subtitle={subtitle}>
         {status?.viewer && <ActionButton label="Stop viewer" variant="secondary" onClick={stopViewer} />}
-        <ActionButton label="Refresh" variant="secondary" onClick={() => loadKioku(true)} />
+        <ActionButton label="Refresh" variant="secondary" onClick={() => Promise.all([loadKioku(true), installed && loadVersions(true)])} />
         <ActionButton label="New brain" variant="secondary" disabled={!status?.installed} onClick={() => setDialog({ kind: 'brain' })} />
         <ActionButton label="New memory" variant="secondary" disabled={!brains.some(b => b.onDisk)} onClick={() => setDialog({ kind: 'memory' })} />
         <ActionButton label={status?.viewer ? 'Viewer open ↗' : 'Open viewer'} variant="primary" disabled={!status?.installed || opening} onClick={openViewer} />
@@ -159,6 +166,15 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
           <p style={{ ...note, background: soft('--red') }}>
             Kioku is not installed. Install it from <code>monoku/kioku</code> with its <code>install.sh</code>, which puts <code>kioku</code> in <code>~/.local/bin</code>.
           </p>
+        )}
+
+        {installed && <PluginMismatch onTry={tryVersion} />}
+
+        {installed && !project && (
+          <div class="grid items-start" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '12px' }}>
+            <KiokuVersions onTry={tryVersion} />
+            <KiokuLabs />
+          </div>
         )}
 
         {status?.installed && brains.length === 0 && (
@@ -224,6 +240,7 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
       {dialog?.kind === 'link' && project && <LinkBrain project={project} onClose={closeDialog} />}
       {dialog?.kind === 'area' && <AreaForm brain={dialog.brain} onClose={closeDialog} />}
       {dialog?.kind === 'publish' && <PublishBrain brain={dialog.brain} onClose={closeDialog} />}
+      {dialog?.kind === 'version' && <TryVersion version={dialog.version} onClose={closeDialog} />}
     </>
   )
 }
