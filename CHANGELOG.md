@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.16 (2026-10-29)
+
 ### Added
 
 - Memory shows the installed Kioku, the latest stable release and any newer pre-release, with date and notes. Try a version (or Update / Back to stable) after seeing what `kioku update <version> --check` says; once installed, Forge shows `was → version` and what happened to each agent plugin. Releases are read with `gh`, since monoku/kioku is private.
