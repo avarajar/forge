@@ -31,6 +31,14 @@ function ensureSpawnHelperPermissions() {
 }
 ensureSpawnHelperPermissions()
 
+const SLASH_MAX = 300
+
+// a slash command with its arguments on one line, with no control character that could type more than that
+export function slashLine(text: unknown): string | null {
+  const line = typeof text === 'string' ? text.trim() : ''
+  return line.length <= SLASH_MAX && /^\/[A-Za-z0-9][\w:.-]*( [^\x00-\x1f\x7f]*)?$/.test(line) ? line : null
+}
+
 export interface PTYClient {
   send: (data: string) => void
   close: () => void

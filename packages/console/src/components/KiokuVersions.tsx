@@ -6,6 +6,7 @@ import { copyText, errorText, postJson } from '../config/api.js'
 import { pageCard as card, pageNote as note, shortAgo, soft } from '../config/types.js'
 import { kiokuLabs, kiokuReleases, loadKioku, loadKiokuVersions, loadReleases } from '../hooks/useKioku.js'
 import { pluginPath, runPluginCommand } from '../hooks/usePlugins.js'
+import { RunCommand } from './RunCommand.js'
 
 const heading = { fontSize: '11px', fontWeight: 600, letterSpacing: '.02em', color: 'var(--ink-3)' }
 const row = { gap: '10px', padding: '9px 16px', borderTop: '1px solid var(--hair)', fontSize: '12.5px' }
@@ -208,6 +209,7 @@ const LabCard: FunctionComponent<{ lab: KiokuLab }> = ({ lab }) => {
         <div class="flex items-center" style={{ gap: '8px' }}>
           <span style={small}>In a session</span>
           <Command text={lab.command} />
+          <RunCommand command={lab.command} plugin="kioku" disabled={!lab.enabled} note="A session has it only when it was opened after the lab was switched on." />
         </div>
       )}
       {Object.entries(lab.settings ?? {}).map(([key, value]) => (

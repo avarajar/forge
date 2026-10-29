@@ -3,6 +3,7 @@ import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import type { PluginEntry, PluginInstall } from '@forge-dev/core'
 import { PaneHeader } from '../components/PaneHeader.js'
+import { RunCommand } from '../components/RunCommand.js'
 import { Field } from '../components/Field.js'
 import { loadMarketplaces, loadPlugins, marketplaces, pluginPath, plugins, runPluginCommand } from '../hooks/usePlugins.js'
 import { pluginAreas } from '../config/plugins.js'
@@ -196,6 +197,20 @@ export const PluginPane: FunctionComponent<{
               {missing.map(a => <MissingRow key={a} plugin={plugin} account={a} />)}
             </div>
           </section>
+          {plugin.commands.length > 0 && (
+            <section>
+              <h3 style={sectionTitle}>Commands ({plugin.commands.length})</h3>
+              <div class="flex flex-col" style={{ gap: '4px' }}>
+                {plugin.commands.map(c => (
+                  <div key={c.name} class="flex items-center" style={{ gap: '10px', padding: '8px 11px' }}>
+                    <span class="mono shrink-0" style={{ fontSize: '12.5px', fontWeight: 600 }}>{c.name}{c.argumentHint ? ` ${c.argumentHint}` : ''}</span>
+                    <span class="flex-1 min-w-0 truncate" style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{c.description}</span>
+                    <RunCommand command={c.argumentHint ? `${c.name} ${c.argumentHint}` : c.name} plugin={plugin.name} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           <section>
             <h3 style={sectionTitle}>Skills ({plugin.skills.length})</h3>
             {plugin.skills.length === 0 && (

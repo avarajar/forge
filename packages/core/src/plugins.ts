@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { basename, join, resolve, sep } from 'node:path'
 import type { CWReader } from './cw-reader.js'
-import type { MarketplaceEntry, MarketplacePlugin, PluginEntry, PluginInstall, PluginSkill, PluginTarget } from './cw-types.js'
+import type { MarketplaceEntry, MarketplacePlugin, PluginCommand, PluginEntry, PluginInstall, PluginSkill, PluginTarget } from './cw-types.js'
 import type { Runner } from './task-review.js'
 import type { PluginInstallRef } from './kioku-versions.js'
 
@@ -76,6 +76,21 @@ function readSkill(reader: CWReader, dir: string): PluginSkill | null {
   } catch {
     return null
   }
+}
+
+// commands/*.md, each named by its file; Claude Code reads description and argument-hint from the frontmatter
+function readCommands(reader: CWReader, installPath: string): PluginCommand[] {
+  const dir = join(installPath, 'commands')
+  if (!existsSync(dir)) return []
+  return readdirSync(dir).filter(f => f.endsWith('.md')).sort().flatMap((file): PluginCommand[] => {
+    try {
+      const { frontmatter } = reader.parseFrontmatter(readFileSync(join(dir, file), 'utf-8'))
+      const hint = frontmatter['argument-hint']
+      return [{ name: `/${basename(file, '.md')}`, description: String(frontmatter['description'] ?? ''), ...(typeof hint === 'string' && hint ? { argumentHint: hint } : {}) }]
+    } catch {
+      return []
+    }
+  })
 }
 
 function manifestRepo(manifest: Json): string | undefined {
@@ -218,6 +233,7 @@ export async function listPlugins(reader: CWReader, remoteOf: RemoteLookup): Pro
       repo,
       installs: list.map(f => f.install),
       skills: skillDirs(newest.install.installPath, manifest).flatMap(dir => readSkill(reader, dir) ?? []),
+      commands: readCommands(reader, newest.install.installPath),
       project: match?.name,
       contributing: match ? existsSync(join(match.path, 'CONTRIBUTING.md')) : false,
       projectSkills: match ? projectSkillNames(match.path) : [],

@@ -36,6 +36,13 @@ describe('Forge Server', () => {
     expect(await res.json()).toEqual({ classifier: 'local', shadow: false, states: {} })
   })
 
+  it('POST /api/cw/terminal/command checks the line and the session before typing', async () => {
+    const send = (body: unknown) => server.fetch('/api/cw/terminal/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    expect((await send({ project: 'forge', sessionDir: 'task-a', line: 'rm -rf ~' })).status).toBe(400)
+    expect((await send({ project: 'forge', line: '/kioku-hachi' })).status).toBe(400)
+    expect((await send({ project: 'nope', sessionDir: 'task-a', line: '/kioku-hachi' })).status).toBe(400)
+  })
+
   it('GET /api/projects returns empty array', async () => {
     const res = await server.fetch('/api/projects')
     expect(res.status).toBe(200)

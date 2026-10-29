@@ -181,7 +181,8 @@ export function readLabs(out: unknown, bin: string): KiokuLab[] {
     const name = String(l['name'])
     const enabled = l['enabled'] === true
     const settings = isRecord(l['settings']) ? l['settings'] : undefined
-    const set = settings && Object.fromEntries(Object.entries(settings).map(([key, value]) => [key, commandLine(bin, ['config', 'set', `labs.${name}.${key}`, typeof value === 'string' ? value : JSON.stringify(value)])]))
+    // a setting with no value has nothing to set again
+    const set = settings && Object.fromEntries(Object.entries(settings).filter(([, value]) => value !== null && value !== undefined).map(([key, value]) => [key, commandLine(bin, ['config', 'set', `labs.${name}.${key}`, typeof value === 'string' ? value : JSON.stringify(value)])]))
     return {
       name,
       title: text(l['title']) ?? name,
