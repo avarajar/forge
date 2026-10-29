@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.18 (2026-10-29)
+
 ### Added
 
 - Skills → Plugins gives every skill of a plugin a Run…, since Claude Code offers each one as `/<plugin>:<skill>`: it takes what you write after it (with the skill's `argument-hint` as the hint) and types it into a live Claude Code session of an account with the plugin. Skills marked `user-invocable: false` have none.
