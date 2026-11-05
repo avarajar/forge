@@ -339,6 +339,20 @@ export function skillRoutes(
     return c.json({ ok: true, version })
   })
 
+  app.post('/plugins/:id/uninstall', async (c) => {
+    const id = c.req.param('id')
+    const { scope, scopeRef } = await c.req.json<{ scope?: string; scopeRef?: string }>().catch(() => ({}) as { scope?: string; scopeRef?: string })
+    const ref = scope === 'global' ? 'global' : scopeRef ?? ''
+    const plugin = (await listPlugins(reader, remoteOf)).find(p => p.id === id)
+    const install = plugin?.installs.find(i => i.scope === scope && i.scopeRef === ref)
+    if (!plugin || !install) return c.json({ error: `${id} is not installed in ${ref || 'that scope'}` }, 404)
+
+    // Forge lists only user-scope installs; project and local ones belong to a project's settings
+    const failed = await runClaude(install.scope, ref, [['plugin', 'uninstall', plugin.id, '--scope', 'user']], `Failed to uninstall ${plugin.name}`)
+    if (failed) return c.json({ error: failed.error }, failed.status)
+    return c.json({ ok: true })
+  })
+
   app.get('/marketplaces', (c) => c.json(listMarketplaces(reader)))
 
   app.post('/marketplaces', async (c) => {

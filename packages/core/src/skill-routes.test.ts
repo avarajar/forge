@@ -543,6 +543,41 @@ describe('Plugin routes', () => {
     expect((await first).status).toBe(200)
   })
 
+  const uninstall = (body: Record<string, unknown>) => app.request(`/api/skills/plugins/${ID}/uninstall`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  it('POST uninstall removes the user-scope install from the account config dir', async () => {
+    const res = await uninstall({ scope: 'account', scopeRef: 'monoku' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+    expect(calls.map(c => [c.bin, ...c.args])).toEqual([
+      ['claude', 'plugin', 'uninstall', 'monoku-skills@monoku-skills', '--scope', 'user'],
+    ])
+    expect(calls[0]?.configDir).toBe(join(CW, 'accounts', 'monoku'))
+  })
+
+  it('POST uninstall runs without CLAUDE_CONFIG_DIR for the global scope', async () => {
+    const res = await uninstall({ scope: 'global' })
+    expect(res.status).toBe(200)
+    expect(calls[0]?.configDir).toBeUndefined()
+  })
+
+  it('POST uninstall is 404 where the plugin is not installed', async () => {
+    const res = await uninstall({ scope: 'account', scopeRef: 'meridian' })
+    expect(res.status).toBe(404)
+    expect(calls).toEqual([])
+  })
+
+  it('POST uninstall reports the CLI failure', async () => {
+    results = [{ code: 1, stdout: '', stderr: 'Error: plugin is locked' }]
+    const res = await uninstall({ scope: 'account', scopeRef: 'monoku' })
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Failed to uninstall monoku-skills: Error: plugin is locked' })
+  })
+
   const post = (path: string, body: Record<string, unknown>) => app.request(`/api/skills${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

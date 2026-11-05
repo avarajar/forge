@@ -83,16 +83,26 @@ const sectionTitle = { fontSize: '12px', fontWeight: 600, color: 'var(--ink-2)',
 const rowStyle = { gap: '10px', padding: '9px 12px', borderRadius: '11px', border: '1px solid var(--hair)', background: 'var(--card)' }
 
 const AccountRow: FunctionComponent<{ plugin: PluginEntry; install: PluginInstall }> = ({ plugin, install }) => {
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy] = useState<'update' | 'uninstall' | null>(null)
   const label = install.scope === 'global' ? 'global' : install.scopeRef
 
   const runUpdate = async () => {
-    setBusy(true)
+    setBusy('update')
     const result = await runPluginCommand<{ version?: string }>(`${pluginPath(plugin.id)}/update`, { scope: install.scope, scopeRef: install.scopeRef })
-    setBusy(false)
+    setBusy(null)
     if (!result) return
     showToast(`${plugin.name} ${result.version ?? ''} · applies to new sessions`, 'success')
     void loadPlugins().catch(() => {})
+  }
+
+  const runUninstall = async () => {
+    if (!confirm(`Uninstall ${plugin.name} from ${label}?`)) return
+    setBusy('uninstall')
+    const result = await runPluginCommand(`${pluginPath(plugin.id)}/uninstall`, { scope: install.scope, scopeRef: install.scopeRef })
+    setBusy(null)
+    if (!result) return
+    showToast(`${plugin.name} uninstalled from ${label} · applies to new sessions`, 'success')
+    await Promise.all([loadPlugins(), loadMarketplaces()]).catch(() => {})
   }
 
   // latest comes from the account's marketplace clone; Update refreshes the clone first, so it also catches newer releases
@@ -107,11 +117,20 @@ const AccountRow: FunctionComponent<{ plugin: PluginEntry; install: PluginInstal
       <span style={{ fontSize: '11.5px', color: status.color }}>{status.text}</span>
       <span style={{ fontSize: '11.5px', color: install.enabled ? 'var(--green)' : 'var(--ink-3)' }}>{install.enabled ? 'on' : 'off'}</span>
       <ActionButton
-        label={busy ? 'Updating…' : install.update ? `Update to ${install.latest}` : 'Check & update'}
+        label={busy === 'update' ? 'Updating…' : install.update ? `Update to ${install.latest}` : 'Check & update'}
         variant={install.update ? 'primary' : 'secondary'}
         size="sm"
-        loading={busy}
+        loading={busy === 'update'}
+        disabled={busy !== null}
         onClick={runUpdate}
+      />
+      <ActionButton
+        label={busy === 'uninstall' ? 'Uninstalling…' : 'Uninstall'}
+        variant="secondary"
+        size="sm"
+        loading={busy === 'uninstall'}
+        disabled={busy !== null}
+        onClick={runUninstall}
       />
     </div>
   )
