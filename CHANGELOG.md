@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- A plugin's pane has Uninstall on each account's row: it asks first, then runs `claude plugin uninstall` in that account's config dir. It applies to new sessions; a plugin removed from its last account leaves the list.
+
 ## 0.1.18 (2026-10-29)
 
 ### Added

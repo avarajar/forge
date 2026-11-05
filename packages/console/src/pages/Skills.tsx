@@ -447,6 +447,11 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
   const activePlugin = pane.kind === 'plugin' || pane.kind === 'propose' ? pluginList.find(p => p.id === pane.id) : undefined
   const updates = pluginList.filter(p => p.installs.some(i => i.update)).length
 
+  // a plugin uninstalled from its last account leaves the list
+  useEffect(() => {
+    if ((pane.kind === 'plugin' || pane.kind === 'propose') && plugins.value !== null && !activePlugin) setPane({ kind: 'empty' })
+  }, [pane, activePlugin])
+
   // open the first skill once the list arrives
   useEffect(() => {
     if (pane.kind === 'empty' && list.length > 0) setPane({ kind: 'editor', skill: list[0] })
