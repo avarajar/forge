@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.20 (2026-11-12)
+
 ### Security
 
 - The same-machine check accepts only Forge's own address (and the console's Vite dev server on port 5173): a page served by another program on a different `localhost` port can no longer call the API or open a terminal.
