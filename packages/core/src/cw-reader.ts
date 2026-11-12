@@ -1,6 +1,18 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import type { CWProject, CWSession, SkillEntry, SkillDetail, StackDetection } from './cw-types.js'
+
+// The project is one path segment and sessionDir may nest (task-task/form-header),
+// but neither may climb out of <cwDir>/sessions: route params are percent-decoded, so `..%2F` arrives as `../`
+export function sessionFolder(cwDir: string, project: string, sessionDir = ''): string | null {
+  if (typeof project !== 'string' || typeof sessionDir !== 'string') return null
+  if (!project || project === '.' || project === '..' || /[\\/\0]/.test(project)) return null
+  const segments = sessionDir ? sessionDir.split('/') : []
+  if (segments.some((s) => s === '' || s === '.' || s === '..' || /[\\\0]/.test(s))) return null
+  const root = resolve(cwDir, 'sessions')
+  const dir = resolve(root, project, ...segments)
+  return dir.startsWith(root + sep) ? dir : null
+}
 
 const withHarnessDefaults = (session: CWSession): CWSession =>
   ({ ...session, harness: session.harness ?? 'claude', provider: session.provider ?? 'native' })
@@ -49,7 +61,9 @@ export class CWReader {
   }
 
   getSession(project: string, sessionDir: string): CWSession | null {
-    const path = join(this.cwDir, 'sessions', project, sessionDir, 'session.json')
+    const dir = sessionFolder(this.cwDir, project, sessionDir)
+    if (!dir) return null
+    const path = join(dir, 'session.json')
     if (!existsSync(path)) return null
     try {
       const data = JSON.parse(readFileSync(path, 'utf-8')) as CWSession
@@ -61,7 +75,8 @@ export class CWReader {
   }
 
   getNotes(project: string, sessionDir: string): string {
-    const baseDir = join(this.cwDir, 'sessions', project, sessionDir)
+    const baseDir = sessionFolder(this.cwDir, project, sessionDir)
+    if (!baseDir) return ''
     // Try session.json notes path first
     const sessionPath = join(baseDir, 'session.json')
     if (existsSync(sessionPath)) {

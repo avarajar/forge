@@ -12,12 +12,19 @@ export function isLoopbackHost(host: string | undefined): boolean {
   }
 }
 
-// A loopback Host stops DNS rebinding; browsers add Origin to cross-site requests, the CLI sends none
+// The console's Vite dev server proxies /api and /ws with changeOrigin, so its Origin differs from the Host
+const DEV_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173'])
+
+// A loopback Host stops DNS rebinding; browsers add Origin to cross-site requests, the CLI sends none.
+// The Origin must be Forge's own address: a page on another loopback port is another program's page.
 export function isLocalRequest(host: string | undefined, origin: string | undefined): boolean {
   if (!isLoopbackHost(host)) return false
   if (origin === undefined) return true
   try {
-    return LOOPBACK_HOSTNAMES.has(new URL(origin).hostname)
+    const url = new URL(origin)
+    if (!LOOPBACK_HOSTNAMES.has(url.hostname)) return false
+    if (DEV_ORIGINS.has(url.origin)) return true
+    return url.host === new URL(`http://${host}`).host
   } catch {
     return false
   }

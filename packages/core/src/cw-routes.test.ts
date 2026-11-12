@@ -432,6 +432,38 @@ describe('CW Routes', () => {
     expect(body.output).toBe('')
   })
 
+  describe('session paths from the request', () => {
+    it('refuses to delete a project whose name climbs out of the sessions folder', async () => {
+      for (const project of ['..', '../..', 'a/../..']) {
+        const res = await app.request('/api/cw/delete-project', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project, deleteFiles: false }),
+        })
+        expect(res.status).toBe(400)
+      }
+      expect(existsSync(join(TEST_CW, 'sessions/testproj/task-mytask/session.json'))).toBe(true)
+    })
+
+    it('does not read a session.json outside the sessions folder', async () => {
+      mkdirSync(join(TEST_CW, 'outside/s'), { recursive: true })
+      writeFileSync(join(TEST_CW, 'outside/s/session.json'), JSON.stringify({
+        project: 'x', type: 'task', account: 'default', worktree: tmpdir(), notes: '', status: 'active',
+        created: '2026-01-01T00:00:00Z', last_opened: '2026-01-01T00:00:00Z', opens: 0,
+      }))
+      const res = await app.request('/api/cw/git/status/..%2Foutside/s')
+      expect(res.status).toBe(404)
+    })
+
+    it('refuses to start a task whose name climbs out of the sessions folder', async () => {
+      const res = await app.request('/api/cw/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'task', project: '..', task: 'x', description: 'd' }),
+      })
+      expect(res.status).toBe(400)
+      expect(existsSync(join(TEST_CW, 'task-x'))).toBe(false)
+    })
+  })
+
   describe('POST /api/cw/done', () => {
     const cwScript = () => join(TEST_CW, 'bin/cw')
     const argsLog = () => join(TEST_CW, 'done-args.log')

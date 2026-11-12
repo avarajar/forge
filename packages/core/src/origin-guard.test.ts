@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Hono } from 'hono'
 import { createServer, type Server } from 'node:http'
-import type { AddressInfo } from 'node:net'
+import { connect as netConnect, type AddressInfo } from 'node:net'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { WebSocket } from 'ws'
@@ -16,10 +16,17 @@ describe('isLocalRequest', () => {
     expect(isLocalRequest('localhost:3000', undefined)).toBe(true)
   })
 
-  it('accepts loopback origins on any port, including the Vite dev server', () => {
+  it("accepts Forge's own origin and the console's Vite dev server", () => {
+    expect(isLocalRequest('localhost:3000', 'http://localhost:3000')).toBe(true)
     expect(isLocalRequest('localhost:3000', 'http://localhost:5173')).toBe(true)
     expect(isLocalRequest('127.0.0.1:3000', 'http://127.0.0.1:3000')).toBe(true)
     expect(isLocalRequest('[::1]:3000', 'http://[::1]:3000')).toBe(true)
+  })
+
+  it('rejects a page served from another loopback port', () => {
+    expect(isLocalRequest('localhost:3000', 'http://localhost:8080')).toBe(false)
+    expect(isLocalRequest('127.0.0.1:3000', 'http://127.0.0.1:4000')).toBe(false)
+    expect(isLocalRequest('localhost:3000', 'http://127.0.0.1:3000')).toBe(false)
   })
 
   it('rejects a foreign Origin', () => {
@@ -116,6 +123,14 @@ describe('createForgeServer origin handling', () => {
     expect(res.status).toBe(403)
   })
 
+  it('refuses to be framed by another site', async () => {
+    for (const server of [local, team]) {
+      const res = await server.fetch('/api/health')
+      expect(res.headers.get('x-frame-options')).toBe('DENY')
+      expect(res.headers.get('content-security-policy')).toBe("frame-ancestors 'none'")
+    }
+  })
+
   it('keeps CORS open when local-only is turned off', async () => {
     const res = await team.fetch('/api/health', { headers: { Origin: 'https://console.example' } })
     expect(res.status).toBe(200)
@@ -152,6 +167,34 @@ describe('terminal WebSocket origin check', () => {
   })
 
   it('accepts an upgrade from the Forge console', async () => {
-    expect(await connect('http://127.0.0.1:3000')).toBe('open')
+    expect(await connect(`http://127.0.0.1:${port}`)).toBe('open')
+  })
+
+  it('refuses an upgrade from a page on another loopback port', async () => {
+    expect(await connect('http://127.0.0.1:8080')).toBe('rejected')
+  })
+
+  // Each raw request answers, closes or is dropped; the next connect proves the process is still serving
+  const raw = (data: Buffer | string) => new Promise<void>((resolve) => {
+    const socket = netConnect(port, '127.0.0.1', () => socket.write(data))
+    socket.on('data', (chunk) => {
+      if (chunk.toString().startsWith('HTTP/1.1 101')) socket.write(Buffer.from([0x81, 0x00]))
+    })
+    socket.on('close', () => resolve())
+    socket.on('error', () => resolve())
+    setTimeout(() => { socket.destroy(); resolve() }, 1000)
+  })
+
+  it('survives an upgrade request whose target is not a URL', async () => {
+    await raw('GET // HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n')
+    expect(await connect(`http://127.0.0.1:${port}`)).toBe('open')
+  })
+
+  it('survives a malformed frame from the client', async () => {
+    await raw([
+      'GET /ws/terminal/proj/task-x HTTP/1.1', `Host: 127.0.0.1:${port}`, 'Connection: Upgrade', 'Upgrade: websocket',
+      'Sec-WebSocket-Version: 13', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==', '', '',
+    ].join('\r\n'))
+    expect(await connect(`http://127.0.0.1:${port}`)).toBe('open')
   })
 })

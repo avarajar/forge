@@ -62,6 +62,12 @@ export function createForgeServer(options: ServerOptions) {
   const app = new Hono()
   // The API starts agents and deletes files, so a local server only answers its own machine
   app.use('*', localOnly ? localOriginGuard() : cors())
+  // Nothing frames the console; refusing frames stops another site from overlaying its click-only actions
+  app.use('*', async (c, next) => {
+    await next()
+    c.header('X-Frame-Options', 'DENY')
+    c.header('Content-Security-Policy', "frame-ancestors 'none'")
+  })
 
   if (authToken) {
     app.use('/api/*', bearerAuth(authToken))

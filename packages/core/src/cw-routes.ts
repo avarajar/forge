@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { CWReader } from './cw-reader.js'
+import { CWReader, sessionFolder } from './cw-reader.js'
 import { ACCOUNT_NAME_RE, HARNESS_NAME_RE, PROVIDER_NAME_RE, MODEL_NAME_RE, type CWSession } from './cw-types.js'
 import { execFileSync, execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -522,7 +522,8 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     }
 
     const dirPrefix = type === 'review' ? 'review-pr-' : 'task-'
-    const sessionDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
+    const sessionDir = sessionFolder(cwHome, project, `${dirPrefix}${taskSlug}`)
+    if (!sessionDir) return c.json({ ok: false, error: 'Invalid project or task name' }, 400)
     const sessionFile = join(sessionDir, 'session.json')
 
     if (existsSync(sessionFile)) {
@@ -551,7 +552,7 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     // Pre-write description to TASK_NOTES.md so CW picks it up.
     // Uses ## Description section that CW extracts into the init_prompt.
     if (description) {
-      const notesDir = join(cwHome, 'sessions', project, `${dirPrefix}${taskSlug}`)
+      const notesDir = sessionDir
       mkdirSync(notesDir, { recursive: true })
       const notesFile = join(notesDir, type === 'review' ? 'REVIEW_NOTES.md' : 'TASK_NOTES.md')
       if (!existsSync(notesFile)) {
@@ -675,6 +676,9 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
   app.post('/delete-project', async (c) => {
     const { project, deleteFiles } = await c.req.json<{ project: string; deleteFiles: boolean }>()
+    // The session folder is removed recursively, so a name like `..` must never reach rmSync
+    const sessionsDir = sessionFolder(reader.cwHome, project)
+    if (!sessionsDir) return c.json({ ok: false, error: 'Invalid project name' }, 400)
 
     // Get project path before removing from CW
     const projects = reader.getProjects()
@@ -688,7 +692,6 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     }
 
     // Always clean up session data for this project
-    const sessionsDir = join(reader.cwHome, 'sessions', project)
     if (existsSync(sessionsDir)) {
       try { rmSync(sessionsDir, { recursive: true, force: true }) } catch {}
     }

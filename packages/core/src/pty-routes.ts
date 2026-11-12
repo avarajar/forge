@@ -58,6 +58,11 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
   }
 
   wss.on('connection', (ws: WebSocket, project: string, sessionDir: string) => {
+    // ws emits 'error' for a malformed frame from the peer; with no listener Node throws it and the process exits
+    ws.on('error', (err) => {
+      console.error(`[pty-ws] Socket error on ${project}/${sessionDir}: ${err.message}`)
+      ws.terminate()
+    })
     console.log(`[pty-ws] Connected: ${project}/${sessionDir}`)
 
     const sessionId = `${project}::${sessionDir}`
@@ -79,7 +84,13 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
       return
     }
 
-    const ptySession = manager.getOrCreate(project, sessionDir, taken.session, { isNew: taken.isNew })
+    let ptySession: ReturnType<PTYManager['getOrCreate']> = null
+    try {
+      ptySession = manager.getOrCreate(project, sessionDir, taken.session, { isNew: taken.isNew })
+    } catch (err) {
+      // a session.json with missing or mistyped fields makes the launch command throw
+      console.error(`[pty-ws] Could not launch ${project}/${sessionDir}: ${(err as Error).message}`)
+    }
     if (!ptySession) {
       console.error(`[pty-ws] Failed to spawn terminal for: ${project}/${sessionDir}`)
       ws.send(JSON.stringify({ type: 'error', message: `Failed to start terminal for ${project}/${sessionDir}` }))
@@ -92,20 +103,25 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
 
   function attachToServer(server: Server) {
     server.on('upgrade', (request, socket, head) => {
-      if (localOnly && !isLocalRequest(request.headers.host, request.headers.origin)) {
-        socket.destroy()
-        return
-      }
-      const url = new URL(request.url ?? '/', 'http://localhost')
-      const parsed = parseTerminalUpgradeUrl(url.pathname)
+      // a throw here runs outside any request handler and would end the process (`new URL('//', ...)` throws)
+      try {
+        if (localOnly && !isLocalRequest(request.headers.host, request.headers.origin)) {
+          socket.destroy()
+          return
+        }
+        const url = new URL(request.url ?? '/', 'http://localhost')
+        const parsed = parseTerminalUpgradeUrl(url.pathname)
 
-      if (parsed) {
-        const { project, sessionDir } = parsed
-        console.log(`[pty-ws] Upgrade request: ${project}/${sessionDir}`)
-        wss.handleUpgrade(request, socket, head, (ws) => {
-          wss.emit('connection', ws, project, sessionDir)
-        })
-      } else {
+        if (parsed) {
+          const { project, sessionDir } = parsed
+          console.log(`[pty-ws] Upgrade request: ${JSON.stringify(project)}/${JSON.stringify(sessionDir)}`)
+          wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, project, sessionDir)
+          })
+        } else {
+          socket.destroy()
+        }
+      } catch {
         socket.destroy()
       }
     })
