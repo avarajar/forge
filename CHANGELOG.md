@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Security
+
+- The same-machine check accepts only Forge's own address (and the console's Vite dev server on port 5173): a page served by another program on a different `localhost` port can no longer call the API or open a terminal.
+- Forge refuses to be shown inside a frame (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), so another site cannot overlay the console and steer its clicks.
+- A malformed WebSocket frame or an upgrade request whose target is not a URL no longer stops the server.
+- Session routes and the terminal WebSocket refuse project and session names that climb out of `~/.cw/sessions` (`..`, `%2F..`). Delete project and Start task answer 400 for such names instead of removing or writing outside it.
+
 ## 0.1.19 (2026-11-05)
 
 ### Added

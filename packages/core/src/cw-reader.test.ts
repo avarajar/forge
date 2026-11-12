@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
-import { CWReader } from './cw-reader.js'
+import { CWReader, sessionFolder } from './cw-reader.js'
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -86,6 +86,15 @@ describe('CWReader', () => {
   it('returns null for missing session', () => {
     const session = reader.getSession('myapp', 'task-nonexistent')
     expect(session).toBeNull()
+  })
+
+  it('does not follow `..` out of the sessions folder', () => {
+    mkdirSync(join(TEST_CW, 'outside/s'), { recursive: true })
+    writeFileSync(join(TEST_CW, 'outside/s/session.json'), JSON.stringify({ project: 'x', notes: '' }))
+    writeFileSync(join(TEST_CW, 'outside/s/TASK_NOTES.md'), 'secret')
+    expect(reader.getSession('..', 'outside/s')).toBeNull()
+    expect(reader.getSession('myapp', '../../outside/s')).toBeNull()
+    expect(reader.getNotes('..', 'outside/s')).toBe('')
   })
 
   it('reads notes from TASK_NOTES.md when session.json does not exist yet', () => {
@@ -324,5 +333,18 @@ describe('CWReader harness fields', () => {
     const codex = spaces.find(s => s.task === 'codex')
     expect(codex).toMatchObject({ harness: 'opencode', harness_session_id: 'ses_123', provider: 'zai', model: 'glm-5.1' })
     expect(spaces.find(s => s.task === 'legacy')?.harness).toBe('claude')
+  })
+})
+
+describe('sessionFolder', () => {
+  it('keeps a session inside <cwDir>/sessions and allows nested session folders', () => {
+    expect(sessionFolder('/cw', 'myapp', 'task-task/form-header')).toBe('/cw/sessions/myapp/task-task/form-header')
+    expect(sessionFolder('/cw', 'myapp')).toBe('/cw/sessions/myapp')
+  })
+
+  it('refuses names that leave the folder or are empty', () => {
+    for (const [project, dir] of [['..', 'x'], ['.', 'x'], ['a/b', 'x'], ['', 'x'], ['myapp', '..'], ['myapp', 'a/../../b'], ['myapp', 'a//b'], ['my\0app', 'x']]) {
+      expect(sessionFolder('/cw', project, dir)).toBeNull()
+    }
   })
 })
