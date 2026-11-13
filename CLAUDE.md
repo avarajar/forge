@@ -27,6 +27,7 @@ packages/
   sdk/        → Module SDK v1 1.0.0 (types, define* helpers, errors, forge-module.schema.json); `pnpm --filter @forge-dev/sdk reference` writes docs/sdk-reference.md
   cli/        → CLI commands (forge init/console/doctor/module install|remove|list|dev|create/project/run); `templates/module` is the scaffold
   platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
+  desktop/    → macOS app (personal use, ad hoc signed): Electron shell, server in the main process, login-shell PATH, menu bar session count; `pnpm --filter @forge-dev/desktop app:install`
 modules/
   mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
@@ -77,6 +78,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 
 ### Core
 - `packages/core/src/server.ts` — Main Hono app, mounts every route group and the guard/auth middleware
+- `packages/core/src/start.ts` — `startForge`: database, server, console, listen, terminal WebSocket; shared by the npm entry (`packages/platform/src/index.ts`) and the desktop app (`packages/desktop/src/main.ts`, which reuses a Forge already on the port or moves to a free one)
 - `packages/core/src/cw-reader.ts` — Reads ~/.cw/ (sessions, projects, accounts, skills, MCPs, stack detection)
 - `packages/core/src/cw-routes.ts` — CW API endpoints (spaces, start, done, accounts, logins, projects, git)
 - `packages/core/src/pty-manager.ts` — node-pty session manager with idle cleanup
