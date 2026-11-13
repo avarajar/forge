@@ -52,7 +52,7 @@ Restart the server after a change under `packages/core` so it loads the rebuilt 
 
 `pnpm start` is the quickest check of a full build: it installs, builds and serves the built dashboard on `http://localhost:3000`.
 
-The server only answers requests from the same machine (`packages/core/src/origin-guard.ts`). Set `FORGE_HOST` to reach it from another computer.
+The server only answers requests from the same machine (`packages/core/src/origin-guard.ts`). Set `FORGE_HOST` and `FORGE_AUTH_TOKEN` to reach it from another computer (`packages/core/src/auth.ts`).
 
 ### Run a single package
 

@@ -5,6 +5,7 @@ import type { CWReader } from './cw-reader.js'
 import type { CWSession } from './cw-types.js'
 import { pendingSessions } from './cw-routes.js'
 import { isLocalRequest } from './origin-guard.js'
+import { isAuthorized } from './auth.js'
 import type { GeneralSessions } from './general-sessions.js'
 
 // close code for a session the server will not open, so the client stops reconnecting
@@ -26,7 +27,7 @@ export function takeSession(reader: CWReader, project: string, sessionDir: strin
   return known ? { session: known, isNew: true } : null
 }
 
-export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true, general }: { localOnly?: boolean; general?: GeneralSessions } = {}) {
+export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true, authToken, general }: { localOnly?: boolean; authToken?: string; general?: GeneralSessions } = {}) {
   const wss = new WebSocketServer({ noServer: true })
 
   function wireWs(ws: WebSocket, sessionId: string, project: string, sessionDir: string) {
@@ -107,6 +108,11 @@ export function createTerminalWss(manager: PTYManager, reader: CWReader, { local
       try {
         if (localOnly && !isLocalRequest(request.headers.host, request.headers.origin)) {
           socket.destroy()
+          return
+        }
+        // a terminal is a shell on this machine: with a token, it needs the same one as the API
+        if (authToken && !isAuthorized(authToken, request.headers.authorization, request.headers.cookie)) {
+          socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n')
           return
         }
         const url = new URL(request.url ?? '/', 'http://localhost')

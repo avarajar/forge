@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Security
+
+- Forge reachable from other machines (`FORGE_HOST` set to a non-loopback address, or team mode) refuses to start without `FORGE_AUTH_TOKEN` of at least 16 characters. Before, `FORGE_HOST` alone left the API and the terminals open to anyone who reached the port, and team mode without a token did the same.
+- The terminal WebSocket checks the token too; before, only `/api/*` did, so with `FORGE_HOST` or in team mode anyone could open a shell.
+- With `FORGE_HOST`, `FORGE_AUTH_TOKEN` is now applied (it was only used in team mode).
+
+### Added
+
+- Remote Forge works in the browser: open `/auth?token=<FORGE_AUTH_TOKEN>` once and Forge keeps the token in an HttpOnly, SameSite=Strict cookie that the console and its terminals send. The CLI and scripts keep using `Authorization: Bearer`. On start, Forge opens this machine's browser already signed in.
+
 ## 0.1.20 (2026-11-12)
 
 ### Security

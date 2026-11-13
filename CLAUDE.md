@@ -94,7 +94,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/login-manager.ts` — Hidden PTYs for headless logins
 - `packages/core/src/api-key-login.ts` — API key import over stdin
 - `packages/core/src/origin-guard.ts` — Same-machine check for HTTP and terminal WebSockets, `FORGE_HOST` bind address
-- `packages/core/src/auth.ts` — Bearer token middleware (team mode)
+- `packages/core/src/auth.ts` — Token for Forge reachable from other machines: `bearerAuth` takes `Authorization: Bearer` or the `forge_token` cookie, `/auth?token=` sets that cookie (HttpOnly, SameSite=Strict), the terminal WebSocket checks it too (`isAuthorized`), and `remoteAuthProblem` makes `createForgeServer` and the npm entry refuse a non-local Forge without a token of 16+ characters
 - `packages/core/src/skill-routes.ts` — Skills CRUD per scope, skills.sh search and install; every edit or delete first copies the skill to `<dataDir>/skill-backups` (newest 10 kept)
 - `packages/core/src/plugins.ts` — Claude Code plugins per config dir (global and each account): installs, skills from `plugin.json` (each with its `/<plugin>:<skill>` command unless `user-invocable: false`), commands from `commands/*.md`, repository matched to a CW project by git remote, marketplaces and their catalogs
 - `packages/core/src/kioku.ts` / `kioku-routes.ts` — Kioku reader and launcher: kioku answers for the chain of the folder it runs in, so each brain's kinds (`namespace list`) and writes (`brain log`) are read from its own folder and each CW project's chain from the project's (`brain list`), six at a time, kept 5 min and served stale while the next reading runs; one `kioku web --json --no-open` child whose address (token included) the console opens in a new tab; `save` runs `kioku page save` in the brain's folder with the body on stdin (`createRunner` takes an `input`) and `envWithoutHost()` from `cw-doctor.ts`, so the commit is not signed as an agent's; `createBrain`, `addArea` and `linkProject` (which makes the brains the machine does not know first, since kioku links only known brains without a terminal) run the same way, and `publish` runs in a PTY (`createTerminalRunner`) because kioku keeps it for a person at a terminal; the route needs `understood: true` from the console's warning; `kioku-versions.ts` reads releases with `gh api repos/monoku/kioku/releases` (the repository is private; 10 min cache, last list kept when gh fails), checks `kioku update <v> --check` without a terminal, installs `kioku update <v>` and toggles labs (`kioku config set labs.<name>.enabled`) in the PTY, passes `kioku labs list` on as it comes (null when the verb is missing), and works out each account whose kioku plugin (`installsOf` in `plugins.ts`) has another major than the tool, with the release or plugin update that fixes it; every answer carries the command it runs, shown as `kioku …`
@@ -154,8 +154,9 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 ### Environment
 
 - `FORGE_PORT` — listen port (default 3000)
-- `FORGE_HOST` — listen address; setting it turns the same-machine check off (see `origin-guard.ts`)
-- `FORGE_DB_URL`, `FORGE_AUTH_TOKEN` — team mode (PostgreSQL + bearer token)
+- `FORGE_HOST` — listen address; a non-loopback one turns the same-machine check off and requires `FORGE_AUTH_TOKEN` (see `origin-guard.ts`, `auth.ts`)
+- `FORGE_DB_URL` — team mode (PostgreSQL); needs `FORGE_AUTH_TOKEN`
+- `FORGE_AUTH_TOKEN` — required whenever Forge is reachable from other machines; browsers sign in at `/auth?token=…`, scripts send `Authorization: Bearer`
 - `FORGE_NO_OPEN=1` — do not open the browser on start
 - `FORGE_LIVEFRAME_ACCOUNT` — CW account for Liveframe agents (default `monoku`)
 - `FORGE_SKIP_CW_INSTALL=1` — the published package does not install or update CW
@@ -232,7 +233,7 @@ Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 - Do not skip tests
 - Do not store secrets in config files
 - Do not break the `npx forge-cw` zero-config experience
-- Do not open local mode to other origins or hosts — routes go through `origin-guard.ts`; remote access is `FORGE_HOST`
+- Do not open local mode to other origins or hosts — routes go through `origin-guard.ts`; remote access is `FORGE_HOST` plus `FORGE_AUTH_TOKEN`, and every new route or WebSocket must sit behind the token
 
 ## Related Projects
 
