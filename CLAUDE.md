@@ -27,6 +27,7 @@ packages/
   sdk/        → Module SDK v1 1.0.0 (types, define* helpers, errors, forge-module.schema.json); `pnpm --filter @forge-dev/sdk reference` writes docs/sdk-reference.md
   cli/        → CLI commands (forge init/console/doctor/module install|remove|list|dev|create/project/run); `templates/module` is the scaffold
   platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
+  desktop/    → macOS app (personal use, ad hoc signed): Electron shell, server in the main process, login-shell PATH, menu bar session count; `pnpm --filter @forge-dev/desktop app:install`
 modules/
   mod-hello/      — Minimal example manifest
   mod-dev/        — CW wrapper (worktrees, sessions)
@@ -77,6 +78,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 
 ### Core
 - `packages/core/src/server.ts` — Main Hono app, mounts every route group and the guard/auth middleware
+- `packages/core/src/start.ts` — `startForge`: database, server, console, listen, terminal WebSocket; shared by the npm entry (`packages/platform/src/index.ts`) and the desktop app (`packages/desktop/src/main.ts`, which reuses a Forge already on the port or moves to a free one)
 - `packages/core/src/cw-reader.ts` — Reads ~/.cw/ (sessions, projects, accounts, skills, MCPs, stack detection)
 - `packages/core/src/cw-routes.ts` — CW API endpoints (spaces, start, done, accounts, logins, projects, git)
 - `packages/core/src/pty-manager.ts` — node-pty session manager with idle cleanup
@@ -102,7 +104,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/task-review.ts` — A task's review state: git snapshot, base branch, pull request via `gh`, GitHub link, close warnings (injected command runner)
 - `packages/core/src/editors.ts` — Editor detection (PATH, macOS apps) and opening a worktree
 - `packages/core/src/cw-install.ts` — Installs or updates the CW the npm package carries (`install.sh --no-shell`), leaves a CW installed by hand alone, puts `~/.cw/bin` on PATH; `.forge-cw.json` in `~/.cw` records what it installed
-- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console, the bundled modules' manifests (`modules/`) and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin (daily or on CW's `cw-updated` dispatch), raises the patch version and merges; `release.yml` publishes every push to `main` that changes what the package ships: it raises the patch when npm already has the version (a version raised by hand is published as is), starts the packed tarball until `/api/health` answers, commits the version with the CHANGELOG section and a `v` tag, then publishes (trusted publishing)
+- `packages/platform/scripts/pack.mjs` / `bundle-cw.mjs` — `prepack`: builds, bundles the server with esbuild, copies the console, the bundled modules' manifests (`modules/`) and the CW commit pinned in `cw.lock.json` (`FORGE_CW_SOURCE`, `FORGE_CW_REF` override it); `.github/workflows/cw-bump.yml` moves the pin (daily or on CW's `cw-updated` dispatch), raises the patch version and merges; `release.yml` publishes every push to `main` that changes what the package ships: it raises the patch when npm already has the version (a version raised by hand is published as is), starts the packed tarball until `/api/health` answers, commits the version with the CHANGELOG section and a `v` tag, then publishes (trusted publishing); its `mac-app` job then builds `Forge.app` (`packages/desktop/scripts/pack.mjs`) on a macOS runner from that tag, starts it until `/api/health` reports the version, and attaches `Forge-<version>-mac-arm64.zip` to the version's GitHub Release (created with the CHANGELOG section); run by hand, it rebuilds the app for main's version
 - `packages/core/src/test-git.ts` — Fixture repositories for tests, isolated from the global git config (not built)
 
 ### Console

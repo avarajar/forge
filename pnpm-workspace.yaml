@@ -6,5 +6,6 @@ packages:
 # Default-deny posture mitigates supply-chain attacks via malicious
 # `postinstall` payloads (Shai-Hulud, node-ipc, axios — 2026).
 allowBuilds:
+  electron: true
   esbuild: true
   node-pty: true

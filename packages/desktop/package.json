@@ -1,0 +1,27 @@
+{
+  "name": "@forge-dev/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Prototype: Forge as a macOS app (Electron shell around the local server)",
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node scripts/ensure-electron.mjs && tsc && electron .",
+    "clean": "rm -rf dist out",
+    "icon": "node scripts/ensure-electron.mjs && electron scripts/make-icon.mjs",
+    "app": "node scripts/ensure-electron.mjs && node scripts/pack.mjs",
+    "app:install": "node scripts/ensure-electron.mjs && node scripts/pack.mjs --install"
+  },
+  "dependencies": {
+    "@forge-dev/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "@types/node": "^22.0.0",
+    "electron": "45.1.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

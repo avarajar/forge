@@ -25,10 +25,10 @@ const forgeVersion = (JSON.parse(readFileSync(join(packageRoot, 'package.json'),
 const bundledModulesDir = isCheckout ? join(packageRoot, '../../modules') : join(packageRoot, 'modules')
 
 async function main() {
-  const { ensureForgeDir, createForgeServer, createDatabase, resolveListenOptions, remoteAuthProblem, ensureCw, pathWithCw, quietSqliteWarning, waitForListening, probePort, portInUseMessage } = await import('@forge-dev/core')
+  const { ensureForgeDir, startForge, ensureCw, pathWithCw, quietSqliteWarning, portInUseMessage } = await import('@forge-dev/core')
   quietSqliteWarning()
   const args = parseArgs(process.argv.slice(2))
-  const { forgeDir, created } = ensureForgeDir()
+  const { created } = ensureForgeDir()
 
   if (created) {
     console.log('First run — initialized Forge.')
@@ -45,65 +45,38 @@ async function main() {
   process.env.PATH = pathWithCw(cwHome, process.env.PATH)
 
   const port = parseInt(args.port ?? process.env.FORGE_PORT ?? '3000', 10)
-  const dbUrl = process.env.FORGE_DB_URL
   const authToken = process.env.FORGE_AUTH_TOKEN
-  const isTeam = !!dbUrl
-  const { host, localOnly } = resolveListenOptions(isTeam)
-  // reachable from other machines means a token, checked before anything listens
-  const authProblem = remoteAuthProblem(localOnly, authToken)
-  if (authProblem) {
-    console.log(`\n  ${authProblem}\n`)
+  const started = await startForge({
+    port,
+    version: forgeVersion,
+    consoleDist,
+    bundledModulesDir,
+    databaseUrl: process.env.FORGE_DB_URL,
+    authToken
+  })
+
+  if (started.status === 'refused') {
+    console.log(`\n  ${started.reason}\n`)
     process.exit(1)
   }
-  const remoteToken = localOnly ? undefined : authToken
 
-  const db = await createDatabase({
-    mode: isTeam ? 'team' : 'local',
-    dataDir: forgeDir,
-    databaseUrl: dbUrl
-  })
-
-  const server = createForgeServer({
-    dataDir: forgeDir,
-    port,
-    db,
-    authToken: remoteToken,
-    localOnly,
-    bundledModulesDir,
-    version: forgeVersion
-  })
-
-  const { serveStatic } = await import('@hono/node-server/serve-static')
-  if (existsSync(join(consoleDist, 'index.html'))) {
-    server.app.use('/*', serveStatic({ root: consoleDist }))
-    // SPA fallback: serve index.html for non-API routes
-    const indexHtml = readFileSync(join(consoleDist, 'index.html'), 'utf-8')
-    server.app.get('*', (c) => c.html(indexHtml))
-  }
-
-  const { serve } = await import('@hono/node-server')
-  const httpServer = serve({ fetch: server.app.fetch, port, hostname: host })
-  try {
-    await waitForListening(httpServer as unknown as import('node:net').Server)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err
-    const holder = await probePort(port)
-    console.log(`\n  ${portInUseMessage(port, holder)}\n`)
+  if (started.status === 'in-use') {
+    console.log(`\n  ${portInUseMessage(port, started.holder)}\n`)
     // a second `npx forge-cw` opens the Forge already running instead of failing
-    if (holder === 'forge' && args.open && process.env.FORGE_NO_OPEN !== '1') {
+    if (started.holder === 'forge' && args.open && process.env.FORGE_NO_OPEN !== '1') {
       try {
         const open = (await import('open')).default
         await open(`http://localhost:${port}`)
       } catch { /* ok if open fails */ }
     }
-    process.exit(holder === 'forge' ? 0 : 1)
+    process.exit(started.holder === 'forge' ? 0 : 1)
   }
-  server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
+  const { isTeam, authRequired } = started
   console.log(`
   Forge Console running at http://localhost:${port}
   Mode: ${isTeam ? 'team (PostgreSQL)' : 'local (SQLite)'}
-${remoteToken ? `  Auth: token required. Browsers sign in once at http://<this host>:${port}/auth?token=<FORGE_AUTH_TOKEN>;\n  the CLI and scripts send Authorization: Bearer <FORGE_AUTH_TOKEN>\n` : ''}
+${authRequired ? `  Auth: token required. Browsers sign in once at http://<this host>:${port}/auth?token=<FORGE_AUTH_TOKEN>;\n  the CLI and scripts send Authorization: Bearer <FORGE_AUTH_TOKEN>\n` : ''}
      Dashboard:  http://localhost:${port}
      API:        http://localhost:${port}/api/health
 
@@ -114,7 +87,7 @@ ${remoteToken ? `  Auth: token required. Browsers sign in once at http://<this h
     try {
       const open = (await import('open')).default
       // signs this machine's browser in, so the console works without pasting the token
-      await open(remoteToken ? `http://localhost:${port}/auth?token=${encodeURIComponent(remoteToken)}` : `http://localhost:${port}`)
+      await open(authRequired && authToken ? `http://localhost:${port}/auth?token=${encodeURIComponent(authToken)}` : `http://localhost:${port}`)
     } catch { /* ok if open fails */ }
   }
 }
