@@ -178,7 +178,7 @@ That's it — installs dependencies, builds, and opens the dashboard at `http://
 
 Forge listens on `127.0.0.1` and only answers requests from your own machine, because its API starts agents, logs accounts in, imports API keys and can delete project files. A page on another site can't call it, and neither can another computer on your network.
 
-To reach it from another computer, set `FORGE_HOST` (for example `FORGE_HOST=0.0.0.0 forge`). That also turns the same-machine check off and, outside team mode, there is no authentication, so only do it on a network you trust. From a remote browser, only Codex's device code can connect an account; the other harnesses' browser logins redirect to `localhost` on the machine running Forge.
+To reach it from another computer, set `FORGE_HOST` and a token (for example `FORGE_HOST=0.0.0.0 FORGE_AUTH_TOKEN=$(openssl rand -hex 24) forge`). Forge refuses to start without one. That turns the same-machine check off, so the token is what protects the API and the terminals: open `http://<host>:3000/auth?token=<token>` once in each browser, and scripts send `Authorization: Bearer <token>`. Prefer a private network such as Tailscale over an open one. From a remote browser, only Codex's device code can connect an account; the other harnesses' browser logins redirect to `localhost` on the machine running Forge.
 
 ### Development
 
@@ -503,9 +503,9 @@ cd packages/console && pnpm vite       # Dashboard dev server
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `FORGE_PORT` | `3000` | Listen port |
-| `FORGE_HOST` | `127.0.0.1` | Listen address; any other value turns off the same-machine check |
+| `FORGE_HOST` | `127.0.0.1` | Listen address; a non-loopback value turns off the same-machine check and requires `FORGE_AUTH_TOKEN` |
 | `FORGE_DB_URL` | — | PostgreSQL URL for team mode |
-| `FORGE_AUTH_TOKEN` | — | Bearer token for team mode |
+| `FORGE_AUTH_TOKEN` | — | Required when Forge is reachable from other machines (`FORGE_HOST` or team mode), 16+ characters; browsers sign in at `/auth?token=…` |
 | `FORGE_NO_OPEN` | — | `1` skips opening the browser |
 | `FORGE_SKIP_CW_INSTALL` | — | `1` stops the npm package from installing or updating CW |
 

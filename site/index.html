@@ -263,7 +263,7 @@
           <p>Forge listens on <code class="inline-code">127.0.0.1</code> and only answers requests from your own machine: its API starts agents, logs accounts in and can delete project files. A page on another site can't call it, and neither can another computer on your network.</p>
           <div class="status-list">
             <div class="status"><span class="dot" style="background:var(--green)"></span>Same-machine check on · no authentication needed</div>
-            <div class="status"><span class="dot" style="background:var(--orange)"></span><span><code>FORGE_HOST=0.0.0.0</code> opens it to your network — trusted networks only</span></div>
+            <div class="status"><span class="dot" style="background:var(--orange)"></span><span><code>FORGE_HOST=0.0.0.0</code> opens it to your network, behind <code>FORGE_AUTH_TOKEN</code></span></div>
             <div class="status"><span class="dot" style="background:var(--blue)"></span>Team mode adds PostgreSQL and a bearer token</div>
           </div>
         </div>

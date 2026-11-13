@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { createForgeServer } from './server.js'
 import { cpSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { createServer, type Server } from 'node:http'
+import WebSocket from 'ws'
 
 const TEST_DIR = join(import.meta.dirname, '../.test-server')
 
@@ -183,15 +185,15 @@ describe('Forge Server modules', () => {
   it('disables v1 modules when the server is not local only', async () => {
     mkdirSync(join(dir, 'team/modules'), { recursive: true })
     cpSync(fixture, join(dir, 'team/modules/valid'), { recursive: true })
-    const server = createForgeServer({ dataDir: join(dir, 'team'), port: 0, localOnly: false })
-    const list = await (await server.fetch('/api/modules')).json() as Array<{ id: string; state: string; reason?: string }>
+    const server = createForgeServer({ dataDir: join(dir, 'team'), port: 0, localOnly: false, authToken: 'team-token-0123456789abcdef' })
+    const list = await (await server.fetch('/api/modules', { headers: { Authorization: `Bearer ${'team-token-0123456789abcdef'}` } })).json() as Array<{ id: string; state: string; reason?: string }>
     expect(list).toEqual([expect.objectContaining({ id: 'valid', state: 'disabled', reason: 'modules run only in local mode' })])
     server.close()
   })
 
   it('previews a module folder in local mode and refuses installs in team mode', async () => {
     const preview = (server: ReturnType<typeof createForgeServer>) => server.fetch('/api/modules/install/preview', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ spec: fixture }),
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer team-token-0123456789abcdef' }, body: JSON.stringify({ spec: fixture }),
     })
     mkdirSync(join(dir, 'preview-local'), { recursive: true })
     mkdirSync(join(dir, 'preview-team'), { recursive: true })
@@ -199,8 +201,49 @@ describe('Forge Server modules', () => {
     const res = await preview(local)
     expect(await res.json()).toMatchObject({ name: '@test/mod-valid', spec: fixture })
     local.close()
-    const team = createForgeServer({ dataDir: join(dir, 'preview-team'), port: 0, localOnly: false })
+    const team = createForgeServer({ dataDir: join(dir, 'preview-team'), port: 0, localOnly: false, authToken: 'team-token-0123456789abcdef' })
     expect((await preview(team)).status).toBe(403)
     team.close()
+  })
+})
+
+describe('Forge reachable from other machines', () => {
+  const DIR = join(import.meta.dirname, '../.test-server-remote')
+  const TOKEN = 'remote-token-0123456789abcdef'
+
+  afterAll(() => rmSync(DIR, { recursive: true, force: true }))
+
+  it('refuses to start without a token', () => {
+    mkdirSync(join(DIR, 'none'), { recursive: true })
+    expect(() => createForgeServer({ dataDir: join(DIR, 'none'), port: 0, localOnly: false })).toThrow(/FORGE_AUTH_TOKEN/)
+    expect(() => createForgeServer({ dataDir: join(DIR, 'none'), port: 0, localOnly: false, authToken: 'short' })).toThrow(/at least/)
+  })
+
+  it('opens a terminal WebSocket only with the token', async () => {
+    mkdirSync(join(DIR, 'ws'), { recursive: true })
+    const forge = createForgeServer({ dataDir: join(DIR, 'ws'), port: 0, localOnly: false, authToken: TOKEN })
+    const http: Server = createServer((_req, res) => res.end())
+    forge.attachTerminalWs(http)
+    await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve))
+    const { port } = http.address() as { port: number }
+    const url = `ws://127.0.0.1:${port}/ws/terminal/demo/demo-session`
+
+    // resolves with the HTTP status of the upgrade: 101 when it opened, else what the server answered
+    const upgrade = (headers: Record<string, string>) => new Promise<number>((resolve) => {
+      const ws = new WebSocket(url, { headers })
+      ws.on('upgrade', (res) => { resolve(res.statusCode ?? 0); ws.terminate() })
+      ws.on('unexpected-response', (_req, res) => { resolve(res.statusCode ?? 0); ws.terminate() })
+      ws.on('error', () => resolve(-1))
+    })
+
+    try {
+      expect(await upgrade({})).toBe(401)
+      expect(await upgrade({ Cookie: 'forge_token=wrong' })).toBe(401)
+      expect(await upgrade({ Cookie: `forge_token=${TOKEN}` })).toBe(101)
+      expect(await upgrade({ Authorization: `Bearer ${TOKEN}` })).toBe(101)
+    } finally {
+      await new Promise((resolve) => http.close(resolve))
+      forge.close()
+    }
   })
 })

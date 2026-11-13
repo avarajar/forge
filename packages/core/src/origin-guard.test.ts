@@ -103,7 +103,7 @@ describe('createForgeServer origin handling', () => {
     mkdirSync(join(DIR, 'local/modules'), { recursive: true })
     mkdirSync(join(DIR, 'team/modules'), { recursive: true })
     local = createForgeServer({ dataDir: join(DIR, 'local'), port: 0 })
-    team = createForgeServer({ dataDir: join(DIR, 'team'), port: 0, localOnly: false })
+    team = createForgeServer({ dataDir: join(DIR, 'team'), port: 0, localOnly: false, authToken: 'team-token-0123456789abcdef' })
   })
 
   afterAll(() => {

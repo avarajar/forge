@@ -11,7 +11,7 @@ export function consoleCommand() {
     .option('--detach', 'Run in background')
     .option('--team', 'Start in team mode (requires --db-url)')
     .option('--db-url <url>', 'PostgreSQL connection URL for team mode')
-    .option('--auth-token <token>', 'Bearer token for API authentication')
+    .option('--auth-token <token>', 'Token required when Forge is reachable from other machines (FORGE_HOST or team mode)')
     .action(async (opts) => {
       const forgeDir = join(homedir(), '.forge')
       if (!existsSync(forgeDir)) {
@@ -31,9 +31,15 @@ export function consoleCommand() {
 
       console.log(`Starting Forge Console (${isTeam ? 'team' : 'local'} mode) on http://localhost:${port}`)
 
-      const { createForgeServer, createDatabase, resolveListenOptions, quietSqliteWarning, waitForListening, probePort, portInUseMessage } = await import('@forge-dev/core')
+      const { createForgeServer, createDatabase, resolveListenOptions, remoteAuthProblem, quietSqliteWarning, waitForListening, probePort, portInUseMessage } = await import('@forge-dev/core')
       quietSqliteWarning()
       const { host, localOnly } = resolveListenOptions(isTeam)
+      const authProblem = remoteAuthProblem(localOnly, authToken)
+      if (authProblem) {
+        console.log(authProblem)
+        process.exit(1)
+      }
+      const remoteToken = localOnly ? undefined : authToken
 
       const db = await createDatabase({
         mode: isTeam ? 'team' : 'local',
@@ -45,7 +51,7 @@ export function consoleCommand() {
         dataDir: forgeDir,
         port,
         db,
-        authToken: isTeam ? authToken : undefined,
+        authToken: remoteToken,
         localOnly,
         bundledModulesDir: join(import.meta.dirname, '../../../../modules')
       })
@@ -72,15 +78,13 @@ export function consoleCommand() {
       server.attachTerminalWs(httpServer as unknown as import('node:http').Server)
 
       console.log(`Forge Console running at http://localhost:${port}`)
-      if (isTeam) {
-        console.log(`  Mode: team (PostgreSQL)`)
-        if (authToken) console.log(`  Auth: bearer token required`)
-      }
+      if (isTeam) console.log(`  Mode: team (PostgreSQL)`)
+      if (remoteToken) console.log(`  Auth: token required; browsers sign in at /auth?token=<token>, scripts send Authorization: Bearer <token>`)
 
       if (opts.open !== false) {
         try {
           const open = (await import('open')).default
-          await open(`http://localhost:${port}`)
+          await open(remoteToken ? `http://localhost:${port}/auth?token=${encodeURIComponent(remoteToken)}` : `http://localhost:${port}`)
         } catch { /* ok if open fails */ }
       }
     })

@@ -9,7 +9,7 @@ import type { LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 import { join, basename, resolve } from 'node:path'
 import { readdirSync, statSync, existsSync } from 'node:fs'
 import type { IForgeDB } from './db-interface.js'
-import { bearerAuth } from './auth.js'
+import { bearerAuth, mountAuthRoute, remoteAuthProblem } from './auth.js'
 import { localOriginGuard } from './origin-guard.js'
 import { CWReader } from './cw-reader.js'
 import { cwRoutes, resolveCwBin } from './cw-routes.js'
@@ -50,6 +50,8 @@ interface ServerOptions {
 
 export function createForgeServer(options: ServerOptions) {
   const { dataDir, db: externalDb, authToken, localOnly = true } = options
+  const authProblem = remoteAuthProblem(localOnly, authToken)
+  if (authProblem) throw new Error(authProblem)
   const dbPath = join(dataDir, 'forge.db')
   const modulesDir = join(dataDir, 'modules')
 
@@ -71,6 +73,7 @@ export function createForgeServer(options: ServerOptions) {
 
   if (authToken) {
     app.use('/api/*', bearerAuth(authToken))
+    mountAuthRoute(app, authToken)
   }
 
   const cwReader = new CWReader(options.cwDir)
@@ -95,7 +98,7 @@ export function createForgeServer(options: ServerOptions) {
   })
   const ptyManager = new PTYManager(states)
   const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
-  const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, general: generalSessions })
+  const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, authToken, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())
   const kioku = new Kioku({ projects: () => cwReader.getProjects(), pluginInstalls: () => installsOf(cwReader, 'kioku') })
