@@ -12,6 +12,16 @@ pnpm --filter @forge-dev/desktop icon          # re-render build/icon.icns from 
 
 Rebuild with `app:install` after pulling changes; the app does not update itself.
 
+## Download instead of building
+
+Every version `release.yml` publishes to npm also gets a GitHub Release (`v<version>`) with `Forge-<version>-mac-arm64.zip`, built and started on a macOS runner. It is signed ad hoc only, so a downloaded copy is quarantined: unzip it, move `Forge.app` to Applications and run once
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Forge.app
+```
+
+Changes only under `packages/desktop` do not publish a version. To rebuild the app for the current version, run the Release workflow by hand (Actions → Release → Run workflow); it replaces the zip on that version's Release.
+
 ## Packaging
 
 `scripts/pack.mjs` runs `pnpm build`, bundles `src/main.ts` with esbuild (core inlined, `electron` and `node-pty` external), copies the console, the bundled modules' manifests and node-pty's `lib` plus the prebuild for this Mac's architecture, packages it with `@electron/packager` (no asar) and signs it ad hoc with `codesign --sign -`. The ad hoc signature runs on the Mac that built it; another Mac needs a Developer ID signature and notarization.
@@ -30,7 +40,7 @@ Server startup is `startForge` in core (`packages/core/src/start.ts`), shared wi
 
 ## Not done yet
 
-- Developer ID signing, notarization and auto-update (needs an Apple Developer account), a universal arm64/x64 build, a `.dmg`.
+- Developer ID signing, notarization and auto-update (needs an Apple Developer account), an x64 or universal build, a `.dmg`.
 - Bundling CW the way the npm package does.
 - Native notifications instead of the browser ones, launch at login, global shortcut, remembered window size.
 - Linux (AppImage/.deb) from the same script.

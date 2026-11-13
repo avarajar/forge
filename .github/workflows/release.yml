@@ -5,6 +5,8 @@ name: Release
 # Bump CW is published as it is. The packed tarball must start and answer /api/health first.
 # The release commit and tag are pushed with GITHUB_TOKEN, which starts no workflow, so it never loops.
 # Uses npm trusted publishing (OIDC): no token, set up once on npmjs.com for this workflow.
+# Each published version also gets a GitHub Release with Forge.app (packages/desktop) zipped,
+# signed ad hoc only: after downloading, `xattr -dr com.apple.quarantine Forge.app` lets it open.
 
 on:
   push:
@@ -32,6 +34,9 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
     defaults:
       run:
         working-directory: packages/platform
@@ -56,6 +61,7 @@ jobs:
             echo "Raised the patch version to $version"
           else
             echo "forge-cw $version is already on npm"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
             echo "publish=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -127,3 +133,62 @@ jobs:
         run: |
           npm install -g npm@latest
           npm publish "forge-cw-${{ steps.version.outputs.version }}.tgz" --access public
+
+  # Forge.app for the version just published, or, run by hand, for the version main is on
+  mac-app:
+    needs: publish
+    if: needs.publish.outputs.publish == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.publish.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the release commit the publish job tagged; run by hand, the tag of main's version
+          ref: v${{ needs.publish.outputs.version }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Build Forge.app
+        run: |
+          pnpm install --frozen-lockfile
+          node packages/desktop/scripts/ensure-electron.mjs
+          node packages/desktop/scripts/pack.mjs
+
+      # the app must start its own Forge and serve the console before it is attached
+      - name: Start the app
+        run: |
+          app=$(ls -d packages/desktop/out/Forge-darwin-*/Forge.app)
+          "$app/Contents/MacOS/Forge" > app.log 2>&1 &
+          pid=$!
+          ok=false
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/health | grep -q "\"version\":\"$VERSION\"" \
+              && curl -fsS http://127.0.0.1:3000/ | grep -qi '<html'; then ok=true; break; fi
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 1
+          done
+          kill "$pid" 2>/dev/null || true
+          cat app.log
+          [ "$ok" = true ] || { echo "Forge.app did not start"; exit 1; }
+
+      - name: Attach it to the GitHub Release
+        run: |
+          app=$(ls -d packages/desktop/out/Forge-darwin-*/Forge.app)
+          arch=$(basename "$(dirname "$app")" | sed 's/^Forge-darwin-//')
+          zip="Forge-$VERSION-mac-$arch.zip"
+          ditto -c -k --keepParent "$app" "$zip"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "$zip" --clobber
+          else
+            # this version's CHANGELOG section, without its heading
+            awk -v v="$VERSION" '$0 ~ "^## " v " " {on=1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+            printf '\n---\n\n**Forge.app** (%s, signed ad hoc): unzip, move it to Applications, then run `xattr -dr com.apple.quarantine /Applications/Forge.app` once so macOS opens it.\n' "$arch" >> notes.md
+            gh release create "v$VERSION" "$zip" --title "forge-cw $VERSION" --notes-file notes.md --verify-tag
+          fi
