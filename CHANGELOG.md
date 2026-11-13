@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.21 (2026-11-13)
+
 ### Security
 
 - Forge reachable from other machines (`FORGE_HOST` set to a non-loopback address, or team mode) refuses to start without `FORGE_AUTH_TOKEN` of at least 16 characters. Before, `FORGE_HOST` alone left the API and the terminals open to anyone who reached the port, and team mode without a token did the same.
