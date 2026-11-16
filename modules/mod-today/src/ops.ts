@@ -3,6 +3,13 @@ import type { Item, Op } from './digest'
 // shared by the server and the views, so it stays free of Node imports
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+// kinds that start a CW task
+const STARTS = ['issue', 'request', 'review']
+export const startsTask = (kind: Item['kind']) => STARTS.includes(kind)
+
+// the items an account owns, or all of them when none is given
+export const inAccount = (items: Item[], account?: string): Item[] => (account ? items.filter(i => i.account === account) : items)
+
 // the op an item can take on its own, or null when it still needs the person
 export function opFor(item: Item, project?: string): Exclude<Op, 'dismiss'> | null {
   if (item.kind === 'to-task') return item.targetSession ? 'send' : null
@@ -27,12 +34,23 @@ export function githubPage(link: string): string | null {
   return host === 'github.com' || host.endsWith('.github.com') ? link.split('#')[0] : null
 }
 
+// project name to its account, for the projects that have one
+export const ownersOf = (projects: { name: string; account?: string }[]): Record<string, string> =>
+  Object.fromEntries(projects.flatMap(p => (p.account ? [[p.name, p.account]] : [])))
+
+export interface ProjectList { names: string[]; owners: Record<string, string> }
+export const EMPTY_PROJECTS: ProjectList = { names: [], owners: {} }
+
 // the projects an item may start in: its account's and those with no account (all when it has none)
-export function projectsFor(names: string[], owners: Record<string, string>, account?: string): string[] {
+export function projectsFor({ names, owners }: ProjectList, account?: string): string[] {
   return account ? names.filter(n => !owners[n] || owners[n] === account) : names
 }
 
+// text that anyone could have written: read beside GitHub text or taken from GitHub, so it never starts on its own
+export const untrusted = (i: Item): boolean => !!i.manual || i.source === 'github' || !!githubPage(i.link)
+
 export const failedLine = (error: string) => `Last reading failed: ${error}`
+export const loadFailedLine = (error: string) => `Can't load Today: ${error}`
 
 // problems that did not fail the reading, on one line
 export const notesLine = (notes: string[] | undefined) => (notes?.length ? notes.join(' · ') : null)
@@ -58,7 +76,7 @@ export const accountsOf = (items: Item[]): string[] => [...new Set(items.flatMap
 export function byAccount(items: Item[]): { account?: string; sections: ReturnType<typeof sections> }[] {
   const accounts = accountsOf(items)
   if (accounts.length < 2) return [{ sections: sections(items) }]
-  const blocks = accounts.map(account => ({ account, sections: sections(items.filter(i => i.account === account)) }))
+  const blocks = accounts.map(account => ({ account, sections: sections(inAccount(items, account)) }))
   const rest = items.filter(i => !i.account)
   return rest.length ? [...blocks, { sections: sections(rest) }] : blocks
 }

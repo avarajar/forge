@@ -1,6 +1,7 @@
 import { defineModule, defineAction, defineRoute, defineJob, ModuleError, type ForgeContext } from '@forge-dev/sdk'
+import { ownersOf } from './ops'
 import { shouldRead, type Digest } from './digest'
-import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, readNow, setEnabled, setFolded, type Op } from './run'
+import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, OFF_MESSAGE, readNow, setEnabled, setFolded, type Op } from './run'
 
 const RETRY_AFTER_FAILURE = 60 * 60 * 1000
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -48,7 +49,7 @@ export default defineModule({
     }),
     defineRoute({ method: 'GET', path: '/projects', handler: async (_req, ctx) => {
         const all = await ctx.projects.list()
-        return { projects: all.map(p => p.name), owners: Object.fromEntries(all.flatMap(p => (p.account ? [[p.name, p.account]] : []))) }
+        return { projects: all.map(p => p.name), owners: ownersOf(all) }
       },
     }),
     defineRoute({ method: 'GET', path: '/days', handler: async (_req, ctx) => ({ days: await digestDates(ctx) }) }),
@@ -58,10 +59,7 @@ export default defineModule({
       id: 'refresh',
       label: 'Read now',
       effect: 'local',
-      run: async (_input, ctx) => {
-        if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', 'Today is off')
-        return readNow(ctx, new Date())
-      },
+      run: (_input, ctx) => readNow(ctx, new Date()),
     }),
     defineAction({
       id: 'enable',
@@ -117,12 +115,17 @@ export default defineModule({
       id: 'read',
       every: '5m',
       run: async ctx => {
-        if (!(await isEnabled(ctx))) return
         const now = new Date()
         const [lastReadAt, failedAt] = await Promise.all([ctx.storage.get<string>('lastReadAt'), ctx.storage.get<string>('lastFailedAt')])
         if (failedAt && now.getTime() - Date.parse(failedAt) < RETRY_AFTER_FAILURE) return
         const time = typeof ctx.settings.time === 'string' ? ctx.settings.time : '08:00'
-        if (shouldRead(now, time, lastReadAt)) await readNow(ctx, now)
+        if (!shouldRead(now, time, lastReadAt)) return
+        try {
+          await readNow(ctx, now)
+        } catch (e) {
+          // turned off: nothing to read and nothing to report
+          if (!(e instanceof ModuleError && e.message === OFF_MESSAGE)) throw e
+        }
       },
     }),
   ],

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { accountsOf, failedLine, notesLine, opFor } from './ops'
+import { accountsOf, failedLine, inAccount, loadFailedLine, notesLine, opFor, startsTask } from './ops'
 import { accountToken, Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, readLine, Row, shortDay, soft, useAccountFilter, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
@@ -17,8 +17,9 @@ function Count({ token, n, label }: { token: string; n: number; label: string })
 }
 
 function FilterChip({ label, n, on, token, onClick }: { label: string; n: number; on: boolean; token?: string; onClick: () => void }) {
+  const tint = token ?? '--blue'
   return (
-    <button type="button" aria-pressed={on} onClick={onClick} style={{ ...pill, font: 'inherit', fontSize: '11.5px', cursor: 'pointer', color: on ? 'var(--ink)' : 'var(--ink-2)', borderColor: on ? `var(${token ?? '--blue'})` : 'var(--hair)', background: on ? soft(token ?? '--blue', 15) : 'var(--elev)' }}>
+    <button type="button" aria-pressed={on} onClick={onClick} style={{ ...pill, font: 'inherit', fontSize: '11.5px', cursor: 'pointer', color: on ? 'var(--ink)' : 'var(--ink-2)', borderColor: on ? `var(${tint})` : 'var(--hair)', background: on ? soft(tint, 15) : 'var(--elev)' }}>
       {token && <i style={{ width: '7px', height: '7px', borderRadius: '50%', background: `var(${token})` }} />}
       {label} · {n}
     </button>
@@ -26,7 +27,27 @@ function FilterChip({ label, n, on, token, onClick }: { label: string; n: number
 }
 
 const live = (items: Item[]) => items.filter(i => i.state !== 'dismissed')
-const done = (items: Item[], kinds: Item['kind'][]) => items.filter(i => i.state === 'done' && kinds.includes(i.kind)).length
+const done = (items: Item[], pick: (kind: Item['kind']) => boolean) => items.filter(i => i.state === 'done' && pick(i.kind)).length
+
+function shell(children: ComponentChildren) {
+  return (
+    <div style={{ position: 'relative', borderRadius: '16px', padding: '1px', background: `linear-gradient(135deg, ${soft('--blue', 55)}, ${soft('--purple', 40)} 45%, var(--hair) 80%)`, boxShadow: `0 10px 40px ${soft('--blue', 10)}` }}>
+      <div style={{ borderRadius: '15px', background: 'radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--blue) 14%, var(--card)) 0%, var(--card) 55%)' }}>{children}</div>
+    </div>
+  )
+}
+
+// the one-line states: a title, what follows it, and the buttons at the end
+function Strip({ title, children, actions }: { title: string; children?: ComponentChildren; actions: ComponentChildren }) {
+  return shell(
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 16px', fontSize: '12.5px', color: 'var(--ink-2)' }}>
+      <span style={{ color: 'var(--orange)' }}>☀︎</span>
+      <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{title}</b>
+      {children}
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>{actions}</span>
+    </div>,
+  )
+}
 
 function Banner({ forge }: PanelProps) {
   const { reply, error, reload } = useDigest(forge)
@@ -35,36 +56,23 @@ function Banner({ forge }: PanelProps) {
   const digest = reply?.digest
   const acting = useActing(forge, digest?.date, reload)
   const refreshBtn = <Btn label={acting.refreshing ? 'Reading…' : 'Refresh'} style={ghostStyle} disabled={acting.refreshing} onClick={acting.refresh} />
-  const shell = (children: ComponentChildren) => (
-    <div style={{ position: 'relative', borderRadius: '16px', padding: '1px', background: `linear-gradient(135deg, ${soft('--blue', 55)}, ${soft('--purple', 40)} 45%, var(--hair) 80%)`, boxShadow: `0 10px 40px ${soft('--blue', 10)}` }}>
-      <div style={{ borderRadius: '15px', background: 'radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--blue) 14%, var(--card)) 0%, var(--card) 55%)' }}>{children}</div>
-    </div>
-  )
-  const line = { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 16px', fontSize: '12.5px', color: 'var(--ink-2)' }
-
   const failure = (text: string) => <span style={{ color: 'var(--red)' }}>· {text}</span>
   const notes = notesLine(digest?.notes)
   const note = notes && <span style={{ color: 'var(--ink-3)' }}>· {notes}</span>
   if (!reply && !error) return null
   if (reply && !reply.enabled) {
-    return shell(
-      <div style={line}>
-        <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Today</b>
+    return (
+      <Strip title="Today" actions={<Btn label="Turn on" style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('enable'))} />}>
         <span>· Linear, Slack and GitHub each morning</span>
-        <span style={{ marginLeft: 'auto' }}><Btn label="Turn on" style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('enable'))} /></span>
-      </div>,
+      </Strip>
     )
   }
   if (!reply || !digest || digest.items.length === 0) {
-    return shell(
-      <div style={line}>
-        <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{reply && !digest ? 'Not read yet' : shortDay(new Date(), digest?.date)}</b>
-        {!reply ? failure(`Can't load Today: ${error}`) : digest?.error ? failure(failedLine(digest.error)) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
+    return (
+      <Strip title={reply && !digest ? 'Not read yet' : shortDay(new Date(), digest?.date)} actions={refreshBtn}>
+        {!reply ? failure(loadFailedLine(error!)) : digest?.error ? failure(failedLine(digest.error)) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
         {note}
-        <span style={{ marginLeft: 'auto' }}>{refreshBtn}</span>
-      </div>,
+      </Strip>
     )
   }
 
@@ -72,21 +80,18 @@ function Banner({ forge }: PanelProps) {
   const accounts = accountsOf(items)
   // a filter on an account that has no items today shows everything
   const account = accounts.includes(chosen) ? chosen : ''
-  const seen = (list: Item[]) => (account ? list.filter(i => i.account === account) : list)
+  const seen = (list: Item[]) => inAccount(list, account)
   const shown = seen(live(items))
   const folded = foldedNow(reply.folded, items)
   const fold = (value: boolean) => acting.run(() => forge.action('fold', { date: digest.date, folded: value }))
 
   if (folded) {
-    return shell(
-      <div style={line}>
-        <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{shortDay(new Date(), digest.date)}</b>
-        <span>· {done(items, ['issue', 'request', 'review'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
+    return (
+      <Strip title={shortDay(new Date(), digest.date)} actions={<>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></>}>
+        <span>· {done(items, startsTask)} started · {done(items, k => k === 'research')} researching · {done(items, k => k === 'to-task')} sent</span>
         {digest.error && failure(failedLine(digest.error))}
         {note}
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></span>
-      </div>,
+      </Strip>
     )
   }
 
@@ -112,7 +117,7 @@ function Banner({ forge }: PanelProps) {
       {accounts.length > 1 && (
         <div role="group" aria-label="Account" style={{ display: 'flex', gap: '6px', marginTop: '12px', flexWrap: 'wrap' }}>
           <FilterChip label="All" n={live(items).length} on={!account} onClick={() => choose('')} />
-          {accounts.map(a => <FilterChip key={a} label={a} token={accountToken(a)} n={live(items).filter(i => i.account === a).length} on={account === a} onClick={() => choose(a)} />)}
+          {accounts.map(a => <FilterChip key={a} label={a} token={accountToken(a)} n={inAccount(live(items), a).length} on={account === a} onClick={() => choose(a)} />)}
         </div>
       )}
 

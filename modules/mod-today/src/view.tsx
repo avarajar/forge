@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { byAccount, failedLine, notesLine } from './ops'
+import { byAccount, failedLine, loadFailedLine, notesLine } from './ops'
 import { AccountChip, dayLabel, readLine, Row, useActing, useDigest, useProjects } from './rows'
 
 function View({ forge }: PanelProps) {
@@ -43,7 +43,7 @@ function View({ forge }: PanelProps) {
 
       {(error || digest?.error) && (
         <div style={{ padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: 'var(--red)', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
-          {error ? `Can't load Today: ${error}` : failedLine(digest!.error!)}
+          {error ? loadFailedLine(error) : failedLine(digest!.error!)}
         </div>
       )}
 

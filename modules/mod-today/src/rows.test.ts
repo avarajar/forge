@@ -81,7 +81,7 @@ describe('accounts in the views', () => {
 
   it('the project picker lists the item\'s account and unowned projects', () => {
     const owners = { forge: 'monoku', atlas: 'meridian' }
-    expect(projectsFor(['forge', 'atlas', 'misc'], owners, 'meridian')).toEqual(['atlas', 'misc'])
-    expect(projectsFor(['forge', 'atlas'], owners)).toEqual(['forge', 'atlas'])
+    expect(projectsFor({ names: ['forge', 'atlas', 'misc'], owners }, 'meridian')).toEqual(['atlas', 'misc'])
+    expect(projectsFor({ names: ['forge', 'atlas'], owners })).toEqual(['forge', 'atlas'])
   })
 })

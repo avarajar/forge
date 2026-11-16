@@ -2,7 +2,7 @@ import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext, type ProjectInfo, type SessionInfo } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
 import { countStart, dedupe, itemId, parseReaderOutput, pendingCount, startedBy, type Digest, type Item, type Op } from './digest'
-import { errorMessage, githubPage, oneLine, opFor } from './ops'
+import { errorMessage, githubPage, inAccount, oneLine, opFor, ownersOf, startsTask, untrusted } from './ops'
 import { fetchGithub, type GithubEvent } from './github'
 
 export type { Op }
@@ -79,57 +79,54 @@ function collapse(items: Item[]): Item[] {
   return [...byId.values()]
 }
 
-interface Reader { account: string; items: Item[] }
+interface Reader { account: string; items: Item[]; error?: string }
 
 // reads one account's connectors; a reader that got GitHub events marks its items manual
-async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; github: GithubEvent[]; handled: Record<string, string> }): Promise<Item[]> {
+async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string> }): Promise<Item[]> {
   const mine = <T extends { account?: string }>(x: T) => !x.account || x.account === account
   const sessions = o.sessions.filter(mine)
   const projects = o.projects.filter(mine).map(p => p.name)
-  const prompt = buildPrompt({ since: o.since, sessions, projects, github: o.github })
+  const github = (await o.github)?.items ?? []
+  const prompt = buildPrompt({ since: o.since, sessions, projects, github })
   const model = typeof ctx.settings.model === 'string' && ctx.settings.model ? ctx.settings.model : undefined
   const out = await ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
-  const fetched = new Set(o.github.map(e => e.pr))
-  const toReview = new Set(o.github.filter(e => e.type === 'review-request').map(e => e.pr))
+  const fetched = new Set(github.map(e => e.pr))
+  const toReview = new Set(github.filter(e => e.type === 'review-request').map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`), account })
-  const accountOfProject = new Map(o.projects.map(p => [p.name, p.account]))
   // a GitHub item belongs to its project's account, or to none
-  const placed = checkGithub(items, fetched, toReview).map(i => {
-    if (i.source !== 'github') return i
-    const { account: _, ...rest } = i
-    const owner = accountOfProject.get(i.project ?? i.targetSession?.project ?? '')
-    return owner ? { ...rest, account: owner } : rest
-  })
+  const placed = checkGithub(items, fetched, toReview).map(i => (i.source === 'github' ? { ...i, account: o.owners[i.project ?? i.targetSession?.project ?? ''] } : i))
   const fresh = dedupe(collapse(placed), o.handled)
   // GitHub text shares the reader's call, so anything it read may be steered by it
-  return o.github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh
+  return github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh
 }
 
 // notes collects problems that do not fail the reading
 async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Item[]> {
-  const [sessions, projects, lastReadAt, handled, accounts] = await Promise.all([
+  const lastReadAt = await ctx.storage.get<string>('lastReadAt')
+  const since = lastReadAt ?? new Date(now.getTime() - DAY).toISOString()
+  // ctx has no repository for a project, so GitHub is read once, by the first account's reader, while the others start
+  const github = fetchGithub(ctx, since)
+  const [sessions, projects, handled, accounts] = await Promise.all([
     ctx.sessions.list(),
     ctx.projects.list(),
-    ctx.storage.get<string>('lastReadAt'),
     ctx.storage.get<Record<string, string>>('handled'),
     readAccounts(ctx),
   ])
-  const since = lastReadAt ?? new Date(now.getTime() - DAY).toISOString()
-  const gh = await fetchGithub(ctx, since)
-  if (gh.error) notes.push(`GitHub: ${gh.error}`)
-  // ctx has no repository for a project, so GitHub is read once, by the first account
-  const results = await Promise.all(accounts.map(async (account, n): Promise<Reader | { account: string; error: string }> => {
+  const owners = ownersOf(projects)
+  const results = await Promise.all(accounts.map(async (account, n): Promise<Reader> => {
     try {
-      return { account, items: await readAccount(ctx, account, { since, sessions, projects, github: n === 0 ? gh.items : [], handled: handled ?? {} }) }
+      return { account, items: await readAccount(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} }) }
     } catch (e) {
-      return { account, error: errorMessage(e) }
+      return { account, items: [], error: errorMessage(e) }
     }
   }))
-  if ('error' in results[0] && gh.items.length) notes.push('GitHub: not read')
-  const failed = results.filter((r): r is { account: string; error: string } => 'error' in r)
+  const gh = await github
+  if (gh.error) notes.push(`GitHub: ${gh.error}`)
+  if (results[0].error && gh.items.length) notes.push('GitHub: not read')
+  const failed = results.filter(r => r.error)
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
   notes.push(...failed.map(f => `${f.account}: ${f.error}`))
-  return collapse(results.flatMap(r => ('items' in r ? r.items : [])))
+  return collapse(results.flatMap(r => r.items))
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -161,7 +158,11 @@ export const setEnabled = (ctx: ForgeContext, on: boolean) => ctx.storage.set('e
 
 let reading: Promise<Digest> | undefined
 
-export function readNow(ctx: ForgeContext, now: Date): Promise<Digest> {
+export const OFF_MESSAGE = 'Today is off'
+
+// reads now unless Today is off; one reading at a time
+export async function readNow(ctx: ForgeContext, now: Date): Promise<Digest> {
+  if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
   reading ??= doRead(ctx, now).finally(() => {
     reading = undefined
   })
@@ -217,7 +218,7 @@ async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
   const max = typeof ctx.settings.maxAuto === 'number' ? ctx.settings.maxAuto : 3
   const first = await loadDigest(ctx, date)
   // text from GitHub can come from anyone, so it waits for a click
-  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed' && !i.manual && i.source !== 'github' && !githubPage(i.link)).map(i => i.id)
+  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed' && !untrusted(i)).map(i => i.id)
   for (const id of ids) {
     const work = await locked(async () => {
       const digest = await loadDigest(ctx, date)
@@ -244,8 +245,17 @@ async function researchDirectory(ctx: ForgeContext): Promise<string> {
   return process.env.HOME || homedir()
 }
 
+type Owners = () => Promise<Record<string, string>>
+const noOwners: Owners = async () => ({})
+
+// reads the projects' accounts on first use, then reuses them
+function lazyOwners(ctx: ForgeContext): Owners {
+  let read: Promise<Record<string, string>> | undefined
+  return () => (read ??= ctx.projects.list().then(ownersOf))
+}
+
 // runs one op on an item in memory; send problems keep it proposed, start problems fail it
-async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string): Promise<void> {
+async function perform(ctx: ForgeContext, item: Item, op: Op, project: string | undefined, owners: Owners): Promise<void> {
   if (op === 'dismiss') {
     item.state = 'dismissed'
     delete item.error
@@ -270,7 +280,7 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
     return
   }
   if (op === 'start') {
-    if (item.kind !== 'issue' && item.kind !== 'request' && item.kind !== 'review') throw new ModuleError('bad_request', 'only issues, requests and reviews start a task')
+    if (!startsTask(item.kind)) throw new ModuleError('bad_request', 'only issues, requests and reviews start a task')
     const target = project ?? item.project
     if (!target) throw new ModuleError('bad_request', 'pick a project')
     item.project = target
@@ -282,7 +292,7 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
       : item.kind === 'issue'
       ? { type: 'work' as const, project: target, task: url, ...(item.source === 'github' && item.quote ? { description: [item.title, item.quote].join('\n\n') } : {}) }
       : { type: 'work' as const, project: target, task: slug(item.title), description: [item.title, item.quote, `From ${sourceText(item)}: ${item.link}`].filter(Boolean).join('\n\n') }
-    const owner = (await ctx.projects.list()).find(p => p.name === target)?.account
+    const owner = (await owners())[target]
     if (item.account && owner && owner !== item.account) throw new ModuleError('bad_request', 'project belongs to another account')
     const account = item.account ?? owner
     await startSession(ctx, item, account ? { ...input, account } : input)
@@ -338,11 +348,11 @@ function claim(date: string, item: Item): Item {
 }
 
 // runs a claimed item's op without the lock, then saves the outcome unless the item was handled meanwhile
-async function runClaimed(ctx: ForgeContext, date: string, work: Item, op: Op, project?: string, rethrow = false): Promise<Item | undefined> {
+async function runClaimed(ctx: ForgeContext, date: string, work: Item, op: Op, project?: string, rethrow = false, owners: Owners = noOwners): Promise<Item | undefined> {
   const key = claimKey(date, work.id)
   try {
     try {
-      await perform(ctx, work, op, project)
+      await perform(ctx, work, op, project, owners)
     } catch (e) {
       if (rethrow) throw e
       work.error = errorMessage(e)
@@ -364,7 +374,7 @@ async function runClaimed(ctx: ForgeContext, date: string, work: Item, op: Op, p
 
 export async function applyItem(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
   const work = await locked(async () => claim(date, requireOpen((await requireDigest(ctx, date)).items.find(i => i.id === id))))
-  const saved = await runClaimed(ctx, date, work, op, project, true)
+  const saved = await runClaimed(ctx, date, work, op, project, true, lazyOwners(ctx))
   if (!saved) throw new ModuleError('not_found', 'no such item')
   return saved
 }
@@ -373,7 +383,7 @@ export async function applyItem(ctx: ForgeContext, date: string, id: string, op:
 export async function acceptAll(ctx: ForgeContext, date: string, id?: string, project?: string, account?: string): Promise<Digest> {
   const claimed = await locked(async () => {
     const digest = await requireDigest(ctx, date)
-    const items = id ? [requireOpen(digest.items.find(i => i.id === id))] : digest.items.filter(i => i.state === 'proposed' && (!account || i.account === account) && !inFlight.has(claimKey(date, i.id)))
+    const items = id ? [requireOpen(digest.items.find(i => i.id === id))] : inAccount(digest.items, account).filter(i => i.state === 'proposed' && !inFlight.has(claimKey(date, i.id)))
     const out: { work: Item; op: Op }[] = []
     for (const item of items) {
       const op = opFor(item, project)
@@ -385,10 +395,12 @@ export async function acceptAll(ctx: ForgeContext, date: string, id?: string, pr
     }
     return out
   })
+  // projects are read once, and only when something starts
+  const owners = lazyOwners(ctx)
   // each op runs outside the lock, so a slow send never holds up other actions
   for (const [n, { work, op }] of claimed.entries()) {
     try {
-      await runClaimed(ctx, date, work, op, project, !!id)
+      await runClaimed(ctx, date, work, op, project, !!id, owners)
     } catch (e) {
       for (const rest of claimed.slice(n + 1)) inFlight.delete(claimKey(date, rest.work.id))
       throw e

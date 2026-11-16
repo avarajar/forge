@@ -3,7 +3,7 @@ import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
 import type { Digest, Item, Kind, Op } from './digest'
-import { errorMessage, opFor, projectsFor } from './ops'
+import { EMPTY_PROJECTS, errorMessage, opFor, projectsFor, startsTask, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
@@ -80,10 +80,8 @@ export function useDigest(forge: PanelClient, path = '/digest') {
   return { reply, error, reload: load }
 }
 
-export interface ProjectList { names: string[]; owners: Record<string, string> }
-
 export function useProjects(forge: PanelClient): ProjectList {
-  const [projects, setProjects] = useState<ProjectList>({ names: [], owners: {} })
+  const [projects, setProjects] = useState<ProjectList>(EMPTY_PROJECTS)
   useEffect(() => {
     forge.route<{ projects: string[]; owners?: Record<string, string> }>('/projects').then(r => setProjects({ names: r.projects, owners: r.owners ?? {} }), () => {})
   }, [forge])
@@ -95,15 +93,19 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const reading = useRef(false)
-  const run = async (fn: () => Promise<unknown>) => {
-    if (busy) return
-    setBusy(true)
+  // runs fn, tells the person when it fails, and loads what it changed
+  const guarded = async (fn: () => Promise<unknown>) => {
     try {
       await fn()
     } catch (e) {
       showToast(errorMessage(e), 'error')
     }
     await reload()
+  }
+  const run = async (fn: () => Promise<unknown>) => {
+    if (busy) return
+    setBusy(true)
+    await guarded(fn)
     setBusy(false)
   }
   const act: OnAct = (item, op, project) => run(async () => {
@@ -113,12 +115,7 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     if (reading.current) return
     reading.current = true
     setRefreshing(true)
-    try {
-      await forge.action('refresh')
-    } catch (e) {
-      showToast(errorMessage(e), 'error')
-    }
-    await reload()
+    await guarded(() => forge.action('refresh'))
     reading.current = false
     setRefreshing(false)
   }
@@ -185,12 +182,12 @@ export function SourceIcon({ source }: { source: Item['source'] }) {
   )
 }
 
-const KIND: Record<Kind, { label: string; token: string }> = {
-  'to-task': { label: 'Send to the task', token: '--orange' },
-  issue: { label: 'New task', token: '--green' },
-  request: { label: 'New task', token: '--green' },
-  research: { label: 'Research', token: '--purple' },
-  review: { label: 'Review', token: '--blue' },
+const KIND: Record<Kind, { label: string; token: string; verb: string }> = {
+  'to-task': { label: 'Send to the task', token: '--orange', verb: 'Send' },
+  issue: { label: 'New task', token: '--green', verb: 'Start' },
+  request: { label: 'New task', token: '--green', verb: 'Start' },
+  research: { label: 'Research', token: '--purple', verb: 'Research' },
+  review: { label: 'Review', token: '--blue', verb: 'Review' },
 }
 
 export function KindPill({ kind }: { kind: Kind }) {
@@ -246,11 +243,10 @@ function outcome(item: Item): ComponentChildren {
   return <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>Started{where ? ` · ${where}` : ''}</span>
 }
 
-export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting: Acting; forge: PanelClient }> = ({ item, projects = { names: [], owners: {} }, acting, forge }) => {
+export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting: Acting; forge: PanelClient }> = ({ item, projects = EMPTY_PROJECTS, acting, forge }) => {
   const [project, setProject] = useState(item.project ?? '')
   const open = item.state === 'proposed' || item.state === 'failed'
-  const needsProject = (item.kind === 'issue' || item.kind === 'request' || item.kind === 'review') && !item.project
-  const verb = item.kind === 'to-task' ? 'Send' : item.kind === 'research' ? 'Research' : item.kind === 'review' ? 'Review' : 'Start'
+  const needsProject = startsTask(item.kind) && !item.project
   const op = opFor(item, project)
   const where = item.source === 'slack' ? 'in' : 'on'
   return (
@@ -277,8 +273,8 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <KindPill kind={item.kind} />
-        {open && needsProject && <ProjectPicker projects={projectsFor(projects.names, projects.owners, item.account)} value={project} onChange={setProject} />}
-        {open && <Btn label={item.state === 'failed' ? 'Retry' : verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />}
+        {open && needsProject && <ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />}
+        {open && <Btn label={item.state === 'failed' ? 'Retry' : KIND[item.kind].verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />}
         {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => acting.act(item, 'dismiss')} />}
         {item.state === 'done' && outcome(item)}
         {item.state === 'done' && item.startedSession && <Btn label="Open session" onClick={() => forge.openSession(item.startedSession!.project, item.startedSession!.sessionDir)} />}
