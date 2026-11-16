@@ -27,6 +27,7 @@ function View({ forge }: PanelProps) {
   const digest = reply?.digest
   const acting = useActing(forge, digest?.date, reload)
   const notes = notesLine(digest?.notes)
+  const enabled = reply?.enabled === true
 
   useEffect(() => {
     forge.route<{ days: string[] }>('/days').then(r => setDays(r.days), () => {})
@@ -43,8 +44,17 @@ function View({ forge }: PanelProps) {
         )}
         {digest && <b style={{ fontSize: '13px', fontWeight: 600 }}>{dayLabel(new Date(), digest.date)}</b>}
         <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{digest ? readLine(digest) : 'Not read yet'}</span>
-        <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" loading={acting.refreshing} onClick={acting.refresh} /></span>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          {enabled && <ActionButton label="Read now" variant="primary" size="sm" loading={acting.refreshing} onClick={acting.refresh} />}
+          {reply && <ActionButton label={enabled ? 'Turn off' : 'Turn on'} variant={enabled ? 'secondary' : 'primary'} size="sm" disabled={acting.busy} onClick={() => acting.run(() => forge.action(enabled ? 'disable' : 'enable'))} />}
+        </span>
       </div>
+
+      {reply && !enabled && (
+        <div style={{ padding: '12px 14px', borderRadius: '10px', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--ink-2)', background: 'var(--card)', border: '1px solid var(--hair)', maxWidth: '640px' }}>
+          Today is off. Turned on, it reads your Linear, Slack and GitHub each morning and whenever you press Read now. Each reading spends your account's usage. Research it proposes can start sessions on its own, a few a day.
+        </div>
+      )}
 
       {(error || digest?.error) && (
         <div style={{ padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: 'var(--red)', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
@@ -55,7 +65,7 @@ function View({ forge }: PanelProps) {
       {notes && <div style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{notes}</div>}
 
       {!digest || digest.items.length === 0 ? (
-        <EmptyState title="Nothing to show" description="Today reads your Linear, Slack and GitHub once a day. Use Read now to read them now." />
+        <EmptyState title="Nothing to show" description={enabled ? 'Today reads your Linear, Slack and GitHub once a day. Use Read now to read them now.' : 'Turn Today on to read your Linear, Slack and GitHub.'} />
       ) : (
         sections(digest.items).map(({ title, items }) => {
           return (

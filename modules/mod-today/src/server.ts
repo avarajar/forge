@@ -1,6 +1,6 @@
 import { defineModule, defineAction, defineRoute, defineJob, ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { shouldRead, type Digest } from './digest'
-import { acceptAll, applyItem, digestDates, isFolded, localDate, readNow, setFolded, type Op } from './run'
+import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, readNow, setEnabled, setFolded, type Op } from './run'
 
 const RETRY_AFTER_FAILURE = 60 * 60 * 1000
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -31,7 +31,8 @@ async function digestFor(ctx: ForgeContext, date: string | undefined) {
     const latest = (await digestDates(ctx))[0]
     if (latest) [digest, folded] = await read((wanted = latest))
   }
-  return digest ? { digest, folded } : { digest: null, folded: false }
+  const enabled = await isEnabled(ctx)
+  return digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }
 }
 
 export default defineModule({
@@ -49,7 +50,33 @@ export default defineModule({
     defineRoute({ method: 'GET', path: '/days', handler: async (_req, ctx) => ({ days: await digestDates(ctx) }) }),
   ],
   actions: [
-    defineAction({ id: 'refresh', label: 'Read now', effect: 'local', run: (_input, ctx) => readNow(ctx, new Date()) }),
+    defineAction({
+      id: 'refresh',
+      label: 'Read now',
+      effect: 'local',
+      run: async (_input, ctx) => {
+        if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', 'Today is off')
+        return readNow(ctx, new Date())
+      },
+    }),
+    defineAction({
+      id: 'enable',
+      label: 'Turn on',
+      effect: 'local',
+      run: async (_input, ctx) => {
+        await setEnabled(ctx, true)
+        return { enabled: true }
+      },
+    }),
+    defineAction({
+      id: 'disable',
+      label: 'Turn off',
+      effect: 'local',
+      run: async (_input, ctx) => {
+        await setEnabled(ctx, false)
+        return { enabled: false }
+      },
+    }),
     itemAction('send', 'Send'),
     itemAction('start', 'Start'),
     itemAction('research', 'Research'),
@@ -84,6 +111,7 @@ export default defineModule({
       id: 'read',
       every: '5m',
       run: async ctx => {
+        if (!(await isEnabled(ctx))) return
         const now = new Date()
         const [lastReadAt, failedAt] = await Promise.all([ctx.storage.get<string>('lastReadAt'), ctx.storage.get<string>('lastFailedAt')])
         if (failedAt && now.getTime() - Date.parse(failedAt) < RETRY_AFTER_FAILURE) return

@@ -121,6 +121,12 @@ function merge(existing: Item[], fresh: Item[]): Item[] {
   return out
 }
 
+export async function isEnabled(ctx: ForgeContext): Promise<boolean> {
+  return (await ctx.storage.get<boolean>('enabled')) === true
+}
+
+export const setEnabled = (ctx: ForgeContext, on: boolean) => ctx.storage.set('enabled', on)
+
 let reading: Promise<Digest> | undefined
 
 export function readNow(ctx: ForgeContext, now: Date): Promise<Digest> {

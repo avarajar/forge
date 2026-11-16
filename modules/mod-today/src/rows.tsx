@@ -8,7 +8,7 @@ import { errorMessage, opFor } from './ops'
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
 
-export interface DigestReply { digest: Digest | null; folded: boolean }
+export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean }
 
 export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']

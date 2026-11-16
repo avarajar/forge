@@ -36,6 +36,16 @@ function Banner({ forge }: PanelProps) {
   const notes = notesLine(digest?.notes)
   const note = notes && <span style={{ color: 'var(--ink-3)' }}>· {notes}</span>
   if (!reply && !error) return null
+  if (reply && !reply.enabled) {
+    return shell(
+      <div style={line}>
+        <span style={{ color: 'var(--orange)' }}>☀︎</span>
+        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Today</b>
+        <span>· Linear, Slack and GitHub each morning</span>
+        <span style={{ marginLeft: 'auto' }}><Btn label="Turn on" style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('enable'))} /></span>
+      </div>,
+    )
+  }
   if (!reply || !digest || digest.items.length === 0) {
     return shell(
       <div style={line}>
