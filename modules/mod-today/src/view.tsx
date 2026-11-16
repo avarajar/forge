@@ -47,7 +47,7 @@ function View({ forge }: PanelProps) {
         </div>
       )}
 
-      {(digest?.problems ?? []).map(p => <ProblemRow key={`${p.account}/${p.source}`} problem={p} acting={acting} />)}
+      {(digest?.problems ?? []).map((p, i) => <ProblemRow key={`${p.account}/${p.source}/${i}`} problem={p} acting={acting} />)}
 
       {notes && <div style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{notes}</div>}
 

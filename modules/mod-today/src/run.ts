@@ -56,7 +56,7 @@ export async function readAccounts(ctx: ForgeContext): Promise<string[]> {
   const set = typeof ctx.settings.accounts === 'string' ? ctx.settings.accounts : ''
   const wanted = set.split(',').map(n => n.trim()).filter(Boolean)
   const names = wanted.length ? claude.filter(n => wanted.includes(n)) : claude
-  if (!names.length) throw new Error(wanted.length ? `none of ${wanted.join(', ')} is a Claude account` : 'no CW account to read with')
+  if (!names.length) throw new ModuleError('bad_request', wanted.length ? `none of ${wanted.join(', ')} is a Claude account` : 'no CW account to read with')
   return names
 }
 
@@ -110,7 +110,7 @@ async function readOne(ctx: ForgeContext, account: string, o: Parameters<typeof 
     return { account, ...(await readAccount(ctx, account, o)) }
   } catch (e) {
     const error = errorMessage(e)
-    return { account, items: [], problems: [{ account, source: 'reader', reason: error }], error }
+    return { account, items: [], problems: [{ account, source: 'reader', reason: error.replace(/\s+/g, ' ').trim().slice(0, 160) }], error }
   }
 }
 

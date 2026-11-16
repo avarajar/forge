@@ -62,7 +62,7 @@ function Banner({ forge }: PanelProps) {
   const problems = digest?.problems ?? []
   const problemRows = problems.length > 0 && (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
-      {problems.map(p => <ProblemRow key={`${p.account}/${p.source}`} problem={p} acting={acting} />)}
+      {problems.map((p, i) => <ProblemRow key={`${p.account}/${p.source}/${i}`} problem={p} acting={acting} />)}
     </div>
   )
   const problemsLink = problems.length > 0 && <button type="button" onClick={() => forge.openPage()} style={{ font: 'inherit', fontSize: 'inherit', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--orange)' }}>· {problemsLabel(problems.length)}</button>
