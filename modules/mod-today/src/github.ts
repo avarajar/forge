@@ -88,12 +88,20 @@ function fromPr(me: string, pr: Found, view: PrView, since: string): GithubEvent
 // reads GitHub with read-only gh commands; a missing or signed out gh gives an error and no items
 export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs = DEADLINE_MS): Promise<{ items: GithubEvent[]; error?: string }> {
   try {
-    const me = (await gh<Login>(ctx, ['api', 'user'])).login
+    const search = (flag: string, kind = 'prs') => gh<Found[]>(ctx, ['search', kind, flag, '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
+    const [user, mine, asked, issues, notes] = await Promise.all([
+      gh<Login>(ctx, ['api', 'user']),
+      search('--author=@me'),
+      search('--review-requested=@me'),
+      search('--assignee=@me', 'issues'),
+      gh<Notification[]>(ctx, ['api', `notifications?since=${encodeURIComponent(since)}`, '--paginate']),
+    ])
+    const me = user.login
     if (!me) throw new GhError('gh did not say who is signed in')
     const items: GithubEvent[] = []
 
-    const mine = await gh<Found[]>(ctx, ['search', 'prs', '--author=@me', '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
-    const prs = mine.slice(0, MAX_PRS)
+    // a pull request not updated since the last reading has nothing new
+    const prs = mine.slice(0, MAX_PRS).filter(pr => newer(pr.updatedAt, since))
     const deadline = Date.now() + deadlineMs
     let next = 0
     let unread = 0
@@ -115,17 +123,14 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
     }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, prs.length) }, worker))
 
-    const asked = await gh<Found[]>(ctx, ['search', 'prs', '--review-requested=@me', '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
     for (const pr of asked) {
       if (newer(pr.updatedAt, since)) items.push({ type: 'review-request', repo: repoOf(pr), number: pr.number, title: pr.title, url: pr.url, pr: pr.url, who: pr.author?.login, when: pr.updatedAt })
     }
 
-    const issues = await gh<Found[]>(ctx, ['search', 'issues', '--assignee=@me', '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
     for (const i of issues) {
       if (newer(i.updatedAt, since)) items.push({ type: 'assigned', repo: repoOf(i), number: i.number, title: i.title, url: i.url, pr: i.url, who: i.author?.login, when: i.updatedAt })
     }
 
-    const notes = await gh<Notification[]>(ctx, ['api', `notifications?since=${encodeURIComponent(since)}`, '--paginate'])
     for (const n of notes) {
       const page = pageUrl(n.subject.url)
       if ((n.reason === 'mention' || n.reason === 'team_mention') && page && newer(n.updated_at, since)) {
