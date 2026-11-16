@@ -14,7 +14,7 @@ function raw(over: Record<string, unknown>) {
 }
 
 function stub(opts: { reader?: () => Promise<{ text: string }>; send?: SendResult | Error; settings?: Record<string, unknown> } = {}) {
-  const store = new Map<string, unknown>()
+  const store = new Map<string, unknown>([['enabled', true]])
   const badge = vi.fn(async () => {})
   const start = vi.fn(async () => ({ project: 'forge', sessionDir: 'task-1' }))
   const send = vi.fn(async (..._a: unknown[]) => {
@@ -99,6 +99,15 @@ describe('readNow', () => {
     expect(digestOf(s).autoStarted).toBe(3)
     expect(digestOf(s).items.filter(i => i.state === 'done')).toHaveLength(3)
     expect(s.badge).toHaveBeenLastCalledWith('today', 2, 'to review')
+  })
+
+  it('turning off during a reading starts no research', async () => {
+    const s = stub({ reader: async () => {
+      s.store.set('enabled', false)
+      return { text: JSON.stringify({ items: research(2) }) }
+    } })
+    await readNow(s.ctx, NOW)
+    expect(s.start).not.toHaveBeenCalled()
   })
 
   it('starts nothing when autoResearch is off', async () => {

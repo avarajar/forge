@@ -1,14 +1,17 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import server from './server'
 import * as github from './github'
 
 vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })) }))
 
+beforeEach(() => vi.clearAllMocks())
+
 function stub(enabled?: boolean) {
   const store = new Map<string, unknown>()
   if (enabled !== undefined) store.set('enabled', enabled)
   const run = vi.fn(async () => ({ text: '{"items":[]}' }))
+  const clear = vi.fn(async () => {})
   const ctx = {
     settings: { time: '00:00', autoResearch: true, maxAuto: 3, account: 'monoku', researchProject: '', model: '' },
     storage: {
@@ -17,14 +20,14 @@ function stub(enabled?: boolean) {
       delete: async (k: string) => void store.delete(k),
       list: async (p = '') => [...store.keys()].filter(k => k.startsWith(p)),
     },
-    notify: { badge: async () => {} },
+    notify: { badge: async () => {}, clear },
     agent: { run },
     cw: { start: vi.fn() },
     sessions: { list: async () => [] },
     projects: { list: async () => [], dir: async () => null },
     accounts: { list: async () => [{ name: 'monoku', harness: 'claude' }] },
   } as unknown as ForgeContext
-  return { ctx, run }
+  return { ctx, run, clear }
 }
 
 const tick = (ctx: ForgeContext) => server.jobs![0].run({ ...ctx, signal: new AbortController().signal })
@@ -66,6 +69,7 @@ describe('off by default', () => {
     expect(await s.ctx.storage.get('enabled')).toBe(true)
     await call('disable', s.ctx)
     expect(await s.ctx.storage.get('enabled')).toBe(false)
+    expect(s.clear).toHaveBeenCalledWith('today')
   })
 
   it('refresh while off is refused', async () => {

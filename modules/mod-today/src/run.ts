@@ -181,7 +181,7 @@ function keepWithError(ctx: ForgeContext, now: Date, error: string, notes: strin
 }
 
 async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
-  if (ctx.settings.autoResearch === false) return
+  if (ctx.settings.autoResearch === false || !(await isEnabled(ctx))) return
   const max = typeof ctx.settings.maxAuto === 'number' ? ctx.settings.maxAuto : 3
   const first = await loadDigest(ctx, date)
   // text from GitHub can come from anyone, so it waits for a click
@@ -189,7 +189,7 @@ async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
   for (const id of ids) {
     const work = await locked(async () => {
       const digest = await loadDigest(ctx, date)
-      if (!digest || digest.autoStarted >= max) return false
+      if (!digest || digest.autoStarted >= max || !(await isEnabled(ctx))) return false
       const item = digest.items.find(i => i.id === id)
       if (!item || item.state !== 'proposed' || inFlight.has(claimKey(date, id))) return null
       digest.autoStarted++

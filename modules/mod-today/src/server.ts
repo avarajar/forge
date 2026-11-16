@@ -74,6 +74,7 @@ export default defineModule({
       effect: 'local',
       run: async (_input, ctx) => {
         await setEnabled(ctx, false)
+        await ctx.notify.clear('today')
         return { enabled: false }
       },
     }),
