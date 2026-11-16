@@ -1,7 +1,7 @@
 import { defineModule, defineAction, defineRoute, defineJob, ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { ownersOf } from './ops'
 import { shouldRead, type Digest } from './digest'
-import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, OFF_MESSAGE, readNow, reconnectAccount, retryAccount, setEnabled, setFolded, type Op } from './run'
+import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, OFF_MESSAGE, readingNow, readNow, reconnectAccount, retryAccount, setEnabled, setFolded, type Op } from './run'
 
 const RETRY_AFTER_FAILURE = 60 * 60 * 1000
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -33,7 +33,8 @@ async function digestFor(ctx: ForgeContext, date: string | undefined) {
     if (latest) [digest, folded] = await read((wanted = latest))
   }
   const enabled = await isEnabled(ctx)
-  return digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }
+  const reading = readingNow()
+  return { ...(digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }), ...(reading ? { reading } : {}) }
 }
 
 export default defineModule({

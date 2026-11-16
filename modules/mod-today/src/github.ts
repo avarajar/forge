@@ -86,7 +86,7 @@ function fromPr(me: string, pr: Found, view: PrView, since: string): GithubEvent
 }
 
 // reads GitHub with read-only gh commands; a missing or signed out gh gives an error and no items
-export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs = DEADLINE_MS): Promise<{ items: GithubEvent[]; error?: string }> {
+export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs = DEADLINE_MS): Promise<{ items: GithubEvent[]; requested?: string[]; error?: string }> {
   try {
     const search = (flag: string, kind = 'prs') => gh<Found[]>(ctx, ['search', kind, flag, '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
     const [user, mine, asked, issues, notes] = await Promise.all([
@@ -138,7 +138,9 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
         items.push({ type: 'mention', repo: n.repository.full_name, number: page.number, title: n.subject.title, url: page.url, pr: page.url, when: n.updated_at })
       }
     }
-    return unread ? { items, error: `${unread} pull request${unread === 1 ? '' : 's'} could not be read` } : { items }
+    // every open pull request still asked of me, updated or not
+    const requested = asked.map(pr => pr.url)
+    return unread ? { items, requested, error: `${unread} pull request${unread === 1 ? '' : 's'} could not be read` } : { items, requested }
   } catch (e) {
     return { items: [], error: errorMessage(e) }
   }

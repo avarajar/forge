@@ -4,7 +4,9 @@
 
 ### Fixed
 
-- Today: a reader waits for the account's claude.ai connectors (Linear, Slack) to connect before it starts, so connected accounts no longer report them as unreachable.
+- Today: a reader waits for the account's claude.ai connectors (Linear, Slack) to connect before it starts, so connected accounts no longer report them as unreachable. The one retry after a failed read now waits 15 s.
+- Today: only Slack and Linear can be reported as problems; a GitHub hiccup no longer shows up as a reader problem.
+- Today: review requests you no longer have (reviewed, closed or reassigned) leave the digest instead of lingering as proposals.
 
 ## 0.1.25 (2026-11-16)
 

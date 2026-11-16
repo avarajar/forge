@@ -1,12 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { ForgeContext, SendResult } from '@forge-dev/sdk'
-import { readNow, retryAccount, reconnectAccount, applyItem, acceptAll, setFolded, isFolded, localDate } from './run'
+import { readNow, readingNow, timing, retryAccount, reconnectAccount, applyItem, acceptAll, setFolded, isFolded, localDate } from './run'
 import type { Digest } from './digest'
 import * as github from './github'
 
 vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })) }))
 
 const NOW = new Date(2026, 10, 15, 9, 0, 0)
+
+const RETRY_PAUSE = timing.retryMs
+beforeEach(() => { timing.retryMs = 0 })
+afterEach(() => { timing.retryMs = RETRY_PAUSE })
 const DATE = localDate(NOW)
 
 function raw(over: Record<string, unknown>) {
@@ -512,6 +516,24 @@ describe('every account', () => {
     expect(d.items).toHaveLength(1)
   })
 
+  it('the retry comes after a pause, not at once', async () => {
+    vi.useFakeTimers()
+    try {
+      timing.retryMs = RETRY_PAUSE
+      expect(RETRY_PAUSE).toBe(15_000)
+      const reader = vi.fn<Reader>(async () => ({ text: JSON.stringify({ items: [], problems: ['slack: still connecting'] }) }))
+      const s = stub({ reader, settings: { autoResearch: false } })
+      const reading = readNow(s.ctx, NOW)
+      await vi.advanceTimersByTimeAsync(14_000)
+      expect(reader).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(reader).toHaveBeenCalledTimes(2)
+      await reading
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a retry that reaches the source keeps its items and adds no problem', async () => {
     let calls = 0
     const reader: Reader = async ({ account }) => {
@@ -606,16 +628,15 @@ describe('every account', () => {
     expect(s.start).not.toHaveBeenCalled()
   })
 
-  it('an unknown source or a bare problem is a reader problem and each account keeps its own', async () => {
-    const reader: Reader = async ({ account }) => ({ text: JSON.stringify({ items: [], problems: account === 'monoku' ? ['Linear: unavailable', 'tools missing'] : ['slack: down'] }) })
+  it('only Slack and Linear problems are kept, each account its own', async () => {
+    const reader: Reader = async ({ account }) => ({ text: JSON.stringify({ items: [], problems: account === 'monoku' ? ['Linear: unavailable', 'github: the fetched events list was empty'] : ['slack: down'] }) })
     const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader, settings: { autoResearch: false } })
     const d = await readNow(s.ctx, NOW)
     expect(d.problems).toEqual(expect.arrayContaining([
       { account: 'monoku', source: 'linear', reason: 'unavailable' },
-      { account: 'monoku', source: 'reader', reason: 'tools missing' },
       { account: 'meridian', source: 'slack', reason: 'down' },
     ]))
-    expect(d.problems).toHaveLength(3)
+    expect(d.problems).toHaveLength(2)
   })
 
   it('notes that GitHub was skipped when the first reader fails', async () => {
@@ -624,6 +645,88 @@ describe('every account', () => {
     const d = await readNow(s.ctx, NOW)
     expect(d.notes).toEqual(['GitHub: not read'])
     expect(d.problems).toEqual([{ account: 'monoku', source: 'reader', reason: 'boom' }])
+  })
+})
+
+describe('stale review proposals', () => {
+  const pr = (n: number) => `https://github.com/o/r/pull/${n}`
+  const ev = (n: number) => ({ type: 'review-request' as const, repo: 'o/r', number: n, title: 'T', url: pr(n), pr: pr(n), when: '2026-11-15T08:00:00Z' })
+  const review = (n: number) => raw({ source: 'github', kind: 'review', link: pr(n) })
+  const seed = (s: ReturnType<typeof stub>, items: unknown[]) => s.store.set(`digest/${DATE}`, { date: DATE, readAt: NOW.toISOString(), since: NOW.toISOString(), items, autoStarted: {} })
+  const item = (n: number, over: Record<string, unknown> = {}) => ({ id: `r${n}`, source: 'github', kind: 'review', title: 'T', who: 'a', where: 'o/r', when: '2026-11-14T08:00:00Z', link: pr(n), state: 'proposed', ...over })
+
+  it('drops proposed reviews no longer asked of me and keeps the rest', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [ev(9)], requested: [pr(9)] })
+    const s = stub({ settings: { autoResearch: false } })
+    seed(s, [item(1), item(2, { state: 'done' }), item(3, { state: 'dismissed' }), item(4, { state: 'failed' }), item(5, { kind: 'request' })])
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items.map(i => i.id)).toEqual(['r2', 'r3', 'r4', 'r5'])
+  })
+
+  it('keeps a proposed review that is still asked, though not updated since', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], requested: [pr(1)] })
+    const s = stub({ settings: { autoResearch: false } })
+    seed(s, [item(1)])
+    expect((await readNow(s.ctx, NOW)).items.map(i => i.id)).toEqual(['r1'])
+  })
+
+  it('keeps everything when GitHub could not be read in full', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'gh could not run' })
+    const s = stub({ settings: { autoResearch: false } })
+    seed(s, [item(1)])
+    expect((await readNow(s.ctx, NOW)).items.map(i => i.id)).toEqual(['r1'])
+  })
+
+  it('works from the review-request events when no list is given', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [ev(9)] })
+    const s = stub({ settings: { autoResearch: false }, reader: reply([review(9)]) })
+    seed(s, [item(1)])
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items.map(i => i.link)).toEqual([pr(9)])
+  })
+})
+
+describe('reading progress', () => {
+  it('tracks each account until its reader finishes and is gone afterwards', async () => {
+    let release = () => {}
+    const reader: Reader = ({ account }) => account === 'meridian'
+      ? Promise.resolve({ text: JSON.stringify({ items: [], problems: ['slack: down'] }) })
+      : new Promise(r => { release = () => r({ text: '{"items":[]}' }) })
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader, settings: { autoResearch: false } })
+    expect(readingNow()).toBeUndefined()
+    const reading = readNow(s.ctx, NOW)
+    await new Promise(r => setTimeout(r, 10))
+    expect(typeof readingNow()!.startedAt).toBe('string')
+    expect(readingNow()!.accounts).toEqual({ monoku: 'reading', meridian: 'problem' })
+    release()
+    await reading
+    expect(readingNow()).toBeUndefined()
+  })
+
+  it('an account whose reader finished is done while another still reads', async () => {
+    let release = () => {}
+    const reader: Reader = ({ account }) => account === 'monoku'
+      ? Promise.resolve({ text: '{"items":[]}' })
+      : new Promise(r => { release = () => r({ text: '{"items":[]}' }) })
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader, settings: { autoResearch: false } })
+    const reading = readNow(s.ctx, NOW)
+    await new Promise(r => setTimeout(r, 10))
+    expect(readingNow()!.accounts).toEqual({ monoku: 'done', meridian: 'reading' })
+    release()
+    await reading
+  })
+
+  it('a retry tracks only its account', async () => {
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader: byAccount({}), settings: { autoResearch: false } })
+    await readNow(s.ctx, NOW)
+    let release = () => {}
+    s.run.mockImplementation(() => new Promise(r => { release = () => r({ text: '{"items":[]}' }) }))
+    const retry = retryAccount(s.ctx, 'meridian', NOW)
+    await new Promise(r => setTimeout(r, 10))
+    expect(readingNow()!.accounts).toEqual({ meridian: 'reading' })
+    release()
+    await retry
+    expect(readingNow()).toBeUndefined()
   })
 })
 

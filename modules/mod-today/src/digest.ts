@@ -32,6 +32,12 @@ export interface Problem {
   reason: string
 }
 
+// the reading in flight, per account
+export interface Reading {
+  startedAt: string
+  accounts: Record<string, 'reading' | 'done' | 'problem'>
+}
+
 export interface Digest {
   date: string
   readAt: string
@@ -90,7 +96,7 @@ function extractJson(out: string): unknown {
   }
 }
 
-// what the reader could not reach, bounded and one line each
+// what the reader could not reach in Slack or Linear, bounded and one line each; any other source is not a problem
 export function parseReaderProblems(out: string): string[] {
   let root: unknown
   try {
@@ -99,7 +105,7 @@ export function parseReaderProblems(out: string): string[] {
     return []
   }
   if (!isRecord(root) || !Array.isArray(root.problems)) return []
-  return root.problems.filter((p): p is string => typeof p === 'string' && p.trim() !== '').slice(0, 5).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 160))
+  return root.problems.filter((p): p is string => typeof p === 'string' && /^\s*(slack|linear)/i.test(p)).slice(0, 5).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 160))
 }
 
 // "<source>: <reason>" from the reader; anything else is the reader's own problem

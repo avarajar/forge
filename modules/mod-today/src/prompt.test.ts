@@ -51,6 +51,10 @@ describe('buildPrompt with GitHub', () => {
     expect(p.match(/<<<GITHUB DATA END>>>/g)).toHaveLength(1)
   })
 
+  it('limits problems to the Slack and Linear tools', () => {
+    expect(buildPrompt({ ...base, github: [] })).toMatch(/Problems are only for the Slack and Linear tools/)
+  })
+
   it('says there is no GitHub input when there are no events', () => {
     expect(buildPrompt({ ...base, github: [] })).toMatch(/GitHub events: none/)
   })

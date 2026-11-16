@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext, type ProjectInfo, type SessionInfo } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { countStart, dedupe, itemId, parseReaderOutput, parseReaderProblems, pendingCount, startedBy, toProblem, type Digest, type Item, type Op, type Problem } from './digest'
+import { countStart, dedupe, itemId, parseReaderOutput, parseReaderProblems, pendingCount, startedBy, toProblem, type Digest, type Item, type Op, type Problem, type Reading } from './digest'
 import { errorMessage, githubPage, inAccount, oneLine, opFor, ownersOf, startsTask, untrusted } from './ops'
 import { fetchGithub, type GithubEvent } from './github'
 
@@ -14,6 +14,14 @@ export function localDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
+
+// the pause before a reader's retry, so connectors still connecting get time
+export const timing = { retryMs: 15_000 }
+
+// the reading in flight, shown to the views while it runs
+let progress: Reading | undefined
+
+export const readingNow = (): Reading | undefined => (progress ? { startedAt: progress.startedAt, accounts: { ...progress.accounts } } : undefined)
 
 let chain: Promise<unknown> = Promise.resolve()
 
@@ -92,7 +100,10 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
   const ask = () => ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
   let out = await ask()
   // connectors can still be connecting when a headless run starts, so one retry before giving up
-  if (parseReaderProblems(out.text).length) out = await ask()
+  if (parseReaderProblems(out.text).length) {
+    await new Promise(r => setTimeout(r, timing.retryMs))
+    out = await ask()
+  }
   const problems = parseReaderProblems(out.text).map(p => toProblem(account, p))
   const fetched = new Set(github.map(e => e.pr))
   const toReview = new Set(github.filter(e => e.type === 'review-request').map(e => e.pr))
@@ -106,16 +117,20 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
 
 // one account's reading: a reader that throws is that account's reader problem
 async function readOne(ctx: ForgeContext, account: string, o: Parameters<typeof readAccount>[2]): Promise<Reader & { error?: string }> {
+  const finish = <T extends Reader>(r: T): T => {
+    if (progress) progress.accounts[account] = r.problems.length ? 'problem' : 'done'
+    return r
+  }
   try {
-    return { account, ...(await readAccount(ctx, account, o)) }
+    return finish({ account, ...(await readAccount(ctx, account, o)) })
   } catch (e) {
     const error = errorMessage(e)
-    return { account, items: [], problems: [{ account, source: 'reader', reason: error.replace(/\s+/g, ' ').trim().slice(0, 160) }], error }
+    return finish({ account, items: [], problems: [{ account, source: 'reader', reason: error.replace(/\s+/g, ' ').trim().slice(0, 160) }], error })
   }
 }
 
 // notes collects problems that do not fail the reading
-async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<{ items: Item[]; problems: Problem[] }> {
+async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<{ items: Item[]; problems: Problem[]; requested?: Set<string> }> {
   const lastReadAt = await ctx.storage.get<string>('lastReadAt')
   const since = lastReadAt ?? new Date(now.getTime() - DAY).toISOString()
   // ctx has no repository for a project, so GitHub is read once, by the first account's reader, while the others start
@@ -127,13 +142,16 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<{ 
     readAccounts(ctx),
   ])
   const owners = ownersOf(projects)
+  if (progress) progress.accounts = Object.fromEntries(accounts.map(a => [a, 'reading' as const]))
   const results = await Promise.all(accounts.map((account, n) => readOne(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} })))
   const gh = await github
   if (gh.error) notes.push(`GitHub: ${gh.error}`)
   if (results[0].error && gh.items.length) notes.push('GitHub: not read')
   const failed = results.filter(r => r.error)
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
-  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems) }
+  // the pull requests still asked of me, known only when GitHub was read in full
+  const requested = gh.error ? undefined : new Set(gh.requested ?? gh.items.filter(e => e.type === 'review-request').map(e => e.pr))
+  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems), requested }
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -142,6 +160,12 @@ async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Pro
   for (const [id, when] of Object.entries(old)) if (now.getTime() - Date.parse(when) < HANDLED_KEEP) next[id] = when
   for (const i of items) next[i.id] = i.when
   await ctx.storage.set('handled', next)
+}
+
+// drops proposed reviews whose pull request is no longer asked of me
+function dropStaleReviews(items: Item[], requested: Set<string> | undefined): Item[] {
+  if (!requested) return items
+  return items.filter(i => !(i.kind === 'review' && i.state === 'proposed' && !requested.has(githubPage(i.link) ?? i.link)))
 }
 
 // merges fresh items into the day's digest: new ones are added, proposed ones are refreshed
@@ -170,9 +194,13 @@ export const OFF_MESSAGE = 'Today is off'
 // reads now unless Today is off; one reading at a time
 export async function readNow(ctx: ForgeContext, now: Date): Promise<Digest> {
   if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
-  reading ??= doRead(ctx, now).finally(() => {
-    reading = undefined
-  })
+  if (!reading) {
+    progress = { startedAt: new Date().toISOString(), accounts: {} }
+    reading = doRead(ctx, now).finally(() => {
+      reading = undefined
+      progress = undefined
+    })
+  }
   return reading
 }
 
@@ -180,11 +208,11 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   const date = localDate(now)
   const notes: string[] = []
   try {
-    const { items: fresh, problems } = await reread(ctx, now, notes)
+    const { items: fresh, problems, requested } = await reread(ctx, now, notes)
     const lastReadAt = await ctx.storage.get<string>('lastReadAt')
     await locked(async () => {
       const prev = await loadDigest(ctx, date)
-      const items = merge(prev?.items ?? [], fresh)
+      const items = dropStaleReviews(merge(prev?.items ?? [], fresh), requested)
       const known = new Set((prev?.items ?? []).map(i => i.id))
       // new items reopen a folded day
       if (items.some(i => i.state === 'proposed' && !known.has(i.id))) await ctx.storage.delete(`folded/${date}`)
@@ -217,8 +245,17 @@ export async function retryAccount(ctx: ForgeContext, account: string, now: Date
   const date = localDate(now)
   const prev = await loadDigest(ctx, date)
   if (!prev) throw new ModuleError('not_found', `no digest for ${date}`)
-  const [sessions, projects, handled] = await Promise.all([ctx.sessions.list(), ctx.projects.list(), ctx.storage.get<Record<string, string>>('handled')])
-  const result = await readOne(ctx, account, { since: prev.since, sessions, projects, owners: ownersOf(projects), handled: handled ?? {} })
+  progress ??= { startedAt: new Date().toISOString(), accounts: {} }
+  progress.accounts[account] = 'reading'
+  const mine = progress
+  let result: Awaited<ReturnType<typeof readOne>>
+  try {
+    const [sessions, projects, handled] = await Promise.all([ctx.sessions.list(), ctx.projects.list(), ctx.storage.get<Record<string, string>>('handled')])
+    result = await readOne(ctx, account, { since: prev.since, sessions, projects, owners: ownersOf(projects), handled: handled ?? {} })
+  } finally {
+    // the last retry out clears the reading
+    if (progress === mine && !Object.values(mine.accounts).includes('reading')) progress = undefined
+  }
   await locked(async () => {
     const digest = (await loadDigest(ctx, date)) ?? prev
     const items = merge(digest.items, result.items)

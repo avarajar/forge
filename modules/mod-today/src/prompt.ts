@@ -47,5 +47,5 @@ Item kinds (to-task | issue | request | research | review), exactly one per item
 Answer with ONLY a JSON object, no prose and no code fence:
 { "items": [ { "source": "linear" | "slack" | "github", "kind": "to-task" | "issue" | "request" | "research" | "review", "title": string, "who": string, "where": string, "when": ISO time of the latest activity, "quote"?: string, "link": string (permalink, issue URL or pull request URL), "issueKey"?: string, "targetSession"?: { "project": string, "sessionDir": string }, "project"?: string } ], "problems"?: [ string ] }
 Every item needs a link. Use an empty items array when there is nothing new.
-If a Slack or Linear tool is missing, still connecting or fails, do not report "nothing new" for it: add "<source>: <short reason>" to problems.`
+Problems are only for the Slack and Linear tools: if one is missing, still connecting or fails, do not report "nothing new" for it, add "slack: <short reason>" or "linear: <short reason>" to problems. Never put anything else in problems (GitHub is given to you as data, not a tool).`
 }

@@ -61,6 +61,11 @@ describe('fetchGithub', () => {
     expect(by('mention')).toEqual([expect.objectContaining({ number: 5, title: 'Ping me', url: 'https://github.com/o/r/pull/5' })])
   })
 
+  it('lists every open review request, updated since the last reading or not', async () => {
+    const { ctx } = stub()
+    expect((await fetchGithub(ctx, SINCE)).requested).toEqual(['https://github.com/o/r/pull/9', 'https://github.com/o/r/pull/3'])
+  })
+
   it('gh missing gives an error and no items', async () => {
     const { ctx } = stub({ 'api user': new Error('spawn gh ENOENT') })
     const r = await fetchGithub(ctx, SINCE)
