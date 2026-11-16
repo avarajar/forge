@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds Forge.app for this Mac: main process in one file (core inlined), the console, the bundled
+// Builds Forge.app for this Mac: main process in one file (core inlined), the console,
 // bundled modules (v1 ones with package.json and dist) and node-pty, packaged with @electron/packager and signed ad hoc (no Apple account).
 //   pnpm app            → out/Forge-darwin-<arch>/Forge.app
 //   pnpm app:install    → also copies it to ~/Applications
