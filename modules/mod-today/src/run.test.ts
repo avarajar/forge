@@ -235,23 +235,28 @@ describe('github', () => {
     const s = stub({ reader: reply([raw({})]) })
     const d = await readNow(s.ctx, NOW)
     expect(d.items).toHaveLength(1)
-    expect(d.error).toBe('GitHub: gh is not signed in')
+    expect(d.error).toBeUndefined()
+    expect(d.notes).toEqual(['GitHub: gh is not signed in'])
     expect(s.store.get('lastReadAt')).toBe(NOW.toISOString())
     expect(s.store.has('lastFailedAt')).toBe(false)
   })
 
-  it('a github note is appended to a reader failure', async () => {
+  it('a github note stays a note beside a reader failure', async () => {
     vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'gh is not signed in' })
     const s = stub({ reader: async () => ({ text: 'sorry, no' }) })
     const d = await readNow(s.ctx, NOW)
-    expect(d.error).toMatch(/JSON.*GitHub: gh is not signed in$/)
+    expect(d.error).toMatch(/JSON/)
+    expect(d.error).not.toMatch(/GitHub/)
+    expect(d.notes).toEqual(['GitHub: gh is not signed in'])
   })
 
   it('a later clean reading clears the note', async () => {
     vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'x' })
     const s = stub({ reader: reply([]) })
     await readNow(s.ctx, NOW)
-    expect((await readNow(s.ctx, new Date(2026, 10, 15, 10))).error).toBeUndefined()
+    const d = await readNow(s.ctx, new Date(2026, 10, 15, 10))
+    expect(d.error).toBeUndefined()
+    expect(d.notes).toBeUndefined()
   })
 })
 

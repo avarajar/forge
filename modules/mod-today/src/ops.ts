@@ -27,5 +27,7 @@ export function githubPage(link: string): string | null {
   return host === 'github.com' || host.endsWith('.github.com') ? link.split('#')[0] : null
 }
 
-// a GitHub-only note is not a failed reading; anything else is
-export const readingProblem = (error: string) => (error.startsWith('GitHub: ') ? error : `Last reading failed: ${error}`)
+export const failedLine = (error: string) => `Last reading failed: ${error}`
+
+// problems that did not fail the reading, on one line
+export const notesLine = (notes: string[] | undefined) => (notes?.length ? notes.join(' · ') : null)

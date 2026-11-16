@@ -1,8 +1,8 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { opFor, readingProblem } from './ops'
-import { Btn, clock, dayLabel, foldedNow, ghostStyle, isToday, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
+import { failedLine, notesLine, opFor } from './ops'
+import { Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, readLine, Row, shortDay, soft, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
 
@@ -24,8 +24,7 @@ function Banner({ forge }: PanelProps) {
   const projects = useProjects(forge)
   const digest = reply?.digest
   const acting = useActing(forge, digest?.date, reload)
-  const refresh = () => acting.run(() => forge.action('refresh'))
-  const refreshBtn = <Btn label={acting.busy ? 'Reading…' : 'Refresh'} style={ghostStyle} disabled={acting.busy} onClick={refresh} />
+  const refreshBtn = <Btn label={acting.refreshing ? 'Reading…' : 'Refresh'} style={ghostStyle} disabled={acting.refreshing} onClick={acting.refresh} />
   const shell = (children: ComponentChildren) => (
     <div style={{ position: 'relative', borderRadius: '16px', padding: '1px', background: `linear-gradient(135deg, ${soft('--blue', 55)}, ${soft('--purple', 40)} 45%, var(--hair) 80%)`, boxShadow: `0 10px 40px ${soft('--blue', 10)}` }}>
       <div style={{ borderRadius: '15px', background: 'radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--blue) 14%, var(--card)) 0%, var(--card) 55%)' }}>{children}</div>
@@ -34,13 +33,16 @@ function Banner({ forge }: PanelProps) {
   const line = { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 16px', fontSize: '12.5px', color: 'var(--ink-2)' }
 
   const failure = (text: string) => <span style={{ color: 'var(--red)' }}>· {text}</span>
+  const notes = notesLine(digest?.notes)
+  const note = notes && <span style={{ color: 'var(--ink-3)' }}>· {notes}</span>
   if (!reply && !error) return null
   if (!reply || !digest || digest.items.length === 0) {
     return shell(
       <div style={line}>
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{digest || !reply ? 'Today' : 'Not read yet'}</b>
-        {!reply ? failure(`Can't load Today: ${error}`) : digest?.error ? failure(readingProblem(digest.error)) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
+        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{reply && !digest ? 'Not read yet' : shortDay(new Date(), digest?.date)}</b>
+        {!reply ? failure(`Can't load Today: ${error}`) : digest?.error ? failure(failedLine(digest.error)) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
+        {note}
         <span style={{ marginLeft: 'auto' }}>{refreshBtn}</span>
       </div>,
     )
@@ -55,9 +57,10 @@ function Banner({ forge }: PanelProps) {
     return shell(
       <div style={line}>
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{isToday(digest.date, new Date()) ? 'Today' : dayLabel(new Date(), digest.date)}</b>
+        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{shortDay(new Date(), digest.date)}</b>
         <span>· {done(items, ['issue', 'request', 'review'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
-        {digest.error && failure(readingProblem(digest.error))}
+        {digest.error && failure(failedLine(digest.error))}
+        {note}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></span>
       </div>,
     )
@@ -90,7 +93,8 @@ function Banner({ forge }: PanelProps) {
         <span style={{ ...pill, marginLeft: 'auto', borderColor: 'transparent', background: 'none', color: 'var(--ink-3)' }}>{items.length} read · {items.length - shown.length} dismissed</span>
       </div>
 
-      {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>{readingProblem(digest.error)}</div>}
+      {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>{failedLine(digest.error)}</div>}
+      {notes && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--ink-3)' }}>{notes}</div>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {shown.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}

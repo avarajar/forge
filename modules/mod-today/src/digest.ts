@@ -28,6 +28,8 @@ export interface Digest {
   since: string
   items: Item[]
   error?: string
+  // problems that did not fail the reading, such as GitHub being unreadable
+  notes?: string[]
   autoStarted: number
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { dayLabel, foldedNow, isToday } from './rows'
-import { opFor } from './ops'
+import { dayLabel, foldedNow, isToday, shortDay } from './rows'
+import { failedLine, notesLine, opFor } from './ops'
 import type { Item } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -46,10 +46,20 @@ describe('opFor review', () => {
   })
 })
 
-describe('readingProblem', () => {
-  it('a GitHub note is not called a failed reading', async () => {
-    const { readingProblem } = await import('./ops')
-    expect(readingProblem('GitHub: gh is not signed in')).toBe('GitHub: gh is not signed in')
-    expect(readingProblem('boom')).toBe('Last reading failed: boom')
+describe('reading lines', () => {
+  it('a failure says the reading failed and notes are listed as they are', () => {
+    expect(failedLine('boom')).toBe('Last reading failed: boom')
+    expect(notesLine(['GitHub: gh is not signed in', 'x'])).toBe('GitHub: gh is not signed in · x')
+    expect(notesLine(undefined)).toBeNull()
+    expect(notesLine([])).toBeNull()
+  })
+})
+
+describe('shortDay', () => {
+  it('says Today for today or no digest, and names an older day', () => {
+    const now = new Date(2026, 10, 15, 9)
+    expect(shortDay(now, '2026-11-15')).toBe('Today')
+    expect(shortDay(now)).toBe('Today')
+    expect(shortDay(now, '2026-11-14')).toBe('From Saturday 14')
   })
 })

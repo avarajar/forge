@@ -145,7 +145,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
         since: prev?.since ?? lastReadAt ?? new Date(now.getTime() - DAY).toISOString(),
         items,
         autoStarted: prev?.autoStarted ?? 0,
-        ...(notes.length ? { error: notes.join('; ') } : {}),
+        ...(notes.length ? { notes } : {}),
       })
       await rememberHandled(ctx, fresh, now)
       await ctx.storage.set('lastReadAt', now.toISOString())
@@ -154,15 +154,17 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
     await autoResearch(ctx, date)
     return (await loadDigest(ctx, date))!
   } catch (e) {
-    return keepWithError(ctx, now, [errorMessage(e), ...notes].join('; '))
+    return keepWithError(ctx, now, errorMessage(e), notes)
   }
 }
 
-function keepWithError(ctx: ForgeContext, now: Date, error: string): Promise<Digest> {
+function keepWithError(ctx: ForgeContext, now: Date, error: string, notes: string[]): Promise<Digest> {
   return locked(async () => {
     const date = localDate(now)
     const latest = (await loadDigest(ctx, date)) ?? (await loadDigest(ctx, (await digestDates(ctx))[0] ?? ''))
     const digest: Digest = { ...(latest ?? { date, readAt: now.toISOString(), since: now.toISOString(), items: [], autoStarted: 0 }), error }
+    if (notes.length) digest.notes = notes
+    else delete digest.notes
     await ctx.storage.set('lastFailedAt', now.toISOString())
     await saveDigest(ctx, digest)
     return digest

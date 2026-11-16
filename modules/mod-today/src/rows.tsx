@@ -6,7 +6,7 @@ import type { Digest, Item, Kind, Op } from './digest'
 import { errorMessage, opFor } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
-export interface Acting { busy: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct }
+export interface Acting { busy: boolean; refreshing: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
 
 export interface DigestReply { digest: Digest | null; folded: boolean }
 
@@ -50,9 +50,11 @@ export function useProjects(forge: PanelClient): string[] {
   return projects
 }
 
-// one acting state per digest: every action button waits while any action runs
+// one acting state per digest: every action button waits while any action runs; a reading only blocks another reading
 export function useActing(forge: PanelClient, date: string | undefined, reload: () => Promise<void>): Acting {
   const [busy, setBusy] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const reading = useRef(false)
   const run = async (fn: () => Promise<unknown>) => {
     if (busy) return
     setBusy(true)
@@ -67,7 +69,20 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
   const act: OnAct = (item, op, project) => run(async () => {
     if (date) await forge.action(op, { date, id: item.id, ...(project ? { project } : {}) })
   })
-  return { busy, run, act }
+  const refresh = async () => {
+    if (reading.current) return
+    reading.current = true
+    setRefreshing(true)
+    try {
+      await forge.action('refresh')
+    } catch (e) {
+      showToast(errorMessage(e), 'error')
+    }
+    await reload()
+    reading.current = false
+    setRefreshing(false)
+  }
+  return { busy, refreshing, run, act, refresh }
 }
 
 function dayOf(date: string): Date {
@@ -85,6 +100,9 @@ export function dayLabel(now: Date, date: string): string {
   const part = hour < 12 ? 'Good morning' : hour < 19 ? 'Good afternoon' : 'Good evening'
   return `${part} · your ${now.toLocaleDateString('en-US', { weekday: 'long' })} ${now.getDate()}`
 }
+
+// the short name of a digest's day for one-line states
+export const shortDay = (now: Date, date?: string) => (!date || isToday(date, now) ? 'Today' : dayLabel(now, date))
 
 // folded when the person folded it or nothing is left for them to decide
 export function foldedNow(folded: boolean, items: Item[]): boolean {

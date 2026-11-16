@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { readingProblem } from './ops'
+import { failedLine, notesLine } from './ops'
 import { dayLabel, readLine, Row, useActing, useDigest, useProjects } from './rows'
 
 const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
@@ -26,12 +26,12 @@ function View({ forge }: PanelProps) {
   const projects = useProjects(forge)
   const digest = reply?.digest
   const acting = useActing(forge, digest?.date, reload)
+  const notes = notesLine(digest?.notes)
 
   useEffect(() => {
     forge.route<{ days: string[] }>('/days').then(r => setDays(r.days), () => {})
   }, [forge, digest?.readAt])
 
-  const read = () => acting.run(() => forge.action('refresh'))
 
   return (
     <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '1180px' }}>
@@ -43,14 +43,16 @@ function View({ forge }: PanelProps) {
         )}
         {digest && <b style={{ fontSize: '13px', fontWeight: 600 }}>{dayLabel(new Date(), digest.date)}</b>}
         <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{digest ? readLine(digest) : 'Not read yet'}</span>
-        <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" loading={acting.busy} onClick={read} /></span>
+        <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" loading={acting.refreshing} onClick={acting.refresh} /></span>
       </div>
 
       {(error || digest?.error) && (
         <div style={{ padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: 'var(--red)', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
-          {error ? `Can't load Today: ${error}` : readingProblem(digest!.error!)}
+          {error ? `Can't load Today: ${error}` : failedLine(digest!.error!)}
         </div>
       )}
+
+      {notes && <div style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{notes}</div>}
 
       {!digest || digest.items.length === 0 ? (
         <EmptyState title="Nothing to show" description="Today reads your Linear, Slack and GitHub once a day. Use Read now to read them now." />
