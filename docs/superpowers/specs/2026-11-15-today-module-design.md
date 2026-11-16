@@ -149,6 +149,21 @@ Asked after the first version: include GitHub feedback, and update without waiti
 - Days with nothing new no longer hide the banner: a minimal line `☀︎ Today · nothing new since 10:17 · Refresh` stays, so refresh is always at hand. This replaces the "hidden" banner state.
 - Every refresh spends one reading of the account's usage.
 
+## Addendum 2 (2026-11-16): off by default, every account
+
+### Off by default
+- forge-cw is public on npm, and the module spends usage and starts sessions on its own, so it ships off: no reading, no job work, no auto-research until the user turns it on.
+- On/off is module state (storage key `enabled`, default false), toggled by `enable` / `disable` actions (`local`), not a setting a module cannot write.
+- While off, the banner shows one line `☀︎ Today · Linear, Slack and GitHub each morning · Turn on`, and the Today page explains what it does and has Turn on / Turn off. Refresh is hidden while off.
+
+### Every connected account
+- Each CW account has its own claude.ai connectors (e.g. `monoku` and `meridian` each with their Slack and Linear), so a reading runs one reader per Claude account, in parallel, each with that account's connectors and usage.
+- Setting `accounts` (string, comma separated; empty = every Claude account) replaces `account`. `maxAuto` applies per account.
+- Each reader gets only its account's projects and open sessions (CW projects belong to an account), so news is never sent across accounts.
+- `Item.account` records it; starting a task or research uses that account. Ids include the account for Linear and Slack items; GitHub is read once with `gh`'s login and each GitHub item takes the account of the project its repository maps to, or none (the user picks a project, which fixes the account).
+- One account failing (e.g. no Slack connector) does not fail the reading: it becomes a note `<account>: <error>`; the reading fails only when every account fails.
+- UI: every row shows its account (a colored chip); the banner has account filter chips `All 5 · monoku 3 · meridian 2` and Accept all applies to the visible ones; the Today page groups by account, then by kind.
+
 ## Left to the builder
 
 - Exact prompt wording and the tool allowlist names.

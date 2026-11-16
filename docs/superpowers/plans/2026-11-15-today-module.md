@@ -220,3 +220,28 @@ The server keeps general sessions in `<dataDir>/general-sessions.json`, but `GET
 - [ ] **Step 2:** Run → FAIL.
 - [ ] **Step 3:** Implement; rows show a GitHub icon and "View on GitHub ↗"; the review kind pill reads "Review".
 - [ ] **Step 4:** `pnpm test`, `pnpm build`, commit `feat(mod-today): GitHub comments, reviews, mentions and CI failures`.
+
+## Addendum 2 tasks (spec "Addendum 2: off by default, every account")
+
+### Task 10: Off by default
+
+**Files:** `modules/mod-today/src/{run.ts,server.ts,banner.tsx,view.tsx,rows.tsx}`, tests in `run.test.ts`, CHANGELOG.
+
+- [ ] **Step 1: Failing tests.** `the job reads nothing while Today is off` (fresh storage → job tick → `agent.run` not called, `gh` not called); `enable turns reading on and disable turns it off`; `refresh while off is refused` (ModuleError bad_request `Today is off`); `GET /digest reports enabled`.
+- [ ] **Step 2: Run** → FAIL.
+- [ ] **Step 3: Implement** storage key `enabled` (default false), actions `enable` / `disable` (`effect: 'local'`), the job and `refresh` check it, `/digest` reply gains `enabled: boolean`; banner off line with Turn on; page explains and toggles; Refresh hidden while off.
+- [ ] **Step 4:** tests + build, commit `feat(mod-today): off until turned on`.
+
+### Task 11: Every connected account
+
+**Files:** `modules/mod-today/forge-module.json` (`accounts` replaces `account`), `modules/mod-today/src/{run.ts,digest.ts,prompt.ts,ops.ts,rows.tsx,banner.tsx,view.tsx,server.ts}`, tests, docs (CHANGELOG, CLAUDE.md line).
+
+**Interfaces:**
+- `readAccounts(ctx): Promise<string[]>` — setting `accounts` (comma separated, trimmed, only existing Claude accounts) or every Claude account.
+- `Item.account?: string`; `itemId(source, link, account?)` (account included for linear/slack).
+- `Digest.notes` gains `<account>: <error>` entries for failed accounts.
+
+- [ ] **Step 1: Failing tests.** `a reading runs one reader per account with that account's projects and sessions`; `items carry their account and ids differ per account`; `one account failing becomes a note and the others are kept`; `every account failing fails the reading`; `start and research use the item's account`; `maxAuto applies per account`; `a github item takes the account of its project`; `accounts setting limits the readers`.
+- [ ] **Step 2: Run** → FAIL.
+- [ ] **Step 3: Implement**; readers run with `Promise.all`; UI: account chip per row, banner filter chips (per-viewer filter, try/catch localStorage), Accept all on visible items, page grouped by account then kind.
+- [ ] **Step 4:** `pnpm test`, `pnpm build`, browser check with two seeded accounts, commit `feat(mod-today): read every connected account`.
