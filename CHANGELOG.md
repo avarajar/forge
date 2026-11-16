@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.24 (2026-11-16)
+
 ### Fixed
 
 - Desktop app: links in a terminal open in the browser (xterm's default opened a blank window first, which the app refused), and Memory's Open viewer opens the viewer.
