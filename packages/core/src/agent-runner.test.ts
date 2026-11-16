@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runAgent } from './agent-runner.js'
@@ -41,9 +41,36 @@ describe('runAgent', () => {
     delete process.env.CW_HARNESS
     const [cmd, args, opts] = spawn.mock.calls[0] as unknown as [string, string[], { env: Record<string, string> }]
     expect(cmd).toBe('claude')
-    expect(args).toEqual(['-p', '--model', 'haiku', '--allowedTools', 'mcp__linear__get_issue,mcp__notion__search', '--output-format', 'json'])
+    expect(args).toEqual(['-p', '--model', 'haiku', '--tools', '', '--allowedTools', 'mcp__linear__get_issue,mcp__notion__search', '--output-format', 'json'])
     expect(opts.env.CLAUDE_CONFIG_DIR).toBe(join(cwHome, 'accounts', 'mono'))
     expect(opts.env.CW_HARNESS).toBeUndefined()
+  })
+
+  it('runs in a fresh empty folder that is removed afterwards', async () => {
+    const child = new FakeChild()
+    let seen: { cwd: string; empty: boolean } | undefined
+    const spawn = vi.fn((_c: string, _a: string[], opts: { cwd: string }) => {
+      seen = { cwd: opts.cwd, empty: readdirSync(opts.cwd).length === 0 }
+      return child
+    })
+    const promise = runAgent(input, { cwHome: home(), spawn: spawn as never })
+    child.finish(JSON.stringify({ result: 'x' }))
+    await promise
+    expect(seen?.empty).toBe(true)
+    expect(seen?.cwd.startsWith(tmpdir())).toBe(true)
+    expect(seen?.cwd).not.toBe(process.cwd())
+    expect(existsSync(seen!.cwd)).toBe(false)
+  })
+
+  it('removes the folder when spawning fails', async () => {
+    const child = new FakeChild()
+    let cwd = ''
+    const spawn = vi.fn((_c: string, _a: string[], opts: { cwd: string }) => { cwd = opts.cwd; return child })
+    const promise = runAgent(input, { cwHome: home(), spawn: spawn as never })
+    child.emit('error', new Error('ENOENT'))
+    await expect(promise).rejects.toMatchObject({ code: 'unreachable' })
+    expect(cwd).not.toBe('')
+    expect(existsSync(cwd)).toBe(false)
   })
 
   it('prompt is written to stdin, not argv', async () => {

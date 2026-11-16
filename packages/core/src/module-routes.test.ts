@@ -187,6 +187,13 @@ describe('moduleRoutes', () => {
       expect((await put('/api/modules/valid/banner', { enabled: true })).status).toBe(404)
     })
 
+    it('PUT banner answers 500 with the message when the switch cannot be saved', async () => {
+      mkdirSync(join(root, 'module-banners.json'))
+      const res = await put('/api/modules/with-banner/banner', { enabled: true })
+      expect(res.status).toBe(500)
+      expect(await res.json()).toMatchObject({ code: 'internal', message: expect.stringMatching(/could not save the banner switch/) })
+    })
+
     it('banner.js is a reserved route segment', async () => {
       expect(RESERVED_SEGMENTS.has('banner.js')).toBe(true)
       expect(RESERVED_SEGMENTS.has('banner')).toBe(true)

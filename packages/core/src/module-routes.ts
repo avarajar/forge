@@ -130,7 +130,11 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
     if (!host.get(id)?.status.banner) return c.json(removed(id), 404)
     const body = await c.req.json<{ enabled?: unknown }>().catch(() => ({} as { enabled?: unknown }))
     if (typeof body.enabled !== 'boolean') return c.json({ code: 'bad_request', message: 'enabled must be a boolean' }, 400)
-    host.setBanner(id, body.enabled)
+    try {
+      host.setBanner(id, body.enabled)
+    } catch (err) {
+      return c.json({ code: 'internal', message: `could not save the banner switch: ${(err as Error).message}` }, 500)
+    }
     return c.json(host.get(id)!.status)
   })
 

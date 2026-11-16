@@ -22,7 +22,7 @@ export class ModuleLoader {
     this.loaded.clear()
     const manifests: ModuleManifest[] = []
 
-    // el incluido gana sobre uno instalado con el mismo nombre: la consola se compiló contra él
+    // the bundled copy wins over an installed one of the same name: the console was built against it
     const bundled = new Set<string>()
     if (this.bundledDir) {
       for (const name of BUNDLED_MODULES) {

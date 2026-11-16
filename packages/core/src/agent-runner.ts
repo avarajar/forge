@@ -1,5 +1,6 @@
 import { spawn as nodeSpawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ModuleError } from '@forge-dev/sdk'
 import type { AgentRunInput, AgentRunResult } from '@forge-dev/sdk'
@@ -19,12 +20,18 @@ export function runAgent(input: AgentRunInput, o: { cwHome: string; spawn?: type
 
   const args = ['-p']
   if (input.model) args.push('--model', input.model)
+  // no built-in tools at all: the allowlist only pre-approves, it does not take the others away
+  args.push('--tools', '')
   args.push('--allowedTools', input.allowedTools.join(','), '--output-format', 'json')
   const spawn = o.spawn ?? nodeSpawn
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
-  return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir }, stdio: ['pipe', 'pipe', 'pipe'] })
+  // an empty folder of its own, so no project files or settings are within reach
+  const cwd = mkdtempSync(join(tmpdir(), 'forge-agent-'))
+  const cleanup = () => rmSync(cwd, { recursive: true, force: true })
+
+  return new Promise<AgentRunResult>((resolve, reject) => {
+    const child = spawn('claude', args, { cwd, env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir }, stdio: ['pipe', 'pipe', 'pipe'] })
     // the prompt goes over stdin so one that starts with a dash is never read as a flag
     child.stdin?.on('error', () => {})
     child.stdin?.end(input.prompt)
@@ -59,5 +66,5 @@ export function runAgent(input: AgentRunInput, o: { cwHome: string; spawn?: type
         turns: typeof parsed.num_turns === 'number' ? parsed.num_turns : undefined,
       })
     }))
-  })
+  }).finally(cleanup)
 }
