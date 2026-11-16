@@ -51,6 +51,7 @@ export interface PTYSession {
   cwd: string
   command: string
   createdAt: Date
+  headless: boolean
   lastClientDisconnect: Date | null
   onDataDisposable: pty.IDisposable
   onExitDisposable: pty.IDisposable
@@ -131,7 +132,7 @@ export class PTYManager {
     return `${project}::${sessionDir}`
   }
 
-  getOrCreate(project: string, sessionDir: string, session: CWSession, options: { isNew?: boolean } = {}): PTYSession | null {
+  getOrCreate(project: string, sessionDir: string, session: CWSession, options: { isNew?: boolean; headless?: boolean } = {}): PTYSession | null {
     const key = this.makeKey(project, sessionDir)
     const existing = this.sessions.get(key)
     if (existing) return existing
@@ -165,6 +166,7 @@ export class PTYManager {
       cwd,
       command,
       createdAt: new Date(),
+      headless: options.headless ?? false,
       lastClientDisconnect: null,
       onDataDisposable: null!,
       onExitDisposable: null!
@@ -280,6 +282,7 @@ export class PTYManager {
         this.kill(key)
       }
       if (
+        !session.headless &&
         session.clients.size === 0 &&
         !session.lastClientDisconnect &&
         now - session.createdAt.getTime() > IDLE_TIMEOUT_MS
