@@ -194,3 +194,29 @@ The server keeps general sessions in `<dataDir>/general-sessions.json`, but `GET
 - [ ] **Step 3: Implement** the list and both packers.
 - [ ] **Step 4: Verify** `pnpm test`; `cd packages/platform && pnpm pack`, then `tar tzf forge-cw-*.tgz | grep mod-today` lists `forge-module.json`, `package.json`, `dist/server.js`, `dist/view.js`, `dist/banner.js`.
 - [ ] **Step 5: Commit** `feat(mod-today): bundle with forge-cw and the desktop app`.
+
+---
+
+## Addendum tasks (spec section "Addendum: GitHub source and refresh on demand")
+
+### Task 8: Refresh on demand
+
+**Files:** `modules/mod-today/src/banner.tsx`, `modules/mod-today/src/rows.tsx` (shared bits), `modules/mod-today/src/run.ts` only if refresh needs a change, tests in `modules/mod-today/src/run.test.ts`.
+
+- [ ] **Step 1:** Banner header and the folded line get a Refresh button calling the `refresh` action, disabled while any action or reading runs (shared acting state), then reload the digest.
+- [ ] **Step 2:** Replace the hidden state: with no items (or no digest yet), render the minimal line `☀︎ Today · nothing new since <time of last reading> · Refresh` (`Not read yet · Refresh` before the first reading).
+- [ ] **Step 3:** Test `refresh reads only what is new since the last reading and merges into today` in run.test.ts if not already covered (second readNow same day with one new item → digest has old + new, old states kept).
+- [ ] **Step 4:** Build, test, browser check of the three banner states, commit `feat(mod-today): refresh on demand`; CHANGELOG line.
+
+### Task 9: GitHub source
+
+**Files:** `packages/sdk/src/types.ts` (`CwStartInput.type` adds `'review'`, `SessionInfo.taskUrl?: string`), `packages/core/src/module-cw.ts` + `module-context.ts` (pass review through to prepareStart; fill `taskUrl` from the session's source URL), `modules/mod-today/forge-module.json` (`shell: ["gh"]`), new `modules/mod-today/src/github.ts`, `modules/mod-today/src/{digest.ts,prompt.ts,run.ts,ops.ts,rows.tsx}`, tests next to each, docs (`module-authoring.md` cw row, CHANGELOG, CLAUDE.md).
+
+**Interfaces:**
+- `fetchGithub(ctx: ForgeContext, since: string): Promise<{ items: GithubEvent[]; error?: string }>` in github.ts; `GithubEvent = { type: 'comment' | 'review' | 'review-request' | 'mention' | 'assigned' | 'ci-failure'; repo: string; number: number; title: string; url: string; who?: string; when: string; text?: string; headRef?: string; checks?: string[] }`. Uses only `ctx.shell.exec('gh', [...])`, read-only commands, JSON output; `gh` missing/unauthenticated → `{ items: [], error }`.
+- `buildPrompt` gains `github: GithubEvent[]` and the rules from the spec addendum; `Kind` adds `'review'`; `source` adds `'github'`; `opFor` maps `review` → `start` with `cw.start({ type: 'review', project, task: url })`.
+
+- [ ] **Step 1: Failing tests.** github.test.ts with a stub `ctx.shell.exec` returning canned `gh` JSON: `maps review requests, comments, reviews, mentions, assigned issues and failing checks since a time`; `gh missing gives an error and no items`; `only read-only gh commands are run` (no `pr merge|comment|review|edit|close`, no `api -X POST|PATCH|DELETE`). digest.test.ts: `accepts source github and kind review`. run.test.ts: `a review item starts cw review with the PR url`; `a github failure does not fail the reading and is noted`. module-cw test: `start review passes through to prepareStart`.
+- [ ] **Step 2:** Run → FAIL.
+- [ ] **Step 3:** Implement; rows show a GitHub icon and "View on GitHub ↗"; the review kind pill reads "Review".
+- [ ] **Step 4:** `pnpm test`, `pnpm build`, commit `feat(mod-today): GitHub comments, reviews, mentions and CI failures`.

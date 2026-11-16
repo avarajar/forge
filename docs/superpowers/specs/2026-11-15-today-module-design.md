@@ -133,6 +133,21 @@ now" button.
 `BUNDLED_MODULES` gains `mod-today`; `pack.mjs` copies its manifest and `dist/`. The module builds with esbuild like the
 scaffold.
 
+## Addendum (2026-11-15): GitHub source and refresh on demand
+
+Asked after the first version: include GitHub feedback, and update without waiting for the next day.
+
+### GitHub source
+- What counts: comments and reviews on the user's open PRs; PRs where the user's review is requested; mentions and issues assigned to the user; failing CI checks on the user's open PRs.
+- How it is read: no GitHub connector exists in claude.ai, so the module calls `gh` itself (`shell: ["gh"]` permission, args arrays, read-only commands such as `gh api notifications`, `gh search prs`, `gh pr view --json comments,reviews,statusCheckRollup`), only items since the last reading, and passes them to the reader as extra input to classify alongside Linear and Slack. `gh` missing or signed out → the reading goes on without GitHub and the digest notes it.
+- Kinds: a comment, review or CI failure on a PR with an open CW task → `to-task` (sent with the user's click); a review request → new kind `review` that starts `cw review <pr url>`; a CI failure with no task → `issue` that starts `cw work <pr url>` with the failing checks as description; a mention or assigned issue → `request` / `issue` like Slack and Linear. `source` gains `github`.
+- SDK: `CwStartInput.type` gains `'review'`; `SessionInfo` gains the session's source URL so PRs can be matched to tasks.
+
+### Refresh on demand
+- The banner header and the folded line get a **Refresh** button (the existing `refresh` action, which reads only what is new since the last reading and merges it into today's digest); disabled while a reading runs.
+- Days with nothing new no longer hide the banner: a minimal line `☀︎ Today · nothing new since 10:17 · Refresh` stays, so refresh is always at hand. This replaces the "hidden" banner state.
+- Every refresh spends one reading of the account's usage.
+
 ## Left to the builder
 
 - Exact prompt wording and the tool allowlist names.
