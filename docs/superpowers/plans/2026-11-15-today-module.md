@@ -51,6 +51,23 @@
 - [ ] **Step 4: Run** the two files plus `src/cw-routes.test.ts` → PASS (existing start tests unchanged prove the move).
 - [ ] **Step 5: Commit** `refactor: start sessions through prepareStart and launch them headless`.
 
+### Task 1b: General sessions survive a reload
+
+The server keeps general sessions in `<dataDir>/general-sessions.json`, but `GET /api/cw/spaces` returns only sessions with a `session.json`, so the console's tab restore (`useTabManager.ts:25-41`, matches keys against `spaces`) drops every general tab on reload and they never appear in the task list.
+
+**Files:**
+- Modify: `packages/core/src/general-sessions.ts` (`list()`), `packages/core/src/cw-routes.ts:115-118` (`/spaces` merges them), `packages/core/src/server.ts` (pass `generalSessions` to `cwRoutes`)
+- Test: `packages/core/src/general-sessions.test.ts`, `packages/core/src/cw-routes.test.ts`
+
+**Interfaces:**
+- Produces: `GeneralSessions.list(project?: string): CWSession[]`; `cwRoutes` option `general?: GeneralSessions`; `/spaces` returns CW sessions plus general ones (filtered by `?project=`), sorted by `last_opened` like today.
+
+- [ ] **Step 1: Failing tests.** `list returns remembered sessions and drops expired ones`; `GET /spaces includes a remembered general session`; `GET /spaces?project=x includes only x's general sessions`; `a killed general session is gone from /spaces` (after `POST /terminal/kill`).
+- [ ] **Step 2: Run** `pnpm --filter @forge-dev/core exec vitest run src/general-sessions.test.ts src/cw-routes.test.ts` → FAIL.
+- [ ] **Step 3: Implement**; general rows render in their project card through the existing `sessionLabel` (`config/types.ts:111`), no console change unless the type check or a manual reload shows one is needed.
+- [ ] **Step 4: Verify** core tests pass; build, start a general session, reload the browser: the tab comes back and the row shows in its project.
+- [ ] **Step 5: Commit** `fix: general sessions come back after a reload`; CHANGELOG line under Fixed.
+
 ### Task 2: SDK 1.1.0 — `cw` and `agent` permissions and context
 
 **Files:**
