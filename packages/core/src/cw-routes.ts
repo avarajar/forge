@@ -17,6 +17,7 @@ import { buildTaskReviewState, createLimiter, resolveBase, runCommand, type Runn
 import type { TaskReviewState } from './cw-types.js'
 import { detectEditors, openInEditor, systemProbe, type DetectedEditor } from './editors.js'
 import { tailOutput } from './output.js'
+import type { GeneralSessions } from './general-sessions.js'
 import { prepareStart, pendingSessions, type StartInput } from './cw-start.js'
 
 const execFileAsync = promisify(execFile)
@@ -52,7 +53,7 @@ async function runCw(bin: string, args: string[], timeoutMs: number): Promise<Ru
   }
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; events?: EventEmitter } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; events?: EventEmitter; general?: GeneralSessions } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
@@ -107,7 +108,8 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
   app.get('/spaces', (c) => {
     const project = c.req.query('project')
-    return c.json(reader.getSpaces(project))
+    const spaces = [...reader.getSpaces(project), ...(options.general?.list(project) ?? [])]
+    return c.json(spaces.sort((a, b) => new Date(b.last_opened).getTime() - new Date(a.last_opened).getTime()))
   })
 
   app.get('/session/:project/:sessionDir', (c) => {

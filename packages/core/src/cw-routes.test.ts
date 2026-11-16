@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import type { Runner } from './task-review.js'
 import type { TaskReviewState } from './cw-types.js'
 import type { DetectedEditor } from './editors.js'
+import { GeneralSessions } from './general-sessions.js'
 import { makeFixtureRepo, type FixtureRepo } from './test-git.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
@@ -71,6 +72,37 @@ describe('CW Routes', () => {
     expect(res.status).toBe(200)
     const body = await res.json() as unknown[]
     expect(body.length).toBeGreaterThan(0)
+  })
+
+  describe('general sessions in /spaces', () => {
+    const general = new GeneralSessions()
+    const make = (project: string, dir: string, last: string) => ({
+      project, type: 'general', account: 'default', workflow: '', worktree: '/tmp', notes: '',
+      status: 'active', created: last, last_opened: last, opens: 0, sessionDir: dir,
+    })
+    let gapp: Hono
+
+    beforeAll(() => {
+      general.remember('testproj::general-default-1', make('testproj', 'general-default-1', '2026-05-01T00:00:00Z'))
+      general.remember('__general::general-default-2', make('__general', 'general-default-2', '2026-05-02T00:00:00Z'))
+      gapp = new Hono()
+      gapp.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { general }))
+    })
+
+    it('GET /spaces includes a remembered general session', async () => {
+      const body = await (await gapp.request('/api/cw/spaces')).json() as { sessionDir: string }[]
+      const dirs = body.map((s) => s.sessionDir)
+      expect(dirs).toContain('general-default-2')
+      expect(dirs).toContain('task-mytask')
+      expect(dirs.indexOf('general-default-2')).toBeLessThan(dirs.indexOf('task-mytask'))
+    })
+
+    it("GET /spaces?project=x includes only x's general sessions", async () => {
+      const body = await (await gapp.request('/api/cw/spaces?project=testproj')).json() as { sessionDir: string }[]
+      const dirs = body.map((s) => s.sessionDir)
+      expect(dirs).toContain('general-default-1')
+      expect(dirs).not.toContain('general-default-2')
+    })
   })
 
   it('GET /api/cw/spaces?project=testproj filters', async () => {

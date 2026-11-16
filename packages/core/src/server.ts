@@ -77,8 +77,9 @@ export function createForgeServer(options: ServerOptions) {
   }
 
   const cwReader = new CWReader(options.cwDir)
+  const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
-  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
+  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, general: generalSessions, events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
   app.route('/api/skills', skillRoutes(cwReader, { backupDir: join(dataDir, 'skill-backups') }))
 
   const { remote, shadow, warning } = remoteClassifierFromEnv()
@@ -97,7 +98,6 @@ export function createForgeServer(options: ServerOptions) {
     },
   })
   const ptyManager = new PTYManager(states)
-  const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, authToken, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())

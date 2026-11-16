@@ -22,6 +22,10 @@ export class GeneralSessions {
     return this.sessions.get(key)
   }
 
+  list(project?: string): CWSession[] {
+    return [...this.sessions.values()].filter((s) => !project || s.project === project)
+  }
+
   remember(key: string, session: CWSession): void {
     this.sessions.set(key, session)
     this.save()
