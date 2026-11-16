@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.26 (2026-11-16)
+
 ### Fixed
 
 - Today: a reader waits for the account's claude.ai connectors (Linear, Slack) to connect before it starts, so connected accounts no longer report them as unreachable. The one retry after a failed read now waits 15 s.
