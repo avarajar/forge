@@ -7,6 +7,8 @@
 ### Fixed
 
 - Desktop app: links in a terminal open in the browser (xterm's default opened a blank window first, which the app refused), and Memory's Open viewer opens the viewer.
+- Today: review requests are the ones asked of you, not of a team you belong to.
+- Today: when a reader cannot reach Slack or Linear (for example while the account's connectors are still connecting) it tries once more and then says so on the banner, instead of reporting nothing new.
 
 ## 0.1.23 (2026-11-16)
 

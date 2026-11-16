@@ -92,7 +92,8 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
     const [user, mine, asked, issues, notes] = await Promise.all([
       gh<Login>(ctx, ['api', 'user']),
       search('--author=@me'),
-      search('--review-requested=@me'),
+      // reviews asked of me, not of a team I belong to
+      search('user-review-requested:@me'),
       search('--assignee=@me', 'issues'),
       gh<Notification[]>(ctx, ['api', `notifications?since=${encodeURIComponent(since)}`, '--paginate']),
     ])

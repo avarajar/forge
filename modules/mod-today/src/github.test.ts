@@ -16,7 +16,7 @@ function stub(over: Record<string, unknown> = {}) {
     if (key in over) return over[key] as ReturnType<typeof ok>
     if (key === 'api user') return ok({ login: 'me' })
     if (key === 'search prs') {
-      return args.includes('--review-requested=@me')
+      return args.includes('user-review-requested:@me')
         ? ok([{ number: 9, title: 'Add cache', url: 'https://github.com/o/r/pull/9', repository: repo, updatedAt: '2026-11-15T07:00:00Z', author: { login: 'ana' } }, { number: 3, title: 'Old', url: 'https://github.com/o/r/pull/3', repository: repo, updatedAt: '2026-11-10T07:00:00Z', author: { login: 'bo' } }])
         : ok([{ number: 7, title: 'Fix login', url: PR, repository: repo, updatedAt: '2026-11-15T07:00:00Z' }])
     }

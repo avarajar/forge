@@ -500,6 +500,30 @@ describe('every account', () => {
     expect(s.store.get('lastReadAt')).toBe(NOW.toISOString())
   })
 
+  it('a source the reader could not reach becomes a note after one retry', async () => {
+    const reader = vi.fn<Reader>(async ({ account }) => ({ text: JSON.stringify(account === 'meridian' ? { items: [], problems: ['slack: server still connecting'] } : { items: [raw({})] }) }))
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader, settings: { autoResearch: false } })
+    const d = await readNow(s.ctx, NOW)
+    expect(reader.mock.calls.filter(([i]) => i.account === 'meridian')).toHaveLength(2)
+    expect(reader.mock.calls.filter(([i]) => i.account === 'monoku')).toHaveLength(1)
+    expect(d.notes).toEqual(['meridian: slack: server still connecting'])
+    expect(d.items).toHaveLength(1)
+  })
+
+  it('a retry that reaches the source keeps its items and adds no note', async () => {
+    let calls = 0
+    const reader: Reader = async ({ account }) => {
+      if (account !== 'meridian') return { text: '{"items":[]}' }
+      calls++
+      return { text: JSON.stringify(calls === 1 ? { items: [], problems: ['linear: unavailable'] } : { items: [raw({ link: 'https://x.test/m' })] }) }
+    }
+    const s = two({})
+    s.run.mockImplementation(reader)
+    const d = await readNow(s.ctx, NOW)
+    expect(d.notes ?? []).toEqual([])
+    expect(d.items.map(i => i.link)).toEqual(['https://x.test/m'])
+  })
+
   it('every account failing fails the reading', async () => {
     const s = two({ monoku: new Error('a'), meridian: new Error('b') })
     const d = await readNow(s.ctx, NOW)

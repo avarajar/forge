@@ -82,6 +82,18 @@ function extractJson(out: string): unknown {
   }
 }
 
+// what the reader could not reach, bounded and one line each
+export function parseReaderProblems(out: string): string[] {
+  let root: unknown
+  try {
+    root = extractJson(out)
+  } catch {
+    return []
+  }
+  if (!isRecord(root) || !Array.isArray(root.problems)) return []
+  return root.problems.filter((p): p is string => typeof p === 'string' && p.trim() !== '').slice(0, 5).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 160))
+}
+
 export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[]; account?: string }): Item[] {
   const root = extractJson(out)
   if (!isRecord(root) || !Array.isArray(root.items)) throw new Error('reader output needs an items array')

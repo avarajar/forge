@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext, type ProjectInfo, type SessionInfo } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { countStart, dedupe, itemId, parseReaderOutput, pendingCount, startedBy, type Digest, type Item, type Op } from './digest'
+import { countStart, dedupe, itemId, parseReaderOutput, parseReaderProblems, pendingCount, startedBy, type Digest, type Item, type Op } from './digest'
 import { errorMessage, githubPage, inAccount, oneLine, opFor, ownersOf, startsTask, untrusted } from './ops'
 import { fetchGithub, type GithubEvent } from './github'
 
@@ -79,17 +79,21 @@ function collapse(items: Item[]): Item[] {
   return [...byId.values()]
 }
 
-interface Reader { account: string; items: Item[]; error?: string }
+interface Reader { account: string; items: Item[]; problems?: string[]; error?: string }
 
 // reads one account's connectors; a reader that got GitHub events marks its items manual
-async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string> }): Promise<Item[]> {
+async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string> }): Promise<{ items: Item[]; problems: string[] }> {
   const mine = <T extends { account?: string }>(x: T) => !x.account || x.account === account
   const sessions = o.sessions.filter(mine)
   const projects = o.projects.filter(mine).map(p => p.name)
   const github = (await o.github)?.items ?? []
   const prompt = buildPrompt({ since: o.since, sessions, projects, github })
   const model = typeof ctx.settings.model === 'string' && ctx.settings.model ? ctx.settings.model : undefined
-  const out = await ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
+  const ask = () => ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
+  let out = await ask()
+  // connectors can still be connecting when a headless run starts, so one retry before giving up
+  if (parseReaderProblems(out.text).length) out = await ask()
+  const problems = parseReaderProblems(out.text)
   const fetched = new Set(github.map(e => e.pr))
   const toReview = new Set(github.filter(e => e.type === 'review-request').map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`), account })
@@ -97,7 +101,7 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
   const placed = checkGithub(items, fetched, toReview).map(i => (i.source === 'github' ? { ...i, account: o.owners[i.project ?? i.targetSession?.project ?? ''] } : i))
   const fresh = dedupe(collapse(placed), o.handled)
   // GitHub text shares the reader's call, so anything it read may be steered by it
-  return github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh
+  return { items: github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh, problems }
 }
 
 // notes collects problems that do not fail the reading
@@ -115,7 +119,7 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   const owners = ownersOf(projects)
   const results = await Promise.all(accounts.map(async (account, n): Promise<Reader> => {
     try {
-      return { account, items: await readAccount(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} }) }
+      return { account, ...(await readAccount(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} })) }
     } catch (e) {
       return { account, items: [], error: errorMessage(e) }
     }
@@ -126,6 +130,7 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   const failed = results.filter(r => r.error)
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
   notes.push(...failed.map(f => `${f.account}: ${f.error}`))
+  notes.push(...results.flatMap(r => (r.problems ?? []).map(p => `${r.account}: ${p}`)))
   return collapse(results.flatMap(r => r.items))
 }
 
