@@ -27,6 +27,11 @@ export function githubPage(link: string): string | null {
   return host === 'github.com' || host.endsWith('.github.com') ? link.split('#')[0] : null
 }
 
+// the projects an item may start in: its account's and those with no account (all when it has none)
+export function projectsFor(names: string[], owners: Record<string, string>, account?: string): string[] {
+  return account ? names.filter(n => !owners[n] || owners[n] === account) : names
+}
+
 export const failedLine = (error: string) => `Last reading failed: ${error}`
 
 // problems that did not fail the reading, on one line

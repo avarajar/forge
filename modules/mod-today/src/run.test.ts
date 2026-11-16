@@ -572,4 +572,18 @@ describe('every account', () => {
     const out = await acceptAll(s.ctx, DATE, undefined, undefined, 'meridian')
     expect(out.items.map(i => [i.account, i.state]).sort()).toEqual([['meridian', 'done'], ['monoku', 'proposed']])
   })
+
+  it('start refuses a project from another account', async () => {
+    const s = two({ meridian: [raw({ kind: 'request' })] })
+    const d = await readNow(s.ctx, NOW)
+    await expect(applyItem(s.ctx, DATE, d.items[0].id, 'start', 'forge')).rejects.toMatchObject({ code: 'bad_request', message: 'project belongs to another account' })
+    expect(s.start).not.toHaveBeenCalled()
+  })
+
+  it('notes that GitHub was skipped when the first reader fails', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ type: 'comment', repo: 'o/r', number: 9, title: 'T', url: 'https://github.com/o/r/pull/9', pr: 'https://github.com/o/r/pull/9', when: '2026-11-15T08:00:00Z' }] })
+    const s = two({ monoku: new Error('boom'), meridian: [raw({})] })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.notes).toEqual(['GitHub: not read', 'monoku: boom'])
+  })
 })

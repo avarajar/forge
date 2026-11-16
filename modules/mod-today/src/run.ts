@@ -125,6 +125,7 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
       return { account, error: errorMessage(e) }
     }
   }))
+  if ('error' in results[0] && gh.items.length) notes.push('GitHub: not read')
   const failed = results.filter((r): r is { account: string; error: string } => 'error' in r)
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
   notes.push(...failed.map(f => `${f.account}: ${f.error}`))
@@ -245,8 +246,6 @@ async function researchDirectory(ctx: ForgeContext): Promise<string> {
 
 // runs one op on an item in memory; send problems keep it proposed, start problems fail it
 async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string): Promise<void> {
-  // the item's account; a GitHub item has none until the person picks a project
-  const accountOf = async (name?: string) => item.account ?? (name ? (await ctx.projects.list()).find(p => p.name === name)?.account : undefined)
   if (op === 'dismiss') {
     item.state = 'dismissed'
     delete item.error
@@ -283,7 +282,9 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
       : item.kind === 'issue'
       ? { type: 'work' as const, project: target, task: url, ...(item.source === 'github' && item.quote ? { description: [item.title, item.quote].join('\n\n') } : {}) }
       : { type: 'work' as const, project: target, task: slug(item.title), description: [item.title, item.quote, `From ${sourceText(item)}: ${item.link}`].filter(Boolean).join('\n\n') }
-    const account = await accountOf(target)
+    const owner = (await ctx.projects.list()).find(p => p.name === target)?.account
+    if (item.account && owner && owner !== item.account) throw new ModuleError('bad_request', 'project belongs to another account')
+    const account = item.account ?? owner
     await startSession(ctx, item, account ? { ...input, account } : input)
     return
   }

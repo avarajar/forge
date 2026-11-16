@@ -37,8 +37,8 @@ const call = (id: string, ctx: ForgeContext) => (action(id).run as (i: unknown, 
 describe('today routes', () => {
   it('lists the CW project names for the picker', async () => {
     const route = server.routes?.find(r => r.path === '/projects')
-    const ctx = { projects: { list: async () => [{ name: 'forge', path: '/p/forge' }, { name: 'cw', path: '/p/cw' }] } } as unknown as ForgeContext
-    expect(await route!.handler({ params: {}, query: {}, body: undefined }, ctx)).toEqual({ projects: ['forge', 'cw'] })
+    const ctx = { projects: { list: async () => [{ name: 'forge', path: '/p/forge', account: 'monoku' }, { name: 'cw', path: '/p/cw' }] } } as unknown as ForgeContext
+    expect(await route!.handler({ params: {}, query: {}, body: undefined }, ctx)).toEqual({ projects: ['forge', 'cw'], owners: { forge: 'monoku' } })
   })
 
   it('GET /digest reports enabled', async () => {

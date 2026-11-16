@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { accountToken, dayLabel, foldedNow, isToday, shortDay } from './rows'
-import { byAccount, failedLine, notesLine, opFor } from './ops'
+import { byAccount, failedLine, notesLine, opFor, projectsFor } from './ops'
 import type { Item } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -77,5 +77,11 @@ describe('accounts in the views', () => {
     const blocks = byAccount([at('a'), at('b', 'research'), at(undefined)])
     expect(blocks.map(b => b.account)).toEqual(['a', 'b', undefined])
     expect(blocks[1].sections.map(s => s.title)).toEqual(['Researching'])
+  })
+
+  it('the project picker lists the item\'s account and unowned projects', () => {
+    const owners = { forge: 'monoku', atlas: 'meridian' }
+    expect(projectsFor(['forge', 'atlas', 'misc'], owners, 'meridian')).toEqual(['atlas', 'misc'])
+    expect(projectsFor(['forge', 'atlas'], owners)).toEqual(['forge', 'atlas'])
   })
 })

@@ -3,7 +3,7 @@ import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
 import type { Digest, Item, Kind, Op } from './digest'
-import { errorMessage, opFor } from './ops'
+import { errorMessage, opFor, projectsFor } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
@@ -80,10 +80,12 @@ export function useDigest(forge: PanelClient, path = '/digest') {
   return { reply, error, reload: load }
 }
 
-export function useProjects(forge: PanelClient): string[] {
-  const [projects, setProjects] = useState<string[]>([])
+export interface ProjectList { names: string[]; owners: Record<string, string> }
+
+export function useProjects(forge: PanelClient): ProjectList {
+  const [projects, setProjects] = useState<ProjectList>({ names: [], owners: {} })
   useEffect(() => {
-    forge.route<{ projects: string[] }>('/projects').then(r => setProjects(r.projects), () => {})
+    forge.route<{ projects: string[]; owners?: Record<string, string> }>('/projects').then(r => setProjects({ names: r.projects, owners: r.owners ?? {} }), () => {})
   }, [forge])
   return projects
 }
@@ -244,7 +246,7 @@ function outcome(item: Item): ComponentChildren {
   return <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>Started{where ? ` · ${where}` : ''}</span>
 }
 
-export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: Acting; forge: PanelClient }> = ({ item, projects = [], acting, forge }) => {
+export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting: Acting; forge: PanelClient }> = ({ item, projects = { names: [], owners: {} }, acting, forge }) => {
   const [project, setProject] = useState(item.project ?? '')
   const open = item.state === 'proposed' || item.state === 'failed'
   const needsProject = (item.kind === 'issue' || item.kind === 'request' || item.kind === 'review') && !item.project
@@ -275,7 +277,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: A
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <KindPill kind={item.kind} />
-        {open && needsProject && <ProjectPicker projects={projects} value={project} onChange={setProject} />}
+        {open && needsProject && <ProjectPicker projects={projectsFor(projects.names, projects.owners, item.account)} value={project} onChange={setProject} />}
         {open && <Btn label={item.state === 'failed' ? 'Retry' : verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />}
         {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => acting.act(item, 'dismiss')} />}
         {item.state === 'done' && outcome(item)}

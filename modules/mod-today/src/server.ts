@@ -46,7 +46,11 @@ export default defineModule({
         return digestFor(ctx, req.params.date)
       },
     }),
-    defineRoute({ method: 'GET', path: '/projects', handler: async (_req, ctx) => ({ projects: (await ctx.projects.list()).map(p => p.name) }) }),
+    defineRoute({ method: 'GET', path: '/projects', handler: async (_req, ctx) => {
+        const all = await ctx.projects.list()
+        return { projects: all.map(p => p.name), owners: Object.fromEntries(all.flatMap(p => (p.account ? [[p.name, p.account]] : []))) }
+      },
+    }),
     defineRoute({ method: 'GET', path: '/days', handler: async (_req, ctx) => ({ days: await digestDates(ctx) }) }),
   ],
   actions: [

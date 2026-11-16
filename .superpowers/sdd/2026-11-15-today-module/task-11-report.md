@@ -23,3 +23,9 @@ Scratch HOME (:3921), digest seeded into module_kv with sqlite (monoku + meridia
 ## Concerns
 - Banner filter not seen in a browser.
 - Existing start tests now expect `account: 'monoku'` in `cw.start` input.
+
+## Fix round 1
+- perform refuses a project owned by another account than the item's (`project belongs to another account`); the `/projects` route also returns `owners`; the picker uses `projectsFor` (item's account + unowned; all when the item has no account).
+- When reader 0 fails and GitHub events were fetched, note `GitHub: not read`.
+- Tests: `start refuses a project from another account`, `notes that GitHub was skipped...`, picker filtering in rows.test.ts, server `/projects` owners.
+- `pnpm --filter @forge-dev/mod-today test` -> 107 passed; `pnpm build` 8/8.
