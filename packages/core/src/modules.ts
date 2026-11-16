@@ -5,6 +5,9 @@ import type { LegacyManifest as ModuleManifest, LegacyActionDef as ActionDef } f
 // módulos que viajan con Forge porque la consola los usa (la vista QA llama a mod-qa)
 export const BUNDLED_MODULES = ['mod-qa']
 
+// módulos v1 incluidos: los carga ModuleHost y el cargador heredado no los toca
+export const BUNDLED_V1_MODULES = ['mod-today']
+
 export class ModuleLoader {
   private modulesDir: string
   private bundledDir: string | undefined

@@ -6,6 +6,7 @@ import { ForgeDB } from './db.js'
 import { ActionRunner } from './runner.js'
 import { CWReader } from './cw-reader.js'
 import { ModuleHost, type HostOptions } from './module-host.js'
+import { ModuleLoader } from './modules.js'
 
 const FIXTURES = join(import.meta.dirname, '../test/fixtures/modules')
 
@@ -76,6 +77,29 @@ describe('ModuleHost', () => {
     install('with-banner')
     await make({ bundledDir: undefined }).scan()
     expect(status('with-banner')?.banner?.enabled).toBe(false)
+  })
+
+  it('bundled v1 module loads from bundledDir and the legacy loader ignores it', async () => {
+    const bundled = join(root, 'bundled')
+    mkdirSync(bundled)
+    install('with-banner', join(bundled, 'mod-today'))
+    await make({ bundledDir: bundled }).scan()
+    expect(status('with-banner')).toMatchObject({ state: 'enabled', source: 'bundled' })
+    expect(new ModuleLoader(modulesDir, bundled).discover()).toEqual([])
+  })
+
+  it('ignores a banner switch that is not a boolean', async () => {
+    install('with-banner')
+    writeFileSync(join(root, 'module-banners.json'), JSON.stringify({ 'with-banner': 'yes' }))
+    await make().scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(false)
+  })
+
+  it('setBanner creates the folder of its file', async () => {
+    install('with-banner')
+    await make({ devFile: join(root, 'state', 'dev-modules.json') }).scan()
+    host.setBanner('with-banner', true)
+    expect(JSON.parse(readFileSync(join(root, 'state', 'module-banners.json'), 'utf-8'))).toEqual({ 'with-banner': true })
   })
 
   it('setBanner persists across a new host', async () => {

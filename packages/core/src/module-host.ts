@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isShellExecutor } from '@forge-dev/sdk'
@@ -6,7 +6,7 @@ import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, Modu
 import { checkManifest, manifestFileFor, validateSettings, type SettingsResult } from './module-manifest.js'
 import { expandGrants, type Grants } from './module-permissions.js'
 import { createForgeContext, type ContextDeps } from './module-context.js'
-import { BUNDLED_MODULES } from './modules.js'
+import { BUNDLED_MODULES, BUNDLED_V1_MODULES } from './modules.js'
 
 export const RESERVED_SEGMENTS = new Set(['settings', 'actions', 'view.js', 'banner.js', 'banner', 'status', 'notifications', 'reload'])
 
@@ -170,7 +170,8 @@ export class ModuleHost {
   private readBanners(): Record<string, boolean> {
     try {
       const raw = JSON.parse(readFileSync(this.bannersFile, 'utf-8'))
-      return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+      return Object.fromEntries(Object.entries(raw).filter((e): e is [string, boolean] => typeof e[1] === 'boolean'))
     } catch {
       return {}
     }
@@ -179,6 +180,7 @@ export class ModuleHost {
   setBanner(id: string, enabled: boolean): void {
     const banner = this.loaded.get(id)?.status.banner
     if (!banner) return
+    mkdirSync(dirname(this.bannersFile), { recursive: true })
     writeFileSync(this.bannersFile, JSON.stringify({ ...this.readBanners(), [id]: enabled }, null, 2))
     banner.enabled = enabled
   }
@@ -195,7 +197,7 @@ export class ModuleHost {
   private candidates(): Candidate[] {
     const out: Candidate[] = []
     const folder = (dir: string, source: ModuleSource) => out.push({ dir, source, manifestFile: join(dir, 'forge-module.json'), packaged: false })
-    if (this.opts.bundledDir) for (const name of BUNDLED_MODULES) folder(join(this.opts.bundledDir, name), 'bundled')
+    if (this.opts.bundledDir) for (const name of [...BUNDLED_MODULES, ...BUNDLED_V1_MODULES]) folder(join(this.opts.bundledDir, name), 'bundled')
     for (const dir of this.devDirs()) folder(dir, 'dev')
     if (existsSync(this.opts.modulesDir)) {
       for (const entry of readdirSync(this.opts.modulesDir, { withFileTypes: true })) {

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+
+- Today module (`mod-today`, bundled): a daily Linear and Slack digest read by a headless agent, shown as a banner on the task list and as the Today page, with item actions (start a task, research, open a session or page).
+- Module banners: a module's `view.banner` bundle renders on the task list, served at `GET /api/modules/:id/banner.js` and switched with `PUT /api/modules/:id/banner` (on by default for bundled modules).
+- Module SDK 1.1.0: `cw` and `agent` permissions, `ctx.cw.start`, `ctx.sessions.send`, `ctx.agent.run`, and `openSession` and `openPage` on the panel client.
+- Bundled v1 modules ship in the npm package and the desktop app with their `package.json` and `dist/`.
+
 ### Fixed
 
 - General sessions show in the task list and their tabs come back after a reload: `GET /api/cw/spaces` now includes the ones Forge remembers (until their tab is closed). Marking one done closes it without running `cw`.
