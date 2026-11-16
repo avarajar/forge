@@ -99,6 +99,8 @@ export interface ModulePermissions {
   'fs:write'?: string[]
   shell?: string[]
   pty?: boolean
+  cw?: Array<'start' | 'send'>
+  agent?: boolean
 }
 
 export interface ModuleManifestV1 {
@@ -139,6 +141,33 @@ export interface ModuleStatus {
   lastDenial?: { permission: string; value: string; at: string }
   // installed into Forge's modules folder, so the console can remove it
   removable?: boolean
+}
+
+// cw and agent
+
+export interface CwStartInput {
+  type: 'work' | 'general'
+  project?: string
+  task: string
+  directory?: string
+  account?: string
+  harness?: string
+}
+
+export type SendResult = 'typed' | 'resumed' | 'unsupported' | 'unavailable'
+
+export interface AgentRunInput {
+  account: string
+  prompt: string
+  model?: string
+  allowedTools: string[]
+  timeoutMs?: number
+}
+
+export interface AgentRunResult {
+  text: string
+  costUsd?: number
+  turns?: number
 }
 
 // core data shapes handed to modules
@@ -214,7 +243,12 @@ export interface EventSubscription<E extends ForgeEventName = ForgeEventName> {
 export interface ForgeContext {
   module: { id: string; version: string }
   readonly settings: ModuleSettings
-  sessions: { list(): Promise<SessionInfo[]> }
+  sessions: {
+    list(): Promise<SessionInfo[]>
+    send(project: string, sessionDir: string, text: string): Promise<SendResult>
+  }
+  cw: { start(input: CwStartInput): Promise<{ project: string; sessionDir: string }> }
+  agent: { run(input: AgentRunInput): Promise<AgentRunResult> }
   projects: { list(): Promise<ProjectInfo[]>; dir(name: string): Promise<string | null> }
   accounts: { list(): Promise<AccountInfo[]> }
   git: { status(project: string, sessionDir: string): Promise<GitStatus> }

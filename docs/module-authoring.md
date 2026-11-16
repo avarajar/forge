@@ -93,6 +93,8 @@ the tool keeps it, through `fs:read`.
 | `fs:write` | same | `ctx.fs.write` |
 | `shell` | executables | `ctx.shell.exec`, shell actions |
 | `pty` | `true` | `ctx.pty.spawn` |
+| `cw` | `["start", "send"]` | `ctx.cw.start` (a CW session, headless), `ctx.sessions.send` (types into a Claude Code session, resuming it if needed) |
+| `agent` | `true` | `ctx.agent.run` (a headless `claude -p` under a CW account) |
 
 `{key}` fills in a setting and `{list[].field}` gives one grant per list item. A grant whose setting is empty is
 dropped, never widened, and a value that would change the literal part (`evil.com#` in a host, `..` in the middle
@@ -140,7 +142,7 @@ export default defineModule({
   `module.settings.changed`. Session payloads carry `harness`, `provider` and `model`. Handlers run after the event,
   with 10 s each.
 - **`ctx`** gives `settings`, `sessions`, `projects`, `accounts`, `git.status`, `storage` (JSON, scoped to the module),
-  `notify`, `fetch`, `fs`, `shell.exec(command, args)` (never a shell string), `pty` and `log`.
+  `notify`, `fetch`, `fs`, `shell.exec(command, args)` (never a shell string), `pty`, `cw.start`, `sessions.send`, `agent.run` and `log`.
 
 Bundle the SDK into `dist/server.js` (the scaffold does); Forge recognises its errors by name and code.
 

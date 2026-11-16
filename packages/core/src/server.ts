@@ -1,3 +1,5 @@
+import { createCwDeps } from './module-cw.js'
+import { runAgent } from './agent-runner.js'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import type { Context } from 'hono'
@@ -131,7 +133,13 @@ export function createForgeServer(options: ServerOptions) {
     forgeNodeModules: options.forgeNodeModules,
     devFile: join(dataDir, 'dev-modules.json'),
     localOnly,
-    deps: { db, reader: cwReader, runner },
+    deps: {
+      db,
+      reader: cwReader,
+      runner,
+      cw: createCwDeps({ reader: cwReader, manager: ptyManager, states, general: generalSessions }),
+      agent: { run: (i) => runAgent(i, { cwHome: cwReader.cwHome }) },
+    },
     hooks: {
       loaded: (mod) => {
         for (const sub of mod.server?.events ?? []) moduleEvents.subscribe(mod.status.id, sub, mod.ctx)

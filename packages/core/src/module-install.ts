@@ -58,7 +58,7 @@ function readFolder(dir: string): ManifestPreview {
   return check
 }
 
-export interface PermissionLine { kind: 'network' | 'fs:read' | 'fs:write' | 'shell' | 'pty'; value: string }
+export interface PermissionLine { kind: 'network' | 'fs:read' | 'fs:write' | 'shell' | 'pty' | 'cw' | 'agent'; value: string }
 
 export function permissionLines(manifest: ModuleManifestV1 | LegacyManifest): PermissionLine[] {
   const p = 'permissions' in manifest ? manifest.permissions ?? {} : {}
@@ -67,6 +67,8 @@ export function permissionLines(manifest: ModuleManifestV1 | LegacyManifest): Pe
     for (const value of p[kind] ?? []) lines.push({ kind, value })
   }
   if (p.pty) lines.push({ kind: 'pty', value: 'yes' })
+  if (p.cw?.length) lines.push({ kind: 'cw', value: p.cw.join(', ') })
+  if (p.agent) lines.push({ kind: 'agent', value: 'yes' })
   const legacy = 'actions' in manifest && (manifest.actions ?? []).some(a => 'command' in a)
   if (legacy) lines.push({ kind: 'shell', value: 'runs the shell commands in its manifest' })
   return lines

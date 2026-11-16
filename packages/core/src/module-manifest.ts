@@ -16,7 +16,8 @@ export type SettingsResult =
 
 const V1_FIELDS = ['server', 'view', 'permissions', 'id']
 const TOP_LEVEL = new Set(['$schema', 'id', 'name', 'version', 'sdk', 'displayName', 'description', 'icon', 'color', 'server', 'view', 'permissions', 'settings', 'actions', 'detectors', 'panels', 'claude'])
-const PERMISSIONS = new Set(['network', 'fs:read', 'fs:write', 'shell', 'pty'])
+const PERMISSIONS = new Set(['network', 'fs:read', 'fs:write', 'shell', 'pty', 'cw', 'agent'])
+const BOOLEAN_PERMISSIONS = new Set(['pty', 'agent'])
 const SCALAR_TYPES = new Set(['string', 'number', 'boolean', 'enum'])
 const FORMATS = new Set(['path', 'cw-project', 'url'])
 
@@ -57,9 +58,11 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
     else {
       for (const [key, value] of Object.entries(raw.permissions)) {
         if (!PERMISSIONS.has(key)) err(`/permissions/${key}`, 'unknown permission')
-        else if (key === 'pty' ? typeof value !== 'boolean' : !isStringArray(value)) {
-          err(`/permissions/${key}`, key === 'pty' ? 'must be a boolean' : 'must be a list of strings')
-        }
+        else if (BOOLEAN_PERMISSIONS.has(key)) {
+          if (typeof value !== 'boolean') err(`/permissions/${key}`, 'must be a boolean')
+        } else if (key === 'cw') {
+          if (!Array.isArray(value) || !value.every(v => v === 'start' || v === 'send')) err('/permissions/cw', 'must be a list of "start" or "send"')
+        } else if (!isStringArray(value)) err(`/permissions/${key}`, 'must be a list of strings')
       }
     }
   }

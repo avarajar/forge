@@ -24,7 +24,7 @@ packages/
   core/       → Hono server, CW reader, PTY manager, harness logins, skills, Liveframe launcher, DB, action runner
   console/    → Preact dashboard
   ui/         → Shared UI components (Terminal, StatusCard, ActionButton, Toast, Modal, Drawer...)
-  sdk/        → Module SDK v1 1.0.0 (types, define* helpers, errors, forge-module.schema.json); `pnpm --filter @forge-dev/sdk reference` writes docs/sdk-reference.md
+  sdk/        → Module SDK v1 1.1.0 (types, define* helpers, errors, forge-module.schema.json); `pnpm --filter @forge-dev/sdk reference` writes docs/sdk-reference.md
   cli/        → CLI commands (forge init/console/doctor/module install|remove|list|dev|create/project/run); `templates/module` is the scaffold
   platform/   → Entry point and the published package (`forge-cw` on npm), carries CW
   desktop/    → macOS app (personal use, ad hoc signed): Electron shell, server in the main process, login-shell PATH, menu bar session count; `pnpm --filter @forge-dev/desktop app:install`

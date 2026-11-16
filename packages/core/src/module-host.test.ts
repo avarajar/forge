@@ -74,7 +74,7 @@ describe('ModuleHost', () => {
   it.each([
     ['bad-json', 'bad-json', /JSON/],
     ['schema-error', 'schema-error', /\/permissions\/camera: unknown permission/],
-    ['sdk-incompatible', 'sdk-incompatible', /needs SDK \^2.0.0, Forge has 1.0.0/],
+    ['sdk-incompatible', 'sdk-incompatible', /needs SDK \^2.0.0, Forge has 1.1.0/],
     ['sdk-missing', 'sdk-missing', /declares v1 fields but no sdk range/],
     ['import-throws', 'import-throws', /cannot start: missing config/],
     ['shell-undeclared', 'shell-undeclared', /action status uses shell but the manifest does not declare it/],

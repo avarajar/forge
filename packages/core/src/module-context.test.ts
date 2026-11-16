@@ -95,6 +95,48 @@ describe('createForgeContext', () => {
     await expect(ctx.pty.spawn('bash', [], { cwd: root, name: 'x' })).rejects.toBeInstanceOf(PermissionError)
   })
 
+  describe('cw and agent', () => {
+    const start = vi.fn(async () => ({ project: 'p', sessionDir: 's' }))
+    const send = vi.fn(async () => 'typed' as const)
+    const run = vi.fn(async () => ({ text: 'hi' }))
+    beforeEach(() => {
+      start.mockClear(); send.mockClear(); run.mockClear()
+      deps = { ...deps, cw: { start, send }, agent: { run } }
+    })
+    const input = { type: 'general' as const, task: 't' }
+    const agentInput = { account: 'a', prompt: 'p', allowedTools: ['Read'] }
+
+    it('cw.start without the cw start grant throws PermissionError and records the denial', async () => {
+      const ctx = ctxFor('m', expandGrants({ cw: ['send'] }, {}))
+      await expect(ctx.cw.start(input)).rejects.toBeInstanceOf(PermissionError)
+      expect(denials).toEqual([['cw', 'start']])
+      expect(start).not.toHaveBeenCalled()
+    })
+
+    it('sessions.send without the send grant is denied', async () => {
+      const ctx = ctxFor('m', expandGrants({ cw: ['start'] }, {}))
+      await expect(ctx.sessions.send('p', 's', 'x')).rejects.toBeInstanceOf(PermissionError)
+      expect(denials).toEqual([['cw', 'send']])
+    })
+
+    it('agent.run without agent is denied', async () => {
+      const ctx = ctxFor('m', expandGrants({}, {}))
+      await expect(ctx.agent.run(agentInput)).rejects.toBeInstanceOf(PermissionError)
+      expect(denials).toEqual([['agent', 'a']])
+      expect(run).not.toHaveBeenCalled()
+    })
+
+    it('with grants, the calls reach the deps with the same arguments', async () => {
+      const ctx = ctxFor('m', expandGrants({ cw: ['start', 'send'], agent: true }, {}))
+      expect(await ctx.cw.start(input)).toEqual({ project: 'p', sessionDir: 's' })
+      expect(await ctx.sessions.send('p', 's', 'x')).toBe('typed')
+      expect(await ctx.agent.run(agentInput)).toEqual({ text: 'hi' })
+      expect(start).toHaveBeenCalledWith(input)
+      expect(send).toHaveBeenCalledWith('p', 's', 'x')
+      expect(run).toHaveBeenCalledWith(agentInput)
+    })
+  })
+
   it('storage round-trips JSON per module and never leaks between modules', async () => {
     const a = ctxFor('a', expandGrants({}, {}))
     const b = ctxFor('b', expandGrants({}, {}))

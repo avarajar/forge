@@ -94,6 +94,15 @@
         },
         "pty": {
           "type": "boolean"
+        },
+        "cw": {
+          "type": "array",
+          "items": {
+            "enum": ["start", "send"]
+          }
+        },
+        "agent": {
+          "type": "boolean"
         }
       }
     },
