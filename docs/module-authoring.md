@@ -211,6 +211,8 @@ export default definePanel({ id: 'main', title: 'Harvey', component: View })
   `forge.action(id, input, { onOutput })` runs an action, going through the confirmation for `external` ones; it
   resolves `undefined` when the user cancels. `forge.settings` and `forge.status` are signals; `forge.openSettings()`
   opens the settings form.
+  `forge.openSession(project, sessionDir)` opens that session's tab in the console, like clicking a task row, and
+  `forge.openPage()` switches the console to your module's page (a banner uses it to link to the full view).
 - `preact`, `preact/hooks`, `preact/jsx-runtime`, `preact/compat`, `@preact/signals`, `@forge-dev/ui` and
   `@forge-dev/sdk` come from Forge through an import map: mark them external in your build (the scaffold does), so
   there is one Preact.

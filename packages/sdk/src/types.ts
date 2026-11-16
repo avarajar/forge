@@ -351,6 +351,10 @@ export interface PanelClient {
   action<O>(id: string, input?: unknown, opts?: { onOutput?: (chunk: string) => void }): Promise<O | undefined>
   settings: ReadonlySignal<ModuleSettings>
   openSettings(): void
+  // opens that session's tab in the console, like clicking a task row
+  openSession(project: string, sessionDir: string): void
+  // switches the console to this module's page
+  openPage(): void
   status: ReadonlySignal<ModuleStatus | undefined>
 }
 

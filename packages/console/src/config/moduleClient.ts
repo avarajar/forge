@@ -2,6 +2,7 @@ import { computed, signal } from '@preact/signals'
 import { ModuleRequestError } from '@forge-dev/sdk'
 import type { Confirmation, ModuleSettings, PanelClient, PanelConfig } from '@forge-dev/sdk'
 import { modules } from '../hooks/useModules.js'
+import { requestPage, requestSession } from '../state/moduleNav.js'
 import { confirmAction } from '../components/ConfirmAction.js'
 
 type ErrorBody = { code?: string; message?: string; error?: string }
@@ -77,6 +78,8 @@ export function createPanelClient(moduleId: string, displayName: () => string, o
     settings,
     status: computed(() => modules.value.find(m => m.id === moduleId)),
     openSettings,
+    openSession: requestSession,
+    openPage: () => requestPage(moduleId),
     reloadSettings,
     async route<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
       const res = await fetch(`${base(moduleId)}${path.startsWith('/') ? path : `/${path}`}`, {
