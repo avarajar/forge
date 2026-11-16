@@ -20,7 +20,7 @@ const live = (items: Item[]) => items.filter(i => i.state !== 'dismissed')
 const done = (items: Item[], kinds: Item['kind'][]) => items.filter(i => i.state === 'done' && kinds.includes(i.kind)).length
 
 function Banner({ forge }: PanelProps) {
-  const { reply, reload } = useDigest(forge)
+  const { reply, error, reload } = useDigest(forge)
   const projects = useProjects(forge)
   const digest = reply?.digest
   const acting = useActing(forge, digest?.date, reload)
@@ -33,13 +33,14 @@ function Banner({ forge }: PanelProps) {
   )
   const line = { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 16px', fontSize: '12.5px', color: 'var(--ink-2)' }
 
-  if (!reply) return null
-  if (!digest || digest.items.length === 0) {
+  const failure = (text: string) => <span style={{ color: 'var(--red)' }}>· {text}</span>
+  if (!reply && !error) return null
+  if (!reply || !digest || digest.items.length === 0) {
     return shell(
       <div style={line}>
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
         <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{digest ? 'Today' : 'Not read yet'}</b>
-        {digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
+        {!reply ? failure(`Can't load Today: ${error}`) : digest?.error ? failure(`Last reading failed: ${digest.error}`) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
         <span style={{ marginLeft: 'auto' }}>{refreshBtn}</span>
       </div>,
     )
@@ -56,6 +57,7 @@ function Banner({ forge }: PanelProps) {
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
         <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{isToday(digest.date, new Date()) ? 'Today' : dayLabel(new Date(), digest.date)}</b>
         <span>· {done(items, ['issue', 'request'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
+        {digest.error && failure(`Last reading failed: ${digest.error}`)}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></span>
       </div>,
     )
