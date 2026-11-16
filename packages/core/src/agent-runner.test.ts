@@ -44,6 +44,8 @@ describe('runAgent', () => {
     expect(args).toEqual(['-p', '--model', 'haiku', '--tools', '', '--allowedTools', 'mcp__linear__get_issue,mcp__notion__search', '--output-format', 'json'])
     expect(opts.env.CLAUDE_CONFIG_DIR).toBe(join(cwHome, 'accounts', 'mono'))
     expect(opts.env.CW_HARNESS).toBeUndefined()
+    expect(opts.env.MCP_CONNECTION_NONBLOCKING).toBe('false')
+    expect(opts.env.MCP_TIMEOUT).toBe('60000')
   })
 
   it('runs in a fresh empty folder that is removed afterwards', async () => {

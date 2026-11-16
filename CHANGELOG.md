@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Today: a reader waits for the account's claude.ai connectors (Linear, Slack) to connect before it starts, so connected accounts no longer report them as unreachable.
+
 ## 0.1.25 (2026-11-16)
 
 ### Added
