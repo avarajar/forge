@@ -13,6 +13,21 @@ export function localDate(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
+let chain: Promise<unknown> = Promise.resolve()
+
+// every digest mutation runs one at a time so a save never overwrites a newer one
+function locked<T>(fn: () => Promise<T>): Promise<T> {
+  const next = chain.then(fn, fn)
+  chain = next.catch(() => {})
+  return next
+}
+
+// one bounded line: no control characters, collapsed whitespace
+function oneLine(text: string, max?: number): string {
+  const t = text.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return max && t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t
+}
+
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 async function loadDigest(ctx: ForgeContext, date: string): Promise<Digest | undefined> {
@@ -31,7 +46,7 @@ async function saveDigest(ctx: ForgeContext, d: Digest): Promise<void> {
 }
 
 function sourceText(i: Item): string {
-  return `${i.who} in ${i.where}`
+  return `${oneLine(i.who)} in ${oneLine(i.where)}`
 }
 
 async function chooseAccount(ctx: ForgeContext): Promise<string> {
@@ -93,26 +108,32 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   const date = localDate(now)
   try {
     const fresh = await reread(ctx, now)
-    const prev = await loadDigest(ctx, date)
-    const digest: Digest = {
-      date,
-      readAt: now.toISOString(),
-      since: prev?.since ?? (await ctx.storage.get<string>('lastReadAt')) ?? new Date(now.getTime() - DAY).toISOString(),
-      items: merge(prev?.items ?? [], fresh),
-      autoStarted: prev?.autoStarted ?? 0,
-    }
-    await rememberHandled(ctx, fresh, now)
-    await ctx.storage.set('lastReadAt', now.toISOString())
-    await ctx.storage.delete('lastFailedAt')
-    await saveDigest(ctx, digest)
-    await autoResearch(ctx, digest)
-    return digest
+    const lastReadAt = await ctx.storage.get<string>('lastReadAt')
+    await locked(async () => {
+      const prev = await loadDigest(ctx, date)
+      await saveDigest(ctx, {
+        date,
+        readAt: now.toISOString(),
+        since: prev?.since ?? lastReadAt ?? new Date(now.getTime() - DAY).toISOString(),
+        items: merge(prev?.items ?? [], fresh),
+        autoStarted: prev?.autoStarted ?? 0,
+      })
+      await rememberHandled(ctx, fresh, now)
+      await ctx.storage.set('lastReadAt', now.toISOString())
+      await ctx.storage.delete('lastFailedAt')
+    })
+    await autoResearch(ctx, date)
+    return (await loadDigest(ctx, date))!
   } catch (e) {
     return keepWithError(ctx, now, message(e))
   }
 }
 
-async function keepWithError(ctx: ForgeContext, now: Date, error: string): Promise<Digest> {
+function keepWithError(ctx: ForgeContext, now: Date, error: string): Promise<Digest> {
+  return locked(() => keepWithErrorNow(ctx, now, error))
+}
+
+async function keepWithErrorNow(ctx: ForgeContext, now: Date, error: string): Promise<Digest> {
   const date = localDate(now)
   const latest = (await loadDigest(ctx, date)) ?? (await loadDigest(ctx, (await digestDates(ctx))[0] ?? ''))
   const digest: Digest = { ...(latest ?? { date, readAt: now.toISOString(), since: now.toISOString(), items: [], autoStarted: 0 }), error }
@@ -121,15 +142,23 @@ async function keepWithError(ctx: ForgeContext, now: Date, error: string): Promi
   return digest
 }
 
-async function autoResearch(ctx: ForgeContext, digest: Digest): Promise<void> {
+async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
   if (ctx.settings.autoResearch === false) return
   const max = typeof ctx.settings.maxAuto === 'number' ? ctx.settings.maxAuto : 3
-  for (const item of digest.items) {
-    if (digest.autoStarted >= max) break
-    if (item.kind !== 'research' || item.state !== 'proposed') continue
-    digest.autoStarted++
-    await perform(ctx, item, 'research')
-    await saveDigest(ctx, digest)
+  const first = await loadDigest(ctx, date)
+  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed').map(i => i.id)
+  for (const id of ids) {
+    const more = await locked(async () => {
+      const digest = await loadDigest(ctx, date)
+      if (!digest || digest.autoStarted >= max) return false
+      const item = digest.items.find(i => i.id === id)
+      if (!item || item.state !== 'proposed') return true
+      digest.autoStarted++
+      await perform(ctx, item, 'research')
+      await saveDigest(ctx, digest)
+      return true
+    })
+    if (!more) break
   }
 }
 
@@ -152,7 +181,7 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
   if (op === 'send') {
     const t = item.targetSession
     if (item.kind !== 'to-task' || !t) throw new ModuleError('bad_request', 'this item has no task to send to')
-    const text = `[Today] ${sourceText(item)}: ${item.quote ?? item.title} — ${item.link}`
+    const text = `[Today] ${sourceText(item)}: ${oneLine(item.quote ?? item.title, 300)} — ${oneLine(item.link)}`
     try {
       const r = await ctx.sessions.send(t.project, t.sessionDir, text)
       if (r === 'typed' || r === 'resumed') {
@@ -204,7 +233,11 @@ function requireOpen(item: Item | undefined): Item {
   return item
 }
 
-export async function applyItem(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
+export function applyItem(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
+  return locked(() => applyItemNow(ctx, date, id, op, project))
+}
+
+async function applyItemNow(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
   const digest = await requireDigest(ctx, date)
   const item = requireOpen(digest.items.find(i => i.id === id))
   if (item.state === 'failed') item.state = 'proposed'
@@ -221,7 +254,11 @@ function defaultOp(item: Item, project?: string): Op | undefined {
 }
 
 // accepts one item (with a picked project) or, without an id, every proposed item that has what it needs
-export async function acceptAll(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
+export function acceptAll(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
+  return locked(() => acceptAllNow(ctx, date, id, project))
+}
+
+async function acceptAllNow(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
   const digest = await requireDigest(ctx, date)
   const items = id ? [requireOpen(digest.items.find(i => i.id === id))] : digest.items.filter(i => i.state === 'proposed')
   for (const item of items) {
@@ -242,7 +279,11 @@ export async function acceptAll(ctx: ForgeContext, date: string, id?: string, pr
   return digest
 }
 
-export async function setFolded(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {
+export function setFolded(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {
+  return locked(() => setFoldedNow(ctx, date, folded))
+}
+
+async function setFoldedNow(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {
   if (folded) await ctx.storage.set(`folded/${date}`, true)
   else await ctx.storage.delete(`folded/${date}`)
 }

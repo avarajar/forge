@@ -14,7 +14,7 @@ function stub(opts: { reader?: () => Promise<{ text: string }>; send?: SendResul
   const store = new Map<string, unknown>()
   const badge = vi.fn(async () => {})
   const start = vi.fn(async () => ({ project: 'forge', sessionDir: 'task-1' }))
-  const send = vi.fn(async () => {
+  const send = vi.fn(async (..._a: unknown[]) => {
     if (opts.send instanceof Error) throw opts.send
     return opts.send ?? 'typed'
   })
@@ -169,5 +169,40 @@ describe('acceptAll with an id', () => {
     await expect(acceptAll(s.ctx, DATE, d.items[0].id)).rejects.toMatchObject({ code: 'bad_request', message: 'pick a project' })
     const out = await acceptAll(s.ctx, DATE, d.items[0].id, 'forge')
     expect(out.items[0]).toMatchObject({ state: 'done', project: 'forge' })
+  })
+})
+
+describe('concurrency and line safety', () => {
+  it('send types a single bounded line for a multi-line quote', async () => {
+    const quote = `first\nsecond\r\n\x1b[31mthird${'x'.repeat(400)}`
+    const s = stub({ reader: reply([raw({ kind: 'to-task', quote, targetSession: { project: 'forge', sessionDir: 'task-0' } })]) })
+    const d = await readNow(s.ctx, NOW)
+    await applyItem(s.ctx, DATE, d.items[0].id, 'send')
+    const text = s.send.mock.calls[0][2] as string
+    expect(text).not.toMatch(/[\x00-\x1f\x7f]/)
+    expect(text.endsWith('… — https://x.test/1')).toBe(true)
+    expect(text.startsWith('[Today] ana in #dev: first second')).toBe(true)
+  })
+
+  it('two concurrent applyItem calls on one item start one session', async () => {
+    const s = stub({ reader: reply([raw({ kind: 'request', project: 'forge' })]) })
+    const d = await readNow(s.ctx, NOW)
+    const results = await Promise.allSettled([applyItem(s.ctx, DATE, d.items[0].id, 'start'), applyItem(s.ctx, DATE, d.items[0].id, 'start')])
+    expect(results.map(r => r.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(s.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('a dismiss during auto research is not reverted', async () => {
+    const s = stub({ reader: reply(research(3)) })
+    let dismissed: Promise<unknown> | undefined
+    s.start.mockImplementation(async () => {
+      if (!dismissed) dismissed = applyItem(s.ctx, DATE, (s.store.get(`digest/${DATE}`) as Digest).items[1].id, 'dismiss')
+      return { project: 'forge', sessionDir: 'task-1' }
+    })
+    await readNow(s.ctx, NOW)
+    await dismissed
+    const d = digestOf(s)
+    expect(d.items.map(i => i.state)).toEqual(['done', 'dismissed', 'done'])
+    expect(s.start).toHaveBeenCalledTimes(2)
   })
 })
