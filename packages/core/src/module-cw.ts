@@ -12,6 +12,9 @@ const DEFAULT_WAIT_MS = 90_000
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
+// one line for a terminal: no control characters, collapsed whitespace
+const oneLine = (text: string) => text.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim()
+
 export function createCwDeps(o: {
   reader: CWReader
   manager: PTYManager
@@ -22,6 +25,14 @@ export function createCwDeps(o: {
   const { reader, manager, states, general } = o
   const waitMs = o.waitMs ?? DEFAULT_WAIT_MS
 
+  const waitFor = async (key: string, ready: (state: string | undefined) => boolean) => {
+    const deadline = Date.now() + waitMs
+    while (!ready(states?.snapshot()[key]?.state)) {
+      if (Date.now() >= deadline) throw new ModuleError('unreachable', `${key} did not reach its prompt in ${Math.round(waitMs / 1000)} s`)
+      await sleep(POLL_MS)
+    }
+  }
+
   const start = async (input: CwStartInput) => {
     // a general session with no account takes the project's, then the first one, as the start card does
     const account = input.account ?? (input.type === 'general'
@@ -31,6 +42,7 @@ export function createCwDeps(o: {
       type: input.type,
       project: input.project,
       task: input.task,
+      description: input.description,
       directory: input.directory,
       account,
       harness: input.harness,
@@ -40,6 +52,11 @@ export function createCwDeps(o: {
     if (!sessionDir) throw new ModuleError('upstream', 'the session has no folder name')
     const pty = launchHeadless(project, sessionDir, { reader, manager, general })
     if (!pty) throw new ModuleError('upstream', `could not start ${project}/${sessionDir}`)
+    const prompt = input.type === 'general' && input.prompt ? oneLine(input.prompt) : ''
+    if (prompt) {
+      await waitFor(`${project}::${sessionDir}`, state => state === 'waiting')
+      if (!manager.typeLine(project, sessionDir, prompt)) throw new ModuleError('unreachable', `${project}::${sessionDir} closed before it could be typed into`)
+    }
     return { project, sessionDir }
   }
 
@@ -48,7 +65,7 @@ export function createCwDeps(o: {
     const stored = reader.getSession(project, sessionDir)
     const session = stored ?? general.get(key)
     if (!session) return 'unavailable'
-    if (session.harness !== 'claude') return 'unsupported'
+    if ((session.harness ?? 'claude') !== 'claude') return 'unsupported'
 
     const wasLive = manager.has(key)
     if (!wasLive) {
@@ -56,12 +73,7 @@ export function createCwDeps(o: {
       const pty = manager.getOrCreate(project, sessionDir, stored, { isNew: false, headless: true })
       if (!pty) throw new ModuleError('unreachable', `could not resume ${key}`)
     }
-    const deadline = Date.now() + waitMs
-    const ready = () => { const state = states?.snapshot()[key]?.state; return state === 'waiting' || state === 'idle' }
-    while (!ready()) {
-      if (Date.now() >= deadline) throw new ModuleError('unreachable', `${key} did not reach its prompt in ${Math.round(waitMs / 1000)} s`)
-      await sleep(POLL_MS)
-    }
+    await waitFor(key, state => state === 'waiting' || state === 'idle')
     if (!manager.typeLine(project, sessionDir, text)) throw new ModuleError('unreachable', `${key} closed before it could be typed into`)
     return wasLive ? 'typed' : 'resumed'
   }

@@ -150,6 +150,10 @@ export interface CwStartInput {
   type: 'work' | 'general'
   project?: string
   task: string
+  // a work session's longer brief, written to its notes
+  description?: string
+  // a general session's first message, typed once Claude Code reaches its prompt
+  prompt?: string
   directory?: string
   account?: string
   harness?: string
