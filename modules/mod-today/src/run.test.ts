@@ -161,7 +161,55 @@ describe('github', () => {
       raw({ source: 'slack', kind: 'request', link: 'https://x.test/ok' }),
     ]) })
     const d = await readNow(s.ctx, NOW)
-    expect(d.items.map(i => i.link)).toEqual(['https://github.com/o/r/pull/9#discussion_1', 'https://x.test/ok'])
+    expect(d.items.map(i => i.link)).toEqual(['https://github.com/o/r/pull/9', 'https://x.test/ok'])
+  })
+
+  it('a research item from GitHub is not auto-started', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'mention' }] })
+    const s = stub({ reader: reply([
+      raw({ source: 'github', kind: 'research', link: 'https://github.com/o/r/pull/9#issuecomment-5' }),
+      raw({ source: 'slack', kind: 'research', link: 'https://github.com/o/r/pull/9' }),
+    ]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(s.start).not.toHaveBeenCalled()
+    expect(d.items.map(i => i.state)).toEqual(['proposed'])
+    expect(d.autoStarted).toBe(0)
+    const saved = await applyItem(s.ctx, DATE, d.items[0].id, 'research')
+    expect(saved.state).toBe('done')
+    expect(s.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('a review item needs a pull request whose review was requested', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'mention', url: 'https://github.com/o/r/pull/5', pr: 'https://github.com/o/r/pull/5' }, event] })
+    const s = stub({ reader: reply([
+      raw({ source: 'github', kind: 'review', link: 'https://github.com/o/r/pull/5', project: 'forge' }),
+      raw({ source: 'github', kind: 'review', link: 'https://github.com/o/r/pull/9', project: 'forge' }),
+    ]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items.map(i => i.link)).toEqual(['https://github.com/o/r/pull/9'])
+  })
+
+  it('an item on a GitHub link is a github item and its link has no anchor', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'comment' }] })
+    const s = stub({ reader: reply([raw({ source: 'slack', kind: 'request', link: 'https://github.com/o/r/pull/9#issuecomment-123' })]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items).toEqual([expect.objectContaining({ source: 'github', link: 'https://github.com/o/r/pull/9' })])
+    await applyItem(s.ctx, DATE, d.items[0].id, 'start', 'forge')
+    expect(s.start).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringMatching(/: https:\/\/github\.com\/o\/r\/pull\/9$/) }))
+    expect(JSON.stringify(s.start.mock.calls[0])).not.toContain('issuecomment')
+  })
+
+  it('two items with the same id in one reading become one', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'ci-failure' }, { ...event, type: 'review' }] })
+    const s = stub({ settings: { autoResearch: false }, reader: reply([
+      raw({ source: 'github', kind: 'issue', title: 'CI failing', link: 'https://github.com/o/r/pull/9', when: '2026-11-15T07:00:00Z', project: 'forge' }),
+      raw({ source: 'github', kind: 'request', title: 'Review asks for changes', link: 'https://github.com/o/r/pull/9#pullrequestreview-1', when: '2026-11-15T08:30:00Z', project: 'forge' }),
+    ]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items).toHaveLength(1)
+    expect(d.items[0]).toMatchObject({ title: 'Review asks for changes', when: '2026-11-15T08:30:00Z' })
+    const out = await acceptAll(s.ctx, DATE)
+    expect(out.items.map(i => i.state)).toEqual(['done'])
   })
 
   it('a slack-sourced item with an unfetched github link is dropped', async () => {

@@ -1,8 +1,8 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { dedupe, parseReaderOutput, pendingCount, type Digest, type Item, type Op } from './digest'
-import { errorMessage, opFor } from './ops'
+import { dedupe, itemId, parseReaderOutput, pendingCount, type Digest, type Item, type Op } from './digest'
+import { errorMessage, githubPage, oneLine, opFor } from './ops'
 import { fetchGithub } from './github'
 
 export type { Op }
@@ -22,12 +22,6 @@ function locked<T>(fn: () => Promise<T>): Promise<T> {
   const next = chain.then(fn, fn)
   chain = next.catch(() => {})
   return next
-}
-
-// one bounded line: collapsed whitespace; Forge strips control characters before typing
-function oneLine(text: string, max?: number): string {
-  const t = text.replace(/\s+/g, ' ').trim()
-  return max && t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t
 }
 
 // a task name CW can use as a folder and a branch
@@ -63,12 +57,23 @@ async function chooseAccount(ctx: ForgeContext): Promise<string> {
   return pick.name
 }
 
-function hostOf(link: string): string {
-  try {
-    return new URL(link).hostname.toLowerCase().replace(/\.+$/, '')
-  } catch {
-    return ''
+// judged by the link, not the model's source: a GitHub link must be one gh fetched, and a review one whose review was requested
+function checkGithub(items: Item[], fetched: Set<string>, toReview: Set<string>): Item[] {
+  return items.flatMap(i => {
+    const page = githubPage(i.link)
+    if (i.kind === 'review' ? !page || !toReview.has(page) : page && !fetched.has(page)) return []
+    return page ? [{ ...i, id: itemId('github', page), source: 'github' as const, link: page }] : [i]
+  })
+}
+
+// one item per id, the one with the latest activity
+function collapse(items: Item[]): Item[] {
+  const byId = new Map<string, Item>()
+  for (const i of items) {
+    const had = byId.get(i.id)
+    if (!had || Date.parse(i.when) > Date.parse(had.when)) byId.set(i.id, i)
   }
+  return [...byId.values()]
 }
 
 // notes collects problems that do not fail the reading
@@ -88,15 +93,9 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   const model = typeof ctx.settings.model === 'string' && ctx.settings.model ? ctx.settings.model : undefined
   const out = await ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
   const fetched = new Set(gh.items.map(e => e.pr))
+  const toReview = new Set(gh.items.filter(e => e.type === 'review-request').map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects: names, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`) })
-  // judged by the link, not the model's source: a GitHub link must be one gh fetched, and a review needs one
-  const real = items.filter(i => {
-    const host = hostOf(i.link)
-    const onGithub = host === 'github.com' || host.endsWith('.github.com')
-    const ok = fetched.has(i.link.split('#')[0])
-    return i.kind === 'review' ? onGithub && ok : !onGithub || ok
-  })
-  return dedupe(real, handled ?? {})
+  return dedupe(collapse(checkGithub(items, fetched, toReview)), handled ?? {})
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -174,7 +173,8 @@ async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
   if (ctx.settings.autoResearch === false) return
   const max = typeof ctx.settings.maxAuto === 'number' ? ctx.settings.maxAuto : 3
   const first = await loadDigest(ctx, date)
-  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed').map(i => i.id)
+  // text from GitHub can come from anyone, so it waits for a click
+  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed' && i.source !== 'github' && !githubPage(i.link)).map(i => i.id)
   for (const id of ids) {
     const work = await locked(async () => {
       const digest = await loadDigest(ctx, date)
@@ -229,7 +229,7 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
     if (!target) throw new ModuleError('bad_request', 'pick a project')
     item.project = target
     // a pull request link without its comment anchor, so CW reads the number
-    const url = item.source === 'github' ? item.link.split('#')[0] : item.link
+    const url = githubPage(item.link) ?? item.link
     // an issue link is a task CW knows; a request is named by its title and briefed in the notes
     const input = item.kind === 'review'
       ? { type: 'review' as const, project: target, task: url }
