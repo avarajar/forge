@@ -98,7 +98,10 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
 
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
-      term.loadAddon(new WebLinksAddon())
+      // the default handler opens a blank window first, which the desktop app cannot hand to the browser
+      term.loadAddon(new WebLinksAddon((_event, uri) => {
+        if (/^https?:\/\//i.test(uri)) window.open(uri, '_blank', 'noopener')
+      }))
 
       term.open(containerRef.current!)
       // Delay fit so the container has final dimensions from layout
