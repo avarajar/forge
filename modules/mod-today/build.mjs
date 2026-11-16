@@ -1,9 +1,13 @@
-// builds the server half for Node; the view is added with its sources
+// builds the server half for Node and the view and banner for the browser; they leave Forge's shared packages to the import map
 import { context, build } from 'esbuild'
+import { SHARED_PACKAGES } from '@forge-dev/sdk'
+
+const SHARED = [...SHARED_PACKAGES]
 
 const watch = process.argv.includes('--watch')
 const configs = [
   { entryPoints: ['src/server.ts'], outfile: 'dist/server.js', platform: 'node', format: 'esm', bundle: true, target: 'node22' },
+  ...['view', 'banner'].map(name => ({ entryPoints: [`src/${name}.tsx`], outfile: `dist/${name}.js`, platform: 'browser', format: 'esm', bundle: true, target: 'es2022', jsx: 'automatic', jsxImportSource: 'preact', external: SHARED })),
 ]
 
 if (watch) {

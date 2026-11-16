@@ -6,6 +6,11 @@
   "displayName": "Today",
   "description": "A daily digest of your Linear and Slack, read by a headless agent",
   "server": "./dist/server.js",
+  "view": {
+    "entry": "./dist/view.js",
+    "title": "Today",
+    "banner": "./dist/banner.js"
+  },
   "permissions": {
     "agent": true,
     "cw": [
