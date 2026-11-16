@@ -13,7 +13,7 @@ function stub(enabled?: boolean) {
   const run = vi.fn(async () => ({ text: '{"items":[]}' }))
   const clear = vi.fn(async () => {})
   const ctx = {
-    settings: { time: '00:00', autoResearch: true, maxAuto: 3, account: 'monoku', researchProject: '', model: '' },
+    settings: { time: '00:00', autoResearch: true, maxAuto: 3, accounts: '', researchProject: '', model: '' },
     storage: {
       get: async (k: string) => store.get(k),
       set: async (k: string, v: unknown) => void store.set(k, v),

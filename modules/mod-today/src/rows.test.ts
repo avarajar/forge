@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { dayLabel, foldedNow, isToday, shortDay } from './rows'
-import { failedLine, notesLine, opFor } from './ops'
+import { accountToken, dayLabel, foldedNow, isToday, shortDay } from './rows'
+import { byAccount, failedLine, notesLine, opFor } from './ops'
 import type { Item } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -61,5 +61,21 @@ describe('shortDay', () => {
     expect(shortDay(now, '2026-11-15')).toBe('Today')
     expect(shortDay(now)).toBe('Today')
     expect(shortDay(now, '2026-11-14')).toBe('From Saturday 14')
+  })
+})
+
+describe('accounts in the views', () => {
+  const at = (account: string | undefined, kind: Item['kind'] = 'request') => ({ state: 'proposed', kind, account }) as Item
+
+  it('an account always gets the same theme token', () => {
+    expect(accountToken('monoku')).toBe(accountToken('monoku'))
+    expect(['--blue', '--purple', '--orange', '--green', '--teal']).toContain(accountToken('meridian'))
+  })
+
+  it('the page groups by account, then kind, only when there are two or more', () => {
+    expect(byAccount([at('a'), at('a', 'research')])).toEqual([{ sections: expect.any(Array) }])
+    const blocks = byAccount([at('a'), at('b', 'research'), at(undefined)])
+    expect(blocks.map(b => b.account)).toEqual(['a', 'b', undefined])
+    expect(blocks[1].sections.map(s => s.title)).toEqual(['Researching'])
   })
 })

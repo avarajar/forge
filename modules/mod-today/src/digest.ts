@@ -7,6 +7,8 @@ type Ref = { project: string; sessionDir: string }
 export interface Item {
   id: string
   source: 'linear' | 'slack' | 'github'
+  // the CW account whose connectors read it; older digests have none
+  account?: string
   kind: Kind
   title: string
   who: string
@@ -32,14 +34,26 @@ export interface Digest {
   error?: string
   // problems that did not fail the reading, such as GitHub being unreadable
   notes?: string[]
-  autoStarted: number
+  // research sessions started on its own: per account, or one number in older digests
+  autoStarted: number | Record<string, number>
 }
 
 const KINDS: Kind[] = ['to-task', 'issue', 'request', 'research', 'review']
 const SOURCES = ['linear', 'slack', 'github']
 
-export function itemId(source: string, link: string): string {
-  return createHash('sha1').update(`${source}\n${link}`).digest('hex').slice(0, 16)
+// the same Linear or Slack link read by two accounts is two items
+export function itemId(source: string, link: string, account?: string): string {
+  const who = account && source !== 'github' ? `\n${account}` : ''
+  return createHash('sha1').update(`${source}\n${link}${who}`).digest('hex').slice(0, 16)
+}
+
+export function startedBy(d: Digest, account = ''): number {
+  return typeof d.autoStarted === 'number' ? d.autoStarted : d.autoStarted[account] ?? 0
+}
+
+export function countStart(d: Digest, account = ''): void {
+  const was = startedBy(d, account)
+  d.autoStarted = { ...(typeof d.autoStarted === 'number' ? {} : d.autoStarted), [account]: was + 1 }
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -68,7 +82,7 @@ function extractJson(out: string): unknown {
   }
 }
 
-export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[] }): Item[] {
+export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[]; account?: string }): Item[] {
   const root = extractJson(out)
   if (!isRecord(root) || !Array.isArray(root.items)) throw new Error('reader output needs an items array')
   return root.items.map((raw, n) => {
@@ -88,7 +102,7 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
     const when = text(raw, 'when', n)!
     if (Number.isNaN(Date.parse(when))) throw new Error(`item ${n}: when must be a date`)
     const item: Item = {
-      id: itemId(source, link),
+      id: itemId(source, link, known.account),
       source: source as Item['source'],
       kind: kind as Kind,
       title: text(raw, 'title', n)!,
@@ -98,6 +112,7 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
       link,
       state: 'proposed',
     }
+    if (known.account) item.account = known.account
     const quote = text(raw, 'quote', n, true)
     if (quote) item.quote = quote
     const issueKey = text(raw, 'issueKey', n, true)

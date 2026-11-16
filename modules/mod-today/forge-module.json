@@ -23,10 +23,10 @@
   },
   "settings": {
     "schema": {
-      "account": {
+      "accounts": {
         "type": "string",
-        "label": "Account",
-        "help": "CW account that reads Linear and Slack; empty uses the first Claude Code account",
+        "label": "Accounts",
+        "help": "Comma separated CW accounts to read; empty reads every Claude account",
         "default": ""
       },
       "time": {

@@ -35,7 +35,7 @@ modules/
   mod-planning/   — Linear + Notion + diagrams
   mod-design/     — Figma + tokens + wireframes
   mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
-  mod-today/      — Daily Linear, Slack and GitHub digest, banner on the task list
+  mod-today/      — Daily Linear, Slack and GitHub digest per Claude account, banner on the task list
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
 tests/integration/ — Cross-package tests (not wired, see Development)

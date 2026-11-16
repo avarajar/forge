@@ -11,6 +11,7 @@
 - Today module: a Refresh button on the banner (header and folded line) reads only what is new since the last reading; days with nothing new keep a minimal line with Refresh instead of hiding the banner.
 - Today module reads GitHub with `gh`: comments and reviews on your open pull requests, review requests, mentions, assigned issues and failing checks; a review request starts `cw review` on the pull request. A missing or signed out `gh` is shown as a muted note and the reading goes on. Research that comes from GitHub never starts on its own; it waits for your click.
 - Today module ships off: it reads nothing, spends no usage and starts no research until you press Turn on (banner or Today page); Turn off stops it again.
+- Today module reads every Claude account: one reader per account in parallel, each with that account's Linear and Slack connectors, projects and sessions; every item shows its account, tasks and research start under it, the banner filters by account and the Today page groups by account. The `account` setting becomes `accounts` (comma separated, empty reads every Claude account); research sessions per day count per account, and an account that fails becomes a note while the others are kept.
 - Module SDK: `cw.start` takes `type: 'review'`, and `SessionInfo.taskUrl` is the URL a session's task came from.
 
 ### Fixed

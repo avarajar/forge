@@ -1,8 +1,8 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { failedLine, notesLine, opFor } from './ops'
-import { Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, readLine, Row, shortDay, soft, useActing, useDigest, useProjects } from './rows'
+import { accountsOf, failedLine, notesLine, opFor } from './ops'
+import { accountToken, Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, readLine, Row, shortDay, soft, useAccountFilter, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
 
@@ -16,12 +16,22 @@ function Count({ token, n, label }: { token: string; n: number; label: string })
   )
 }
 
+function FilterChip({ label, n, on, token, onClick }: { label: string; n: number; on: boolean; token?: string; onClick: () => void }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick} style={{ ...pill, font: 'inherit', fontSize: '11.5px', cursor: 'pointer', color: on ? 'var(--ink)' : 'var(--ink-2)', borderColor: on ? `var(${token ?? '--blue'})` : 'var(--hair)', background: on ? soft(token ?? '--blue', 15) : 'var(--elev)' }}>
+      {token && <i style={{ width: '7px', height: '7px', borderRadius: '50%', background: `var(${token})` }} />}
+      {label} · {n}
+    </button>
+  )
+}
+
 const live = (items: Item[]) => items.filter(i => i.state !== 'dismissed')
 const done = (items: Item[], kinds: Item['kind'][]) => items.filter(i => i.state === 'done' && kinds.includes(i.kind)).length
 
 function Banner({ forge }: PanelProps) {
   const { reply, error, reload } = useDigest(forge)
   const projects = useProjects(forge)
+  const [chosen, choose] = useAccountFilter()
   const digest = reply?.digest
   const acting = useActing(forge, digest?.date, reload)
   const refreshBtn = <Btn label={acting.refreshing ? 'Reading…' : 'Refresh'} style={ghostStyle} disabled={acting.refreshing} onClick={acting.refresh} />
@@ -59,7 +69,11 @@ function Banner({ forge }: PanelProps) {
   }
 
   const items = digest.items
-  const shown = live(items)
+  const accounts = accountsOf(items)
+  // a filter on an account that has no items today shows everything
+  const account = accounts.includes(chosen) ? chosen : ''
+  const seen = (list: Item[]) => (account ? list.filter(i => i.account === account) : list)
+  const shown = seen(live(items))
   const folded = foldedNow(reply.folded, items)
   const fold = (value: boolean) => acting.run(() => forge.action('fold', { date: digest.date, folded: value }))
 
@@ -76,9 +90,9 @@ function Banner({ forge }: PanelProps) {
     )
   }
 
-  const waiting = items.filter(i => i.state === 'proposed' || i.state === 'failed')
+  const waiting = seen(items).filter(i => i.state === 'proposed' || i.state === 'failed')
   const ready = waiting.filter(i => opFor(i)).length
-  const acceptAll = () => acting.run(() => forge.action('accept-all', { date: digest.date }))
+  const acceptAll = () => acting.run(() => forge.action('accept-all', { date: digest.date, ...(account ? { account } : {}) }))
 
   return shell(
     <div style={{ padding: '16px 18px 12px' }}>
@@ -95,12 +109,19 @@ function Banner({ forge }: PanelProps) {
         </div>
       </div>
 
+      {accounts.length > 1 && (
+        <div role="group" aria-label="Account" style={{ display: 'flex', gap: '6px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <FilterChip label="All" n={live(items).length} on={!account} onClick={() => choose('')} />
+          {accounts.map(a => <FilterChip key={a} label={a} token={accountToken(a)} n={live(items).filter(i => i.account === a).length} on={account === a} onClick={() => choose(a)} />)}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: '6px', margin: '14px 0 10px', flexWrap: 'wrap' }}>
         <Count token="--orange" n={shown.filter(i => i.kind === 'to-task').length} label="for open tasks" />
         <Count token="--green" n={shown.filter(i => i.kind === 'issue' || i.kind === 'request').length} label="new tasks" />
         <Count token="--blue" n={shown.filter(i => i.kind === 'review').length} label="to review" />
         <Count token="--purple" n={shown.filter(i => i.kind === 'research').length} label="researching" />
-        <span style={{ ...pill, marginLeft: 'auto', borderColor: 'transparent', background: 'none', color: 'var(--ink-3)' }}>{items.length} read · {items.length - shown.length} dismissed</span>
+        <span style={{ ...pill, marginLeft: 'auto', borderColor: 'transparent', background: 'none', color: 'var(--ink-3)' }}>{seen(items).length} read · {seen(items).length - shown.length} dismissed</span>
       </div>
 
       {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>{failedLine(digest.error)}</div>}

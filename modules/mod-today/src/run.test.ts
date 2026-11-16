@@ -13,7 +13,12 @@ function raw(over: Record<string, unknown>) {
   return { source: 'slack', kind: 'request', title: 'T', who: 'ana', where: '#dev', when: '2026-11-15T08:00:00Z', link: 'https://x.test/1', ...over }
 }
 
-function stub(opts: { reader?: () => Promise<{ text: string }>; send?: SendResult | Error; settings?: Record<string, unknown> } = {}) {
+type Reader = (input: { account: string; prompt: string }) => Promise<{ text: string }>
+type Acct = { name: string; harness?: string }
+type Proj = { name: string; path: string; account?: string }
+type Sess = { project: string; sessionDir: string; type: string; account?: string }
+
+function stub(opts: { reader?: Reader; send?: SendResult | Error; settings?: Record<string, unknown>; accounts?: Acct[]; projects?: Proj[]; sessions?: Sess[] } = {}) {
   const store = new Map<string, unknown>([['enabled', true]])
   const badge = vi.fn(async () => {})
   const start = vi.fn(async () => ({ project: 'forge', sessionDir: 'task-1' }))
@@ -21,9 +26,9 @@ function stub(opts: { reader?: () => Promise<{ text: string }>; send?: SendResul
     if (opts.send instanceof Error) throw opts.send
     return opts.send ?? 'typed'
   })
-  const run = vi.fn<(input: unknown) => Promise<{ text: string }>>(opts.reader ?? (async () => ({ text: '{"items":[]}' })))
+  const run = vi.fn<Reader>(opts.reader ?? (async () => ({ text: '{"items":[]}' })))
   const ctx = {
-    settings: { time: '08:00', autoResearch: true, maxAuto: 3, account: '', researchProject: '', model: 'sonnet', ...opts.settings },
+    settings: { time: '08:00', autoResearch: true, maxAuto: 3, accounts: '', researchProject: '', model: 'sonnet', ...opts.settings },
     storage: {
       get: async (k: string) => store.get(k),
       set: async (k: string, v: unknown) => void store.set(k, JSON.parse(JSON.stringify(v))),
@@ -33,9 +38,9 @@ function stub(opts: { reader?: () => Promise<{ text: string }>; send?: SendResul
     notify: { badge },
     agent: { run },
     cw: { start },
-    sessions: { list: async () => [{ project: 'forge', sessionDir: 'task-0', type: 'work' }], send },
-    projects: { list: async () => [{ name: 'forge', path: '/p/forge' }], dir: async (n: string) => (n === 'forge' ? '/p/forge' : null) },
-    accounts: { list: async () => [{ name: 'codex-acc', harness: 'codex' }, { name: 'monoku', harness: 'claude' }] },
+    sessions: { list: async () => opts.sessions ?? [{ project: 'forge', sessionDir: 'task-0', type: 'work' }], send },
+    projects: { list: async () => opts.projects ?? [{ name: 'forge', path: '/p/forge' }], dir: async (n: string) => (n === 'forge' ? '/p/forge' : null) },
+    accounts: { list: async () => opts.accounts ?? [{ name: 'codex-acc', harness: 'codex' }, { name: 'monoku', harness: 'claude' }] },
   } as unknown as ForgeContext
   return { ctx, store, badge, start, send, run }
 }
@@ -96,7 +101,7 @@ describe('readNow', () => {
     await readNow(s.ctx, NOW)
     await readNow(s.ctx, new Date(2026, 10, 15, 12))
     expect(s.start).toHaveBeenCalledTimes(3)
-    expect(digestOf(s).autoStarted).toBe(3)
+    expect(digestOf(s).autoStarted).toEqual({ monoku: 3 })
     expect(digestOf(s).items.filter(i => i.state === 'done')).toHaveLength(3)
     expect(s.badge).toHaveBeenLastCalledWith('today', 2, 'to review')
   })
@@ -127,6 +132,7 @@ describe('readNow', () => {
     await readNow(s.ctx, NOW)
     expect(s.start).toHaveBeenCalledWith({
       type: 'general',
+      account: 'monoku',
       directory: process.env.HOME,
       task: 'Research: Why is CI slow',
       prompt: 'Why is CI slow — find out and leave the answer in the session. Context: it takes 20 min https://x.test/1',
@@ -182,7 +188,7 @@ describe('github', () => {
     const d = await readNow(s.ctx, NOW)
     expect(s.start).not.toHaveBeenCalled()
     expect(d.items.map(i => i.state)).toEqual(['proposed'])
-    expect(d.autoStarted).toBe(0)
+    expect(d.autoStarted).toEqual({})
     const saved = await applyItem(s.ctx, DATE, d.items[0].id, 'research')
     expect(saved.state).toBe('done')
     expect(s.start).toHaveBeenCalledTimes(1)
@@ -328,7 +334,7 @@ describe('applyItem', () => {
     const { s, id } = await seeded({ kind: 'request', title: 'Fix it', quote: 'q' })
     const item = await applyItem(s.ctx, DATE, id, 'start', 'forge')
     expect(item).toMatchObject({ state: 'done', project: 'forge', startedSession: { project: 'forge', sessionDir: 'task-1' } })
-    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', task: 'fix-it', description: 'Fix it\n\nq\n\nFrom ana in #dev: https://x.test/1' })
+    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', account: 'monoku', task: 'fix-it', description: 'Fix it\n\nq\n\nFrom ana in #dev: https://x.test/1' })
   })
 
   it('a request task is a single-line slug with no slash', async () => {
@@ -344,7 +350,7 @@ describe('applyItem', () => {
     s.start.mockRejectedValueOnce(new Error('refused'))
     const item = await applyItem(s.ctx, DATE, id, 'start')
     expect(item).toMatchObject({ state: 'failed', error: 'refused' })
-    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', task: 'https://linear.app/x/issue/A-1' })
+    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', account: 'monoku', task: 'https://linear.app/x/issue/A-1' })
   })
 
   it('dismiss marks dismissed', async () => {
@@ -449,5 +455,121 @@ describe('concurrency and line safety', () => {
     const d = digestOf(s)
     expect(d.items.map(i => i.state)).toEqual(['done', 'dismissed', 'done'])
     expect(s.start).toHaveBeenCalledTimes(2)
+  })
+})
+
+const TWO: Acct[] = [{ name: 'monoku', harness: 'claude' }, { name: 'meridian' }, { name: 'codex-acc', harness: 'codex' }]
+const PROJECTS: Proj[] = [{ name: 'forge', path: '/p/forge', account: 'monoku' }, { name: 'atlas', path: '/p/atlas', account: 'meridian' }]
+const SESSIONS: Sess[] = [{ project: 'forge', sessionDir: 'task-0', type: 'work', account: 'monoku' }, { project: 'atlas', sessionDir: 'task-9', type: 'work', account: 'meridian' }]
+const byAccount = (map: Record<string, unknown[] | Error>): Reader => async ({ account }) => {
+  const out = map[account]
+  if (out instanceof Error) throw out
+  return { text: JSON.stringify({ items: out ?? [] }) }
+}
+const two = (map: Record<string, unknown[] | Error>, settings: Record<string, unknown> = {}) =>
+  stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader: byAccount(map), settings: { autoResearch: false, ...settings } })
+
+describe('every account', () => {
+  it('a reading runs one reader per account with that account\'s projects and sessions', async () => {
+    const s = two({})
+    await readNow(s.ctx, NOW)
+    expect(s.run).toHaveBeenCalledTimes(2)
+    const prompts = Object.fromEntries(s.run.mock.calls.map(([i]) => [i.account, i.prompt]))
+    expect(Object.keys(prompts).sort()).toEqual(['meridian', 'monoku'])
+    expect(prompts.monoku).toContain('forge::task-0')
+    expect(prompts.monoku).not.toContain('task-9')
+    expect(prompts.monoku).toContain('Known projects: forge')
+    expect(prompts.meridian).toContain('atlas::task-9')
+    expect(prompts.meridian).not.toContain('task-0')
+    expect(prompts.meridian).toContain('Known projects: atlas')
+  })
+
+  it('items carry their account and ids differ per account', async () => {
+    const s = two({ monoku: [raw({})], meridian: [raw({})] })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items.map(i => i.account).sort()).toEqual(['meridian', 'monoku'])
+    expect(new Set(d.items.map(i => i.id)).size).toBe(2)
+  })
+
+  it('one account failing becomes a note and the others are kept', async () => {
+    const s = two({ monoku: [raw({})], meridian: new Error('no Slack connector') })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items).toHaveLength(1)
+    expect(d.error).toBeUndefined()
+    expect(d.notes).toEqual(['meridian: no Slack connector'])
+    expect(s.store.get('lastReadAt')).toBe(NOW.toISOString())
+  })
+
+  it('every account failing fails the reading', async () => {
+    const s = two({ monoku: new Error('a'), meridian: new Error('b') })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.error).toBe('monoku: a; meridian: b')
+    expect(s.store.has('lastFailedAt')).toBe(true)
+    expect(s.store.get('lastReadAt')).toBeUndefined()
+  })
+
+  it('the accounts setting limits the readers', async () => {
+    const s = two({}, { accounts: ' meridian , nobody, codex-acc' })
+    await readNow(s.ctx, NOW)
+    expect(s.run.mock.calls.map(([i]) => i.account)).toEqual(['meridian'])
+  })
+
+  it('start and research use the item\'s account', async () => {
+    const s = two({ meridian: [raw({ kind: 'request', project: 'atlas' }), raw({ kind: 'research', link: 'https://x.test/r' })] })
+    const d = await readNow(s.ctx, NOW)
+    await acceptAll(s.ctx, DATE)
+    expect(d.items).toHaveLength(2)
+    expect(s.start).toHaveBeenCalledTimes(2)
+    for (const [input] of s.start.mock.calls as unknown as [{ account: string }][]) expect(input.account).toBe('meridian')
+  })
+
+  it('maxAuto applies per account', async () => {
+    const s = two({ monoku: research(3), meridian: research(3) }, { autoResearch: true, maxAuto: 2 })
+    await readNow(s.ctx, NOW)
+    expect(s.start).toHaveBeenCalledTimes(4)
+    expect(digestOf(s).autoStarted).toEqual({ monoku: 2, meridian: 2 })
+  })
+
+  it('an old digest with a number keeps counting', async () => {
+    const s = two({ monoku: research(3) }, { autoResearch: true, maxAuto: 2 })
+    s.store.set(`digest/${DATE}`, { date: DATE, readAt: NOW.toISOString(), since: NOW.toISOString(), items: [], autoStarted: 2 })
+    await readNow(s.ctx, NOW)
+    expect(s.start).not.toHaveBeenCalled()
+  })
+
+  it('a github item takes the account of its project', async () => {
+    const link = 'https://github.com/o/r/pull/9'
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ type: 'review-request', repo: 'o/r', number: 9, title: 'T', url: link, pr: link, when: '2026-11-15T08:00:00Z' }] })
+    const s = two({ monoku: [raw({ source: 'github', kind: 'review', link, project: 'forge' })], meridian: [raw({ source: 'github', kind: 'review', link, project: 'atlas' })] })
+    const d = await readNow(s.ctx, NOW)
+    // github goes to the first account's reader only
+    expect(s.run.mock.calls.find(([i]) => i.account === 'monoku')![0].prompt).toContain(link)
+    expect(s.run.mock.calls.find(([i]) => i.account === 'meridian')![0].prompt).not.toContain(link)
+    expect(d.items.map(i => [i.source, i.account])).toEqual([['github', 'monoku']])
+  })
+
+  it('github events make only that reader\'s items manual', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ type: 'comment', repo: 'o/r', number: 9, title: 'T', url: 'https://github.com/o/r/pull/9', pr: 'https://github.com/o/r/pull/9', when: '2026-11-15T08:00:00Z' }] })
+    const s = two({ monoku: research(1), meridian: [raw({ kind: 'research', link: 'https://x.test/m' })] }, { autoResearch: true })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items.find(i => i.account === 'monoku')).toMatchObject({ manual: true, state: 'proposed' })
+    expect(d.items.find(i => i.account === 'meridian')?.state).toBe('done')
+  })
+
+  it('a github item without a project starts under the account of the picked project', async () => {
+    const link = 'https://github.com/o/r/pull/9'
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ type: 'review-request', repo: 'o/r', number: 9, title: 'T', url: link, pr: link, when: '2026-11-15T08:00:00Z' }] })
+    const s = two({ monoku: [raw({ source: 'github', kind: 'review', link })] })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items[0].account).toBeUndefined()
+    await applyItem(s.ctx, DATE, d.items[0].id, 'start', 'atlas')
+    expect(s.start).toHaveBeenCalledWith({ type: 'review', project: 'atlas', account: 'meridian', task: link })
+  })
+
+  it('accept all can be limited to one account', async () => {
+    const s = two({ monoku: [raw({ kind: 'request', project: 'forge' })], meridian: [raw({ kind: 'request', project: 'atlas' })] })
+    await readNow(s.ctx, NOW)
+    const out = await acceptAll(s.ctx, DATE, undefined, undefined, 'meridian')
+    expect(out.items.map(i => [i.account, i.state]).sort()).toEqual([['meridian', 'done'], ['monoku', 'proposed']])
   })
 })

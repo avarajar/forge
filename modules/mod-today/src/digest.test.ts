@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseReaderOutput, dedupe, shouldRead, itemId, type Item } from './digest'
+import { parseReaderOutput, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
 
 const known = { projects: ['forge'], sessions: ['forge::task-1'] }
 const base = { who: 'Ana', where: '#dev', when: '2026-11-15T09:00:00Z', title: 'Something' }
@@ -106,5 +106,26 @@ describe('shouldRead', () => {
     expect(shouldRead(at(8, 0), '08:00', new Date(2026, 10, 14, 9).toISOString())).toBe(true)
     expect(shouldRead(at(10), '08:00', at(8, 5).toISOString())).toBe(false)
     expect(shouldRead(at(3), '08:00')).toBe(true)
+  })
+})
+
+describe('accounts', () => {
+  it('the account is part of a linear or slack id but not a github one', () => {
+    expect(itemId('slack', 'https://s/1', 'a')).not.toBe(itemId('slack', 'https://s/1', 'b'))
+    expect(itemId('github', 'https://g/1', 'a')).toBe(itemId('github', 'https://g/1', 'b'))
+    expect(itemId('slack', 'https://s/1')).toBe(itemId('slack', 'https://s/1', undefined))
+  })
+
+  it('parsed items carry the reader account', () => {
+    const [i] = parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'https://s/1' }]), { ...known, account: 'meridian' })
+    expect(i.account).toBe('meridian')
+  })
+
+  it('counts research starts per account and reads an old number', () => {
+    const d = { autoStarted: 2 } as Digest
+    expect(startedBy(d, 'a')).toBe(2)
+    countStart(d, 'a')
+    expect(d.autoStarted).toEqual({ a: 3 })
+    expect(startedBy(d, 'b')).toBe(0)
   })
 })

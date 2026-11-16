@@ -12,6 +12,44 @@ export interface DigestReply { digest: Digest | null; folded: boolean; enabled: 
 
 export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']
+const ACCOUNT_TOKENS = ['--blue', '--purple', '--orange', '--green', '--teal']
+
+// a stable token per account name
+export function accountToken(name: string): string {
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0
+  return ACCOUNT_TOKENS[h % ACCOUNT_TOKENS.length]
+}
+
+export function AccountChip({ account }: { account: string }) {
+  const token = accountToken(account)
+  return (
+    <span title={`Account ${account}`} style={{ fontSize: '10.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px', whiteSpace: 'nowrap', color: `var(${token})`, background: soft(token, 15) }}>{account}</span>
+  )
+}
+
+const FILTER_KEY = 'today.account'
+
+// the account this viewer looks at, kept in the browser; '' is every account
+export function useAccountFilter(): [string, (a: string) => void] {
+  const [account, setAccount] = useState(() => {
+    try {
+      return localStorage.getItem(FILTER_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  })
+  const choose = (a: string) => {
+    setAccount(a)
+    try {
+      if (a) localStorage.setItem(FILTER_KEY, a)
+      else localStorage.removeItem(FILTER_KEY)
+    } catch {
+      // the choice then lasts until the page closes
+    }
+  }
+  return [account, choose]
+}
 
 // loads the digest now and every minute; `path` picks a day
 export function useDigest(forge: PanelClient, path = '/digest') {
@@ -226,6 +264,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: A
           <span>{item.who} {where} {strong(item.where)}</span>
           <Sep />
           <span>{ago(item.when)}</span>
+          {item.account && <><Sep /><AccountChip account={item.account} /></>}
           <Sep />
           <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>View in {SOURCE_LABEL[item.source]} ↗</a>
           {item.kind === 'to-task' && item.targetSession && <><Sep /><span>goes to {strong(item.targetSession.sessionDir)}</span></>}
