@@ -14,14 +14,20 @@ export function runAgent(input: AgentRunInput, o: { cwHome: string; spawn?: type
   const configDir = join(o.cwHome, 'accounts', input.account)
   if (!existsSync(configDir)) return Promise.reject(new ModuleError('not_found', `Unknown account ${input.account}`))
 
-  const args = ['-p', input.prompt]
+  const bad = input.allowedTools.find(tool => !tool.startsWith('mcp__'))
+  if (bad !== undefined) return Promise.reject(new ModuleError('bad_request', `allowedTools only takes MCP tools, not ${bad}`))
+
+  const args = ['-p']
   if (input.model) args.push('--model', input.model)
   args.push('--allowedTools', input.allowedTools.join(','), '--output-format', 'json')
   const spawn = o.spawn ?? nodeSpawn
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, { env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir }, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn('claude', args, { env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir }, stdio: ['pipe', 'pipe', 'pipe'] })
+    // the prompt goes over stdin so one that starts with a dash is never read as a flag
+    child.stdin?.on('error', () => {})
+    child.stdin?.end(input.prompt)
     let stdout = ''
     let stderr = ''
     let settled = false

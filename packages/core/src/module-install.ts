@@ -68,7 +68,7 @@ export function permissionLines(manifest: ModuleManifestV1 | LegacyManifest): Pe
   }
   if (p.pty) lines.push({ kind: 'pty', value: 'yes' })
   if (p.cw?.length) lines.push({ kind: 'cw', value: p.cw.join(', ') })
-  if (p.agent) lines.push({ kind: 'agent', value: 'yes' })
+  if (p.agent) lines.push({ kind: 'agent', value: 'runs Claude with MCP tools' })
   const legacy = 'actions' in manifest && (manifest.actions ?? []).some(a => 'command' in a)
   if (legacy) lines.push({ kind: 'shell', value: 'runs the shell commands in its manifest' })
   return lines

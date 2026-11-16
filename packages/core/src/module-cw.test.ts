@@ -18,11 +18,13 @@ describe('createCwDeps', () => {
   let reader: CWReader
   let manager: PTYManager
   let states: StateTracker
-  const general = { remember: vi.fn(), get: vi.fn(), forget: vi.fn() } as unknown as GeneralSessions
+  let generalSession: ReturnType<typeof session> | undefined
+  const general = { remember: vi.fn(), get: () => generalSession, forget: vi.fn() } as unknown as GeneralSessions
 
   beforeEach(() => {
     pendingSessions.clear()
     live = false
+    generalSession = undefined
     state = undefined
     stored = session('claude')
     typeLine = vi.fn(() => live)
@@ -33,7 +35,7 @@ describe('createCwDeps', () => {
       getProjects: () => ({ p: { path: '/tmp/p', account: 'mono' } }),
       cwHome: '/tmp/cw',
     } as unknown as CWReader
-    manager = { typeLine, getOrCreate } as unknown as PTYManager
+    manager = { typeLine, getOrCreate, has: () => live } as unknown as PTYManager
     states = { snapshot: () => (state ? { 'p::s': { state } } : {}) } as unknown as StateTracker
   })
 
@@ -41,6 +43,7 @@ describe('createCwDeps', () => {
 
   it('send types into a live claude session', async () => {
     live = true
+    state = 'waiting'
     expect(await make().send('p', 's', 'hi')).toBe('typed')
     expect(typeLine).toHaveBeenCalledWith('p', 's', 'hi')
   })
@@ -51,6 +54,30 @@ describe('createCwDeps', () => {
     expect(typeLine).not.toHaveBeenCalled()
   })
 
+  it('send to a live general codex session is unsupported', async () => {
+    stored = null
+    live = true
+    state = 'waiting'
+    generalSession = session('codex')
+    expect(await make().send('p', 's', 'hi')).toBe('unsupported')
+    expect(typeLine).not.toHaveBeenCalled()
+  })
+
+  it('send to a live session at a permission prompt waits and gives up without typing', async () => {
+    vi.useFakeTimers()
+    try {
+      live = true
+      state = 'permission'
+      const promise = make(1200).send('p', 's', 'hi')
+      const assertion = expect(promise).rejects.toMatchObject({ code: 'unreachable' })
+      await vi.advanceTimersByTimeAsync(3000)
+      await assertion
+      expect(typeLine).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('send without a session file is unavailable', async () => {
     stored = null
     expect(await make().send('p', 's', 'hi')).toBe('unavailable')
@@ -59,15 +86,15 @@ describe('createCwDeps', () => {
   it('send resumes a dead session and types once it waits', async () => {
     vi.useFakeTimers()
     try {
-      getOrCreate.mockImplementation(() => { live = true; return {} })
+      getOrCreate.mockImplementation(() => { typeLine.mockReturnValue(true); return {} })
       const promise = make().send('p', 's', 'hi')
       await vi.advanceTimersByTimeAsync(500)
-      expect(typeLine).toHaveBeenCalledTimes(1)
+      expect(typeLine).not.toHaveBeenCalled()
       state = 'waiting'
       await vi.advanceTimersByTimeAsync(500)
       expect(await promise).toBe('resumed')
       expect(getOrCreate).toHaveBeenCalledWith('p', 's', stored, { isNew: false, headless: true })
-      expect(typeLine).toHaveBeenCalledTimes(2)
+      expect(typeLine).toHaveBeenCalledTimes(1)
       expect(typeLine).toHaveBeenLastCalledWith('p', 's', 'hi')
     } finally {
       vi.useRealTimers()
@@ -82,7 +109,7 @@ describe('createCwDeps', () => {
       await vi.advanceTimersByTimeAsync(1000)
       await assertion
       await expect(promise).rejects.toBeInstanceOf(ModuleError)
-      expect(typeLine).toHaveBeenCalledTimes(1)
+      expect(typeLine).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }

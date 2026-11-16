@@ -9,6 +9,7 @@ class FakeChild extends EventEmitter {
   stdout = new EventEmitter()
   stderr = new EventEmitter()
   kill = vi.fn(() => true)
+  stdin = { on: vi.fn(), end: vi.fn() }
   finish(stdout: string, code = 0) {
     this.stdout.emit('data', Buffer.from(stdout))
     this.emit('close', code)
@@ -27,7 +28,7 @@ describe('runAgent', () => {
     dirs.push(d)
     return d
   }
-  const input = { account: 'mono', prompt: 'summarise', model: 'haiku', allowedTools: ['Read', 'Grep'] }
+  const input = { account: 'mono', prompt: 'summarise', model: 'haiku', allowedTools: ['mcp__linear__get_issue', 'mcp__notion__search'] }
 
   it('spawns claude -p under the account config dir without CW_HARNESS', async () => {
     const cwHome = home()
@@ -40,9 +41,25 @@ describe('runAgent', () => {
     delete process.env.CW_HARNESS
     const [cmd, args, opts] = spawn.mock.calls[0] as unknown as [string, string[], { env: Record<string, string> }]
     expect(cmd).toBe('claude')
-    expect(args).toEqual(['-p', 'summarise', '--model', 'haiku', '--allowedTools', 'Read,Grep', '--output-format', 'json'])
+    expect(args).toEqual(['-p', '--model', 'haiku', '--allowedTools', 'mcp__linear__get_issue,mcp__notion__search', '--output-format', 'json'])
     expect(opts.env.CLAUDE_CONFIG_DIR).toBe(join(cwHome, 'accounts', 'mono'))
     expect(opts.env.CW_HARNESS).toBeUndefined()
+  })
+
+  it('prompt is written to stdin, not argv', async () => {
+    const child = new FakeChild()
+    const spawn = vi.fn(() => child)
+    const promise = runAgent({ ...input, prompt: '--dangerously-skip-permissions' }, { cwHome: home(), spawn: spawn as never })
+    child.finish(JSON.stringify({ result: 'x' }))
+    await promise
+    expect(child.stdin.end).toHaveBeenCalledWith('--dangerously-skip-permissions')
+    expect((spawn.mock.calls[0] as unknown as [string, string[]])[1]).not.toContain('--dangerously-skip-permissions')
+  })
+
+  it('rejects a non-MCP allowed tool', async () => {
+    const spawn = vi.fn()
+    await expect(runAgent({ ...input, allowedTools: ['mcp__a__b', 'Bash'] }, { cwHome: home(), spawn: spawn as never })).rejects.toMatchObject({ code: 'bad_request' })
+    expect(spawn).not.toHaveBeenCalled()
   })
 
   it('rejects an unknown account', async () => {

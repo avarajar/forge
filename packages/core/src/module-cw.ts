@@ -44,21 +44,26 @@ export function createCwDeps(o: {
   }
 
   const send = async (project: string, sessionDir: string, text: string): Promise<SendResult> => {
-    const session = reader.getSession(project, sessionDir)
-    if (session && session.harness !== 'claude') return 'unsupported'
-    if (manager.typeLine(project, sessionDir, text)) return 'typed'
-    if (!session) return 'unavailable'
-
     const key = `${project}::${sessionDir}`
-    const pty = manager.getOrCreate(project, sessionDir, session, { isNew: false, headless: true })
-    if (!pty) throw new ModuleError('unreachable', `could not resume ${key}`)
+    const stored = reader.getSession(project, sessionDir)
+    const session = stored ?? general.get(key)
+    if (!session) return 'unavailable'
+    if (session.harness !== 'claude') return 'unsupported'
+
+    const wasLive = manager.has(key)
+    if (!wasLive) {
+      if (!stored) return 'unavailable'
+      const pty = manager.getOrCreate(project, sessionDir, stored, { isNew: false, headless: true })
+      if (!pty) throw new ModuleError('unreachable', `could not resume ${key}`)
+    }
     const deadline = Date.now() + waitMs
-    while (states?.snapshot()[key]?.state !== 'waiting') {
+    const ready = () => { const state = states?.snapshot()[key]?.state; return state === 'waiting' || state === 'idle' }
+    while (!ready()) {
       if (Date.now() >= deadline) throw new ModuleError('unreachable', `${key} did not reach its prompt in ${Math.round(waitMs / 1000)} s`)
       await sleep(POLL_MS)
     }
     if (!manager.typeLine(project, sessionDir, text)) throw new ModuleError('unreachable', `${key} closed before it could be typed into`)
-    return 'resumed'
+    return wasLive ? 'typed' : 'resumed'
   }
 
   return { start, send }
