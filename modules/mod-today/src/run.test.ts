@@ -53,6 +53,19 @@ describe('readNow', () => {
     expect(await isFolded(s.ctx, DATE)).toBe(false)
   })
 
+  it('refresh reads only what is new since the last reading and merges into today', async () => {
+    const s = stub({ reader: reply([raw({})]), settings: { autoResearch: false } })
+    const first = await readNow(s.ctx, NOW)
+    await applyItem(s.ctx, DATE, first.items[0].id, 'dismiss')
+    s.run.mockImplementation(async () => ({ text: JSON.stringify({ items: [raw({ link: 'https://x.test/new' })] }) }))
+    const d = await readNow(s.ctx, new Date(2026, 10, 15, 10))
+    expect(s.run.mock.calls[1][0]).toMatchObject({ prompt: expect.stringContaining(`since ${NOW.toISOString()}`) })
+    expect(d.items).toHaveLength(2)
+    expect(d.items.find(i => i.id === first.items[0].id)?.state).toBe('dismissed')
+    expect(d.items.filter(i => i.state === 'proposed')).toHaveLength(1)
+    expect(d.since).toBe(first.since)
+  })
+
   it('saves the digest and the badge', async () => {
     const s = stub({ reader: reply([raw({}), raw({ link: 'https://x.test/2', kind: 'issue', issueKey: 'A-1' })]) })
     const d = await readNow(s.ctx, NOW)

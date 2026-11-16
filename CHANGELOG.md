@@ -8,6 +8,7 @@
 - Module banners: a module's `view.banner` bundle renders on the task list, served at `GET /api/modules/:id/banner.js` and switched with `PUT /api/modules/:id/banner` (on by default for bundled modules).
 - Module SDK 1.1.0: `cw` and `agent` permissions, `ctx.cw.start` (with a work session's `description` and a general session's first `prompt`), `ctx.sessions.send`, `ctx.agent.run` (no built-in tools, run in an empty temporary folder), and `openSession` and `openPage` on the panel client.
 - Bundled v1 modules ship in the npm package and the desktop app with their `package.json` and `dist/`.
+- Today module: a Refresh button on the banner (header and folded line) reads only what is new since the last reading; days with nothing new keep a minimal line with Refresh instead of hiding the banner.
 
 ### Fixed
 

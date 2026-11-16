@@ -91,7 +91,7 @@ export function foldedNow(folded: boolean, items: Item[]): boolean {
   return folded || !items.some(i => i.state === 'proposed' || i.state === 'failed')
 }
 
-const clock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+export const clock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
 export function readLine(d: Digest): string {
   const read = new Date(d.readAt)
