@@ -1,4 +1,4 @@
-import { Component, type ComponentChildren, type FunctionComponent } from 'preact'
+import { type FunctionComponent } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { ActionButton, EmptyState, Modal, showToast } from '@forge-dev/ui'
 import type { ModuleStatus, PanelConfig, PanelProps } from '@forge-dev/sdk'
@@ -6,6 +6,7 @@ import { PageHeader } from '../components/PageHeader.js'
 import { modules, moduleWarning, refreshModules } from '../hooks/useModules.js'
 import { markModuleSeen, moduleCounts } from '../hooks/useModuleNotifications.js'
 import { createPanelClient, importPanel } from '../config/moduleClient.js'
+import { ErrorBoundary } from '../components/ErrorBoundary.js'
 import { ModuleSettings } from '../components/ModuleSettings.js'
 import { errorText, requestJson } from '../config/api.js'
 
@@ -13,19 +14,6 @@ interface Props {
   moduleId: string
   cwProject: string | null
   onBack: () => void
-}
-
-// one broken view never takes the rest of the console with it
-class ViewBoundary extends Component<{ name: string; onReload: () => void; children: ComponentChildren }, { error: Error | null }> {
-  state = { error: null as Error | null }
-  componentDidCatch(error: Error) {
-    this.setState({ error })
-  }
-  render() {
-    const { error } = this.state
-    if (!error) return this.props.children
-    return <ViewError title={`${this.props.name}'s view crashed`} message={error.message} onReload={() => { this.setState({ error: null }); this.props.onReload() }} />
-  }
 }
 
 const ViewError: FunctionComponent<{ title: string; message: string; onReload: () => void }> = ({ title, message, onReload }) => (
@@ -139,9 +127,9 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
       {current?.error ? (
         <ViewError title={`${name}'s view did not load`} message={current.error} onReload={() => setAttempt(a => a + 1)} />
       ) : Panel ? (
-        <ViewBoundary key={`${version}-${attempt}`} name={name} onReload={() => setAttempt(a => a + 1)}>
+        <ErrorBoundary key={`${version}-${attempt}`} fallback={error => <ViewError title={`${name}'s view crashed`} message={error.message} onReload={() => setAttempt(a => a + 1)} />}>
           <Panel moduleId={moduleId} projectId={null} cwProject={cwProject} forge={client} />
-        </ViewBoundary>
+        </ErrorBoundary>
       ) : (
         <div class="py-20 text-center text-ink2">Loading {name}…</div>
       )}

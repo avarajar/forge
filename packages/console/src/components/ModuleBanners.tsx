@@ -1,21 +1,9 @@
-import { Component, type ComponentChildren, type FunctionComponent } from 'preact'
+import { type FunctionComponent } from 'preact'
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import type { ModuleStatus, PanelConfig, PanelProps } from '@forge-dev/sdk'
 import { modules } from '../hooks/useModules.js'
+import { ErrorBoundary } from './ErrorBoundary.js'
 import { createPanelClient, importPanel } from '../config/moduleClient.js'
-
-// a broken banner shows one quiet line and never takes the task list with it
-class BannerBoundary extends Component<{ name: string; children: ComponentChildren }, { error: Error | null }> {
-  state = { error: null as Error | null }
-  componentDidCatch(error: Error) {
-    this.setState({ error })
-  }
-  render() {
-    const { error } = this.state
-    if (!error) return this.props.children
-    return <BannerError name={this.props.name} message={error.message} />
-  }
-}
 
 const BannerError: FunctionComponent<{ name: string; message: string }> = ({ name, message }) => (
   <div class="mono" style={{ padding: '8px 12px', borderRadius: '10px', fontSize: '11.5px', color: 'var(--red)', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
@@ -41,9 +29,9 @@ const Banner: FunctionComponent<{ status: ModuleStatus; banner: { url: string; v
   const Panel = loaded.config?.component as FunctionComponent<PanelProps> | undefined
   if (!Panel) return null
   return (
-    <BannerBoundary key={banner.version} name={status.displayName}>
+    <ErrorBoundary key={banner.version} fallback={error => <BannerError name={status.displayName} message={error.message} />}>
       <Panel moduleId={status.id} projectId={null} cwProject={null} forge={client} />
-    </BannerBoundary>
+    </ErrorBoundary>
   )
 }
 

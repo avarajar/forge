@@ -4,7 +4,7 @@ import { ActionButton, Drawer, ToggleSwitch, showToast } from '@forge-dev/ui'
 import type { ModuleSettings as Values, ScalarSettingDef, SettingDef } from '@forge-dev/sdk'
 import { Field, inputValue, labelStyle } from './Field.js'
 import { DirectoryPicker } from './DirectoryPicker.js'
-import { errorText } from '../config/api.js'
+import { errorText, requestJson } from '../config/api.js'
 
 type Errors = Record<string, string>
 type Item = Record<string, unknown>
@@ -80,8 +80,7 @@ export const ModuleSettings: FunctionComponent<Props> = ({ moduleId, displayName
     setSaving(true)
     try {
       if (banner && showBanner !== banner.enabled) {
-        const toggled = await fetch(`/api/modules/${encodeURIComponent(moduleId)}/banner`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: showBanner }) })
-        if (!toggled.ok) throw new Error(`Saving failed (${toggled.status})`)
+        await requestJson('PUT', `/api/modules/${encodeURIComponent(moduleId)}/banner`, { enabled: showBanner })
       }
       if (Object.keys(schema).length === 0) {
         showToast(`${displayName} settings saved`, 'success')
