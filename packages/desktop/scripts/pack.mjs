@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Builds Forge.app for this Mac: main process in one file (core inlined), the console, the bundled
-// modules' manifests and node-pty, packaged with @electron/packager and signed ad hoc (no Apple account).
+// bundled modules (v1 ones with package.json and dist) and node-pty, packaged with @electron/packager and signed ad hoc (no Apple account).
 //   pnpm app            → out/Forge-darwin-<arch>/Forge.app
 //   pnpm app:install    → also copies it to ~/Applications
 
@@ -48,7 +48,7 @@ const consoleDist = join(repo, 'packages', 'console', 'dist')
 if (!existsSync(join(consoleDist, 'index.html'))) throw new Error('the console build left no packages/console/dist')
 cpSync(consoleDist, join(stage, 'console'), { recursive: true })
 
-// only the manifest, as the npm package does: the server runs its actions, the console carries the panels
+// legacy modules ship only the manifest, as the npm package does: the server runs their actions, the console carries the panels
 const { BUNDLED_MODULES, BUNDLED_V1_MODULES } = await import(join(repo, 'packages', 'core', 'dist', 'modules.js'))
 for (const name of BUNDLED_MODULES) {
   cpSync(join(repo, 'modules', name, 'forge-module.json'), join(stage, 'modules', name, 'forge-module.json'))

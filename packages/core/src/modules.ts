@@ -2,10 +2,10 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LegacyManifest as ModuleManifest, LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 
-// módulos que viajan con Forge porque la consola los usa (la vista QA llama a mod-qa)
+// modules that ship with Forge because the console uses them (the QA view calls mod-qa)
 export const BUNDLED_MODULES = ['mod-qa']
 
-// módulos v1 incluidos: los carga ModuleHost y el cargador heredado no los toca
+// bundled v1 modules: ModuleHost loads them and the legacy loader leaves them alone
 export const BUNDLED_V1_MODULES = ['mod-today']
 
 export class ModuleLoader {
