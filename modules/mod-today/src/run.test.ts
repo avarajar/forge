@@ -170,6 +170,12 @@ describe('github', () => {
     expect((await readNow(s.ctx, NOW)).items).toEqual([])
   })
 
+  it.each(['https://github.com./evil/repo/pull/1', 'https://GitHub.com/evil/repo/pull/1', 'https://www.github.com/evil/repo/pull/1', 'https://gist.github.com/evil/1'])('an unfetched link on %s is dropped', async link => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
+    const s = stub({ reader: reply([raw({ source: 'slack', kind: 'request', link })]) })
+    expect((await readNow(s.ctx, NOW)).items).toEqual([])
+  })
+
   it('a review item with a non-github link is dropped', async () => {
     vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
     const s = stub({ reader: reply([raw({ source: 'slack', kind: 'review', link: 'https://evil.test/pull/9', project: 'forge' })]) })

@@ -65,7 +65,7 @@ async function chooseAccount(ctx: ForgeContext): Promise<string> {
 
 function hostOf(link: string): string {
   try {
-    return new URL(link).hostname.toLowerCase()
+    return new URL(link).hostname.toLowerCase().replace(/\.+$/, '')
   } catch {
     return ''
   }
@@ -92,7 +92,7 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   // judged by the link, not the model's source: a GitHub link must be one gh fetched, and a review needs one
   const real = items.filter(i => {
     const host = hostOf(i.link)
-    const onGithub = host === 'github.com' || host === 'www.github.com'
+    const onGithub = host === 'github.com' || host.endsWith('.github.com')
     const ok = fetched.has(i.link.split('#')[0])
     return i.kind === 'review' ? onGithub && ok : !onGithub || ok
   })
