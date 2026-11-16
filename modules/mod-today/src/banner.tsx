@@ -1,8 +1,8 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { accountsOf, failedLine, inAccount, loadFailedLine, notesLine, opFor, problemsLabel, startsTask } from './ops'
-import { accountToken, Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, ProblemRow, readLine, Row, shortDay, soft, useAccountFilter, useActing, useDigest, useProjects } from './rows'
+import { accountsOf, failedLine, groupProblems, inAccount, loadFailedLine, notesLine, opFor, problemsLabel, startsTask } from './ops'
+import { accountToken, Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, shortDay, soft, useAccountFilter, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
 
@@ -50,19 +50,21 @@ function Strip({ title, children, actions }: { title: string; children?: Compone
 }
 
 function Banner({ forge }: PanelProps) {
-  const { reply, error, reload } = useDigest(forge)
+  const { reply, error, reload, hurry } = useDigest(forge)
   const projects = useProjects(forge)
   const [chosen, choose] = useAccountFilter()
   const digest = reply?.digest
-  const acting = useActing(forge, digest?.date, reload)
-  const refreshBtn = <Btn label={acting.refreshing ? 'Reading…' : 'Refresh'} style={ghostStyle} disabled={acting.refreshing} onClick={acting.refresh} />
+  const acting = useActing(forge, digest?.date, reload, hurry)
+  const reading = reply?.reading
+  const isReading = acting.refreshing || !!reading
+  const refreshBtn = <Btn label={isReading ? 'Reading…' : 'Refresh'} style={ghostStyle} disabled={isReading} onClick={acting.refresh} />
   const failure = (text: string) => <span style={{ color: 'var(--red)' }}>· {text}</span>
   const notes = notesLine(digest?.notes)
   const note = notes && <span style={{ color: 'var(--ink-3)' }}>· {notes}</span>
-  const problems = digest?.problems ?? []
+  const problems = groupProblems(digest?.problems ?? [])
   const problemRows = problems.length > 0 && (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
-      {problems.map((p, i) => <ProblemRow key={`${p.account}/${p.source}/${i}`} problem={p} acting={acting} />)}
+      {problems.map(g => <ProblemRow key={g.account} group={g} acting={acting} />)}
     </div>
   )
   const problemsLink = problems.length > 0 && <button type="button" onClick={() => forge.openPage()} style={{ font: 'inherit', fontSize: 'inherit', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--orange)' }}>· {problemsLabel(problems.length)}</button>
@@ -72,6 +74,20 @@ function Banner({ forge }: PanelProps) {
       <Strip title="Today" actions={<Btn label="Turn on" style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('enable'))} />}>
         <span>· Linear, Slack and GitHub each morning</span>
       </Strip>
+    )
+  }
+  // a first reading: the reading line over placeholder rows
+  if (reply && isReading && (!digest || digest.items.length === 0)) {
+    return shell(
+      <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ color: 'var(--orange)' }}>☀︎</span>
+          <ReadingLine reading={reading} />
+          <span style={{ marginLeft: 'auto' }}>{refreshBtn}</span>
+        </div>
+        {!digest && <SkeletonRows />}
+        {problemRows}
+      </div>,
     )
   }
   if (!reply || !digest || digest.items.length === 0) {
@@ -114,7 +130,7 @@ function Banner({ forge }: PanelProps) {
         <div style={{ width: '34px', height: '34px', borderRadius: '10px', display: 'grid', placeItems: 'center', background: 'linear-gradient(160deg, #ffb340, #ff7a1a)', boxShadow: '0 4px 14px rgba(255, 140, 30, .35)', fontSize: '17px' }}>☀︎</div>
         <div>
           <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 650, letterSpacing: '-.01em' }}>{dayLabel(new Date(), digest.date)}</h3>
-          <div style={{ color: 'var(--ink-2)', fontSize: '12px', marginTop: '1px' }}>{readLine(digest)}</div>
+          <div style={{ color: 'var(--ink-2)', fontSize: '12px', marginTop: '1px' }}>{isReading ? <ReadingLine reading={reading} /> : readLine(digest)}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
           {refreshBtn}

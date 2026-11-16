@@ -57,8 +57,24 @@ export const notesLine = (notes: string[] | undefined) => (notes?.length ? notes
 
 const SOURCE_NAME: Record<Problem['source'], string> = { slack: 'Slack', linear: 'Linear', reader: 'Reader' }
 
-// one warning line per problem
-export const problemLine = (p: Problem) => `${p.account} · ${SOURCE_NAME[p.source]} could not be read (${p.reason})`
+// an account's problems on one line, its reasons kept for the tooltip
+export interface ProblemGroup { account: string; label: string; reasons: string[] }
+
+// the sources that did not respond, in a fixed order
+function sourcesLabel(sources: Problem['source'][]): string {
+  const names = (['slack', 'linear', 'reader'] as const).filter(s => sources.includes(s)).map(s => SOURCE_NAME[s])
+  return names.join(' and ')
+}
+
+export function groupProblems(problems: Problem[]): ProblemGroup[] {
+  const accounts = [...new Set(problems.map(p => p.account))]
+  return accounts.map(account => {
+    const mine = problems.filter(p => p.account === account)
+    return { account, label: sourcesLabel(mine.map(p => p.source)), reasons: mine.map(p => `${SOURCE_NAME[p.source]}: ${p.reason}`) }
+  })
+}
+
+export const groupLine = (g: ProblemGroup) => `${g.account} · ${g.label} did not respond`
 
 export const problemsLabel = (n: number) => `⚠ ${n} account problem${n === 1 ? '' : 's'}`
 
@@ -86,4 +102,9 @@ export function byAccount(items: Item[]): { account?: string; sections: ReturnTy
   const blocks = accounts.map(account => ({ account, sections: sections(inAccount(items, account)) }))
   const rest = items.filter(i => !i.account)
   return rest.length ? [...blocks, { sections: sections(rest) }] : blocks
+}
+
+// the accounts of a reading in flight, in order, with what each is doing
+export function readingAccounts(accounts: Record<string, 'reading' | 'done' | 'problem'>): { account: string; state: 'reading' | 'done' | 'problem' }[] {
+  return Object.entries(accounts).map(([account, state]) => ({ account, state }))
 }
