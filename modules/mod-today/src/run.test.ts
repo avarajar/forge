@@ -179,6 +179,26 @@ describe('github', () => {
     expect(s.start).toHaveBeenCalledTimes(1)
   })
 
+  it('a reading that included GitHub events auto-starts nothing', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'comment' }] })
+    const s = stub({ reader: reply([raw({ source: 'slack', kind: 'research', link: 'https://x.test/r' })]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(s.start).not.toHaveBeenCalled()
+    expect(d.items.map(i => i.state)).toEqual(['proposed'])
+    // a later reading the same day without GitHub, even one that reads it again, leaves it alone
+    s.run.mockImplementation(reply([raw({ source: 'slack', kind: 'research', link: 'https://x.test/r', when: '2026-11-15T09:30:00Z' })]))
+    await readNow(s.ctx, new Date(2026, 10, 15, 10))
+    expect(s.start).not.toHaveBeenCalled()
+    expect((await applyItem(s.ctx, DATE, d.items[0].id, 'research')).state).toBe('done')
+  })
+
+  it('a reading without GitHub events still auto-starts research', async () => {
+    const s = stub({ reader: reply([raw({ source: 'slack', kind: 'research', link: 'https://x.test/r' })]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(s.start).toHaveBeenCalledTimes(1)
+    expect(d.items.map(i => i.state)).toEqual(['done'])
+  })
+
   it('a review item needs a pull request whose review was requested', async () => {
     vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'mention', url: 'https://github.com/o/r/pull/5', pr: 'https://github.com/o/r/pull/5' }, event] })
     const s = stub({ reader: reply([

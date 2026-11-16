@@ -95,7 +95,9 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   const fetched = new Set(gh.items.map(e => e.pr))
   const toReview = new Set(gh.items.filter(e => e.type === 'review-request').map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects: names, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`) })
-  return dedupe(collapse(checkGithub(items, fetched, toReview)), handled ?? {})
+  const fresh = dedupe(collapse(checkGithub(items, fetched, toReview)), handled ?? {})
+  // GitHub text shares the reader's call, so anything it read may be steered by it
+  return gh.items.length ? fresh.map(i => ({ ...i, manual: true })) : fresh
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -113,7 +115,8 @@ function merge(existing: Item[], fresh: Item[]): Item[] {
   for (const i of fresh) {
     const had = byId.get(i.id)
     if (!had) out.push(i)
-    else if (had.state === 'proposed') out[out.indexOf(had)] = i
+    // an item once read beside GitHub text keeps waiting for a click
+    else if (had.state === 'proposed') out[out.indexOf(had)] = had.manual ? { ...i, manual: true } : i
   }
   return out
 }
@@ -176,7 +179,7 @@ async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
   const max = typeof ctx.settings.maxAuto === 'number' ? ctx.settings.maxAuto : 3
   const first = await loadDigest(ctx, date)
   // text from GitHub can come from anyone, so it waits for a click
-  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed' && i.source !== 'github' && !githubPage(i.link)).map(i => i.id)
+  const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed' && !i.manual && i.source !== 'github' && !githubPage(i.link)).map(i => i.id)
   for (const id of ids) {
     const work = await locked(async () => {
       const digest = await loadDigest(ctx, date)

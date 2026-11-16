@@ -20,6 +20,8 @@ export interface Item {
   state: 'proposed' | 'done' | 'dismissed' | 'failed'
   startedSession?: Ref
   error?: string
+  // read alongside GitHub text, so it only starts on a click
+  manual?: boolean
 }
 
 export interface Digest {
