@@ -55,6 +55,39 @@ describe('ModuleHost', () => {
     expect(host.get('valid')?.server?.routes).toHaveLength(6)
   })
 
+  it('status carries banner url for a manifest with view.banner', async () => {
+    install('with-banner')
+    await make().scan()
+    expect(status('with-banner')?.banner).toMatchObject({ url: '/api/modules/with-banner/banner.js', enabled: false })
+    expect(typeof status('with-banner')?.banner?.version).toBe('number')
+    install('valid')
+    await host.scan()
+    expect(status('valid')?.banner).toBeUndefined()
+  })
+
+  it('banner is enabled by default only for bundled modules', async () => {
+    const bundled = join(root, 'bundled')
+    mkdirSync(bundled)
+    install('with-banner', join(bundled, 'mod-qa'))
+    await make({ bundledDir: bundled }).scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(true)
+    await host.close()
+    rmSync(bundled, { recursive: true })
+    install('with-banner')
+    await make({ bundledDir: undefined }).scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(false)
+  })
+
+  it('setBanner persists across a new host', async () => {
+    install('with-banner')
+    await make().scan()
+    host.setBanner('with-banner', true)
+    expect(status('with-banner')?.banner?.enabled).toBe(true)
+    await host.close()
+    await make().scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(true)
+  })
+
   it('lists each action with its effect', async () => {
     install('valid')
     await make().scan()

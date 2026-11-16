@@ -114,6 +114,26 @@ export function moduleRoutes(host: ModuleHost, opts: { db: IForgeDB; confirmatio
     }
   })
 
+  app.get('/:id/banner.js', async (c) => {
+    const mod = host.get(c.req.param('id'))
+    if (!mod?.manifest.view?.banner) return c.json(removed(c.req.param('id')), 404)
+    try {
+      const code = await readFile(resolve(mod.dir, mod.manifest.view.banner), 'utf-8')
+      return c.body(code, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' })
+    } catch (err) {
+      return c.json({ code: 'not_found', message: `banner bundle missing: ${(err as Error).message}` }, 404)
+    }
+  })
+
+  app.put('/:id/banner', async (c) => {
+    const id = c.req.param('id')
+    if (!host.get(id)?.status.banner) return c.json(removed(id), 404)
+    const body = await c.req.json<{ enabled?: unknown }>().catch(() => ({} as { enabled?: unknown }))
+    if (typeof body.enabled !== 'boolean') return c.json({ code: 'bad_request', message: 'enabled must be a boolean' }, 400)
+    host.setBanner(id, body.enabled)
+    return c.json(host.get(id)!.status)
+  })
+
   app.post('/:id/actions/:action/prepare', async (c) => {
     const found = await findAction(c)
     if (found instanceof Response) return found

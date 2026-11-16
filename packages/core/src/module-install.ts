@@ -98,6 +98,7 @@ export interface InstallPreview {
   description?: string
   // what npm installs: the exact version read, a folder's absolute path, or a git or tarball url as given
   spec: string
+  banner?: boolean
   permissions: PermissionLine[]
   trustNote: string
 }
@@ -136,7 +137,7 @@ export class ModuleInstaller {
     return {
       token, kind: preview.kind, name: m.name, version: m.version, displayName: m.displayName,
       description: 'description' in m && typeof m.description === 'string' ? m.description : undefined,
-      spec: pinned, permissions: permissionLines(m), trustNote: TRUST_NOTE,
+      spec: pinned, banner: 'view' in m && m.view?.banner ? true : undefined, permissions: permissionLines(m), trustNote: TRUST_NOTE,
     }
   }
 

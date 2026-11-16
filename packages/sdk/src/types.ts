@@ -113,7 +113,7 @@ export interface ModuleManifestV1 {
   icon?: string
   color?: string
   server?: string
-  view?: { entry: string; title?: string }
+  view?: { entry: string; title?: string; banner?: string }
   permissions?: ModulePermissions
   settings?: { schema: Record<string, SettingDef> }
   actions?: LegacyActionDef[]
@@ -135,6 +135,7 @@ export interface ModuleStatus {
   settingsSchema?: Record<string, SettingDef>
   permissions?: ModulePermissions
   view?: { url: string; title: string; version: string }
+  banner?: { url: string; version: number; enabled: boolean }
   actions?: Array<{ id: string; label: string; effect: ActionEffect }>
   lastJobError?: string
   lastEventError?: string

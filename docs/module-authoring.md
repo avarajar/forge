@@ -221,6 +221,13 @@ export default definePanel({ id: 'main', title: 'Harvey', component: View })
 
 Module views run only in the built console that Forge serves (port 3000), not under the Vite dev server.
 
+### Banner
+
+Set `view.banner` to a second bundle (`"view": { "entry": "./dist/view.js", "banner": "./dist/banner.js" }`) that
+default-exports `definePanel({...})` like the view. Forge renders it at the top of the task list, above the start card,
+in its own error boundary. A bundled module's banner is on by default; any other module's is off until the person turns
+on **Show on task list** in the module's settings. The choice is kept in `<dataDir>/module-banners.json`.
+
 ---
 
 ## 7. Notifications

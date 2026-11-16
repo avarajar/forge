@@ -1,6 +1,6 @@
 import { computed, signal } from '@preact/signals'
 import { ModuleRequestError } from '@forge-dev/sdk'
-import type { Confirmation, ModuleSettings, PanelClient } from '@forge-dev/sdk'
+import type { Confirmation, ModuleSettings, PanelClient, PanelConfig } from '@forge-dev/sdk'
 import { modules } from '../hooks/useModules.js'
 import { confirmAction } from '../components/ConfirmAction.js'
 
@@ -37,6 +37,23 @@ async function readStream(res: Response, onOutput: (chunk: string) => void): Pro
     }
   }
   throw new ModuleRequestError('module_error', 'the action stream ended early')
+}
+
+const loadedPanels = new Map<string, Promise<PanelConfig>>()
+
+// a module's view or banner bundle, imported once per url and version
+export function importPanel(url: string, version: number | string): Promise<PanelConfig> {
+  const key = `${url}?v=${encodeURIComponent(String(version))}`
+  let p = loadedPanels.get(key)
+  if (!p) {
+    p = import(/* @vite-ignore */ key).then((m: { default?: PanelConfig }) => {
+      if (!m.default || typeof m.default.component !== 'function') throw new Error('the bundle must default-export definePanel({...})')
+      return m.default
+    })
+    p.catch(() => loadedPanels.delete(key))
+    loadedPanels.set(key, p)
+  }
+  return p
 }
 
 export function createPanelClient(moduleId: string, displayName: () => string, openSettings: () => void): PanelClient & { reloadSettings(): Promise<void> } {

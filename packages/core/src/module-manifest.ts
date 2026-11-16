@@ -51,6 +51,7 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
   if (raw.view !== undefined) {
     if (!isObject(raw.view) || typeof raw.view.entry !== 'string' || raw.view.entry === '') err('/view/entry', 'required string')
     else if (raw.view.title !== undefined && typeof raw.view.title !== 'string') err('/view/title', 'must be a string')
+    if (isObject(raw.view) && raw.view.banner !== undefined && (typeof raw.view.banner !== 'string' || raw.view.banner === '')) err('/view/banner', 'must be a non-empty string')
   }
 
   if (raw.permissions !== undefined) {
@@ -82,7 +83,7 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
   }
 
   if (errors.length === 0) {
-    const entries: Array<[string, unknown]> = [['/server', raw.server], ['/view/entry', isObject(raw.view) ? raw.view.entry : undefined]]
+    const entries: Array<[string, unknown]> = [['/server', raw.server], ['/view/entry', isObject(raw.view) ? raw.view.entry : undefined], ['/view/banner', isObject(raw.view) ? raw.view.banner : undefined]]
     for (const [path, value] of entries) {
       if (typeof value === 'string' && !insideFolder(moduleDir, value)) err(path, 'points outside the module folder')
     }
