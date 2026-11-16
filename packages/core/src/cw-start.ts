@@ -39,7 +39,6 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
   const { reader } = deps
   const { type, project, task, description, workflow, account, directory, skipPermissions, model, loopPrompt, loopInterval, name, harness } = input
 
-
   if (harness !== undefined && !HARNESS_NAME_RE.test(harness)) {
     return { ok: false, status: 400, error: 'Invalid harness' }
   }

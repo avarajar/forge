@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { CWReader } from './cw-reader.js'
-import { prepareStart, pendingSessions } from './cw-start.js'
+import { prepareStart, launchHeadless, pendingSessions } from './cw-start.js'
+import { GeneralSessions } from './general-sessions.js'
+import type { PTYManager } from './pty-manager.js'
+import type { CWSession } from './cw-types.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-start')
 
@@ -34,5 +37,23 @@ describe('prepareStart', () => {
   it('without project answers 400', async () => {
     const r = await prepareStart({ type: 'work', task: 'x' }, { reader })
     expect(r).toMatchObject({ ok: false, status: 400 })
+  })
+})
+
+describe('launchHeadless', () => {
+  afterEach(() => pendingSessions.clear())
+
+  it('launchHeadless takes a pending session and spawns it headless', () => {
+    const session = { project: 'proj', type: 'work', sessionDir: 'task-X' } as CWSession
+    pendingSessions.set('proj::task-X', session)
+    const getOrCreate = vi.fn().mockReturnValue({ id: 'pty' })
+    const manager = { getOrCreate } as unknown as PTYManager
+    const reader = { getSession: () => null } as unknown as CWReader
+
+    const result = launchHeadless('proj', 'task-X', { reader, manager, general: new GeneralSessions() })
+
+    expect(result).toEqual({ id: 'pty' })
+    expect(getOrCreate).toHaveBeenCalledWith('proj', 'task-X', session, { isNew: true, headless: true })
+    expect(pendingSessions.has('proj::task-X')).toBe(false)
   })
 })
