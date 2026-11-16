@@ -240,8 +240,8 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
 export async function retryAccount(ctx: ForgeContext, account: string, now: Date): Promise<Digest> {
   if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
   if (!(await readAccounts(ctx)).includes(account)) throw new ModuleError('bad_request', `${account} is not an account Today reads`)
-  // a reading in flight finishes first, so the two never write over each other
-  await reading?.catch(() => {})
+  // a full reading tracks its own progress and writes the digest, so a retry waits for it to end
+  if (reading) throw new ModuleError('bad_request', 'a reading is running')
   const date = localDate(now)
   const prev = await loadDigest(ctx, date)
   if (!prev) throw new ModuleError('not_found', `no digest for ${date}`)

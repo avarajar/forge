@@ -793,18 +793,17 @@ describe('retryAccount', () => {
     expect(s.run).not.toHaveBeenCalled()
   })
 
-  it('waits for a reading in flight', async () => {
+  it('is refused while a full reading is running', async () => {
     const s = await broken()
     let release = () => {}
     const gate = new Promise<void>(r => { release = r })
     s.run.mockImplementation(async () => { await gate; return { text: '{"items":[]}' } })
     const reading = readNow(s.ctx, LATER)
-    const retry = retryAccount(s.ctx, 'meridian', LATER)
     await new Promise(r => setTimeout(r, 10))
+    expect(await retryAccount(s.ctx, 'meridian', LATER).catch(e => e)).toMatchObject({ code: 'bad_request', message: 'a reading is running' })
     expect(s.run).toHaveBeenCalledTimes(2)
     release()
-    await Promise.all([reading, retry])
-    expect(s.run).toHaveBeenCalledTimes(3)
+    await reading
   })
 })
 

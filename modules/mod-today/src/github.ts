@@ -138,8 +138,8 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
         items.push({ type: 'mention', repo: n.repository.full_name, number: page.number, title: n.subject.title, url: page.url, pr: page.url, when: n.updated_at })
       }
     }
-    // every open pull request still asked of me, updated or not
-    const requested = asked.map(pr => pr.url)
+    // every open pull request still asked of me, updated or not; unknown when the search hit its cap
+    const requested = asked.length >= MAX_PRS ? undefined : asked.map(pr => pr.url)
     return unread ? { items, requested, error: `${unread} pull request${unread === 1 ? '' : 's'} could not be read` } : { items, requested }
   } catch (e) {
     return { items: [], error: errorMessage(e) }

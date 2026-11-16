@@ -96,7 +96,7 @@ function extractJson(out: string): unknown {
   }
 }
 
-// what the reader could not reach in Slack or Linear, bounded and one line each; any other source is not a problem
+// what the reader could not reach in Slack or Linear (named anywhere in the line), bounded and one line each; a GitHub one is not a problem
 export function parseReaderProblems(out: string): string[] {
   let root: unknown
   try {
@@ -105,7 +105,7 @@ export function parseReaderProblems(out: string): string[] {
     return []
   }
   if (!isRecord(root) || !Array.isArray(root.problems)) return []
-  return root.problems.filter((p): p is string => typeof p === 'string' && /^\s*(slack|linear)/i.test(p)).slice(0, 5).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 160))
+  return root.problems.filter((p): p is string => typeof p === 'string' && /\b(slack|linear)\b/i.test(p) && !/^\s*github/i.test(p)).slice(0, 5).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 160))
 }
 
 // "<source>: <reason>" from the reader; anything else is the reader's own problem

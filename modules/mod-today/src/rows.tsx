@@ -312,16 +312,26 @@ const READING_CSS = `
 .today-pulse { animation: today-pulse 1.4s ease-in-out infinite }
 @media (prefers-reduced-motion: reduce) { .today-spin, .today-pulse { animation: none } }`
 
+// the keyframes go into the page once, however many components use them
+function useReadingStyles() {
+  if (typeof document !== 'undefined' && !document.getElementById('today-reading-css')) {
+    const el = document.createElement('style')
+    el.id = 'today-reading-css'
+    el.textContent = READING_CSS
+    document.head.appendChild(el)
+  }
+}
+
 function Spinner() {
   return <i class="today-spin" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', border: '2px solid var(--hair-2)', borderTopColor: 'var(--blue)', boxSizing: 'border-box' }} />
 }
 
 // "Reading monoku · meridian…" with a mark per account: spinner, done or problem
 export function ReadingLine({ reading }: { reading: Reading | undefined }) {
+  useReadingStyles()
   const accounts = Object.entries(reading?.accounts ?? {})
   return (
     <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink-2)', flexWrap: 'wrap' }}>
-      <style>{READING_CSS}</style>
       <b class="today-pulse" style={{ fontWeight: 600, color: 'var(--ink)' }}>{accounts.length ? 'Reading' : 'Reading…'}</b>
       {accounts.map(([account, state], n) => (
         <span key={account} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
@@ -337,9 +347,9 @@ export function ReadingLine({ reading }: { reading: Reading | undefined }) {
 
 // soft pulsing blocks shaped like item rows, for a first reading
 export function SkeletonRows() {
+  useReadingStyles()
   return (
     <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <style>{READING_CSS}</style>
       {[0, 1, 2].map(n => (
         <div key={n} class="today-pulse" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', background: 'var(--elev)', border: '1px solid var(--hair)', animationDelay: `${n * 0.15}s` }}>
           <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--hair)' }} />

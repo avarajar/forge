@@ -103,8 +103,3 @@ export function byAccount(items: Item[]): { account?: string; sections: ReturnTy
   const rest = items.filter(i => !i.account)
   return rest.length ? [...blocks, { sections: sections(rest) }] : blocks
 }
-
-// the accounts of a reading in flight, in order, with what each is doing
-export function readingAccounts(accounts: Record<string, 'reading' | 'done' | 'problem'>): { account: string; state: 'reading' | 'done' | 'problem' }[] {
-  return Object.entries(accounts).map(([account, state]) => ({ account, state }))
-}

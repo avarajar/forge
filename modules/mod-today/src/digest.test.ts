@@ -137,6 +137,10 @@ describe('parseReaderProblems', () => {
     expect(parseReaderProblems(body(['slack: down', 'Linear: unavailable', 'github: the fetched events list was empty', 'tools missing']))).toEqual(['slack: down', 'Linear: unavailable'])
   })
 
+  it('keeps a failure that names Slack or Linear anywhere, and drops only GitHub-first ones', () => {
+    expect(parseReaderProblems(body(['claude.ai Slack connector down', 'the Linear tools are missing', 'GitHub: slack link was empty']))).toEqual(['claude.ai Slack connector down', 'the Linear tools are missing'])
+  })
+
   it('is empty when nothing is a problem', () => {
     expect(parseReaderProblems(body(['github: nothing']))).toEqual([])
     expect(parseReaderProblems('no json')).toEqual([])
