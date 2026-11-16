@@ -1,7 +1,7 @@
 import { defineModule, defineAction, defineRoute, defineJob, ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { ownersOf } from './ops'
 import { shouldRead, type Digest } from './digest'
-import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, OFF_MESSAGE, readNow, setEnabled, setFolded, type Op } from './run'
+import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, OFF_MESSAGE, readNow, reconnectAccount, retryAccount, setEnabled, setFolded, type Op } from './run'
 
 const RETRY_AFTER_FAILURE = 60 * 60 * 1000
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -60,6 +60,20 @@ export default defineModule({
       label: 'Read now',
       effect: 'local',
       run: (_input, ctx) => readNow(ctx, new Date()),
+    }),
+    defineAction<{ account: string }>({
+      id: 'retry-account',
+      label: 'Retry',
+      effect: 'local',
+      input: { account: { type: 'string', required: true } },
+      run: (input, ctx) => retryAccount(ctx, input.account, new Date()),
+    }),
+    defineAction<{ account: string }>({
+      id: 'reconnect',
+      label: 'Reconnect',
+      effect: 'local',
+      input: { account: { type: 'string', required: true } },
+      run: (input, ctx) => reconnectAccount(ctx, input.account),
     }),
     defineAction({
       id: 'enable',

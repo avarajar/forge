@@ -1,4 +1,4 @@
-import type { Item, Op } from './digest'
+import type { Item, Op, Problem } from './digest'
 
 // shared by the server and the views, so it stays free of Node imports
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -54,6 +54,13 @@ export const loadFailedLine = (error: string) => `Can't load Today: ${error}`
 
 // problems that did not fail the reading, on one line
 export const notesLine = (notes: string[] | undefined) => (notes?.length ? notes.join(' · ') : null)
+
+const SOURCE_NAME: Record<Problem['source'], string> = { slack: 'Slack', linear: 'Linear', reader: 'Reader' }
+
+// one warning line per problem
+export const problemLine = (p: Problem) => `${p.account} · ${SOURCE_NAME[p.source]} could not be read (${p.reason})`
+
+export const problemsLabel = (n: number) => `⚠ ${n} account problem${n === 1 ? '' : 's'}`
 
 const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
   { title: 'In open tasks', pick: i => i.kind === 'to-task' },

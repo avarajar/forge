@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext, type ProjectInfo, type SessionInfo } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { countStart, dedupe, itemId, parseReaderOutput, parseReaderProblems, pendingCount, startedBy, type Digest, type Item, type Op } from './digest'
+import { countStart, dedupe, itemId, parseReaderOutput, parseReaderProblems, pendingCount, startedBy, toProblem, type Digest, type Item, type Op, type Problem } from './digest'
 import { errorMessage, githubPage, inAccount, oneLine, opFor, ownersOf, startsTask, untrusted } from './ops'
 import { fetchGithub, type GithubEvent } from './github'
 
@@ -79,10 +79,10 @@ function collapse(items: Item[]): Item[] {
   return [...byId.values()]
 }
 
-interface Reader { account: string; items: Item[]; problems?: string[]; error?: string }
+interface Reader { account: string; items: Item[]; problems: Problem[] }
 
 // reads one account's connectors; a reader that got GitHub events marks its items manual
-async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string> }): Promise<{ items: Item[]; problems: string[] }> {
+async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string> }): Promise<{ items: Item[]; problems: Problem[] }> {
   const mine = <T extends { account?: string }>(x: T) => !x.account || x.account === account
   const sessions = o.sessions.filter(mine)
   const projects = o.projects.filter(mine).map(p => p.name)
@@ -93,7 +93,7 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
   let out = await ask()
   // connectors can still be connecting when a headless run starts, so one retry before giving up
   if (parseReaderProblems(out.text).length) out = await ask()
-  const problems = parseReaderProblems(out.text)
+  const problems = parseReaderProblems(out.text).map(p => toProblem(account, p))
   const fetched = new Set(github.map(e => e.pr))
   const toReview = new Set(github.filter(e => e.type === 'review-request').map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`), account })
@@ -104,8 +104,18 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
   return { items: github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh, problems }
 }
 
+// one account's reading: a reader that throws is that account's reader problem
+async function readOne(ctx: ForgeContext, account: string, o: Parameters<typeof readAccount>[2]): Promise<Reader & { error?: string }> {
+  try {
+    return { account, ...(await readAccount(ctx, account, o)) }
+  } catch (e) {
+    const error = errorMessage(e)
+    return { account, items: [], problems: [{ account, source: 'reader', reason: error }], error }
+  }
+}
+
 // notes collects problems that do not fail the reading
-async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Item[]> {
+async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<{ items: Item[]; problems: Problem[] }> {
   const lastReadAt = await ctx.storage.get<string>('lastReadAt')
   const since = lastReadAt ?? new Date(now.getTime() - DAY).toISOString()
   // ctx has no repository for a project, so GitHub is read once, by the first account's reader, while the others start
@@ -117,21 +127,13 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
     readAccounts(ctx),
   ])
   const owners = ownersOf(projects)
-  const results = await Promise.all(accounts.map(async (account, n): Promise<Reader> => {
-    try {
-      return { account, ...(await readAccount(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} })) }
-    } catch (e) {
-      return { account, items: [], error: errorMessage(e) }
-    }
-  }))
+  const results = await Promise.all(accounts.map((account, n) => readOne(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} })))
   const gh = await github
   if (gh.error) notes.push(`GitHub: ${gh.error}`)
   if (results[0].error && gh.items.length) notes.push('GitHub: not read')
   const failed = results.filter(r => r.error)
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
-  notes.push(...failed.map(f => `${f.account}: ${f.error}`))
-  notes.push(...results.flatMap(r => (r.problems ?? []).map(p => `${r.account}: ${p}`)))
-  return collapse(results.flatMap(r => r.items))
+  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems) }
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -178,7 +180,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   const date = localDate(now)
   const notes: string[] = []
   try {
-    const fresh = await reread(ctx, now, notes)
+    const { items: fresh, problems } = await reread(ctx, now, notes)
     const lastReadAt = await ctx.storage.get<string>('lastReadAt')
     await locked(async () => {
       const prev = await loadDigest(ctx, date)
@@ -193,6 +195,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
         items,
         autoStarted: prev?.autoStarted ?? {},
         ...(notes.length ? { notes } : {}),
+        ...(problems.length ? { problems } : {}),
       })
       await rememberHandled(ctx, fresh, now)
       await ctx.storage.set('lastReadAt', now.toISOString())
@@ -203,6 +206,39 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   } catch (e) {
     return keepWithError(ctx, now, errorMessage(e), notes)
   }
+}
+
+// reads one account again with the digest's own window, without GitHub, and merges the result into today's digest
+export async function retryAccount(ctx: ForgeContext, account: string, now: Date): Promise<Digest> {
+  if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
+  if (!(await readAccounts(ctx)).includes(account)) throw new ModuleError('bad_request', `${account} is not an account Today reads`)
+  // a reading in flight finishes first, so the two never write over each other
+  await reading?.catch(() => {})
+  const date = localDate(now)
+  const prev = await loadDigest(ctx, date)
+  if (!prev) throw new ModuleError('not_found', `no digest for ${date}`)
+  const [sessions, projects, handled] = await Promise.all([ctx.sessions.list(), ctx.projects.list(), ctx.storage.get<Record<string, string>>('handled')])
+  const result = await readOne(ctx, account, { since: prev.since, sessions, projects, owners: ownersOf(projects), handled: handled ?? {} })
+  await locked(async () => {
+    const digest = (await loadDigest(ctx, date)) ?? prev
+    const items = merge(digest.items, result.items)
+    const known = new Set(digest.items.map(i => i.id))
+    if (items.some(i => i.state === 'proposed' && !known.has(i.id))) await ctx.storage.delete(`folded/${date}`)
+    const problems = [...(digest.problems ?? []).filter(p => p.account !== account), ...result.problems]
+    const next: Digest = { ...digest, items }
+    if (problems.length) next.problems = problems
+    else delete next.problems
+    await saveDigest(ctx, next)
+    await rememberHandled(ctx, result.items, now)
+  })
+  await autoResearch(ctx, date)
+  return (await loadDigest(ctx, date))!
+}
+
+// opens the account's Claude Code at /mcp, where its connectors are signed in again
+export async function reconnectAccount(ctx: ForgeContext, account: string): Promise<{ project: string; sessionDir: string }> {
+  if (!(await readAccounts(ctx)).includes(account)) throw new ModuleError('bad_request', `${account} is not an account Today reads`)
+  return ctx.cw.start({ type: 'general', account, task: `Reconnect connectors (${account})`, prompt: '/mcp' })
 }
 
 function keepWithError(ctx: ForgeContext, now: Date, error: string, notes: string[]): Promise<Digest> {

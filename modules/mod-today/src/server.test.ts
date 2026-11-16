@@ -80,3 +80,27 @@ describe('off by default', () => {
     expect(s.run).not.toHaveBeenCalled()
   })
 })
+
+describe('retry and reconnect actions', () => {
+  const run = (id: string, ctx: ForgeContext, input: unknown) => (action(id).run as (i: unknown, c: ForgeContext) => Promise<unknown>)(input, ctx)
+
+  it('are local actions that take an account', () => {
+    for (const id of ['retry-account', 'reconnect']) {
+      expect(action(id).effect).toBe('local')
+      expect(action(id).input).toMatchObject({ account: { type: 'string', required: true } })
+    }
+  })
+
+  it('retry-account while off is refused', async () => {
+    const s = stub()
+    expect(await run('retry-account', s.ctx, { account: 'monoku' }).catch(e => e)).toMatchObject({ code: 'bad_request', message: 'Today is off' })
+    expect(s.run).not.toHaveBeenCalled()
+  })
+
+  it('reconnect starts the account\'s session', async () => {
+    const s = stub(true)
+    vi.mocked(s.ctx.cw.start).mockResolvedValue({ project: 'p', sessionDir: 'd' })
+    expect(await run('reconnect', s.ctx, { account: 'monoku' })).toEqual({ project: 'p', sessionDir: 'd' })
+    expect(s.ctx.cw.start).toHaveBeenCalledWith(expect.objectContaining({ account: 'monoku', prompt: '/mcp' }))
+  })
+})

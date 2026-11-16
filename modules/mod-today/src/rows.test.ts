@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { accountToken, dayLabel, foldedNow, isToday, shortDay } from './rows'
-import { byAccount, failedLine, notesLine, opFor, projectsFor } from './ops'
+import { byAccount, failedLine, notesLine, opFor, problemLine, problemsLabel, projectsFor } from './ops'
 import type { Item } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -83,5 +83,17 @@ describe('accounts in the views', () => {
     const owners = { forge: 'monoku', atlas: 'meridian' }
     expect(projectsFor({ names: ['forge', 'atlas', 'misc'], owners }, 'meridian')).toEqual(['atlas', 'misc'])
     expect(projectsFor({ names: ['forge', 'atlas'], owners })).toEqual(['forge', 'atlas'])
+  })
+})
+
+describe('problems', () => {
+  it('names the account, the source and the reason', () => {
+    expect(problemLine({ account: 'meridian', source: 'slack', reason: 'still connecting' })).toBe('meridian · Slack could not be read (still connecting)')
+    expect(problemLine({ account: 'a', source: 'reader', reason: 'boom' })).toBe('a · Reader could not be read (boom)')
+  })
+
+  it('counts them for the folded line', () => {
+    expect(problemsLabel(1)).toBe('⚠ 1 account problem')
+    expect(problemsLabel(2)).toBe('⚠ 2 account problems')
   })
 })

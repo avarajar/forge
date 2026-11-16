@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
-import type { Digest, Item, Kind, Op } from './digest'
-import { EMPTY_PROJECTS, errorMessage, opFor, projectsFor, startsTask, type ProjectList } from './ops'
+import type { Digest, Item, Kind, Op, Problem } from './digest'
+import { EMPTY_PROJECTS, errorMessage, opFor, problemLine, projectsFor, startsTask, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
-export interface Acting { busy: boolean; refreshing: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
+export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
 
 export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean }
 
@@ -92,6 +92,7 @@ export function useProjects(forge: PanelClient): ProjectList {
 export function useActing(forge: PanelClient, date: string | undefined, reload: () => Promise<void>): Acting {
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [retrying, setRetrying] = useState<string | null>(null)
   const reading = useRef(false)
   // runs fn, tells the person when it fails, and loads what it changed
   const guarded = async (fn: () => Promise<unknown>) => {
@@ -119,7 +120,20 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     reading.current = false
     setRefreshing(false)
   }
-  return { busy, refreshing, run, act, refresh }
+  const retry = async (account: string) => {
+    if (busy) return
+    setBusy(true)
+    setRetrying(account)
+    await guarded(() => forge.action('retry-account', { account }))
+    setRetrying(null)
+    setBusy(false)
+  }
+  // opens the account's Claude Code at /mcp
+  const reconnect = (account: string) => run(async () => {
+    const s = await forge.action<{ project: string; sessionDir: string }>('reconnect', { account })
+    if (s) forge.openSession(s.project, s.sessionDir)
+  })
+  return { busy, refreshing, retrying, retry, reconnect, run, act, refresh }
 }
 
 function dayOf(date: string): Date {
@@ -280,6 +294,21 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
         {item.state === 'done' && item.startedSession && <Btn label="Open session" onClick={() => forge.openSession(item.startedSession!.project, item.startedSession!.sessionDir)} />}
         {item.state === 'dismissed' && <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>Dismissed</span>}
       </div>
+    </div>
+  )
+}
+
+// a warning for one account's connector that could not be read, with the two ways out
+export function ProblemRow({ problem, acting }: { problem: Problem; acting: Acting }) {
+  const mine = acting.retrying === problem.account
+  return (
+    <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', borderRadius: '10px', fontSize: '12px', color: 'var(--ink-2)', background: soft('--orange', 10), border: `1px solid ${soft('--orange', 35)}` }}>
+      <span style={{ color: 'var(--orange)' }}>⚠</span>
+      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{problemLine(problem)}</span>
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <Btn label={mine ? 'Reading…' : 'Retry'} disabled={acting.busy} onClick={() => acting.retry(problem.account)} />
+        <Btn label="Reconnect" style={ghostStyle} disabled={acting.busy} onClick={() => acting.reconnect(problem.account)} />
+      </span>
     </div>
   )
 }
