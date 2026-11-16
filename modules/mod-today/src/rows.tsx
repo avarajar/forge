@@ -2,18 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
-import type { Digest, Item, Kind } from './digest'
-
-export type Op = 'send' | 'start' | 'research' | 'dismiss'
+import { errorMessage, opFor, type Digest, type Item, type Kind, type Op } from './digest'
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct }
 
-export interface DigestReply { digest: Digest | null; folded: boolean; lastError?: string }
+export interface DigestReply { digest: Digest | null; folded: boolean }
 
 export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']
-
-const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // loads the digest now and every minute; `path` picks a day
 export function useDigest(forge: PanelClient, path = '/digest') {
@@ -28,13 +24,18 @@ export function useDigest(forge: PanelClient, path = '/digest') {
       setReply(next)
       setError(null)
     } catch (e) {
-      if (mine === latest.current) setError(errorText(e))
+      if (mine === latest.current) setError(errorMessage(e))
     }
   }, [forge, path])
   useEffect(() => {
     void load()
-    const t = setInterval(() => void load(), 60_000)
-    return () => clearInterval(t)
+    const poll = () => { if (!document.hidden) void load() }
+    const t = setInterval(poll, 60_000)
+    document.addEventListener('visibilitychange', poll)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', poll)
+    }
   }, [load])
   return { reply, error, reload: load }
 }
@@ -56,7 +57,7 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     try {
       await fn()
     } catch (e) {
-      showToast(errorText(e), 'error')
+      showToast(errorMessage(e), 'error')
     }
     await reload()
     setBusy(false)
@@ -180,12 +181,11 @@ function outcome(item: Item): ComponentChildren {
 }
 
 export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: Acting; forge: PanelClient }> = ({ item, projects = [], acting, forge }) => {
-  const onAct = acting.act
   const [project, setProject] = useState(item.project ?? '')
   const open = item.state === 'proposed' || item.state === 'failed'
   const needsProject = (item.kind === 'issue' || item.kind === 'request') && !item.project
   const verb = item.kind === 'to-task' ? 'Send' : item.kind === 'research' ? 'Research' : 'Start'
-  const op: Op = item.kind === 'to-task' ? 'send' : item.kind === 'research' ? 'research' : 'start'
+  const op = opFor(item, project)
   const where = item.source === 'slack' ? 'in' : 'on'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr auto', gap: '12px', alignItems: 'center', padding: '10px 12px', borderRadius: '11px', background: soft('--ink', 3), border: '1px solid var(--hair)', opacity: item.state === 'dismissed' ? 0.55 : 1, transition: 'background .2s var(--ease)' }}>
@@ -211,8 +211,8 @@ export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: A
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <KindPill kind={item.kind} />
         {open && needsProject && <ProjectPicker projects={projects} value={project} onChange={setProject} />}
-        {open && <Btn label={item.state === 'failed' ? 'Retry' : verb} disabled={acting.busy || (needsProject && !project)} onClick={() => onAct(item, op, needsProject ? project : undefined)} />}
-        {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => onAct(item, 'dismiss')} />}
+        {open && <Btn label={item.state === 'failed' ? 'Retry' : verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />}
+        {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => acting.act(item, 'dismiss')} />}
         {item.state === 'done' && outcome(item)}
         {item.state === 'done' && item.startedSession && <Btn label="Open session" onClick={() => forge.openSession(item.startedSession!.project, item.startedSession!.sessionDir)} />}
         {item.state === 'dismissed' && <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>Dismissed</span>}

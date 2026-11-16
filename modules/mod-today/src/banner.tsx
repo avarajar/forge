@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import type { Item } from './digest'
+import { opFor, type Item } from './digest'
 import { Btn, dayLabel, foldedNow, ghostStyle, isToday, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
@@ -47,7 +47,7 @@ function Banner({ forge }: PanelProps) {
   }
 
   const waiting = items.filter(i => i.state === 'proposed' || i.state === 'failed')
-  const ready = waiting.filter(i => i.kind === 'to-task' || i.kind === 'research' || i.project).length
+  const ready = waiting.filter(i => opFor(i)).length
   const acceptAll = () => acting.run(() => forge.action('accept-all', { date: digest.date }))
 
   return shell(

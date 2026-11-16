@@ -5,11 +5,17 @@ import type { Item } from './digest'
 import { dayLabel, readLine, Row, useActing, useDigest, useProjects } from './rows'
 
 const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
-  { title: 'In open tasks', pick: i => i.state !== 'dismissed' && i.kind === 'to-task' },
-  { title: 'New', pick: i => i.state !== 'dismissed' && (i.kind === 'issue' || i.kind === 'request') },
-  { title: 'Researching', pick: i => i.state !== 'dismissed' && i.kind === 'research' },
-  { title: 'Dismissed', pick: i => i.state === 'dismissed' },
+  { title: 'In open tasks', pick: i => i.kind === 'to-task' },
+  { title: 'New', pick: i => i.kind === 'issue' || i.kind === 'request' },
+  { title: 'Researching', pick: i => i.kind === 'research' },
 ]
+
+// live items by kind, then the dismissed ones
+function sections(all: Item[]): { title: string; items: Item[] }[] {
+  const live = all.filter(i => i.state !== 'dismissed')
+  const groups = GROUPS.map(g => ({ title: g.title, items: live.filter(g.pick) }))
+  return [...groups, { title: 'Dismissed', items: all.filter(i => i.state === 'dismissed') }].filter(g => g.items.length > 0)
+}
 
 function View({ forge }: PanelProps) {
   const [days, setDays] = useState<string[]>([])
@@ -38,21 +44,19 @@ function View({ forge }: PanelProps) {
         <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" loading={acting.busy} onClick={read} /></span>
       </div>
 
-      {(error || reply?.lastError) && (
+      {(error || digest?.error) && (
         <div style={{ padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: 'var(--red)', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
-          Last reading failed: {error ?? reply?.lastError}
+          Last reading failed: {error ?? digest?.error}
         </div>
       )}
 
       {!digest || digest.items.length === 0 ? (
         <EmptyState title="Nothing to show" description="Today reads your Linear and Slack once a day. Use Read now to read them now." />
       ) : (
-        GROUPS.map(g => {
-          const items = digest.items.filter(g.pick)
-          if (items.length === 0) return null
+        sections(digest.items).map(({ title, items }) => {
           return (
-            <section key={g.title} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <h4 style={{ margin: '4px 0', fontSize: '11px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>{g.title} · {items.length}</h4>
+            <section key={title} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <h4 style={{ margin: '4px 0', fontSize: '11px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>{title} · {items.length}</h4>
               {items.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
             </section>
           )

@@ -209,7 +209,8 @@ describe('concurrency and line safety', () => {
     const d = await readNow(s.ctx, NOW)
     await applyItem(s.ctx, DATE, d.items[0].id, 'send')
     const text = s.send.mock.calls[0][2] as string
-    expect(text).not.toMatch(/[\x00-\x1f\x7f]/)
+    // Forge strips the other control characters before typing
+    expect(text).not.toMatch(/[\n\r\t]/)
     expect(text.endsWith('… — https://x.test/1')).toBe(true)
     expect(text.startsWith('[Today] ana in #dev: first second')).toBe(true)
   })

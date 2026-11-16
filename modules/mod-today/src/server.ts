@@ -4,6 +4,7 @@ import { acceptAll, applyItem, digestDates, isFolded, localDate, readNow, setFol
 
 const RETRY_AFTER_FAILURE = 60 * 60 * 1000
 const DATE = /^\d{4}-\d{2}-\d{2}$/
+const DATE_PATTERN = DATE.source
 
 interface ItemInput { date: string; id: string; project?: string }
 
@@ -13,7 +14,7 @@ function itemAction(id: Op, label: string) {
     label,
     effect: 'local',
     input: {
-      date: { type: 'string', required: true, pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      date: { type: 'string', required: true, pattern: DATE_PATTERN },
       id: { type: 'string', required: true },
       project: { type: 'string' },
     },
@@ -22,11 +23,15 @@ function itemAction(id: Op, label: string) {
 }
 
 async function digestFor(ctx: ForgeContext, date: string | undefined) {
-  const days = await digestDates(ctx)
-  const wanted = date ?? (days.includes(localDate(new Date())) ? localDate(new Date()) : days[0])
-  const digest = wanted ? await ctx.storage.get<Digest>(`digest/${wanted}`) : undefined
-  if (!digest) return { digest: null, folded: false }
-  return { digest, folded: await isFolded(ctx, digest.date), ...(digest.error ? { lastError: digest.error } : {}) }
+  const read = (day: string) => Promise.all([ctx.storage.get<Digest>(`digest/${day}`), isFolded(ctx, day)])
+  // today's digest is read directly; the days are listed only when it is missing
+  let wanted = date ?? localDate(new Date())
+  let [digest, folded] = await read(wanted)
+  if (!digest && !date) {
+    const latest = (await digestDates(ctx))[0]
+    if (latest) [digest, folded] = await read((wanted = latest))
+  }
+  return digest ? { digest, folded } : { digest: null, folded: false }
 }
 
 export default defineModule({
@@ -54,7 +59,7 @@ export default defineModule({
       label: 'Accept all',
       effect: 'local',
       input: {
-        date: { type: 'string', required: true, pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        date: { type: 'string', required: true, pattern: DATE_PATTERN },
         id: { type: 'string' },
         project: { type: 'string' },
       },
@@ -65,7 +70,7 @@ export default defineModule({
       label: 'Fold',
       effect: 'local',
       input: {
-        date: { type: 'string', required: true, pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        date: { type: 'string', required: true, pattern: DATE_PATTERN },
         folded: { type: 'boolean', required: true },
       },
       run: async (input, ctx) => {

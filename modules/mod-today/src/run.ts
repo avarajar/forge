@@ -1,9 +1,9 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { dedupe, parseReaderOutput, pendingCount, type Digest, type Item } from './digest'
+import { dedupe, errorMessage, opFor, parseReaderOutput, pendingCount, type Digest, type Item, type Op } from './digest'
 
-export type Op = 'send' | 'start' | 'research' | 'dismiss'
+export type { Op }
 
 const DAY = 24 * 60 * 60 * 1000
 const HANDLED_KEEP = 30 * DAY
@@ -22,9 +22,9 @@ function locked<T>(fn: () => Promise<T>): Promise<T> {
   return next
 }
 
-// one bounded line: no control characters, collapsed whitespace
+// one bounded line: collapsed whitespace; Forge strips control characters before typing
 function oneLine(text: string, max?: number): string {
-  const t = text.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const t = text.replace(/\s+/g, ' ').trim()
   return max && t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t
 }
 
@@ -32,8 +32,6 @@ function oneLine(text: string, max?: number): string {
 function slug(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '') || 'request'
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 async function loadDigest(ctx: ForgeContext, date: string): Promise<Digest | undefined> {
   return ctx.storage.get<Digest>(`digest/${date}`)
@@ -134,21 +132,19 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
     await autoResearch(ctx, date)
     return (await loadDigest(ctx, date))!
   } catch (e) {
-    return keepWithError(ctx, now, message(e))
+    return keepWithError(ctx, now, errorMessage(e))
   }
 }
 
 function keepWithError(ctx: ForgeContext, now: Date, error: string): Promise<Digest> {
-  return locked(() => keepWithErrorNow(ctx, now, error))
-}
-
-async function keepWithErrorNow(ctx: ForgeContext, now: Date, error: string): Promise<Digest> {
-  const date = localDate(now)
-  const latest = (await loadDigest(ctx, date)) ?? (await loadDigest(ctx, (await digestDates(ctx))[0] ?? ''))
-  const digest: Digest = { ...(latest ?? { date, readAt: now.toISOString(), since: now.toISOString(), items: [], autoStarted: 0 }), error }
-  await ctx.storage.set('lastFailedAt', now.toISOString())
-  await saveDigest(ctx, digest)
-  return digest
+  return locked(async () => {
+    const date = localDate(now)
+    const latest = (await loadDigest(ctx, date)) ?? (await loadDigest(ctx, (await digestDates(ctx))[0] ?? ''))
+    const digest: Digest = { ...(latest ?? { date, readAt: now.toISOString(), since: now.toISOString(), items: [], autoStarted: 0 }), error }
+    await ctx.storage.set('lastFailedAt', now.toISOString())
+    await saveDigest(ctx, digest)
+    return digest
+  })
 }
 
 async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
@@ -200,7 +196,7 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
         item.error = 'Could not send it to that session: open the task and paste it'
       }
     } catch (e) {
-      item.error = `Could not send it: ${message(e)}. Open the task to paste it`
+      item.error = `Could not send it: ${errorMessage(e)}. Open the task to paste it`
     }
     return
   }
@@ -234,7 +230,7 @@ async function startSession(ctx: ForgeContext, item: Item, input: Parameters<For
     delete item.error
   } catch (e) {
     item.state = 'failed'
-    item.error = message(e)
+    item.error = errorMessage(e)
   }
 }
 
@@ -272,7 +268,7 @@ async function runClaimed(ctx: ForgeContext, date: string, work: Item, op: Op, p
       await perform(ctx, work, op, project)
     } catch (e) {
       if (rethrow) throw e
-      work.error = message(e)
+      work.error = errorMessage(e)
     }
     return await locked(async () => {
       const digest = await loadDigest(ctx, date)
@@ -296,13 +292,6 @@ export async function applyItem(ctx: ForgeContext, date: string, id: string, op:
   return saved
 }
 
-// the op an item can take on its own, or none when it still needs the person
-function defaultOp(item: Item, project?: string): Op | undefined {
-  if (item.kind === 'to-task') return item.targetSession ? 'send' : undefined
-  if (item.kind === 'research') return 'research'
-  return project ?? item.project ? 'start' : undefined
-}
-
 // accepts one item (with a picked project) or, without an id, every proposed item that has what it needs
 export async function acceptAll(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
   const claimed = await locked(async () => {
@@ -310,7 +299,7 @@ export async function acceptAll(ctx: ForgeContext, date: string, id?: string, pr
     const items = id ? [requireOpen(digest.items.find(i => i.id === id))] : digest.items.filter(i => i.state === 'proposed' && !inFlight.has(claimKey(date, i.id)))
     const out: { work: Item; op: Op }[] = []
     for (const item of items) {
-      const op = defaultOp(item, project)
+      const op = opFor(item, project)
       if (!op) {
         if (id) throw new ModuleError('bad_request', 'pick a project')
         continue
@@ -332,12 +321,10 @@ export async function acceptAll(ctx: ForgeContext, date: string, id?: string, pr
 }
 
 export function setFolded(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {
-  return locked(() => setFoldedNow(ctx, date, folded))
-}
-
-async function setFoldedNow(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {
-  if (folded) await ctx.storage.set(`folded/${date}`, true)
-  else await ctx.storage.delete(`folded/${date}`)
+  return locked(async () => {
+    if (folded) await ctx.storage.set(`folded/${date}`, true)
+    else await ctx.storage.delete(`folded/${date}`)
+  })
 }
 
 export async function isFolded(ctx: ForgeContext, date: string): Promise<boolean> {
