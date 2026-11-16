@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- Today warns per account when Slack, Linear or the reader fails, with Retry and Reconnect (opens the account's Claude Code at /mcp).
+
+### Fixed
+
+- Today: review requests are the ones asked of you, not of a team you belong to.
+- Today: when a reader cannot reach Slack or Linear (for example while the account's connectors are still connecting) it tries once more and then says so on the banner, instead of reporting nothing new.
+
 ## 0.1.24 (2026-11-16)
 
 ### Fixed

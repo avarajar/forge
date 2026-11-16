@@ -45,6 +45,7 @@ Item kinds (to-task | issue | request | research | review), exactly one per item
 - GitHub events with no matching session: a ci-failure becomes an issue (link is the pull request url, quote lists the failing checks); a mention or assigned event becomes a request or an issue; a comment or review on my pull request with no session becomes a request. Skip events that need nothing from me.
 
 Answer with ONLY a JSON object, no prose and no code fence:
-{ "items": [ { "source": "linear" | "slack" | "github", "kind": "to-task" | "issue" | "request" | "research" | "review", "title": string, "who": string, "where": string, "when": ISO time of the latest activity, "quote"?: string, "link": string (permalink, issue URL or pull request URL), "issueKey"?: string, "targetSession"?: { "project": string, "sessionDir": string }, "project"?: string } ] }
-Every item needs a link. Use an empty items array when there is nothing new.`
+{ "items": [ { "source": "linear" | "slack" | "github", "kind": "to-task" | "issue" | "request" | "research" | "review", "title": string, "who": string, "where": string, "when": ISO time of the latest activity, "quote"?: string, "link": string (permalink, issue URL or pull request URL), "issueKey"?: string, "targetSession"?: { "project": string, "sessionDir": string }, "project"?: string } ], "problems"?: [ string ] }
+Every item needs a link. Use an empty items array when there is nothing new.
+If a Slack or Linear tool is missing, still connecting or fails, do not report "nothing new" for it: add "<source>: <short reason>" to problems.`
 }

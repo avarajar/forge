@@ -1,8 +1,8 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { accountsOf, failedLine, inAccount, loadFailedLine, notesLine, opFor, startsTask } from './ops'
-import { accountToken, Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, readLine, Row, shortDay, soft, useAccountFilter, useActing, useDigest, useProjects } from './rows'
+import { accountsOf, failedLine, inAccount, loadFailedLine, notesLine, opFor, problemsLabel, startsTask } from './ops'
+import { accountToken, Btn, clock, dayLabel, foldedNow, ghostStyle, primaryStyle, ProblemRow, readLine, Row, shortDay, soft, useAccountFilter, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
 
@@ -59,6 +59,13 @@ function Banner({ forge }: PanelProps) {
   const failure = (text: string) => <span style={{ color: 'var(--red)' }}>· {text}</span>
   const notes = notesLine(digest?.notes)
   const note = notes && <span style={{ color: 'var(--ink-3)' }}>· {notes}</span>
+  const problems = digest?.problems ?? []
+  const problemRows = problems.length > 0 && (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+      {problems.map((p, i) => <ProblemRow key={`${p.account}/${p.source}/${i}`} problem={p} acting={acting} />)}
+    </div>
+  )
+  const problemsLink = problems.length > 0 && <button type="button" onClick={() => forge.openPage()} style={{ font: 'inherit', fontSize: 'inherit', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--orange)' }}>· {problemsLabel(problems.length)}</button>
   if (!reply && !error) return null
   if (reply && !reply.enabled) {
     return (
@@ -71,6 +78,7 @@ function Banner({ forge }: PanelProps) {
     return (
       <Strip title={reply && !digest ? 'Not read yet' : shortDay(new Date(), digest?.date)} actions={refreshBtn}>
         {!reply ? failure(loadFailedLine(error!)) : digest?.error ? failure(failedLine(digest.error)) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
+        {problemsLink}
         {note}
       </Strip>
     )
@@ -90,6 +98,7 @@ function Banner({ forge }: PanelProps) {
       <Strip title={shortDay(new Date(), digest.date)} actions={<>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></>}>
         <span>· {done(items, startsTask)} started · {done(items, k => k === 'research')} researching · {done(items, k => k === 'to-task')} sent</span>
         {digest.error && failure(failedLine(digest.error))}
+        {problemsLink}
         {note}
       </Strip>
     )
@@ -131,6 +140,8 @@ function Banner({ forge }: PanelProps) {
 
       {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>{failedLine(digest.error)}</div>}
       {notes && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--ink-3)' }}>{notes}</div>}
+
+      {problemRows}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {shown.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}

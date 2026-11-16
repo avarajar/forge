@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { ForgeContext, SendResult } from '@forge-dev/sdk'
-import { readNow, applyItem, acceptAll, setFolded, isFolded, localDate } from './run'
+import { readNow, retryAccount, reconnectAccount, applyItem, acceptAll, setFolded, isFolded, localDate } from './run'
 import type { Digest } from './digest'
 import * as github from './github'
 
@@ -491,13 +491,39 @@ describe('every account', () => {
     expect(new Set(d.items.map(i => i.id)).size).toBe(2)
   })
 
-  it('one account failing becomes a note and the others are kept', async () => {
+  it('one account failing becomes a reader problem and the others are kept', async () => {
     const s = two({ monoku: [raw({})], meridian: new Error('no Slack connector') })
     const d = await readNow(s.ctx, NOW)
     expect(d.items).toHaveLength(1)
     expect(d.error).toBeUndefined()
-    expect(d.notes).toEqual(['meridian: no Slack connector'])
+    expect(d.problems).toEqual([{ account: 'meridian', source: 'reader', reason: 'no Slack connector' }])
+    expect(d.notes).toBeUndefined()
     expect(s.store.get('lastReadAt')).toBe(NOW.toISOString())
+  })
+
+  it('a source the reader could not reach becomes a problem after one retry', async () => {
+    const reader = vi.fn<Reader>(async ({ account }) => ({ text: JSON.stringify(account === 'meridian' ? { items: [], problems: ['slack: server still connecting'] } : { items: [raw({})] }) }))
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader, settings: { autoResearch: false } })
+    const d = await readNow(s.ctx, NOW)
+    expect(reader.mock.calls.filter(([i]) => i.account === 'meridian')).toHaveLength(2)
+    expect(reader.mock.calls.filter(([i]) => i.account === 'monoku')).toHaveLength(1)
+    expect(d.problems).toEqual([{ account: 'meridian', source: 'slack', reason: 'server still connecting' }])
+    expect(d.notes).toBeUndefined()
+    expect(d.items).toHaveLength(1)
+  })
+
+  it('a retry that reaches the source keeps its items and adds no problem', async () => {
+    let calls = 0
+    const reader: Reader = async ({ account }) => {
+      if (account !== 'meridian') return { text: '{"items":[]}' }
+      calls++
+      return { text: JSON.stringify(calls === 1 ? { items: [], problems: ['linear: unavailable'] } : { items: [raw({ link: 'https://x.test/m' })] }) }
+    }
+    const s = two({})
+    s.run.mockImplementation(reader)
+    const d = await readNow(s.ctx, NOW)
+    expect(d.problems ?? []).toEqual([])
+    expect(d.items.map(i => i.link)).toEqual(['https://x.test/m'])
   })
 
   it('every account failing fails the reading', async () => {
@@ -580,10 +606,116 @@ describe('every account', () => {
     expect(s.start).not.toHaveBeenCalled()
   })
 
+  it('an unknown source or a bare problem is a reader problem and each account keeps its own', async () => {
+    const reader: Reader = async ({ account }) => ({ text: JSON.stringify({ items: [], problems: account === 'monoku' ? ['Linear: unavailable', 'tools missing'] : ['slack: down'] }) })
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader, settings: { autoResearch: false } })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.problems).toEqual(expect.arrayContaining([
+      { account: 'monoku', source: 'linear', reason: 'unavailable' },
+      { account: 'monoku', source: 'reader', reason: 'tools missing' },
+      { account: 'meridian', source: 'slack', reason: 'down' },
+    ]))
+    expect(d.problems).toHaveLength(3)
+  })
+
   it('notes that GitHub was skipped when the first reader fails', async () => {
     vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ type: 'comment', repo: 'o/r', number: 9, title: 'T', url: 'https://github.com/o/r/pull/9', pr: 'https://github.com/o/r/pull/9', when: '2026-11-15T08:00:00Z' }] })
     const s = two({ monoku: new Error('boom'), meridian: [raw({})] })
     const d = await readNow(s.ctx, NOW)
-    expect(d.notes).toEqual(['GitHub: not read', 'monoku: boom'])
+    expect(d.notes).toEqual(['GitHub: not read'])
+    expect(d.problems).toEqual([{ account: 'monoku', source: 'reader', reason: 'boom' }])
+  })
+})
+
+describe('retryAccount', () => {
+  const LATER = new Date(2026, 10, 15, 11)
+  const failing = (extra: unknown[] = []): Reader => async ({ account }) => ({ text: JSON.stringify(account === 'meridian' ? { items: [], problems: ['slack: down'] } : { items: extra }) })
+
+  async function broken() {
+    const s = stub({ accounts: TWO, projects: PROJECTS, sessions: SESSIONS, reader: failing([raw({})]), settings: { autoResearch: false } })
+    await readNow(s.ctx, NOW)
+    s.run.mockClear()
+    vi.mocked(github.fetchGithub).mockClear()
+    return s
+  }
+
+  it('reads only that account with the digest window, no GitHub, and keeps lastReadAt', async () => {
+    const s = await broken()
+    const since = digestOf(s).since
+    s.run.mockImplementation(async () => ({ text: JSON.stringify({ items: [raw({ link: 'https://x.test/m', who: 'bo' })] }) }))
+    const d = await retryAccount(s.ctx, 'meridian', LATER)
+    expect(s.run).toHaveBeenCalledTimes(1)
+    expect(s.run.mock.calls[0][0]).toMatchObject({ account: 'meridian', prompt: expect.stringContaining(`since ${since}`) })
+    expect(github.fetchGithub).not.toHaveBeenCalled()
+    expect(s.store.get('lastReadAt')).toBe(NOW.toISOString())
+    expect(d.since).toBe(since)
+    expect(d.items).toHaveLength(2)
+    expect(d.items.filter(i => i.account === 'meridian')).toHaveLength(1)
+  })
+
+  it('replaces only that account\'s problems', async () => {
+    const s = await broken()
+    const stored = digestOf(s)
+    stored.problems = [...(stored.problems ?? []), { account: 'monoku', source: 'linear', reason: 'x' }]
+    s.store.set(`digest/${DATE}`, stored)
+    s.run.mockImplementation(async () => ({ text: JSON.stringify({ items: [], problems: ['linear: still down'] }) }))
+    const d = await retryAccount(s.ctx, 'meridian', LATER)
+    expect(d.problems).toEqual([{ account: 'monoku', source: 'linear', reason: 'x' }, { account: 'meridian', source: 'linear', reason: 'still down' }])
+    s.run.mockImplementation(async () => ({ text: '{"items":[]}' }))
+    expect((await retryAccount(s.ctx, 'meridian', LATER)).problems).toEqual([{ account: 'monoku', source: 'linear', reason: 'x' }])
+  })
+
+  it('a reader that throws is a reader problem, not an error', async () => {
+    const s = await broken()
+    s.run.mockImplementation(async () => { throw new Error('boom') })
+    const d = await retryAccount(s.ctx, 'meridian', LATER)
+    expect(d.error).toBeUndefined()
+    expect(d.problems).toEqual([{ account: 'meridian', source: 'reader', reason: 'boom' }])
+  })
+
+  it('keeps an item already dismissed', async () => {
+    const s = await broken()
+    const first = digestOf(s).items[0]
+    await applyItem(s.ctx, DATE, first.id, 'dismiss')
+    s.run.mockImplementation(async () => ({ text: JSON.stringify({ items: [raw({})] }) }))
+    const d = await retryAccount(s.ctx, 'monoku', LATER)
+    expect(d.items.find(i => i.id === first.id)?.state).toBe('dismissed')
+  })
+
+  it('is refused while Today is off, and for an account that is not read', async () => {
+    const s = await broken()
+    expect(await retryAccount(s.ctx, 'codex-acc', LATER).catch(e => e)).toMatchObject({ code: 'bad_request' })
+    s.store.set('enabled', false)
+    expect(await retryAccount(s.ctx, 'meridian', LATER).catch(e => e)).toMatchObject({ code: 'bad_request', message: 'Today is off' })
+    expect(s.run).not.toHaveBeenCalled()
+  })
+
+  it('waits for a reading in flight', async () => {
+    const s = await broken()
+    let release = () => {}
+    const gate = new Promise<void>(r => { release = r })
+    s.run.mockImplementation(async () => { await gate; return { text: '{"items":[]}' } })
+    const reading = readNow(s.ctx, LATER)
+    const retry = retryAccount(s.ctx, 'meridian', LATER)
+    await new Promise(r => setTimeout(r, 10))
+    expect(s.run).toHaveBeenCalledTimes(2)
+    release()
+    await Promise.all([reading, retry])
+    expect(s.run).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('reconnectAccount', () => {
+  it('starts a general session for that account at /mcp', async () => {
+    const s = stub({ accounts: TWO })
+    expect(await reconnectAccount(s.ctx, 'meridian')).toEqual({ project: 'forge', sessionDir: 'task-1' })
+    expect(s.start).toHaveBeenCalledWith({ type: 'general', account: 'meridian', task: 'Reconnect connectors (meridian)', prompt: '/mcp' })
+  })
+
+  it('refuses an account that is not read', async () => {
+    const s = stub({ accounts: TWO })
+    expect(await reconnectAccount(s.ctx, 'codex-acc').catch(e => e)).toMatchObject({ code: 'bad_request' })
+    expect(await reconnectAccount(s.ctx, 'nobody').catch(e => e)).toMatchObject({ code: 'bad_request' })
+    expect(s.start).not.toHaveBeenCalled()
   })
 })

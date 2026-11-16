@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import { byAccount, failedLine, loadFailedLine, notesLine } from './ops'
-import { AccountChip, dayLabel, readLine, Row, useActing, useDigest, useProjects } from './rows'
+import { AccountChip, dayLabel, ProblemRow, readLine, Row, useActing, useDigest, useProjects } from './rows'
 
 function View({ forge }: PanelProps) {
   const [days, setDays] = useState<string[]>([])
@@ -46,6 +46,8 @@ function View({ forge }: PanelProps) {
           {error ? loadFailedLine(error) : failedLine(digest!.error!)}
         </div>
       )}
+
+      {(digest?.problems ?? []).map((p, i) => <ProblemRow key={`${p.account}/${p.source}/${i}`} problem={p} acting={acting} />)}
 
       {notes && <div style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{notes}</div>}
 

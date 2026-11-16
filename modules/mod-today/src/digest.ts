@@ -26,6 +26,12 @@ export interface Item {
   manual?: boolean
 }
 
+export interface Problem {
+  account: string
+  source: 'slack' | 'linear' | 'reader'
+  reason: string
+}
+
 export interface Digest {
   date: string
   readAt: string
@@ -34,6 +40,8 @@ export interface Digest {
   error?: string
   // problems that did not fail the reading, such as GitHub being unreadable
   notes?: string[]
+  // what an account's reader could not reach; older digests have none
+  problems?: Problem[]
   // research sessions started on its own: per account, or one number in older digests
   autoStarted: number | Record<string, number>
 }
@@ -80,6 +88,24 @@ function extractJson(out: string): unknown {
   } catch {
     throw new Error('reader output is not valid JSON')
   }
+}
+
+// what the reader could not reach, bounded and one line each
+export function parseReaderProblems(out: string): string[] {
+  let root: unknown
+  try {
+    root = extractJson(out)
+  } catch {
+    return []
+  }
+  if (!isRecord(root) || !Array.isArray(root.problems)) return []
+  return root.problems.filter((p): p is string => typeof p === 'string' && p.trim() !== '').slice(0, 5).map(p => p.replace(/\s+/g, ' ').trim().slice(0, 160))
+}
+
+// "<source>: <reason>" from the reader; anything else is the reader's own problem
+export function toProblem(account: string, text: string): Problem {
+  const m = /^(slack|linear|reader)\s*:\s*(.+)$/i.exec(text)
+  return m ? { account, source: m[1].toLowerCase() as Problem['source'], reason: m[2] } : { account, source: 'reader', reason: text }
 }
 
 export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[]; account?: string }): Item[] {
