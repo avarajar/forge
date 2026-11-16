@@ -28,6 +28,11 @@ function oneLine(text: string, max?: number): string {
   return max && t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t
 }
 
+// a task name CW can use as a folder and a branch
+function slug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40).replace(/^-+|-+$/g, '') || 'request'
+}
+
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 async function loadDigest(ctx: ForgeContext, date: string): Promise<Digest | undefined> {
@@ -152,17 +157,17 @@ async function autoResearch(ctx: ForgeContext, date: string): Promise<void> {
   const first = await loadDigest(ctx, date)
   const ids = (first?.items ?? []).filter(i => i.kind === 'research' && i.state === 'proposed').map(i => i.id)
   for (const id of ids) {
-    const more = await locked(async () => {
+    const work = await locked(async () => {
       const digest = await loadDigest(ctx, date)
       if (!digest || digest.autoStarted >= max) return false
       const item = digest.items.find(i => i.id === id)
-      if (!item || item.state !== 'proposed') return true
+      if (!item || item.state !== 'proposed' || inFlight.has(claimKey(date, id))) return null
       digest.autoStarted++
-      await perform(ctx, item, 'research')
       await saveDigest(ctx, digest)
-      return true
+      return claim(date, item)
     })
-    if (!more) break
+    if (work === false) break
+    if (work) await runClaimed(ctx, date, work, 'research')
   }
 }
 
@@ -204,14 +209,22 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
     const target = project ?? item.project
     if (!target) throw new ModuleError('bad_request', 'pick a project')
     item.project = target
-    const task = item.kind === 'issue' ? item.link : `${item.title}\n\nFrom ${sourceText(item)}: ${item.link}`
-    await startSession(ctx, item, { type: 'work', project: target, task })
+    // an issue link is a task CW knows; a request is named by its title and briefed in the notes
+    const input = item.kind === 'issue'
+      ? { type: 'work' as const, project: target, task: item.link }
+      : { type: 'work' as const, project: target, task: slug(item.title), description: [item.title, item.quote, `From ${sourceText(item)}: ${item.link}`].filter(Boolean).join('\n\n') }
+    await startSession(ctx, item, input)
     return
   }
   if (item.kind !== 'research') throw new ModuleError('bad_request', 'only research items start a research session')
   const context = [item.quote, item.link].filter(Boolean).join(' ')
   const directory = await researchDirectory(ctx)
-  await startSession(ctx, item, { type: 'general', directory, task: `${item.title} — find out and leave the answer in the session. Context: ${context}` })
+  await startSession(ctx, item, {
+    type: 'general',
+    directory,
+    task: `Research: ${oneLine(item.title, 60)}`,
+    prompt: oneLine(`${item.title} — find out and leave the answer in the session. Context: ${context}`, 2000),
+  })
 }
 
 async function startSession(ctx: ForgeContext, item: Item, input: Parameters<ForgeContext['cw']['start']>[0]): Promise<void> {
@@ -237,17 +250,50 @@ function requireOpen(item: Item | undefined): Item {
   return item
 }
 
-export function applyItem(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
-  return locked(() => applyItemNow(ctx, date, id, op, project))
+// items whose op is running outside the lock
+const inFlight = new Set<string>()
+const claimKey = (date: string, id: string) => `${date}/${id}`
+
+// takes an open item out of other ops' reach and hands back a copy to work on
+function claim(date: string, item: Item): Item {
+  const key = claimKey(date, item.id)
+  if (inFlight.has(key)) throw new ModuleError('bad_request', 'item is already being handled')
+  inFlight.add(key)
+  const work: Item = JSON.parse(JSON.stringify(item))
+  if (work.state === 'failed') work.state = 'proposed'
+  return work
 }
 
-async function applyItemNow(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
-  const digest = await requireDigest(ctx, date)
-  const item = requireOpen(digest.items.find(i => i.id === id))
-  if (item.state === 'failed') item.state = 'proposed'
-  await perform(ctx, item, op, project)
-  await saveDigest(ctx, digest)
-  return item
+// runs a claimed item's op without the lock, then saves the outcome unless the item was handled meanwhile
+async function runClaimed(ctx: ForgeContext, date: string, work: Item, op: Op, project?: string, rethrow = false): Promise<Item | undefined> {
+  const key = claimKey(date, work.id)
+  try {
+    try {
+      await perform(ctx, work, op, project)
+    } catch (e) {
+      if (rethrow) throw e
+      work.error = message(e)
+    }
+    return await locked(async () => {
+      const digest = await loadDigest(ctx, date)
+      const at = digest ? digest.items.findIndex(i => i.id === work.id) : -1
+      if (!digest || at < 0) return undefined
+      const current = digest.items[at]
+      if (current.state !== 'proposed' && current.state !== 'failed') return current
+      digest.items[at] = work
+      await saveDigest(ctx, digest)
+      return work
+    })
+  } finally {
+    inFlight.delete(key)
+  }
+}
+
+export async function applyItem(ctx: ForgeContext, date: string, id: string, op: Op, project?: string): Promise<Item> {
+  const work = await locked(async () => claim(date, requireOpen((await requireDigest(ctx, date)).items.find(i => i.id === id))))
+  const saved = await runClaimed(ctx, date, work, op, project, true)
+  if (!saved) throw new ModuleError('not_found', 'no such item')
+  return saved
 }
 
 // the op an item can take on its own, or none when it still needs the person
@@ -258,29 +304,31 @@ function defaultOp(item: Item, project?: string): Op | undefined {
 }
 
 // accepts one item (with a picked project) or, without an id, every proposed item that has what it needs
-export function acceptAll(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
-  return locked(() => acceptAllNow(ctx, date, id, project))
-}
-
-async function acceptAllNow(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
-  const digest = await requireDigest(ctx, date)
-  const items = id ? [requireOpen(digest.items.find(i => i.id === id))] : digest.items.filter(i => i.state === 'proposed')
-  for (const item of items) {
-    const op = defaultOp(item, project)
-    if (!op) {
-      if (id) throw new ModuleError('bad_request', 'pick a project')
-      continue
+export async function acceptAll(ctx: ForgeContext, date: string, id?: string, project?: string): Promise<Digest> {
+  const claimed = await locked(async () => {
+    const digest = await requireDigest(ctx, date)
+    const items = id ? [requireOpen(digest.items.find(i => i.id === id))] : digest.items.filter(i => i.state === 'proposed' && !inFlight.has(claimKey(date, i.id)))
+    const out: { work: Item; op: Op }[] = []
+    for (const item of items) {
+      const op = defaultOp(item, project)
+      if (!op) {
+        if (id) throw new ModuleError('bad_request', 'pick a project')
+        continue
+      }
+      out.push({ work: claim(date, item), op })
     }
-    if (item.state === 'failed') item.state = 'proposed'
+    return out
+  })
+  // each op runs outside the lock, so a slow send never holds up other actions
+  for (const [n, { work, op }] of claimed.entries()) {
     try {
-      await perform(ctx, item, op, project)
+      await runClaimed(ctx, date, work, op, project, !!id)
     } catch (e) {
-      if (id) throw e
-      item.error = message(e)
+      for (const rest of claimed.slice(n + 1)) inFlight.delete(claimKey(date, rest.work.id))
+      throw e
     }
   }
-  await saveDigest(ctx, digest)
-  return digest
+  return requireDigest(ctx, date)
 }
 
 export function setFolded(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {

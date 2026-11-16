@@ -96,6 +96,17 @@ describe('readNow', () => {
     await readNow(s.ctx, NOW)
     expect(s.start).toHaveBeenCalledWith(expect.objectContaining({ type: 'general', directory: process.env.HOME }))
   })
+
+  it('research names the session and sends the question as its prompt', async () => {
+    const s = stub({ reader: reply([raw({ kind: 'research', title: 'Why is CI slow', quote: 'it takes\n20 min' })]) })
+    await readNow(s.ctx, NOW)
+    expect(s.start).toHaveBeenCalledWith({
+      type: 'general',
+      directory: process.env.HOME,
+      task: 'Research: Why is CI slow',
+      prompt: 'Why is CI slow — find out and leave the answer in the session. Context: it takes 20 min https://x.test/1',
+    })
+  })
 })
 
 describe('applyItem', () => {
@@ -137,7 +148,15 @@ describe('applyItem', () => {
     const { s, id } = await seeded({ kind: 'request', title: 'Fix it', quote: 'q' })
     const item = await applyItem(s.ctx, DATE, id, 'start', 'forge')
     expect(item).toMatchObject({ state: 'done', project: 'forge', startedSession: { project: 'forge', sessionDir: 'task-1' } })
-    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', task: 'Fix it\n\nFrom ana in #dev: https://x.test/1' })
+    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', task: 'fix-it', description: 'Fix it\n\nq\n\nFrom ana in #dev: https://x.test/1' })
+  })
+
+  it('a request task is a single-line slug with no slash', async () => {
+    const { s, id } = await seeded({ kind: 'request', title: 'Ship the /api v2 — "now"\nplease!' })
+    await applyItem(s.ctx, DATE, id, 'start', 'forge')
+    const input = (s.start.mock.calls[0] as unknown[])[0] as { task: string; description: string }
+    expect(input.task).toBe('ship-the-api-v2-now-please')
+    expect(input.description).toBe('Ship the /api v2 — "now"\nplease!\n\nFrom ana in #dev: https://x.test/1')
   })
 
   it('start failure sets failed', async () => {
@@ -201,6 +220,40 @@ describe('concurrency and line safety', () => {
     const results = await Promise.allSettled([applyItem(s.ctx, DATE, d.items[0].id, 'start'), applyItem(s.ctx, DATE, d.items[0].id, 'start')])
     expect(results.map(r => r.status).sort()).toEqual(['fulfilled', 'rejected'])
     expect(s.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('a dismiss is not held up by a long send in accept all', async () => {
+    const s = stub({
+      settings: { autoResearch: false },
+      reader: reply([
+        raw({ kind: 'to-task', link: 'https://x.test/a', targetSession: { project: 'forge', sessionDir: 'task-0' } }),
+        raw({ kind: 'request', link: 'https://x.test/b' }),
+      ]),
+    })
+    const d = await readNow(s.ctx, NOW)
+    let release!: () => void
+    s.send.mockImplementation(() => new Promise<SendResult>(resolve => { release = () => resolve('typed') }))
+    const accepting = acceptAll(s.ctx, DATE)
+    await vi.waitFor(() => expect(s.send).toHaveBeenCalled())
+    const dismissed = await applyItem(s.ctx, DATE, d.items[1].id, 'dismiss')
+    expect(dismissed.state).toBe('dismissed')
+    expect(digestOf(s).items.map(i => i.state)).toEqual(['proposed', 'dismissed'])
+    release()
+    const out = await accepting
+    expect(out.items.map(i => i.state)).toEqual(['done', 'dismissed'])
+    expect(digestOf(s).items.map(i => i.state)).toEqual(['done', 'dismissed'])
+  })
+
+  it('an item being sent cannot be acted on twice', async () => {
+    const s = stub({ reader: reply([raw({ kind: 'to-task', targetSession: { project: 'forge', sessionDir: 'task-0' } })]) })
+    const d = await readNow(s.ctx, NOW)
+    let release!: () => void
+    s.send.mockImplementation(() => new Promise<SendResult>(resolve => { release = () => resolve('typed') }))
+    const sending = applyItem(s.ctx, DATE, d.items[0].id, 'send')
+    await vi.waitFor(() => expect(s.send).toHaveBeenCalled())
+    await expect(applyItem(s.ctx, DATE, d.items[0].id, 'dismiss')).rejects.toMatchObject({ code: 'bad_request' })
+    release()
+    expect((await sending).state).toBe('done')
   })
 
   it('a dismiss during auto research is not reverted', async () => {

@@ -67,10 +67,25 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
   return { busy, run, act }
 }
 
-export function dayLabel(now: Date): string {
+function dayOf(date: string): Date {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+export const isToday = (date: string, now: Date) => dayOf(date).toDateString() === now.toDateString()
+
+// a greeting for today's digest, the digest's own day for an older one
+export function dayLabel(now: Date, date: string): string {
+  const day = dayOf(date)
+  if (!isToday(date, now)) return `From ${day.toLocaleDateString('en-US', { weekday: 'long' })} ${day.getDate()}`
   const hour = now.getHours()
   const part = hour < 12 ? 'Good morning' : hour < 19 ? 'Good afternoon' : 'Good evening'
   return `${part} · your ${now.toLocaleDateString('en-US', { weekday: 'long' })} ${now.getDate()}`
+}
+
+// folded when the person folded it or nothing is left for them to decide
+export function foldedNow(folded: boolean, items: Item[]): boolean {
+  return folded || !items.some(i => i.state === 'proposed' || i.state === 'failed')
 }
 
 const clock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })

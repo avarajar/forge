@@ -43,7 +43,8 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function text(o: Record<string, unknown>, key: string, n: number, optional = false): string | undefined {
   const v = o[key]
-  if (v === undefined || v === null) {
+  // an empty optional field is as good as a missing one
+  if (v === undefined || v === null || (optional && typeof v === 'string' && !v.trim())) {
     if (optional) return undefined
     throw new Error(`item ${n}: missing ${key}`)
   }

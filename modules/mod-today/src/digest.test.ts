@@ -32,6 +32,15 @@ describe('parseReaderOutput', () => {
     expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request' }]), known)).toThrow(/link/)
   })
 
+  it('treats empty optional fields as missing', () => {
+    const items = parseReaderOutput(out([{ ...base, source: 'linear', kind: 'issue', link: 'https://l/9', quote: '', issueKey: '  ', project: '' }]), known)
+    expect(items).toHaveLength(1)
+    expect(items[0].quote).toBeUndefined()
+    expect(items[0].issueKey).toBeUndefined()
+    expect(items[0].project).toBeUndefined()
+    expect(items[0].kind).toBe('issue')
+  })
+
   it('rejects a javascript: link', () => {
     expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'javascript:alert(1)' }]), known)).toThrow(/http\(s\) URL/)
   })

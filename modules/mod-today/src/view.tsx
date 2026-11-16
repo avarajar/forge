@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { readLine, Row, useActing, useDigest, useProjects } from './rows'
+import { dayLabel, readLine, Row, useActing, useDigest, useProjects } from './rows'
 
 const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
   { title: 'In open tasks', pick: i => i.state !== 'dismissed' && i.kind === 'to-task' },
@@ -33,6 +33,7 @@ function View({ forge }: PanelProps) {
             {days.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         )}
+        {digest && <b style={{ fontSize: '13px', fontWeight: 600 }}>{dayLabel(new Date(), digest.date)}</b>}
         <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{digest ? readLine(digest) : 'Not read yet'}</span>
         <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" loading={acting.busy} onClick={read} /></span>
       </div>

@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { Btn, dayLabel, ghostStyle, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
+import { Btn, dayLabel, foldedNow, ghostStyle, isToday, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
 
@@ -27,7 +27,7 @@ function Banner({ forge }: PanelProps) {
 
   const items = digest.items
   const shown = live(items)
-  const folded = reply.folded
+  const folded = foldedNow(reply.folded, items)
   const fold = (value: boolean) => acting.run(() => forge.action('fold', { date: digest.date, folded: value }))
   const shell = (children: ComponentChildren) => (
     <div style={{ position: 'relative', borderRadius: '16px', padding: '1px', background: `linear-gradient(135deg, ${soft('--blue', 55)}, ${soft('--purple', 40)} 45%, var(--hair) 80%)`, boxShadow: `0 10px 40px ${soft('--blue', 10)}` }}>
@@ -39,7 +39,7 @@ function Banner({ forge }: PanelProps) {
     return shell(
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 16px', fontSize: '12.5px', color: 'var(--ink-2)' }}>
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Today</b>
+        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{isToday(digest.date, new Date()) ? 'Today' : dayLabel(new Date(), digest.date)}</b>
         <span>· {done(items, ['issue', 'request'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
         <span style={{ marginLeft: 'auto' }}><Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></span>
       </div>,
@@ -55,7 +55,7 @@ function Banner({ forge }: PanelProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ width: '34px', height: '34px', borderRadius: '10px', display: 'grid', placeItems: 'center', background: 'linear-gradient(160deg, #ffb340, #ff7a1a)', boxShadow: '0 4px 14px rgba(255, 140, 30, .35)', fontSize: '17px' }}>☀︎</div>
         <div>
-          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 650, letterSpacing: '-.01em' }}>{dayLabel(new Date())}</h3>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 650, letterSpacing: '-.01em' }}>{dayLabel(new Date(), digest.date)}</h3>
           <div style={{ color: 'var(--ink-2)', fontSize: '12px', marginTop: '1px' }}>{readLine(digest)}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
