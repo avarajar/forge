@@ -72,6 +72,15 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
     const kind = text(raw, 'kind', n)!
     if (!KINDS.includes(kind as Kind)) throw new Error(`item ${n}: unknown kind ${kind}`)
     const link = text(raw, 'link', n)!
+    let protocol = ''
+    try {
+      protocol = new URL(link).protocol
+    } catch {
+      // handled below
+    }
+    if (protocol !== 'http:' && protocol !== 'https:') throw new Error(`item ${n}: link must be an http(s) URL`)
+    const when = text(raw, 'when', n)!
+    if (Number.isNaN(Date.parse(when))) throw new Error(`item ${n}: when must be a date`)
     const item: Item = {
       id: itemId(source, link),
       source: source as Item['source'],
@@ -79,7 +88,7 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
       title: text(raw, 'title', n)!,
       who: text(raw, 'who', n)!,
       where: text(raw, 'where', n)!,
-      when: text(raw, 'when', n)!,
+      when,
       link,
       state: 'proposed',
     }
@@ -94,6 +103,7 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
       if (!isRecord(t) || typeof t.project !== 'string' || typeof t.sessionDir !== 'string') throw new Error(`item ${n}: bad targetSession`)
       if (known.sessions.includes(`${t.project}::${t.sessionDir}`)) item.targetSession = { project: t.project, sessionDir: t.sessionDir }
     }
+    if (item.kind === 'to-task' && !item.targetSession) item.kind = item.issueKey ? 'issue' : 'request'
     return item
   })
 }

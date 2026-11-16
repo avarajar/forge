@@ -32,6 +32,30 @@ describe('parseReaderOutput', () => {
     expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request' }]), known)).toThrow(/link/)
   })
 
+  it('rejects a javascript: link', () => {
+    expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'javascript:alert(1)' }]), known)).toThrow(/http\(s\) URL/)
+  })
+
+  it('rejects a link that is not a URL', () => {
+    expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'not a url' }]), known)).toThrow(/http\(s\) URL/)
+  })
+
+  it('rejects a when that is not a date', () => {
+    expect(() => parseReaderOutput(out([{ ...base, when: 'yesterday', source: 'slack', kind: 'request', link: 'https://s/1' }]), known)).toThrow(/when must be a date/)
+  })
+
+  it('demotes a to-task item with an unknown session', () => {
+    const gone = { project: 'forge', sessionDir: 'gone' }
+    const [a, b] = parseReaderOutput(
+      out([
+        { ...base, source: 'linear', kind: 'to-task', link: 'https://l/1', issueKey: 'ENG-1', targetSession: gone },
+        { ...base, source: 'slack', kind: 'to-task', link: 'https://s/2', targetSession: gone },
+      ]),
+      known,
+    )
+    expect([a.kind, b.kind]).toEqual(['issue', 'request'])
+  })
+
   it('drops an unknown project and session', () => {
     const [a, b] = parseReaderOutput(
       out([
