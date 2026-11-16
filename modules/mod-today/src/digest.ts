@@ -111,7 +111,10 @@ export function parseReaderProblems(out: string): string[] {
 // "<source>: <reason>" from the reader; anything else is the reader's own problem
 export function toProblem(account: string, text: string): Problem {
   const m = /^(slack|linear|reader)\s*:\s*(.+)$/i.exec(text)
-  return m ? { account, source: m[1].toLowerCase() as Problem['source'], reason: m[2] } : { account, source: 'reader', reason: text }
+  if (m) return { account, source: m[1].toLowerCase() as Problem['source'], reason: m[2] }
+  // a problem that names Slack or Linear elsewhere still belongs to that source
+  const named = /\b(slack|linear)\b/i.exec(text)
+  return { account, source: named ? (named[1].toLowerCase() as Problem['source']) : 'reader', reason: text }
 }
 
 export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[]; account?: string }): Item[] {

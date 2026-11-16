@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseReaderOutput, parseReaderProblems, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
+import { parseReaderOutput, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
 
 const known = { projects: ['forge'], sessions: ['forge::task-1'] }
 const base = { who: 'Ana', where: '#dev', when: '2026-11-15T09:00:00Z', title: 'Something' }
@@ -144,5 +144,13 @@ describe('parseReaderProblems', () => {
   it('is empty when nothing is a problem', () => {
     expect(parseReaderProblems(body(['github: nothing']))).toEqual([])
     expect(parseReaderProblems('no json')).toEqual([])
+  })
+})
+
+describe('toProblem', () => {
+  it('names the source a phrased problem mentions', () => {
+    expect(toProblem('meridian', 'claude.ai Slack connector down').source).toBe('slack')
+    expect(toProblem('meridian', 'linear: unavailable')).toEqual({ account: 'meridian', source: 'linear', reason: 'unavailable' })
+    expect(toProblem('meridian', 'timed out').source).toBe('reader')
   })
 })
