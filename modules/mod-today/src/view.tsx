@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { ActionButton, EmptyState, showToast } from '@forge-dev/ui'
+import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
 import { readLine, Row, useActing, useDigest, useProjects } from './rows'
@@ -17,20 +17,13 @@ function View({ forge }: PanelProps) {
   const { reply, error, reload } = useDigest(forge, day ? `/digest/${day}` : '/digest')
   const projects = useProjects(forge)
   const digest = reply?.digest
-  const act = useActing(forge, digest?.date, reload)
+  const acting = useActing(forge, digest?.date, reload)
 
   useEffect(() => {
     forge.route<{ days: string[] }>('/days').then(r => setDays(r.days), () => {})
   }, [forge, digest?.readAt])
 
-  const read = async () => {
-    try {
-      await forge.action('refresh')
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e), 'error')
-    }
-    await reload()
-  }
+  const read = () => acting.run(() => forge.action('refresh'))
 
   return (
     <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '1180px' }}>
@@ -41,7 +34,7 @@ function View({ forge }: PanelProps) {
           </select>
         )}
         <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{digest ? readLine(digest) : 'Not read yet'}</span>
-        <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" onClick={read} /></span>
+        <span style={{ marginLeft: 'auto' }}><ActionButton label="Read now" variant="primary" size="sm" loading={acting.busy} onClick={read} /></span>
       </div>
 
       {(error || reply?.lastError) && (
@@ -59,7 +52,7 @@ function View({ forge }: PanelProps) {
           return (
             <section key={g.title} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <h4 style={{ margin: '4px 0', fontSize: '11px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>{g.title} · {items.length}</h4>
-              {items.map(i => <Row key={i.id} item={i} projects={projects} onAct={act} />)}
+              {items.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
             </section>
           )
         })

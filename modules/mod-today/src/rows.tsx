@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
@@ -6,10 +6,11 @@ import type { Digest, Item, Kind } from './digest'
 
 export type Op = 'send' | 'start' | 'research' | 'dismiss'
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
+export interface Acting { busy: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct }
 
 export interface DigestReply { digest: Digest | null; folded: boolean; lastError?: string }
 
-const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
+export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -18,12 +19,16 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 export function useDigest(forge: PanelClient, path = '/digest') {
   const [reply, setReply] = useState<DigestReply | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const latest = useRef(0)
   const load = useCallback(async () => {
+    const mine = ++latest.current
     try {
-      setReply(await forge.route<DigestReply>(path))
+      const next = await forge.route<DigestReply>(path)
+      if (mine !== latest.current) return
+      setReply(next)
       setError(null)
     } catch (e) {
-      setError(errorText(e))
+      if (mine === latest.current) setError(errorText(e))
     }
   }, [forge, path])
   useEffect(() => {
@@ -42,17 +47,24 @@ export function useProjects(forge: PanelClient): string[] {
   return projects
 }
 
-// runs an item action, reloads, and says what went wrong in a toast
-export function useActing(forge: PanelClient, date: string | undefined, reload: () => Promise<void>): OnAct {
-  return async (item, op, project) => {
-    if (!date) return
+// one acting state per digest: every action button waits while any action runs
+export function useActing(forge: PanelClient, date: string | undefined, reload: () => Promise<void>): Acting {
+  const [busy, setBusy] = useState(false)
+  const run = async (fn: () => Promise<unknown>) => {
+    if (busy) return
+    setBusy(true)
     try {
-      await forge.action(op, { date, id: item.id, ...(project ? { project } : {}) })
+      await fn()
     } catch (e) {
       showToast(errorText(e), 'error')
     }
     await reload()
+    setBusy(false)
   }
+  const act: OnAct = (item, op, project) => run(async () => {
+    if (date) await forge.action(op, { date, id: item.id, ...(project ? { project } : {}) })
+  })
+  return { busy, run, act }
 }
 
 export function dayLabel(now: Date): string {
@@ -131,15 +143,9 @@ const buttonStyle = { font: 'inherit', fontSize: '12px', fontWeight: 550, border
 export const ghostStyle = { ...buttonStyle, border: '1px solid transparent', background: 'transparent', color: 'var(--ink-2)' }
 export const primaryStyle = { ...buttonStyle, background: 'var(--blue)', borderColor: 'transparent', color: '#fff', boxShadow: `0 2px 8px ${soft('--blue', 35)}` }
 
-export const Btn: FunctionComponent<{ label: string; style?: Record<string, string | number>; disabled?: boolean; title?: string; onClick: () => Promise<void> | void }> = ({ label, style = buttonStyle, disabled, title, onClick }) => {
-  const [busy, setBusy] = useState(false)
-  return (
-    <button type="button" title={title} disabled={disabled || busy} style={{ ...style, opacity: disabled || busy ? 0.55 : 1, cursor: disabled || busy ? 'default' : 'pointer', transition: 'opacity .2s var(--ease)' }} onClick={async () => {
-      setBusy(true)
-      try { await onClick() } finally { setBusy(false) }
-    }}>{label}</button>
-  )
-}
+export const Btn: FunctionComponent<{ label: string; style?: Record<string, string | number>; disabled?: boolean; title?: string; onClick: () => void }> = ({ label, style = buttonStyle, disabled, title, onClick }) => (
+  <button type="button" title={title} disabled={disabled} style={{ ...style, opacity: disabled ? 0.55 : 1, cursor: disabled ? 'default' : 'pointer', transition: 'opacity .2s var(--ease)' }} onClick={onClick}>{label}</button>
+)
 
 function ProjectPicker({ projects, value, onChange }: { projects: string[]; value: string; onChange: (v: string) => void }) {
   return (
@@ -158,7 +164,8 @@ function outcome(item: Item): ComponentChildren {
   return <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>Started{where ? ` · ${where}` : ''}</span>
 }
 
-export const Row: FunctionComponent<{ item: Item; projects?: string[]; onAct: OnAct }> = ({ item, projects = [], onAct }) => {
+export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: Acting; forge: PanelClient }> = ({ item, projects = [], acting, forge }) => {
+  const onAct = acting.act
   const [project, setProject] = useState(item.project ?? '')
   const open = item.state === 'proposed' || item.state === 'failed'
   const needsProject = (item.kind === 'issue' || item.kind === 'request') && !item.project
@@ -189,9 +196,10 @@ export const Row: FunctionComponent<{ item: Item; projects?: string[]; onAct: On
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <KindPill kind={item.kind} />
         {open && needsProject && <ProjectPicker projects={projects} value={project} onChange={setProject} />}
-        {open && <Btn label={item.state === 'failed' ? 'Retry' : verb} disabled={needsProject && !project} onClick={() => onAct(item, op, needsProject ? project : undefined)} />}
-        {open && <Btn label="Dismiss" style={ghostStyle} onClick={() => onAct(item, 'dismiss')} />}
+        {open && <Btn label={item.state === 'failed' ? 'Retry' : verb} disabled={acting.busy || (needsProject && !project)} onClick={() => onAct(item, op, needsProject ? project : undefined)} />}
+        {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => onAct(item, 'dismiss')} />}
         {item.state === 'done' && outcome(item)}
+        {item.state === 'done' && item.startedSession && <Btn label="Open session" onClick={() => forge.openSession(item.startedSession!.project, item.startedSession!.sessionDir)} />}
         {item.state === 'dismissed' && <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>Dismissed</span>}
       </div>
     </div>

@@ -111,11 +111,15 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
     const lastReadAt = await ctx.storage.get<string>('lastReadAt')
     await locked(async () => {
       const prev = await loadDigest(ctx, date)
+      const items = merge(prev?.items ?? [], fresh)
+      const known = new Set((prev?.items ?? []).map(i => i.id))
+      // new items reopen a folded day
+      if (items.some(i => i.state === 'proposed' && !known.has(i.id))) await ctx.storage.delete(`folded/${date}`)
       await saveDigest(ctx, {
         date,
         readAt: now.toISOString(),
         since: prev?.since ?? lastReadAt ?? new Date(now.getTime() - DAY).toISOString(),
-        items: merge(prev?.items ?? [], fresh),
+        items,
         autoStarted: prev?.autoStarted ?? 0,
       })
       await rememberHandled(ctx, fresh, now)

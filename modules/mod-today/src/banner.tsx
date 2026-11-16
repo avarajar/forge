@@ -1,11 +1,8 @@
 import type { ComponentChildren } from 'preact'
-import { useState } from 'preact/hooks'
-import { showToast } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { Btn, dayLabel, ghostStyle, primaryStyle, readLine, Row, useActing, useDigest, useProjects } from './rows'
+import { Btn, dayLabel, ghostStyle, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
 
-const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
 
 function Count({ token, n, label }: { token: string; n: number; label: string }) {
@@ -24,23 +21,14 @@ const done = (items: Item[], kinds: Item['kind'][]) => items.filter(i => i.state
 function Banner({ forge }: PanelProps) {
   const { reply, reload } = useDigest(forge)
   const projects = useProjects(forge)
-  const [foldedNow, setFoldedNow] = useState<boolean | null>(null)
   const digest = reply?.digest
-  const act = useActing(forge, digest?.date, reload)
+  const acting = useActing(forge, digest?.date, reload)
   if (!digest || digest.items.length === 0) return null
 
   const items = digest.items
   const shown = live(items)
-  const folded = foldedNow ?? reply.folded
-  const fold = async (value: boolean) => {
-    setFoldedNow(value)
-    try {
-      await forge.action('fold', { date: digest.date, folded: value })
-    } catch (e) {
-      setFoldedNow(null)
-      showToast(e instanceof Error ? e.message : String(e), 'error')
-    }
-  }
+  const folded = reply.folded
+  const fold = (value: boolean) => acting.run(() => forge.action('fold', { date: digest.date, folded: value }))
   const shell = (children: ComponentChildren) => (
     <div style={{ position: 'relative', borderRadius: '16px', padding: '1px', background: `linear-gradient(135deg, ${soft('--blue', 55)}, ${soft('--purple', 40)} 45%, var(--hair) 80%)`, boxShadow: `0 10px 40px ${soft('--blue', 10)}` }}>
       <div style={{ borderRadius: '15px', background: 'radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--blue) 14%, var(--card)) 0%, var(--card) 55%)' }}>{children}</div>
@@ -53,21 +41,14 @@ function Banner({ forge }: PanelProps) {
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
         <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Today</b>
         <span>· {done(items, ['issue', 'request'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
-        <span style={{ marginLeft: 'auto' }}><Btn label="See all →" style={ghostStyle} onClick={() => fold(false)} /></span>
+        <span style={{ marginLeft: 'auto' }}><Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></span>
       </div>,
     )
   }
 
   const waiting = items.filter(i => i.state === 'proposed' || i.state === 'failed')
   const ready = waiting.filter(i => i.kind === 'to-task' || i.kind === 'research' || i.project).length
-  const acceptAll = async () => {
-    try {
-      await forge.action('accept-all', { date: digest.date })
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : String(e), 'error')
-    }
-    await reload()
-  }
+  const acceptAll = () => acting.run(() => forge.action('accept-all', { date: digest.date }))
 
   return shell(
     <div style={{ padding: '16px 18px 12px' }}>
@@ -78,8 +59,8 @@ function Banner({ forge }: PanelProps) {
           <div style={{ color: 'var(--ink-2)', fontSize: '12px', marginTop: '1px' }}>{readLine(digest)}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          <Btn label="Fold ⌃" style={ghostStyle} onClick={() => fold(true)} />
-          {ready > 0 && <Btn label={`Accept ${ready === 1 ? 'it' : `the ${ready}`}`} style={primaryStyle} onClick={acceptAll} />}
+          <Btn label="Fold ⌃" style={ghostStyle} disabled={acting.busy} onClick={() => fold(true)} />
+          {ready > 0 && <Btn label={`Accept ${ready === 1 ? 'it' : `the ${ready}`}`} style={primaryStyle} disabled={acting.busy} onClick={acceptAll} />}
         </div>
       </div>
 
@@ -93,7 +74,7 @@ function Banner({ forge }: PanelProps) {
       {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>Last reading failed: {digest.error}</div>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {shown.map(i => <Row key={i.id} item={i} projects={projects} onAct={act} />)}
+        {shown.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
       </div>
 
       <div style={{ marginTop: '10px', fontSize: '11.5px', color: 'var(--ink-3)' }}>Research starts on its own (limited per day). The rest waits for your ok.</div>

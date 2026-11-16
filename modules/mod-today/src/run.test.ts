@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { ForgeContext, SendResult } from '@forge-dev/sdk'
-import { readNow, applyItem, acceptAll, localDate } from './run'
+import { readNow, applyItem, acceptAll, setFolded, isFolded, localDate } from './run'
 import type { Digest } from './digest'
 
 const NOW = new Date(2026, 10, 15, 9, 0, 0)
@@ -42,6 +42,17 @@ const research = (n: number) => Array.from({ length: n }, (_, i) => raw({ kind: 
 const digestOf = (s: ReturnType<typeof stub>) => s.store.get(`digest/${DATE}`) as Digest
 
 describe('readNow', () => {
+  it('a reading with new items unfolds the day', async () => {
+    const s = stub({ reader: reply([raw({})]) })
+    await readNow(s.ctx, NOW)
+    await setFolded(s.ctx, DATE, true)
+    await readNow(s.ctx, new Date(2026, 10, 15, 10))
+    expect(await isFolded(s.ctx, DATE)).toBe(true)
+    s.run.mockImplementation(async () => ({ text: JSON.stringify({ items: [raw({ link: 'https://x.test/new' })] }) }))
+    await readNow(s.ctx, new Date(2026, 10, 15, 11))
+    expect(await isFolded(s.ctx, DATE)).toBe(false)
+  })
+
   it('saves the digest and the badge', async () => {
     const s = stub({ reader: reply([raw({}), raw({ link: 'https://x.test/2', kind: 'issue', issueKey: 'A-1' })]) })
     const d = await readNow(s.ctx, NOW)
