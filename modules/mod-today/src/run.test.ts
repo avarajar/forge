@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import type { ForgeContext, SendResult } from '@forge-dev/sdk'
 import { readNow, applyItem, acceptAll, setFolded, isFolded, localDate } from './run'
 import type { Digest } from './digest'
+import * as github from './github'
+
+vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })) }))
 
 const NOW = new Date(2026, 10, 15, 9, 0, 0)
 const DATE = localDate(NOW)
@@ -119,6 +122,57 @@ describe('readNow', () => {
       task: 'Research: Why is CI slow',
       prompt: 'Why is CI slow — find out and leave the answer in the session. Context: it takes 20 min https://x.test/1',
     })
+  })
+})
+
+describe('github', () => {
+  const event = { type: 'review-request' as const, repo: 'o/r', number: 9, title: 'Add cache', url: 'https://github.com/o/r/pull/9', when: '2026-11-15T07:00:00Z' }
+  const ghItem = raw({ source: 'github', kind: 'review', title: 'Add cache', link: 'https://github.com/o/r/pull/9#discussion_1', project: 'forge' })
+
+  it('a review item starts cw review with the PR url', async () => {
+    const s = stub({ reader: reply([ghItem]) })
+    const d = await readNow(s.ctx, NOW)
+    const saved = await applyItem(s.ctx, DATE, d.items[0].id, 'start')
+    expect(s.start).toHaveBeenCalledWith({ type: 'review', project: 'forge', task: 'https://github.com/o/r/pull/9' })
+    expect(saved.state).toBe('done')
+  })
+
+  it('a github issue from a CI failure starts cw work on the PR with the failing checks', async () => {
+    const s = stub({ reader: reply([raw({ source: 'github', kind: 'issue', title: 'CI failing', link: 'https://github.com/o/r/pull/7', project: 'forge', quote: 'Failing checks: lint' })]) })
+    const d = await readNow(s.ctx, NOW)
+    await applyItem(s.ctx, DATE, d.items[0].id, 'start')
+    expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'forge', task: 'https://github.com/o/r/pull/7', description: 'CI failing\n\nFailing checks: lint' })
+  })
+
+  it('passes the fetched events to the reader as data', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
+    const s = stub({ reader: reply([]) })
+    await readNow(s.ctx, NOW)
+    expect((s.run.mock.calls[0][0] as { prompt: string }).prompt).toContain('https://github.com/o/r/pull/9')
+  })
+
+  it('a github failure does not fail the reading and is noted', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'gh is not signed in' })
+    const s = stub({ reader: reply([raw({})]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items).toHaveLength(1)
+    expect(d.error).toBe('GitHub: gh is not signed in')
+    expect(s.store.get('lastReadAt')).toBe(NOW.toISOString())
+    expect(s.store.has('lastFailedAt')).toBe(false)
+  })
+
+  it('a github note is appended to a reader failure', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'gh is not signed in' })
+    const s = stub({ reader: async () => ({ text: 'sorry, no' }) })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.error).toMatch(/JSON.*GitHub: gh is not signed in$/)
+  })
+
+  it('a later clean reading clears the note', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'x' })
+    const s = stub({ reader: reply([]) })
+    await readNow(s.ctx, NOW)
+    expect((await readNow(s.ctx, new Date(2026, 10, 15, 10))).error).toBeUndefined()
   })
 })
 

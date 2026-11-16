@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { dayLabel, foldedNow, isToday } from './rows'
+import { opFor } from './ops'
 import type { Item } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -33,5 +34,22 @@ describe('foldedNow', () => {
 
   it('keeps a fold the person asked for', () => {
     expect(foldedNow(true, [item('proposed')])).toBe(true)
+  })
+})
+
+describe('opFor review', () => {
+  it('a review starts once a project is known', () => {
+    const review = { kind: 'review' } as Item
+    expect(opFor(review)).toBeNull()
+    expect(opFor(review, 'forge')).toBe('start')
+    expect(opFor({ kind: 'review', project: 'forge' } as Item)).toBe('start')
+  })
+})
+
+describe('readingProblem', () => {
+  it('a GitHub note is not called a failed reading', async () => {
+    const { readingProblem } = await import('./ops')
+    expect(readingProblem('GitHub: gh is not signed in')).toBe('GitHub: gh is not signed in')
+    expect(readingProblem('boom')).toBe('Last reading failed: boom')
   })
 })

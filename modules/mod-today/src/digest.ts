@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 
 export type Op = 'send' | 'start' | 'research' | 'dismiss'
-export type Kind = 'to-task' | 'issue' | 'request' | 'research'
+export type Kind = 'to-task' | 'issue' | 'request' | 'research' | 'review'
 type Ref = { project: string; sessionDir: string }
 
 export interface Item {
   id: string
-  source: 'linear' | 'slack'
+  source: 'linear' | 'slack' | 'github'
   kind: Kind
   title: string
   who: string
@@ -31,8 +31,8 @@ export interface Digest {
   autoStarted: number
 }
 
-const KINDS: Kind[] = ['to-task', 'issue', 'request', 'research']
-const SOURCES = ['linear', 'slack']
+const KINDS: Kind[] = ['to-task', 'issue', 'request', 'research', 'review']
+const SOURCES = ['linear', 'slack', 'github']
 
 export function itemId(source: string, link: string): string {
   return createHash('sha1').update(`${source}\n${link}`).digest('hex').slice(0, 16)

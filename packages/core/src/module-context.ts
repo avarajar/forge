@@ -150,6 +150,7 @@ function toSessionInfo(s: ReturnType<CWReader['getSpaces']>[number]): SessionInf
     provider: s.provider,
     model: s.model,
     worktreePath: s.worktree,
+    taskUrl: s.source_url || undefined,
   }
 }
 

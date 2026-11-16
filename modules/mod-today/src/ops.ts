@@ -9,3 +9,6 @@ export function opFor(item: Item, project?: string): Exclude<Op, 'dismiss'> | nu
   if (item.kind === 'research') return 'research'
   return project ?? item.project ? 'start' : null
 }
+
+// a GitHub-only note is not a failed reading; anything else is
+export const readingProblem = (error: string) => (error.startsWith('GitHub: ') ? error : `Last reading failed: ${error}`)

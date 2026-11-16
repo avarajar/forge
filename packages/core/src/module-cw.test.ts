@@ -152,6 +152,22 @@ describe('createCwDeps', () => {
     })
   })
 
+  describe('review', () => {
+    let cwHome: string
+    beforeEach(() => {
+      cwHome = mkdtempSync(join(tmpdir(), 'forge-module-cw-'))
+      ;(reader as unknown as { cwHome: string }).cwHome = cwHome
+    })
+    afterEach(() => rmSync(cwHome, { recursive: true, force: true }))
+
+    it('start review passes through to prepareStart', async () => {
+      const url = 'https://github.com/o/r/pull/12'
+      const result = await make().start({ type: 'review', project: 'p', task: url })
+      expect(result).toEqual({ project: 'p', sessionDir: 'review-pr-12' })
+      expect(getOrCreate).toHaveBeenCalledWith('p', 'review-pr-12', expect.objectContaining({ type: 'review', pr: '12', source_url: url }), { isNew: true, headless: true })
+    })
+  })
+
   it('start general with a prompt waits for the prompt and types it on one line', async () => {
     vi.useFakeTimers()
     try {

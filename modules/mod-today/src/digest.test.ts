@@ -53,6 +53,15 @@ describe('parseReaderOutput', () => {
     expect(() => parseReaderOutput(out([{ ...base, when: 'yesterday', source: 'slack', kind: 'request', link: 'https://s/1' }]), known)).toThrow(/when must be a date/)
   })
 
+  it('accepts source github and kind review', () => {
+    const [a] = parseReaderOutput(out([{ ...base, source: 'github', kind: 'review', link: 'https://github.com/o/r/pull/9', project: 'forge' }]), known)
+    expect([a.source, a.kind, a.project]).toEqual(['github', 'review', 'forge'])
+  })
+
+  it('still refuses a github link that is not http(s)', () => {
+    expect(() => parseReaderOutput(out([{ ...base, source: 'github', kind: 'review', link: 'javascript:alert(1)' }]), known)).toThrow(/http/)
+  })
+
   it('demotes a to-task item with an unknown session', () => {
     const gone = { project: 'forge', sessionDir: 'gone' }
     const [a, b] = parseReaderOutput(

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
+import { readingProblem } from './ops'
 import { dayLabel, readLine, Row, useActing, useDigest, useProjects } from './rows'
 
 const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
   { title: 'In open tasks', pick: i => i.kind === 'to-task' },
   { title: 'New', pick: i => i.kind === 'issue' || i.kind === 'request' },
+  { title: 'To review', pick: i => i.kind === 'review' },
   { title: 'Researching', pick: i => i.kind === 'research' },
 ]
 
@@ -46,7 +48,7 @@ function View({ forge }: PanelProps) {
 
       {(error || digest?.error) && (
         <div style={{ padding: '10px 12px', borderRadius: '10px', fontSize: '12px', color: 'var(--red)', background: 'var(--card)', border: '1px solid color-mix(in srgb, var(--red) 45%, var(--hair))' }}>
-          Last reading failed: {error ?? digest?.error}
+          {error ? `Can't load Today: ${error}` : readingProblem(digest!.error!)}
         </div>
       )}
 

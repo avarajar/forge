@@ -36,6 +36,14 @@ describe('createForgeContext', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
+  it('sessions.list carries the session source url as taskUrl', async () => {
+    const dir = join(root, 'cw/sessions/p/review-pr-12')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'session.json'), JSON.stringify({ project: 'p', type: 'review', pr: '12', source_url: 'https://github.com/o/r/pull/12', status: 'active', last_opened: '2026-11-15T00:00:00Z' }))
+    const ctx = ctxFor('m', expandGrants({}, {}))
+    expect((await ctx.sessions.list())[0]).toMatchObject({ sessionDir: 'review-pr-12', taskUrl: 'https://github.com/o/r/pull/12' })
+  })
+
   it('fetch to an undeclared origin throws PermissionError and reports the denial', async () => {
     const ctx = ctxFor('m', expandGrants({ network: ['http://localhost:5555'] }, {}))
     await expect(ctx.fetch('http://localhost:6666/x')).rejects.toBeInstanceOf(PermissionError)

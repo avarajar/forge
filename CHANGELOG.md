@@ -9,6 +9,8 @@
 - Module SDK 1.1.0: `cw` and `agent` permissions, `ctx.cw.start` (with a work session's `description` and a general session's first `prompt`), `ctx.sessions.send`, `ctx.agent.run` (no built-in tools, run in an empty temporary folder), and `openSession` and `openPage` on the panel client.
 - Bundled v1 modules ship in the npm package and the desktop app with their `package.json` and `dist/`.
 - Today module: a Refresh button on the banner (header and folded line) reads only what is new since the last reading; days with nothing new keep a minimal line with Refresh instead of hiding the banner.
+- Today module reads GitHub with `gh`: comments and reviews on your open pull requests, review requests, mentions, assigned issues and failing checks; a review request starts `cw review` on the pull request. A missing or signed out `gh` is noted and the reading goes on.
+- Module SDK: `cw.start` takes `type: 'review'`, and `SessionInfo.taskUrl` is the URL a session's task came from.
 
 ### Fixed
 

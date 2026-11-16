@@ -98,7 +98,7 @@ export function readLine(d: Digest): string {
   const since = new Date(d.since)
   const same = read.toDateString() === since.toDateString()
   const day = new Date(read.getTime() - 86_400_000).toDateString() === since.toDateString() ? 'yesterday ' : `${since.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} `
-  return `Read at ${clock(read)} · Linear and Slack since ${same ? '' : day}${clock(since)}`
+  return `Read at ${clock(read)} · Linear, Slack and GitHub since ${same ? '' : day}${clock(since)}`
 }
 
 export function ago(iso: string, now = new Date()): string {
@@ -110,10 +110,15 @@ export function ago(iso: string, now = new Date()): string {
   return t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + clock(t)
 }
 
+const SOURCE_LABEL: Record<Item['source'], string> = { linear: 'Linear', slack: 'Slack', github: 'GitHub' }
+const SOURCE_TINT: Record<Item['source'], string> = { linear: '#5e6ad2 22%', slack: '#e01e5a 18%', github: '#8b949e 24%' }
+
 export function SourceIcon({ source }: { source: Item['source'] }) {
   return (
-    <div title={source === 'linear' ? 'Linear' : 'Slack'} style={{ width: '30px', height: '30px', borderRadius: '8px', display: 'grid', placeItems: 'center', flexShrink: 0, background: source === 'linear' ? 'color-mix(in srgb, #5e6ad2 22%, transparent)' : 'color-mix(in srgb, #e01e5a 18%, transparent)' }}>
-      {source === 'linear' ? (
+    <div title={SOURCE_LABEL[source]} style={{ width: '30px', height: '30px', borderRadius: '8px', display: 'grid', placeItems: 'center', flexShrink: 0, background: `color-mix(in srgb, ${SOURCE_TINT[source]}, transparent)` }}>
+      {source === 'github' ? (
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" style={{ color: 'var(--ink)' }} d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
+      ) : source === 'linear' ? (
         <svg width="15" height="15" viewBox="0 0 100 100" aria-hidden="true"><path fill="#8c94f0" d="M1.2 61.5 38.5 98.8C19.8 95.6 4.4 80.2 1.2 61.5zM0 46.9 53.1 100c3.4-.2 6.8-.8 10-1.6L1.6 36.9C.8 40.1.2 43.5 0 46.9zM4.9 27 73 95.1c2.6-1.1 5.1-2.5 7.4-4L8.9 19.6c-1.5 2.3-2.9 4.8-4 7.4zM14.4 13.8C23.4 5.3 35.5 0 48.9 0 76 0 100 24 100 51.1c0 13.4-5.3 25.5-13.8 34.5z" /></svg>
       ) : (
         <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke-width="2.6" stroke-linecap="round"><path stroke="#36c5f0" d="M9 3.5v6" /><path stroke="#2eb67d" d="M20.5 9h-6" /><path stroke="#ecb22e" d="M15 20.5v-6" /><path stroke="#e01e5a" d="M3.5 15h6" /></g></svg>
@@ -127,6 +132,7 @@ const KIND: Record<Kind, { label: string; token: string }> = {
   issue: { label: 'New task', token: '--green' },
   request: { label: 'New task', token: '--green' },
   research: { label: 'Research', token: '--purple' },
+  review: { label: 'Review', token: '--blue' },
 }
 
 export function KindPill({ kind }: { kind: Kind }) {
@@ -185,8 +191,8 @@ function outcome(item: Item): ComponentChildren {
 export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: Acting; forge: PanelClient }> = ({ item, projects = [], acting, forge }) => {
   const [project, setProject] = useState(item.project ?? '')
   const open = item.state === 'proposed' || item.state === 'failed'
-  const needsProject = (item.kind === 'issue' || item.kind === 'request') && !item.project
-  const verb = item.kind === 'to-task' ? 'Send' : item.kind === 'research' ? 'Research' : 'Start'
+  const needsProject = (item.kind === 'issue' || item.kind === 'request' || item.kind === 'review') && !item.project
+  const verb = item.kind === 'to-task' ? 'Send' : item.kind === 'research' ? 'Research' : item.kind === 'review' ? 'Review' : 'Start'
   const op = opFor(item, project)
   const where = item.source === 'slack' ? 'in' : 'on'
   return (
@@ -203,7 +209,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: string[]; acting: A
           <Sep />
           <span>{ago(item.when)}</span>
           <Sep />
-          <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>{item.source === 'linear' ? 'View in Linear ↗' : 'View in Slack ↗'}</a>
+          <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>View in {SOURCE_LABEL[item.source]} ↗</a>
           {item.kind === 'to-task' && item.targetSession && <><Sep /><span>goes to {strong(item.targetSession.sessionDir)}</span></>}
           {item.project && item.kind !== 'to-task' && <><Sep /><span>project {strong(item.project)}</span></>}
         </div>

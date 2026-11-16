@@ -193,7 +193,7 @@ export interface ModuleStatus {
     removable?: boolean;
 }
 export interface CwStartInput {
-    type: 'work' | 'general';
+    type: 'work' | 'review' | 'general';
     project?: string;
     task: string;
     description?: string;
@@ -225,6 +225,7 @@ export interface SessionInfo {
     provider?: string;
     model?: string;
     worktreePath?: string;
+    taskUrl?: string;
 }
 export interface ProjectInfo {
     name: string;

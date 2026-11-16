@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import type { Item } from './digest'
-import { opFor } from './ops'
+import { opFor, readingProblem } from './ops'
 import { Btn, clock, dayLabel, foldedNow, ghostStyle, isToday, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }
@@ -39,8 +39,8 @@ function Banner({ forge }: PanelProps) {
     return shell(
       <div style={line}>
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
-        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{digest ? 'Today' : 'Not read yet'}</b>
-        {!reply ? failure(`Can't load Today: ${error}`) : digest?.error ? failure(`Last reading failed: ${digest.error}`) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
+        <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{digest || !reply ? 'Today' : 'Not read yet'}</b>
+        {!reply ? failure(`Can't load Today: ${error}`) : digest?.error ? failure(readingProblem(digest.error)) : digest && <span>· nothing new since {clock(new Date(digest.readAt))}</span>}
         <span style={{ marginLeft: 'auto' }}>{refreshBtn}</span>
       </div>,
     )
@@ -56,8 +56,8 @@ function Banner({ forge }: PanelProps) {
       <div style={line}>
         <span style={{ color: 'var(--orange)' }}>☀︎</span>
         <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{isToday(digest.date, new Date()) ? 'Today' : dayLabel(new Date(), digest.date)}</b>
-        <span>· {done(items, ['issue', 'request'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
-        {digest.error && failure(`Last reading failed: ${digest.error}`)}
+        <span>· {done(items, ['issue', 'request', 'review'])} started · {done(items, ['research'])} researching · {done(items, ['to-task'])} sent</span>
+        {digest.error && failure(readingProblem(digest.error))}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></span>
       </div>,
     )
@@ -85,11 +85,12 @@ function Banner({ forge }: PanelProps) {
       <div style={{ display: 'flex', gap: '6px', margin: '14px 0 10px', flexWrap: 'wrap' }}>
         <Count token="--orange" n={shown.filter(i => i.kind === 'to-task').length} label="for open tasks" />
         <Count token="--green" n={shown.filter(i => i.kind === 'issue' || i.kind === 'request').length} label="new tasks" />
+        <Count token="--blue" n={shown.filter(i => i.kind === 'review').length} label="to review" />
         <Count token="--purple" n={shown.filter(i => i.kind === 'research').length} label="researching" />
         <span style={{ ...pill, marginLeft: 'auto', borderColor: 'transparent', background: 'none', color: 'var(--ink-3)' }}>{items.length} read · {items.length - shown.length} dismissed</span>
       </div>
 
-      {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>Last reading failed: {digest.error}</div>}
+      {digest.error && <div style={{ marginBottom: '8px', fontSize: '11.5px', color: 'var(--red)' }}>{readingProblem(digest.error)}</div>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {shown.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}

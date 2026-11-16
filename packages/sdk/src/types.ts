@@ -147,7 +147,8 @@ export interface ModuleStatus {
 // cw and agent
 
 export interface CwStartInput {
-  type: 'work' | 'general'
+  // a review session takes the pull request URL as its task
+  type: 'work' | 'review' | 'general'
   project?: string
   task: string
   // a work session's longer brief, written to its notes
@@ -187,6 +188,8 @@ export interface SessionInfo {
   provider?: string
   model?: string
   worktreePath?: string
+  // the URL the task came from (a pull request or an issue), when CW recorded one
+  taskUrl?: string
 }
 
 export interface ProjectInfo {

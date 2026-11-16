@@ -3,6 +3,7 @@ import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
 import { dedupe, parseReaderOutput, pendingCount, type Digest, type Item, type Op } from './digest'
 import { errorMessage, opFor } from './ops'
+import { fetchGithub } from './github'
 
 export type { Op }
 
@@ -62,7 +63,8 @@ async function chooseAccount(ctx: ForgeContext): Promise<string> {
   return pick.name
 }
 
-async function reread(ctx: ForgeContext, now: Date): Promise<Item[]> {
+// notes collects problems that do not fail the reading
+async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Item[]> {
   const [sessions, projects, lastReadAt, handled, account] = await Promise.all([
     ctx.sessions.list(),
     ctx.projects.list(),
@@ -72,7 +74,9 @@ async function reread(ctx: ForgeContext, now: Date): Promise<Item[]> {
   ])
   const since = lastReadAt ?? new Date(now.getTime() - DAY).toISOString()
   const names = projects.map(p => p.name)
-  const prompt = buildPrompt({ since, sessions, projects: names })
+  const gh = await fetchGithub(ctx, since)
+  if (gh.error) notes.push(`GitHub: ${gh.error}`)
+  const prompt = buildPrompt({ since, sessions, projects: names, github: gh.items })
   const model = typeof ctx.settings.model === 'string' && ctx.settings.model ? ctx.settings.model : undefined
   const out = await ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
   const items = parseReaderOutput(out.text, { projects: names, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`) })
@@ -110,8 +114,9 @@ export function readNow(ctx: ForgeContext, now: Date): Promise<Digest> {
 
 async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   const date = localDate(now)
+  const notes: string[] = []
   try {
-    const fresh = await reread(ctx, now)
+    const fresh = await reread(ctx, now, notes)
     const lastReadAt = await ctx.storage.get<string>('lastReadAt')
     await locked(async () => {
       const prev = await loadDigest(ctx, date)
@@ -125,6 +130,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
         since: prev?.since ?? lastReadAt ?? new Date(now.getTime() - DAY).toISOString(),
         items,
         autoStarted: prev?.autoStarted ?? 0,
+        ...(notes.length ? { error: notes.join('; ') } : {}),
       })
       await rememberHandled(ctx, fresh, now)
       await ctx.storage.set('lastReadAt', now.toISOString())
@@ -133,7 +139,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
     await autoResearch(ctx, date)
     return (await loadDigest(ctx, date))!
   } catch (e) {
-    return keepWithError(ctx, now, errorMessage(e))
+    return keepWithError(ctx, now, [errorMessage(e), ...notes].join('; '))
   }
 }
 
@@ -202,13 +208,17 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
     return
   }
   if (op === 'start') {
-    if (item.kind !== 'issue' && item.kind !== 'request') throw new ModuleError('bad_request', 'only issues and requests start a task')
+    if (item.kind !== 'issue' && item.kind !== 'request' && item.kind !== 'review') throw new ModuleError('bad_request', 'only issues, requests and reviews start a task')
     const target = project ?? item.project
     if (!target) throw new ModuleError('bad_request', 'pick a project')
     item.project = target
+    // a pull request link without its comment anchor, so CW reads the number
+    const url = item.source === 'github' ? item.link.split('#')[0] : item.link
     // an issue link is a task CW knows; a request is named by its title and briefed in the notes
-    const input = item.kind === 'issue'
-      ? { type: 'work' as const, project: target, task: item.link }
+    const input = item.kind === 'review'
+      ? { type: 'review' as const, project: target, task: url }
+      : item.kind === 'issue'
+      ? { type: 'work' as const, project: target, task: url, ...(item.source === 'github' && item.quote ? { description: [item.title, item.quote].join('\n\n') } : {}) }
       : { type: 'work' as const, project: target, task: slug(item.title), description: [item.title, item.quote, `From ${sourceText(item)}: ${item.link}`].filter(Boolean).join('\n\n') }
     await startSession(ctx, item, input)
     return
