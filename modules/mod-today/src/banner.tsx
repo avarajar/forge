@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { opFor, type Item } from './digest'
+import type { Item } from './digest'
+import { opFor } from './ops'
 import { Btn, dayLabel, foldedNow, ghostStyle, isToday, primaryStyle, readLine, Row, soft, useActing, useDigest, useProjects } from './rows'
 
 const pill = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--ink-2)', padding: '3px 9px', borderRadius: '20px', background: 'var(--elev)', border: '1px solid var(--hair)' }

@@ -1,7 +1,8 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { dedupe, errorMessage, opFor, parseReaderOutput, pendingCount, type Digest, type Item, type Op } from './digest'
+import { dedupe, parseReaderOutput, pendingCount, type Digest, type Item, type Op } from './digest'
+import { errorMessage, opFor } from './ops'
 
 export type { Op }
 

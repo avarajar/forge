@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
-import { errorMessage, opFor, type Digest, type Item, type Kind, type Op } from './digest'
+import type { Digest, Item, Kind, Op } from './digest'
+import { errorMessage, opFor } from './ops'
+
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct }
 
