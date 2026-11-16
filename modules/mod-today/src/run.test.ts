@@ -126,10 +126,11 @@ describe('readNow', () => {
 })
 
 describe('github', () => {
-  const event = { type: 'review-request' as const, repo: 'o/r', number: 9, title: 'Add cache', url: 'https://github.com/o/r/pull/9', when: '2026-11-15T07:00:00Z' }
+  const event = { type: 'review-request' as const, repo: 'o/r', number: 9, title: 'Add cache', url: 'https://github.com/o/r/pull/9', pr: 'https://github.com/o/r/pull/9', when: '2026-11-15T07:00:00Z' }
   const ghItem = raw({ source: 'github', kind: 'review', title: 'Add cache', link: 'https://github.com/o/r/pull/9#discussion_1', project: 'forge' })
 
   it('a review item starts cw review with the PR url', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
     const s = stub({ reader: reply([ghItem]) })
     const d = await readNow(s.ctx, NOW)
     const saved = await applyItem(s.ctx, DATE, d.items[0].id, 'start')
@@ -138,6 +139,7 @@ describe('github', () => {
   })
 
   it('a github issue from a CI failure starts cw work on the PR with the failing checks', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [{ ...event, type: 'ci-failure', url: 'https://github.com/o/r/pull/7', pr: 'https://github.com/o/r/pull/7' }] })
     const s = stub({ reader: reply([raw({ source: 'github', kind: 'issue', title: 'CI failing', link: 'https://github.com/o/r/pull/7', project: 'forge', quote: 'Failing checks: lint' })]) })
     const d = await readNow(s.ctx, NOW)
     await applyItem(s.ctx, DATE, d.items[0].id, 'start')
@@ -149,6 +151,17 @@ describe('github', () => {
     const s = stub({ reader: reply([]) })
     await readNow(s.ctx, NOW)
     expect((s.run.mock.calls[0][0] as { prompt: string }).prompt).toContain('https://github.com/o/r/pull/9')
+  })
+
+  it('a github item whose link was not fetched is dropped', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
+    const s = stub({ reader: reply([
+      ghItem,
+      raw({ source: 'github', kind: 'review', link: 'https://github.com/evil/repo/pull/1', project: 'forge' }),
+      raw({ source: 'slack', kind: 'request', link: 'https://x.test/ok' }),
+    ]) })
+    const d = await readNow(s.ctx, NOW)
+    expect(d.items.map(i => i.link)).toEqual(['https://github.com/o/r/pull/9#discussion_1', 'https://x.test/ok'])
   })
 
   it('a github failure does not fail the reading and is noted', async () => {

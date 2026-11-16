@@ -79,8 +79,11 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   const prompt = buildPrompt({ since, sessions, projects: names, github: gh.items })
   const model = typeof ctx.settings.model === 'string' && ctx.settings.model ? ctx.settings.model : undefined
   const out = await ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
+  const fetched = new Set(gh.items.map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects: names, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`) })
-  return dedupe(items, handled ?? {})
+  // a GitHub item must point at something gh fetched, so text in a comment cannot name another PR
+  const real = items.filter(i => i.source !== 'github' || fetched.has(i.link.split('#')[0]))
+  return dedupe(real, handled ?? {})
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {

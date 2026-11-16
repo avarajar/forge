@@ -53,7 +53,7 @@ function View({ forge }: PanelProps) {
       )}
 
       {!digest || digest.items.length === 0 ? (
-        <EmptyState title="Nothing to show" description="Today reads your Linear and Slack once a day. Use Read now to read them now." />
+        <EmptyState title="Nothing to show" description="Today reads your Linear, Slack and GitHub once a day. Use Read now to read them now." />
       ) : (
         sections(digest.items).map(({ title, items }) => {
           return (
