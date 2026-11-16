@@ -95,6 +95,13 @@ describe('fetchGithub', () => {
     }
   })
 
+  it('reads every page of notifications', async () => {
+    const { ctx, calls } = stub()
+    await fetchGithub(ctx, SINCE)
+    const call = calls.find(a => a[1]?.startsWith('notifications'))
+    expect(call).toContain('--paginate')
+  })
+
   it('every call has a timeout', async () => {
     const { ctx, exec } = stub()
     await fetchGithub(ctx, SINCE)

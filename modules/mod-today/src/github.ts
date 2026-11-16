@@ -1,5 +1,5 @@
 import type { ForgeContext } from '@forge-dev/sdk'
-import { errorMessage } from './ops'
+import { errorMessage, oneLine } from './ops'
 
 export interface GithubEvent {
   type: 'comment' | 'review' | 'review-request' | 'mention' | 'assigned' | 'ci-failure'
@@ -37,10 +37,7 @@ interface Notification { reason: string; updated_at: string; subject: { title: s
 class GhError extends Error {}
 
 const newer = (when: string | undefined, since: string): when is string => !!when && Date.parse(when) > Date.parse(since)
-const clip = (t: string | undefined) => {
-  const one = (t ?? '').replace(/\s+/g, ' ').trim()
-  return one ? (one.length > TEXT_MAX ? `${one.slice(0, TEXT_MAX - 1).trimEnd()}…` : one) : undefined
-}
+const clip = (t: string | undefined) => oneLine(t ?? '', TEXT_MAX) || undefined
 
 // runs one read-only gh command and parses its JSON
 async function gh<T>(ctx: ForgeContext, args: string[]): Promise<T> {
@@ -128,7 +125,7 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
       if (newer(i.updatedAt, since)) items.push({ type: 'assigned', repo: repoOf(i), number: i.number, title: i.title, url: i.url, pr: i.url, who: i.author?.login, when: i.updatedAt })
     }
 
-    const notes = await gh<Notification[]>(ctx, ['api', `notifications?since=${encodeURIComponent(since)}`])
+    const notes = await gh<Notification[]>(ctx, ['api', `notifications?since=${encodeURIComponent(since)}`, '--paginate'])
     for (const n of notes) {
       const page = pageUrl(n.subject.url)
       if ((n.reason === 'mention' || n.reason === 'team_mention') && page && newer(n.updated_at, since)) {

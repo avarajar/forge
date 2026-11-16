@@ -211,6 +211,7 @@ async function perform(ctx: ForgeContext, item: Item, op: Op, project?: string):
   if (op === 'send') {
     const t = item.targetSession
     if (item.kind !== 'to-task' || !t) throw new ModuleError('bad_request', 'this item has no task to send to')
+    // one line; Forge strips control characters before typing
     const text = `[Today] ${sourceText(item)}: ${oneLine(item.quote ?? item.title, 300)} — ${oneLine(item.link)}`
     try {
       const r = await ctx.sessions.send(t.project, t.sessionDir, text)

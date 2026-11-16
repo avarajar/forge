@@ -141,6 +141,7 @@ Asked after the first version: include GitHub feedback, and update without waiti
 - What counts: comments and reviews on the user's open PRs; PRs where the user's review is requested; mentions and issues assigned to the user; failing CI checks on the user's open PRs.
 - How it is read: no GitHub connector exists in claude.ai, so the module calls `gh` itself (`shell: ["gh"]` permission, args arrays, read-only commands such as `gh api notifications`, `gh search prs`, `gh pr view --json comments,reviews,statusCheckRollup`), only items since the last reading, and passes them to the reader as extra input to classify alongside Linear and Slack. `gh` missing or signed out → the reading goes on without GitHub and the digest notes it.
 - Kinds: a comment, review or CI failure on a PR with an open CW task → `to-task` (sent with the user's click); a review request → new kind `review` that starts `cw review <pr url>`; a CI failure with no task → `issue` that starts `cw work <pr url>` with the failing checks as description; a mention or assigned issue → `request` / `issue` like Slack and Linear. `source` gains `github`.
+- Safety and notes: an item whose link is on a GitHub host, or whose source is `github`, is never auto-started (anyone can mention the user, so its text waits for a click; manual Research stays); GitHub problems go to the digest's `notes` (shown muted), and `error` is kept for a failed reading.
 - SDK: `CwStartInput.type` gains `'review'`; `SessionInfo` gains the session's source URL so PRs can be matched to tasks.
 
 ### Refresh on demand
