@@ -18,6 +18,7 @@ on:
       - packages/sdk/**
       - packages/platform/**
       - modules/mod-qa/**
+      - modules/mod-today/**
       - pnpm-lock.yaml
       - '!**/*.test.ts'
       - '!**/__fixtures__/**'

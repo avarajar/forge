@@ -61,6 +61,10 @@
         },
         "title": {
           "type": "string"
+        },
+        "banner": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -93,6 +97,15 @@
           }
         },
         "pty": {
+          "type": "boolean"
+        },
+        "cw": {
+          "type": "array",
+          "items": {
+            "enum": ["start", "send"]
+          }
+        },
+        "agent": {
           "type": "boolean"
         }
       }

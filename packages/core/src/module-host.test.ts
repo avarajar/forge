@@ -6,6 +6,7 @@ import { ForgeDB } from './db.js'
 import { ActionRunner } from './runner.js'
 import { CWReader } from './cw-reader.js'
 import { ModuleHost, type HostOptions } from './module-host.js'
+import { ModuleLoader } from './modules.js'
 
 const FIXTURES = join(import.meta.dirname, '../test/fixtures/modules')
 
@@ -55,6 +56,62 @@ describe('ModuleHost', () => {
     expect(host.get('valid')?.server?.routes).toHaveLength(6)
   })
 
+  it('status carries banner url for a manifest with view.banner', async () => {
+    install('with-banner')
+    await make().scan()
+    expect(status('with-banner')?.banner).toMatchObject({ url: '/api/modules/with-banner/banner.js', enabled: false })
+    expect(typeof status('with-banner')?.banner?.version).toBe('number')
+    install('valid')
+    await host.scan()
+    expect(status('valid')?.banner).toBeUndefined()
+  })
+
+  it('banner is enabled by default only for bundled modules', async () => {
+    const bundled = join(root, 'bundled')
+    mkdirSync(bundled)
+    install('with-banner', join(bundled, 'mod-qa'))
+    await make({ bundledDir: bundled }).scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(true)
+    await host.close()
+    rmSync(bundled, { recursive: true })
+    install('with-banner')
+    await make({ bundledDir: undefined }).scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(false)
+  })
+
+  it('bundled v1 module loads from bundledDir and the legacy loader ignores it', async () => {
+    const bundled = join(root, 'bundled')
+    mkdirSync(bundled)
+    install('with-banner', join(bundled, 'mod-today'))
+    await make({ bundledDir: bundled }).scan()
+    expect(status('with-banner')).toMatchObject({ state: 'enabled', source: 'bundled' })
+    expect(new ModuleLoader(modulesDir, bundled).discover()).toEqual([])
+  })
+
+  it('ignores a banner switch that is not a boolean', async () => {
+    install('with-banner')
+    writeFileSync(join(root, 'module-banners.json'), JSON.stringify({ 'with-banner': 'yes' }))
+    await make().scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(false)
+  })
+
+  it('setBanner creates the folder of its file', async () => {
+    install('with-banner')
+    await make({ devFile: join(root, 'state', 'dev-modules.json') }).scan()
+    host.setBanner('with-banner', true)
+    expect(JSON.parse(readFileSync(join(root, 'state', 'module-banners.json'), 'utf-8'))).toEqual({ 'with-banner': true })
+  })
+
+  it('setBanner persists across a new host', async () => {
+    install('with-banner')
+    await make().scan()
+    host.setBanner('with-banner', true)
+    expect(status('with-banner')?.banner?.enabled).toBe(true)
+    await host.close()
+    await make().scan()
+    expect(status('with-banner')?.banner?.enabled).toBe(true)
+  })
+
   it('lists each action with its effect', async () => {
     install('valid')
     await make().scan()
@@ -74,7 +131,7 @@ describe('ModuleHost', () => {
   it.each([
     ['bad-json', 'bad-json', /JSON/],
     ['schema-error', 'schema-error', /\/permissions\/camera: unknown permission/],
-    ['sdk-incompatible', 'sdk-incompatible', /needs SDK \^2.0.0, Forge has 1.0.0/],
+    ['sdk-incompatible', 'sdk-incompatible', /needs SDK \^2.0.0, Forge has 1.1.0/],
     ['sdk-missing', 'sdk-missing', /declares v1 fields but no sdk range/],
     ['import-throws', 'import-throws', /cannot start: missing config/],
     ['shell-undeclared', 'shell-undeclared', /action status uses shell but the manifest does not declare it/],

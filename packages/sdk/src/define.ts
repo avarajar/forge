@@ -3,7 +3,7 @@ import type {
   LegacyPanelProps, ModuleServer, PanelConfig, PanelProps, RouteDef, ShellExecutor,
 } from './types.js'
 
-export const SDK_VERSION = '1.0.0' as const
+export const SDK_VERSION = '1.1.0' as const
 
 export function definePanel<P extends LegacyPanelProps = PanelProps>(config: PanelConfig<P>): PanelConfig<P> {
   return config

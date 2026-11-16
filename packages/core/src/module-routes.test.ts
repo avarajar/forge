@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import { ForgeDB } from './db.js'
 import { ActionRunner } from './runner.js'
 import { CWReader } from './cw-reader.js'
-import { ModuleHost } from './module-host.js'
+import { ModuleHost, RESERVED_SEGMENTS } from './module-host.js'
 import { moduleRoutes } from './module-routes.js'
 import { Confirmations } from './module-confirmations.js'
 import { InstallError, type ModuleInstaller } from './module-install.js'
@@ -30,7 +30,7 @@ describe('moduleRoutes', () => {
     root = mkdtempSync(join(tmpdir(), 'forge-routes-'))
     modulesDir = join(root, 'modules')
     mkdirSync(modulesDir)
-    for (const f of ['valid', 'legacy']) cpSync(join(FIXTURES, f), join(modulesDir, f), { recursive: true })
+    for (const f of ['valid', 'legacy', 'with-banner']) cpSync(join(FIXTURES, f), join(modulesDir, f), { recursive: true })
     db = new ForgeDB(join(root, 'forge.db'))
     host = new ModuleHost({ modulesDir, devFile: join(root, 'dev.json'), localOnly: true, deps: { db, reader: new CWReader(join(root, 'cw')), runner: new ActionRunner() } })
     await host.scan()
@@ -47,7 +47,7 @@ describe('moduleRoutes', () => {
 
   it('lists module statuses', async () => {
     const list = await (await app.request('/api/modules')).json() as Array<{ id: string; state: string }>
-    expect(list.map(m => [m.id, m.state])).toEqual([['legacy', 'legacy'], ['valid', 'enabled']])
+    expect(list.map(m => [m.id, m.state])).toEqual([['legacy', 'legacy'], ['valid', 'enabled'], ['with-banner', 'enabled']])
   })
 
   describe('routes', () => {
@@ -171,6 +171,34 @@ describe('moduleRoutes', () => {
       expect(await res.text()).toContain('component')
     })
 
+    it('GET banner.js serves the entry', async () => {
+      const res = await app.request('/api/modules/with-banner/banner.js')
+      expect(res.headers.get('content-type')).toMatch(/javascript/)
+      expect(await res.text()).toContain('with-banner-banner')
+      expect((await app.request('/api/modules/valid/banner.js')).status).toBe(404)
+    })
+
+    it('PUT banner toggles enabled', async () => {
+      const res = await put('/api/modules/with-banner/banner', { enabled: true })
+      expect(((await res.json()) as { banner: { enabled: boolean } }).banner.enabled).toBe(true)
+      const status = await (await app.request('/api/modules/with-banner/status')).json() as { banner: { enabled: boolean } }
+      expect(status.banner.enabled).toBe(true)
+      expect((await put('/api/modules/with-banner/banner', { enabled: 'yes' })).status).toBe(400)
+      expect((await put('/api/modules/valid/banner', { enabled: true })).status).toBe(404)
+    })
+
+    it('PUT banner answers 500 with the message when the switch cannot be saved', async () => {
+      mkdirSync(join(root, 'module-banners.json'))
+      const res = await put('/api/modules/with-banner/banner', { enabled: true })
+      expect(res.status).toBe(500)
+      expect(await res.json()).toMatchObject({ code: 'internal', message: expect.stringMatching(/could not save the banner switch/) })
+    })
+
+    it('banner.js is a reserved route segment', async () => {
+      expect(RESERVED_SEGMENTS.has('banner.js')).toBe(true)
+      expect(RESERVED_SEGMENTS.has('banner')).toBe(true)
+    })
+
     it('lists notifications and marks only one module seen', async () => {
       await host.get('valid')!.ctx.notify.attention({ key: 'k', title: 'A reply needs you' })
       db.upsertNotification({ moduleId: 'other', key: 'k', kind: 'attention', title: 'x' })
@@ -183,7 +211,7 @@ describe('moduleRoutes', () => {
   it('rescan picks up a newly installed module', async () => {
     rmSync(join(modulesDir, 'legacy'), { recursive: true })
     const list = await (await post('/api/modules/rescan', {})).json() as Array<{ id: string }>
-    expect(list.map(m => m.id)).toEqual(['valid'])
+    expect(list.map(m => m.id)).toEqual(['valid', 'with-banner'])
   })
 
   describe('install and remove', () => {

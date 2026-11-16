@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Assembles the published package: Forge's server in one file (dist/index.js, with the workspace
-// packages inlined and npm dependencies left as imports), the built console, the bundled modules' manifests, and CW.
+// packages inlined and npm dependencies left as imports), the built console, the bundled modules (manifest, plus package.json and dist for v1), and CW.
 // Run by `prepack`: builds the workspace first, so core and the console are never stale.
 
 import { execFileSync } from 'node:child_process'
@@ -38,12 +38,18 @@ rmSync(join(root, 'console'), { recursive: true, force: true })
 cpSync(consoleDist, join(root, 'console'), { recursive: true })
 console.log('Copied the console into console/')
 
-// only the manifest: the server runs its actions, the console already carries the panels
-const { BUNDLED_MODULES } = await import('../../core/dist/modules.js')
+// legacy modules ship only the manifest: the server runs their actions, the console carries the panels
+const { BUNDLED_MODULES, BUNDLED_V1_MODULES } = await import('../../core/dist/modules.js')
 rmSync(join(root, 'modules'), { recursive: true, force: true })
 for (const name of BUNDLED_MODULES) {
   cpSync(join(root, '..', '..', 'modules', name, 'forge-module.json'), join(root, 'modules', name, 'forge-module.json'))
 }
-console.log(`Copied ${BUNDLED_MODULES.join(', ')} into modules/`)
+// v1 modules run in Forge's process, so they carry their package.json and build
+for (const name of BUNDLED_V1_MODULES) {
+  const from = join(root, '..', '..', 'modules', name)
+  if (!existsSync(join(from, 'dist'))) throw new Error(`${name} has no dist: build it first`)
+  for (const entry of ['forge-module.json', 'package.json', 'dist']) cpSync(join(from, entry), join(root, 'modules', name, entry), { recursive: true })
+}
+console.log(`Copied ${[...BUNDLED_MODULES, ...BUNDLED_V1_MODULES].join(', ')} into modules/`)
 
 execFileSync(process.execPath, [join(import.meta.dirname, 'bundle-cw.mjs')], { stdio: 'inherit' })

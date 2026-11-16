@@ -53,8 +53,8 @@ describe('errors', () => {
 })
 
 describe('version and schema', () => {
-  it('SDK_VERSION is 1.0.0', () => {
-    expect(SDK_VERSION).toBe('1.0.0')
+  it('SDK_VERSION is 1.1.0', () => {
+    expect(SDK_VERSION).toBe('1.1.0')
   })
 
   it('schema requires the v1 identity fields', () => {

@@ -1,0 +1,70 @@
+{
+  "id": "today",
+  "name": "@forge-dev/mod-today",
+  "version": "0.1.0",
+  "sdk": "^1.1.0",
+  "displayName": "Today",
+  "description": "A daily digest of your Linear, Slack and GitHub, read by a headless agent",
+  "server": "./dist/server.js",
+  "view": {
+    "entry": "./dist/view.js",
+    "title": "Today",
+    "banner": "./dist/banner.js"
+  },
+  "permissions": {
+    "agent": true,
+    "shell": [
+      "gh"
+    ],
+    "cw": [
+      "start",
+      "send"
+    ]
+  },
+  "settings": {
+    "schema": {
+      "accounts": {
+        "type": "string",
+        "label": "Accounts",
+        "help": "Comma separated CW accounts to read; empty reads every Claude account",
+        "default": ""
+      },
+      "time": {
+        "type": "string",
+        "label": "Read at",
+        "help": "Local time, HH:MM",
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+        "default": "08:00"
+      },
+      "autoResearch": {
+        "type": "boolean",
+        "label": "Start research on its own",
+        "default": true
+      },
+      "maxAuto": {
+        "type": "number",
+        "label": "Research sessions per day",
+        "min": 0,
+        "max": 20,
+        "default": 3
+      },
+      "researchProject": {
+        "type": "string",
+        "label": "Research folder",
+        "help": "CW project whose folder research sessions use; empty uses your home folder",
+        "format": "cw-project",
+        "default": ""
+      },
+      "model": {
+        "type": "enum",
+        "label": "Reader model",
+        "values": [
+          "sonnet",
+          "opus",
+          "haiku"
+        ],
+        "default": "sonnet"
+      }
+    }
+  }
+}

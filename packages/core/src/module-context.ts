@@ -1,7 +1,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { PermissionError } from '@forge-dev/sdk'
-import type { ForgeContext, GitStatus, ModuleSettings, SessionInfo } from '@forge-dev/sdk'
+import type { AgentRunInput, AgentRunResult, CwStartInput, ForgeContext, SendResult, GitStatus, ModuleSettings, SessionInfo } from '@forge-dev/sdk'
 import type { IForgeDB } from './db-interface.js'
 import type { ActionRunner } from './runner.js'
 import type { CWReader } from './cw-reader.js'
@@ -13,6 +13,11 @@ export interface ContextDeps {
   reader: CWReader
   runner: ActionRunner
   spawnPty?: (command: string, args: string[], opts: { cwd: string; name: string }) => Promise<{ sessionId: string }>
+  cw?: {
+    start(i: CwStartInput): Promise<{ project: string; sessionDir: string }>
+    send(p: string, s: string, t: string): Promise<SendResult>
+  }
+  agent?: { run(i: AgentRunInput): Promise<AgentRunResult> }
   fetch?: typeof fetch
   log?: Pick<Console, 'info' | 'warn' | 'error'>
 }
@@ -41,6 +46,25 @@ export function createForgeContext(
     get settings() { return getSettings() },
     sessions: {
       list: async () => deps.reader.getSpaces().map(toSessionInfo),
+      send: async (project, sessionDir, text) => {
+        if (!getGrants().cw.has('send')) deny('cw', 'send')
+        if (!deps.cw) throw new Error('sessions.send is not available in this Forge')
+        return deps.cw.send(project, sessionDir, text)
+      },
+    },
+    cw: {
+      start: async (input) => {
+        if (!getGrants().cw.has('start')) deny('cw', 'start')
+        if (!deps.cw) throw new Error('cw.start is not available in this Forge')
+        return deps.cw.start(input)
+      },
+    },
+    agent: {
+      run: async (input) => {
+        if (!getGrants().agent) deny('agent', input.account)
+        if (!deps.agent) throw new Error('agent.run is not available in this Forge')
+        return deps.agent.run(input)
+      },
     },
     projects: {
       list: async () => Object.entries(deps.reader.getProjects()).map(([name, p]) => ({ name, path: p.path, account: p.account })),
@@ -126,6 +150,7 @@ function toSessionInfo(s: ReturnType<CWReader['getSpaces']>[number]): SessionInf
     provider: s.provider,
     model: s.model,
     worktreePath: s.worktree,
+    taskUrl: s.source_url || undefined,
   }
 }
 

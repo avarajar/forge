@@ -99,6 +99,8 @@ export interface ModulePermissions {
   'fs:write'?: string[]
   shell?: string[]
   pty?: boolean
+  cw?: Array<'start' | 'send'>
+  agent?: boolean
 }
 
 export interface ModuleManifestV1 {
@@ -111,7 +113,7 @@ export interface ModuleManifestV1 {
   icon?: string
   color?: string
   server?: string
-  view?: { entry: string; title?: string }
+  view?: { entry: string; title?: string; banner?: string }
   permissions?: ModulePermissions
   settings?: { schema: Record<string, SettingDef> }
   actions?: LegacyActionDef[]
@@ -133,12 +135,45 @@ export interface ModuleStatus {
   settingsSchema?: Record<string, SettingDef>
   permissions?: ModulePermissions
   view?: { url: string; title: string; version: string }
+  banner?: { url: string; version: number; enabled: boolean }
   actions?: Array<{ id: string; label: string; effect: ActionEffect }>
   lastJobError?: string
   lastEventError?: string
   lastDenial?: { permission: string; value: string; at: string }
   // installed into Forge's modules folder, so the console can remove it
   removable?: boolean
+}
+
+// cw and agent
+
+export interface CwStartInput {
+  // a review session takes the pull request URL as its task
+  type: 'work' | 'review' | 'general'
+  project?: string
+  task: string
+  // a work session's longer brief, written to its notes
+  description?: string
+  // a general session's first message, typed once Claude Code reaches its prompt
+  prompt?: string
+  directory?: string
+  account?: string
+  harness?: string
+}
+
+export type SendResult = 'typed' | 'resumed' | 'unsupported' | 'unavailable'
+
+export interface AgentRunInput {
+  account: string
+  prompt: string
+  model?: string
+  allowedTools: string[]
+  timeoutMs?: number
+}
+
+export interface AgentRunResult {
+  text: string
+  costUsd?: number
+  turns?: number
 }
 
 // core data shapes handed to modules
@@ -153,6 +188,8 @@ export interface SessionInfo {
   provider?: string
   model?: string
   worktreePath?: string
+  // the URL the task came from (a pull request or an issue), when CW recorded one
+  taskUrl?: string
 }
 
 export interface ProjectInfo {
@@ -214,7 +251,12 @@ export interface EventSubscription<E extends ForgeEventName = ForgeEventName> {
 export interface ForgeContext {
   module: { id: string; version: string }
   readonly settings: ModuleSettings
-  sessions: { list(): Promise<SessionInfo[]> }
+  sessions: {
+    list(): Promise<SessionInfo[]>
+    send(project: string, sessionDir: string, text: string): Promise<SendResult>
+  }
+  cw: { start(input: CwStartInput): Promise<{ project: string; sessionDir: string }> }
+  agent: { run(input: AgentRunInput): Promise<AgentRunResult> }
   projects: { list(): Promise<ProjectInfo[]>; dir(name: string): Promise<string | null> }
   accounts: { list(): Promise<AccountInfo[]> }
   git: { status(project: string, sessionDir: string): Promise<GitStatus> }
@@ -316,6 +358,10 @@ export interface PanelClient {
   action<O>(id: string, input?: unknown, opts?: { onOutput?: (chunk: string) => void }): Promise<O | undefined>
   settings: ReadonlySignal<ModuleSettings>
   openSettings(): void
+  // opens that session's tab in the console, like clicking a task row
+  openSession(project: string, sessionDir: string): void
+  // switches the console to this module's page
+  openPage(): void
   status: ReadonlySignal<ModuleStatus | undefined>
 }
 

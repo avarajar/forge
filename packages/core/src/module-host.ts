@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync, type Dirent } from 'node:fs'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isShellExecutor } from '@forge-dev/sdk'
@@ -6,9 +6,9 @@ import type { ForgeContext, ModuleManifestV1, ModuleServer, ModuleSettings, Modu
 import { checkManifest, manifestFileFor, validateSettings, type SettingsResult } from './module-manifest.js'
 import { expandGrants, type Grants } from './module-permissions.js'
 import { createForgeContext, type ContextDeps } from './module-context.js'
-import { BUNDLED_MODULES } from './modules.js'
+import { BUNDLED_MODULES, BUNDLED_V1_MODULES } from './modules.js'
 
-export const RESERVED_SEGMENTS = new Set(['settings', 'actions', 'view.js', 'status', 'notifications', 'reload'])
+export const RESERVED_SEGMENTS = new Set(['settings', 'actions', 'view.js', 'banner.js', 'banner', 'status', 'notifications', 'reload'])
 
 export interface HostHooks {
   loaded?(mod: LoadedModule): void
@@ -44,8 +44,11 @@ export class ModuleHost {
   private statuses: ModuleStatus[] = []
   private loaded = new Map<string, LoadedModule>()
   private origins = new Map<string, Candidate>()
+  private readonly bannersFile: string
 
-  constructor(private readonly opts: HostOptions) {}
+  constructor(private readonly opts: HostOptions) {
+    this.bannersFile = join(dirname(opts.devFile), 'module-banners.json')
+  }
 
   list(): ModuleStatus[] {
     return this.statuses
@@ -164,6 +167,24 @@ export class ModuleHost {
     this.loaded.delete(id)
   }
 
+  private readBanners(): Record<string, boolean> {
+    try {
+      const raw = JSON.parse(readFileSync(this.bannersFile, 'utf-8'))
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+      return Object.fromEntries(Object.entries(raw).filter((e): e is [string, boolean] => typeof e[1] === 'boolean'))
+    } catch {
+      return {}
+    }
+  }
+
+  setBanner(id: string, enabled: boolean): void {
+    const banner = this.loaded.get(id)?.status.banner
+    if (!banner) return
+    mkdirSync(dirname(this.bannersFile), { recursive: true })
+    writeFileSync(this.bannersFile, JSON.stringify({ ...this.readBanners(), [id]: enabled }, null, 2))
+    banner.enabled = enabled
+  }
+
   private devDirs(): string[] {
     try {
       const raw = JSON.parse(readFileSync(this.opts.devFile, 'utf-8'))
@@ -176,7 +197,7 @@ export class ModuleHost {
   private candidates(): Candidate[] {
     const out: Candidate[] = []
     const folder = (dir: string, source: ModuleSource) => out.push({ dir, source, manifestFile: join(dir, 'forge-module.json'), packaged: false })
-    if (this.opts.bundledDir) for (const name of BUNDLED_MODULES) folder(join(this.opts.bundledDir, name), 'bundled')
+    if (this.opts.bundledDir) for (const name of [...BUNDLED_MODULES, ...BUNDLED_V1_MODULES]) folder(join(this.opts.bundledDir, name), 'bundled')
     for (const dir of this.devDirs()) folder(dir, 'dev')
     if (existsSync(this.opts.modulesDir)) {
       for (const entry of readdirSync(this.opts.modulesDir, { withFileTypes: true })) {
@@ -246,6 +267,12 @@ export class ModuleHost {
       const entry = resolve(c.dir, m.view.entry)
       const mtime = existsSync(entry) ? Math.floor(statSync(entry).mtimeMs) : 0
       status.view = { url: `/api/modules/${m.id}/view.js`, title: m.view.title ?? m.displayName, version: `${m.version}-${mtime}` }
+    }
+
+    if (m.view?.banner) {
+      const file = resolve(c.dir, m.view.banner)
+      const mtime = existsSync(file) ? Math.floor(statSync(file).mtimeMs) : 0
+      status.banner = { url: `/api/modules/${m.id}/banner.js`, version: mtime, enabled: this.readBanners()[m.id] ?? c.source === 'bundled' }
     }
 
     const settings = this.readSettings(m)

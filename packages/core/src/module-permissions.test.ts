@@ -20,7 +20,7 @@ describe('expandGrants', () => {
 
   it('drops a grant whose template resolves to nothing', () => {
     const grants = expandGrants(permissions, { instances: [] })
-    expect(grants).toEqual({ network: [], fsRead: [], fsWrite: [], shell: [], pty: false })
+    expect(grants).toEqual({ network: [], fsRead: [], fsWrite: [], shell: [], pty: false, cw: new Set(), agent: false })
   })
 
   it('drops an item whose field is unset', () => {
