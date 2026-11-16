@@ -63,6 +63,14 @@ async function chooseAccount(ctx: ForgeContext): Promise<string> {
   return pick.name
 }
 
+function hostOf(link: string): string {
+  try {
+    return new URL(link).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 // notes collects problems that do not fail the reading
 async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Item[]> {
   const [sessions, projects, lastReadAt, handled, account] = await Promise.all([
@@ -81,8 +89,13 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<It
   const out = await ctx.agent.run({ account, prompt, model, allowedTools: READER_TOOLS, timeoutMs: 10 * 60 * 1000 })
   const fetched = new Set(gh.items.map(e => e.pr))
   const items = parseReaderOutput(out.text, { projects: names, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`) })
-  // a GitHub item must point at something gh fetched, so text in a comment cannot name another PR
-  const real = items.filter(i => i.source !== 'github' || fetched.has(i.link.split('#')[0]))
+  // judged by the link, not the model's source: a GitHub link must be one gh fetched, and a review needs one
+  const real = items.filter(i => {
+    const host = hostOf(i.link)
+    const onGithub = host === 'github.com' || host === 'www.github.com'
+    const ok = fetched.has(i.link.split('#')[0])
+    return i.kind === 'review' ? onGithub && ok : !onGithub || ok
+  })
   return dedupe(real, handled ?? {})
 }
 

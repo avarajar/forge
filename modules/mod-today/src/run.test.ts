@@ -164,6 +164,18 @@ describe('github', () => {
     expect(d.items.map(i => i.link)).toEqual(['https://github.com/o/r/pull/9#discussion_1', 'https://x.test/ok'])
   })
 
+  it('a slack-sourced item with an unfetched github link is dropped', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
+    const s = stub({ reader: reply([raw({ source: 'slack', kind: 'request', link: 'https://github.com/evil/repo/pull/1' })]) })
+    expect((await readNow(s.ctx, NOW)).items).toEqual([])
+  })
+
+  it('a review item with a non-github link is dropped', async () => {
+    vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [event] })
+    const s = stub({ reader: reply([raw({ source: 'slack', kind: 'review', link: 'https://evil.test/pull/9', project: 'forge' })]) })
+    expect((await readNow(s.ctx, NOW)).items).toEqual([])
+  })
+
   it('a github failure does not fail the reading and is noted', async () => {
     vi.mocked(github.fetchGithub).mockResolvedValueOnce({ items: [], error: 'gh is not signed in' })
     const s = stub({ reader: reply([raw({})]) })
