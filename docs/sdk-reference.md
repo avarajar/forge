@@ -146,6 +146,7 @@ export interface ModuleManifestV1 {
     view?: {
         entry: string;
         title?: string;
+        banner?: string;
     };
     permissions?: ModulePermissions;
     settings?: {
@@ -172,6 +173,11 @@ export interface ModuleStatus {
         title: string;
         version: string;
     };
+    banner?: {
+        url: string;
+        version: number;
+        enabled: boolean;
+    };
     actions?: Array<{
         id: string;
         label: string;
@@ -190,6 +196,8 @@ export interface CwStartInput {
     type: 'work' | 'general';
     project?: string;
     task: string;
+    description?: string;
+    prompt?: string;
     directory?: string;
     account?: string;
     harness?: string;
@@ -420,6 +428,8 @@ export interface PanelClient {
     }): Promise<O | undefined>;
     settings: ReadonlySignal<ModuleSettings>;
     openSettings(): void;
+    openSession(project: string, sessionDir: string): void;
+    openPage(): void;
     status: ReadonlySignal<ModuleStatus | undefined>;
 }
 export interface LegacyPanelProps {

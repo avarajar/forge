@@ -79,8 +79,12 @@ The user picked 1.
   with "Open task" instead of "Send". *(Agreed in the conversation: a closed session is reopened and given the message.)*
 - Permission `agent: true` and `ctx.agent.run({ account, prompt, model?, allowedTools, timeoutMs? }) → { text, costUsd?,
   turns }`: runs `claude -p … --output-format json` under the account's config dir (core sets `CLAUDE_CONFIG_DIR`, the
-  module never passes env). Narrower than adding `env` to `shell.exec`, which could redirect any tool. *(Builder's
-  call.)*
+  module never passes env). Narrower than adding `env` to `shell.exec`, which could redirect any tool. Built-in tools
+  are turned off (`--tools ""`, the allowlist only pre-approves) and the run happens in an empty temporary folder.
+  *(Builder's call.)*
+- `ctx.cw.start` takes `description` (a work session's brief, written to its notes, so a request's task stays a slug
+  of its title) and `prompt` (a general session's first message, typed once Claude Code waits, so research starts on
+  its question).
 - Manifest `view.banner: "./dist/banner.js"`: a second view entry, a `definePanel` component rendered by the console at
   the top of `TaskList` inside an error boundary. Banners stack in module order. A module's banner is listed in the
   install preview next to its permissions, and every module with one gets a "Show on task list" switch in its settings

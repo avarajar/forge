@@ -93,8 +93,8 @@ the tool keeps it, through `fs:read`.
 | `fs:write` | same | `ctx.fs.write` |
 | `shell` | executables | `ctx.shell.exec`, shell actions |
 | `pty` | `true` | `ctx.pty.spawn` |
-| `cw` | `["start", "send"]` | `ctx.cw.start` (a CW session, headless), `ctx.sessions.send` (types into a Claude Code session, resuming it if needed) |
-| `agent` | `true` | `ctx.agent.run` (a headless `claude -p` under a CW account; only `mcp__` tools may be allowed, so it cannot grant Bash around `shell`) |
+| `cw` | `["start", "send"]` | `ctx.cw.start` (a CW session, headless; a work session's `description` goes to its notes, a general session's `prompt` is typed once Claude Code reaches its prompt; `directory` is not checked against the `fs` grants, so `cw.start` can open a session in any folder), `ctx.sessions.send` (types into a Claude Code session, resuming it if needed) |
+| `agent` | `true` | `ctx.agent.run` (a headless `claude -p` under a CW account, with every built-in tool turned off and run in an empty temporary folder; only `mcp__` tools may be allowed, so it cannot grant Bash around `shell`) |
 
 `{key}` fills in a setting and `{list[].field}` gives one grant per list item. A grant whose setting is empty is
 dropped, never widened, and a value that would change the literal part (`evil.com#` in a host, `..` in the middle
