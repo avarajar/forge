@@ -79,7 +79,7 @@ export function createForgeServer(options: ServerOptions) {
   const cwReader = new CWReader(options.cwDir)
   const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
-  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, general: generalSessions, events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
+  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, general: generalSessions, killSession: (key) => ptyManager.kill(key), events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
   app.route('/api/skills', skillRoutes(cwReader, { backupDir: join(dataDir, 'skill-backups') }))
 
   const { remote, shadow, warning } = remoteClassifierFromEnv()

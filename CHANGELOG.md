@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- General sessions show in the task list and their tabs come back after a reload: `GET /api/cw/spaces` now includes the ones Forge remembers (until their tab is closed).
+- General sessions show in the task list and their tabs come back after a reload: `GET /api/cw/spaces` now includes the ones Forge remembers (until their tab is closed). Marking one done closes it without running `cw`.
 
 ## 0.1.22 (2026-11-13)
 

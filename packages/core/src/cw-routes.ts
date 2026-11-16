@@ -53,7 +53,7 @@ async function runCw(bin: string, args: string[], timeoutMs: number): Promise<Ru
   }
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; events?: EventEmitter; general?: GeneralSessions } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; events?: EventEmitter; general?: GeneralSessions; killSession?: (key: string) => void } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
@@ -348,6 +348,13 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
   app.post('/done', async (c) => {
     const { project, task, type, sessionDir } = await c.req.json<{ project: string; task: string; type: string; sessionDir?: string }>()
+    // a general session has no cw state, so closing it is what closing its tab does
+    if (type === 'general' && sessionDir) {
+      const key = `${project}::${sessionDir}`
+      options.killSession?.(key)
+      options.general?.forget(key)
+      return c.json({ ok: true })
+    }
     const sessionDirName = sessionDir ?? (type === 'review' ? `review-pr-${task}` : type === 'loop' ? `loop-${task}` : `task-${task}`)
     const args = type === 'review'
       ? ['review', project, task, '--done']

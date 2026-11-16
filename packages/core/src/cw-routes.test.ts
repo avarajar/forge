@@ -97,6 +97,22 @@ describe('CW Routes', () => {
       expect(dirs.indexOf('general-default-2')).toBeLessThan(dirs.indexOf('task-mytask'))
     })
 
+    it('POST /done for a general session kills it and drops it from /spaces', async () => {
+      const kill = vi.fn()
+      const app2 = new Hono()
+      app2.route('/api/cw', cwRoutes(new CWReader(TEST_CW), { general, killSession: kill }))
+      general.remember('testproj::general-default-3', make('testproj', 'general-default-3', '2026-05-03T00:00:00Z'))
+      const res = await app2.request('/api/cw/done', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ project: 'testproj', task: '', type: 'general', sessionDir: 'general-default-3' }),
+      })
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ ok: true })
+      expect(kill).toHaveBeenCalledWith('testproj::general-default-3')
+      const body = await (await app2.request('/api/cw/spaces')).json() as { sessionDir: string }[]
+      expect(body.map((s) => s.sessionDir)).not.toContain('general-default-3')
+    })
+
     it("GET /spaces?project=x includes only x's general sessions", async () => {
       const body = await (await gapp.request('/api/cw/spaces?project=testproj')).json() as { sessionDir: string }[]
       const dirs = body.map((s) => s.sessionDir)
