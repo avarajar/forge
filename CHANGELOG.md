@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.24 (2026-11-16)
+
 ### Added
 
 - Today warns per account when Slack, Linear or the reader fails, with Retry and Reconnect (opens the account's Claude Code at /mcp).
