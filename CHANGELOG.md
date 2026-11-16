@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.23 (2026-11-16)
+
 ### Added
 
 - Today module (`mod-today`, bundled): a daily Linear and Slack digest read by a headless agent, shown as a banner on the task list and as the Today page, with item actions (start a task, research, open a session or page).
