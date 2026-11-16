@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { byAccount, failedLine, loadFailedLine, notesLine } from './ops'
-import { AccountChip, dayLabel, ProblemRow, readLine, Row, useActing, useDigest, useProjects } from './rows'
+import { byAccount, failedLine, groupProblems, loadFailedLine, notesLine } from './ops'
+import { AccountChip, dayLabel, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useProjects } from './rows'
 
 function View({ forge }: PanelProps) {
   const [days, setDays] = useState<string[]>([])
   const [day, setDay] = useState<string | null>(null)
-  const { reply, error, reload } = useDigest(forge, day ? `/digest/${day}` : '/digest')
+  const { reply, error, reload, hurry } = useDigest(forge, day ? `/digest/${day}` : '/digest')
   const projects = useProjects(forge)
   const digest = reply?.digest
-  const acting = useActing(forge, digest?.date, reload)
+  const acting = useActing(forge, digest?.date, reload, hurry)
+  const reading = reply?.reading
+  const isReading = acting.refreshing || !!reading
+  const [details, setDetails] = useState(false)
+  const problems = groupProblems(digest?.problems ?? [])
   const notes = notesLine(digest?.notes)
   const enabled = reply?.enabled === true
 
@@ -28,9 +32,9 @@ function View({ forge }: PanelProps) {
           </select>
         )}
         {digest && <b style={{ fontSize: '13px', fontWeight: 600 }}>{dayLabel(new Date(), digest.date)}</b>}
-        <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{digest ? readLine(digest) : 'Not read yet'}</span>
+        {isReading ? <ReadingLine reading={reading} /> : <span style={{ fontSize: '12px', color: 'var(--ink-2)' }}>{digest ? readLine(digest) : 'Not read yet'}</span>}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-          {enabled && <ActionButton label="Read now" variant="primary" size="sm" loading={acting.refreshing} onClick={acting.refresh} />}
+          {enabled && <ActionButton label={isReading ? 'Reading…' : 'Read now'} variant="primary" size="sm" disabled={isReading} loading={isReading} onClick={acting.refresh} />}
           {reply && <ActionButton label={enabled ? 'Turn off' : 'Turn on'} variant={enabled ? 'secondary' : 'primary'} size="sm" disabled={acting.busy} onClick={() => acting.run(() => forge.action(enabled ? 'disable' : 'enable'))} />}
         </span>
       </div>
@@ -47,11 +51,18 @@ function View({ forge }: PanelProps) {
         </div>
       )}
 
-      {(digest?.problems ?? []).map((p, i) => <ProblemRow key={`${p.account}/${p.source}/${i}`} problem={p} acting={acting} />)}
+      {problems.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {problems.map(g => <ProblemRow key={g.account} group={g} acting={acting} details={details} />)}
+          <button type="button" aria-expanded={details} onClick={() => setDetails(!details)} style={{ alignSelf: 'flex-start', font: 'inherit', fontSize: '11.5px', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--ink-3)' }}>{details ? 'Hide details' : 'Details'}</button>
+        </div>
+      )}
 
       {notes && <div style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{notes}</div>}
 
-      {!digest || digest.items.length === 0 ? (
+      {!digest && isReading ? (
+        <SkeletonRows />
+      ) : !digest || digest.items.length === 0 ? (
         <EmptyState title="Nothing to show" description={enabled ? 'Today reads your Linear, Slack and GitHub once a day. Use Read now to read them now.' : 'Turn Today on to read your Linear, Slack and GitHub.'} />
       ) : (
         byAccount(digest.items).map(({ account, sections }) => (

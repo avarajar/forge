@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
-import type { Digest, Item, Kind, Op, Problem } from './digest'
-import { EMPTY_PROJECTS, errorMessage, opFor, problemLine, projectsFor, startsTask, type ProjectList } from './ops'
+import type { Digest, Item, Kind, Op, Reading } from './digest'
+import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, projectsFor, startsTask, type ProblemGroup, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
 
-export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean }
+export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading }
 
 export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']
@@ -51,10 +51,11 @@ export function useAccountFilter(): [string, (a: string) => void] {
   return [account, choose]
 }
 
-// loads the digest now and every minute; `path` picks a day
+// loads the digest now, every 3 s while a reading runs and every minute otherwise; `path` picks a day
 export function useDigest(forge: PanelClient, path = '/digest') {
   const [reply, setReply] = useState<DigestReply | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hurried, hurry] = useState(false)
   const latest = useRef(0)
   const load = useCallback(async () => {
     const mine = ++latest.current
@@ -67,17 +68,18 @@ export function useDigest(forge: PanelClient, path = '/digest') {
       if (mine === latest.current) setError(errorMessage(e))
     }
   }, [forge, path])
+  const fast = hurried || !!reply?.reading
   useEffect(() => {
     void load()
     const poll = () => { if (!document.hidden) void load() }
-    const t = setInterval(poll, 60_000)
+    const t = setInterval(poll, fast ? 3_000 : 60_000)
     document.addEventListener('visibilitychange', poll)
     return () => {
       clearInterval(t)
       document.removeEventListener('visibilitychange', poll)
     }
-  }, [load])
-  return { reply, error, reload: load }
+  }, [load, fast])
+  return { reply, error, reload: load, hurry }
 }
 
 export function useProjects(forge: PanelClient): ProjectList {
@@ -89,7 +91,7 @@ export function useProjects(forge: PanelClient): ProjectList {
 }
 
 // one acting state per digest: every action button waits while any action runs; a reading only blocks another reading
-export function useActing(forge: PanelClient, date: string | undefined, reload: () => Promise<void>): Acting {
+export function useActing(forge: PanelClient, date: string | undefined, reload: () => Promise<void>, hurry: (on: boolean) => void = () => {}): Acting {
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [retrying, setRetrying] = useState<string | null>(null)
@@ -116,7 +118,9 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     if (reading.current) return
     reading.current = true
     setRefreshing(true)
+    hurry(true)
     await guarded(() => forge.action('refresh'))
+    hurry(false)
     reading.current = false
     setRefreshing(false)
   }
@@ -124,7 +128,9 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     if (busy) return
     setBusy(true)
     setRetrying(account)
+    hurry(true)
     await guarded(() => forge.action('retry-account', { account }))
+    hurry(false)
     setRetrying(null)
     setBusy(false)
   }
@@ -298,17 +304,79 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
   )
 }
 
-// a warning for one account's connector that could not be read, with the two ways out
-export function ProblemRow({ problem, acting }: { problem: Problem; acting: Acting }) {
-  const mine = acting.retrying === problem.account
+// keyframes for the reading line and skeleton, off for people who ask for less motion
+const READING_CSS = `
+@keyframes today-spin { to { transform: rotate(360deg) } }
+@keyframes today-pulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
+.today-spin { animation: today-spin .8s linear infinite }
+.today-pulse { animation: today-pulse 1.4s ease-in-out infinite }
+@media (prefers-reduced-motion: reduce) { .today-spin, .today-pulse { animation: none } }`
+
+// the keyframes go into the page once, however many components use them
+function useReadingStyles() {
+  if (typeof document !== 'undefined' && !document.getElementById('today-reading-css')) {
+    const el = document.createElement('style')
+    el.id = 'today-reading-css'
+    el.textContent = READING_CSS
+    document.head.appendChild(el)
+  }
+}
+
+function Spinner() {
+  return <i class="today-spin" style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', border: '2px solid var(--hair-2)', borderTopColor: 'var(--blue)', boxSizing: 'border-box' }} />
+}
+
+// "Reading monoku · meridian…" with a mark per account: spinner, done or problem
+export function ReadingLine({ reading }: { reading: Reading | undefined }) {
+  useReadingStyles()
+  const accounts = Object.entries(reading?.accounts ?? {})
   return (
-    <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 10px', borderRadius: '10px', fontSize: '12px', color: 'var(--ink-2)', background: soft('--orange', 10), border: `1px solid ${soft('--orange', 35)}` }}>
-      <span style={{ color: 'var(--orange)' }}>⚠</span>
-      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{problemLine(problem)}</span>
-      <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
-        <Btn label={mine ? 'Reading…' : 'Retry'} disabled={acting.busy} onClick={() => acting.retry(problem.account)} />
-        <Btn label="Reconnect" style={ghostStyle} disabled={acting.busy} onClick={() => acting.reconnect(problem.account)} />
-      </span>
+    <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--ink-2)', flexWrap: 'wrap' }}>
+      <b class="today-pulse" style={{ fontWeight: 600, color: 'var(--ink)' }}>{accounts.length ? 'Reading' : 'Reading…'}</b>
+      {accounts.map(([account, state], n) => (
+        <span key={account} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+          {n > 0 && <span style={{ color: 'var(--ink-3)' }}>·</span>}
+          {state === 'reading' ? <Spinner /> : state === 'done' ? <span style={{ color: 'var(--green)' }}>✓</span> : <span style={{ color: 'var(--orange)' }}>⚠</span>}
+          {account}
+        </span>
+      ))}
+      {accounts.length > 0 && <span>…</span>}
+    </span>
+  )
+}
+
+// soft pulsing blocks shaped like item rows, for a first reading
+export function SkeletonRows() {
+  useReadingStyles()
+  return (
+    <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {[0, 1, 2].map(n => (
+        <div key={n} class="today-pulse" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', background: 'var(--elev)', border: '1px solid var(--hair)', animationDelay: `${n * 0.15}s` }}>
+          <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: 'var(--hair)' }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ height: '9px', width: `${70 - n * 12}%`, borderRadius: '5px', background: 'var(--hair)' }} />
+            <div style={{ height: '8px', width: '35%', borderRadius: '5px', background: 'var(--hair)' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// one line for an account's problems, the reasons in a tooltip (and below when details is on), with the two ways out
+export function ProblemRow({ group, acting, details = false }: { group: ProblemGroup; acting: Acting; details?: boolean }) {
+  const mine = acting.retrying === group.account
+  return (
+    <div role="alert" title={group.reasons.join('\n')} style={{ padding: '7px 10px', borderRadius: '10px', fontSize: '12px', color: 'var(--ink-2)', background: soft('--orange', 10), border: `1px solid ${soft('--orange', 35)}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span style={{ color: 'var(--orange)' }}>⚠</span>
+        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{groupLine(group)}</span>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <Btn label={mine ? 'Reading…' : 'Retry'} disabled={acting.busy} onClick={() => acting.retry(group.account)} />
+          <Btn label="Reconnect" style={ghostStyle} disabled={acting.busy} onClick={() => acting.reconnect(group.account)} />
+        </span>
+      </div>
+      {details && <ul style={{ margin: '6px 0 0 22px', padding: 0, color: 'var(--ink-3)', fontSize: '11.5px' }}>{group.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
     </div>
   )
 }

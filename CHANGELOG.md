@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Fixed
+
+- Today: a reader waits for the account's claude.ai connectors (Linear, Slack) to connect before it starts, so connected accounts no longer report them as unreachable. The one retry after a failed read now waits 15 s.
+- Today: only Slack and Linear can be reported as problems; a GitHub hiccup no longer shows up as a reader problem.
+- Today: review requests you no longer have (reviewed, closed or reassigned) leave the digest instead of lingering as proposals.
+
+### Changed
+
+- Today: while a reading runs, the banner and page show "Reading monoku · meridian…" with a spinner, check or warning per account, refresh every 3 s, a disabled Refresh, and placeholder rows on a first reading.
+- Today: account problems take one line each (`meridian · Slack and Linear did not respond`) with the reasons in a tooltip and a Details toggle on the page.
+
 ## 0.1.25 (2026-11-16)
 
 ### Added

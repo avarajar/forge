@@ -9,6 +9,9 @@ import { envWithoutHarness } from './cw-doctor.js'
 
 const DEFAULT_TIMEOUT_MS = 180_000
 
+// headless runs wait for claude.ai connectors to connect instead of starting without them
+const CONNECTOR_ENV = { MCP_CONNECTION_NONBLOCKING: 'false', MCP_TIMEOUT: '60000' }
+
 // runs one headless `claude -p` under a CW account's config folder
 export function runAgent(input: AgentRunInput, o: { cwHome: string; spawn?: typeof nodeSpawn }): Promise<AgentRunResult> {
   if (!ACCOUNT_NAME_RE.test(input.account)) return Promise.reject(new ModuleError('bad_request', 'Invalid account'))
@@ -31,7 +34,7 @@ export function runAgent(input: AgentRunInput, o: { cwHome: string; spawn?: type
   const cleanup = () => rmSync(cwd, { recursive: true, force: true })
 
   return new Promise<AgentRunResult>((resolve, reject) => {
-    const child = spawn('claude', args, { cwd, env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir }, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn('claude', args, { cwd, env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir, ...CONNECTOR_ENV }, stdio: ['pipe', 'pipe', 'pipe'] })
     // the prompt goes over stdin so one that starts with a dash is never read as a flag
     child.stdin?.on('error', () => {})
     child.stdin?.end(input.prompt)

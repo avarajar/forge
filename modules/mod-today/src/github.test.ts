@@ -61,6 +61,19 @@ describe('fetchGithub', () => {
     expect(by('mention')).toEqual([expect.objectContaining({ number: 5, title: 'Ping me', url: 'https://github.com/o/r/pull/5' })])
   })
 
+  it('lists every open review request, updated since the last reading or not', async () => {
+    const { ctx } = stub()
+    expect((await fetchGithub(ctx, SINCE)).requested).toEqual(['https://github.com/o/r/pull/9', 'https://github.com/o/r/pull/3'])
+  })
+
+  it('gives no requested list when the review search hit its cap', async () => {
+    const full = Array.from({ length: 20 }, (_, i) => ({ number: i + 100, title: 'T', url: `https://github.com/o/r/pull/${i + 100}`, repository: repo, updatedAt: '2026-11-01T07:00:00Z' }))
+    const { ctx, exec } = stub({})
+    const inner = exec.getMockImplementation()!
+    exec.mockImplementation(async (c: string, a: string[], o?: { timeoutMs?: number }) => (a.includes('user-review-requested:@me') ? ok(full) : inner(c, a, o)))
+    expect((await fetchGithub(ctx, SINCE)).requested).toBeUndefined()
+  })
+
   it('gh missing gives an error and no items', async () => {
     const { ctx } = stub({ 'api user': new Error('spawn gh ENOENT') })
     const r = await fetchGithub(ctx, SINCE)

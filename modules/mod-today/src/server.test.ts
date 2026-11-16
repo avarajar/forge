@@ -47,6 +47,21 @@ describe('today routes', () => {
     expect(await route.handler(req, stub().ctx)).toMatchObject({ enabled: false })
     expect(await route.handler(req, stub(true).ctx)).toMatchObject({ enabled: true })
   })
+
+  it('GET /digest carries the reading in flight and omits it when idle', async () => {
+    const route = server.routes!.find(r => r.path === '/digest')!
+    const req = { params: {}, query: {}, body: undefined }
+    const s = stub(true)
+    expect(await route.handler(req, s.ctx)).not.toHaveProperty('reading')
+    let release = () => {}
+    s.run.mockImplementation(async () => { await new Promise<void>(r => { release = r }); return { text: '{"items":[]}' } })
+    const reading = call('refresh', s.ctx)
+    await new Promise(r => setTimeout(r, 10))
+    expect(await route.handler(req, s.ctx)).toMatchObject({ reading: { accounts: { monoku: 'reading' } } })
+    release()
+    await reading
+    expect(await route.handler(req, s.ctx)).not.toHaveProperty('reading')
+  })
 })
 
 describe('off by default', () => {

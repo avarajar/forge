@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { accountToken, dayLabel, foldedNow, isToday, shortDay } from './rows'
-import { byAccount, failedLine, notesLine, opFor, problemLine, problemsLabel, projectsFor } from './ops'
+import { byAccount, failedLine, notesLine, opFor, groupLine, groupProblems, problemsLabel, projectsFor } from './ops'
 import type { Item } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -87,9 +87,15 @@ describe('accounts in the views', () => {
 })
 
 describe('problems', () => {
-  it('names the account, the source and the reason', () => {
-    expect(problemLine({ account: 'meridian', source: 'slack', reason: 'still connecting' })).toBe('meridian · Slack could not be read (still connecting)')
-    expect(problemLine({ account: 'a', source: 'reader', reason: 'boom' })).toBe('a · Reader could not be read (boom)')
+  it('groups an account\'s problems on one line and keeps the reasons', () => {
+    const groups = groupProblems([
+      { account: 'meridian', source: 'linear', reason: 'unavailable' },
+      { account: 'meridian', source: 'slack', reason: 'still connecting' },
+      { account: 'a', source: 'reader', reason: 'boom' },
+      { account: 'b', source: 'slack', reason: 'down' },
+    ])
+    expect(groups.map(groupLine)).toEqual(['meridian · Slack and Linear did not respond', 'a · Reader did not respond', 'b · Slack did not respond'])
+    expect(groups[0].reasons).toEqual(['Linear: unavailable', 'Slack: still connecting'])
   })
 
   it('counts them for the folded line', () => {
