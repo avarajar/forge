@@ -1,7 +1,7 @@
 import { ModuleError } from '@forge-dev/sdk'
 import type { CwStartInput, SendResult } from '@forge-dev/sdk'
 import type { CWReader } from './cw-reader.js'
-import type { PTYManager } from './pty-manager.js'
+import { oneLine, type PTYManager } from './pty-manager.js'
 import type { StateTracker } from './session-state.js'
 import type { GeneralSessions } from './general-sessions.js'
 import type { ContextDeps } from './module-context.js'
@@ -11,9 +11,6 @@ const POLL_MS = 500
 const DEFAULT_WAIT_MS = 90_000
 
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
-
-// one line for a terminal: no control characters, collapsed whitespace
-const oneLine = (text: string) => text.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim()
 
 export function createCwDeps(o: {
   reader: CWReader
@@ -27,7 +24,7 @@ export function createCwDeps(o: {
 
   const waitFor = async (key: string, ready: (state: string | undefined) => boolean) => {
     const deadline = Date.now() + waitMs
-    while (!ready(states?.snapshot()[key]?.state)) {
+    while (!ready(states?.get(key)?.state)) {
       if (Date.now() >= deadline) throw new ModuleError('unreachable', `${key} did not reach its prompt in ${Math.round(waitMs / 1000)} s`)
       await sleep(POLL_MS)
     }
@@ -74,7 +71,7 @@ export function createCwDeps(o: {
       if (!pty) throw new ModuleError('unreachable', `could not resume ${key}`)
     }
     await waitFor(key, state => state === 'waiting' || state === 'idle')
-    if (!manager.typeLine(project, sessionDir, text)) throw new ModuleError('unreachable', `${key} closed before it could be typed into`)
+    if (!manager.typeLine(project, sessionDir, oneLine(text))) throw new ModuleError('unreachable', `${key} closed before it could be typed into`)
     return wasLive ? 'typed' : 'resumed'
   }
 

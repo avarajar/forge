@@ -39,6 +39,9 @@ export function slashLine(text: unknown): string | null {
   return line.length <= SLASH_MAX && /^\/[A-Za-z0-9][\w:.-]*( [^\x00-\x1f\x7f]*)?$/.test(line) ? line : null
 }
 
+// text as one line for a terminal: control characters become spaces, whitespace collapses
+export const oneLine = (text: string) => text.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim()
+
 export interface PTYClient {
   send: (data: string) => void
   close: () => void

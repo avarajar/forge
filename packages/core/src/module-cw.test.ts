@@ -39,7 +39,7 @@ describe('createCwDeps', () => {
       cwHome: '/tmp/cw',
     } as unknown as CWReader
     manager = { typeLine, getOrCreate, has: () => live } as unknown as PTYManager
-    states = { snapshot: () => (state ? { 'p::s': { state } } : {}) } as unknown as StateTracker
+    states = { get: () => (state ? { state } : undefined) } as unknown as StateTracker
   })
 
   const make = (waitMs?: number) => createCwDeps({ reader, manager, states, general, waitMs })
@@ -157,7 +157,7 @@ describe('createCwDeps', () => {
     try {
       live = true
       let key = ''
-      states = { snapshot: () => (state ? { [key]: { state } } : {}) } as unknown as StateTracker
+      states = { get: () => (state ? { state } : undefined) } as unknown as StateTracker
       getOrCreate.mockImplementation((_p: string, dir: string) => { key = `p::${dir}`; return {} })
       const promise = make().start({ type: 'general', project: 'p', task: 'research', prompt: 'Find out why\nthe build \x1b[31mfails\r\n  today' })
       await vi.advanceTimersByTimeAsync(1000)

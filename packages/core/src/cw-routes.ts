@@ -343,7 +343,7 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
   app.post('/start', async (c) => {
     const r = await prepareStart(await c.req.json<StartInput>(), { reader })
     if (!r.ok) return c.json({ ok: false, error: r.error }, r.status)
-    return c.json(r.command === undefined ? { ok: true, session: r.session } : { ok: true, session: r.session, command: r.command })
+    return c.json({ ok: true, session: r.session, command: r.command })
   })
 
   app.post('/done', async (c) => {

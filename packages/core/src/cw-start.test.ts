@@ -30,8 +30,7 @@ describe('prepareStart', () => {
     if (!r.ok) return
     expect(r.session.task).toBe('ABC-123')
     expect(r.session.source).toBe('linear')
-    expect(r.key).toBe('proj::task-ABC-123')
-    expect(pendingSessions.has(r.key)).toBe(true)
+    expect(pendingSessions.has('proj::task-ABC-123')).toBe(true)
   })
 
   it('without project answers 400', async () => {

@@ -4,7 +4,6 @@ import { sessionFolder, type CWReader } from './cw-reader.js'
 import { HARNESS_NAME_RE, ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
 import type { PTYManager, PTYSession } from './pty-manager.js'
 import type { GeneralSessions } from './general-sessions.js'
-import { takeSession } from './pty-routes.js'
 
 // Sentinel project names for sessions not tied to a registered project
 const GENERAL_PROJECT = '__general'
@@ -32,7 +31,7 @@ export interface StartInput {
 }
 
 export type StartResult =
-  | { ok: true; session: CWSession; key: string; command?: string }
+  | { ok: true; session: CWSession; command?: string }
   | { ok: false; status: 400 | 409; error: string }
 
 export async function prepareStart(input: StartInput, deps: { reader: CWReader }): Promise<StartResult> {
@@ -65,7 +64,7 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
       sessionDir: sessionDirName,
     }
     pendingSessions.set(`${ACCOUNTS_PROJECT}::${sessionDirName}`, sessionData)
-    return { ok: true, session: sessionData, key: `${ACCOUNTS_PROJECT}::${sessionDirName}` }
+    return { ok: true, session: sessionData }
   }
 
   // General sessions: no project or task required, just an account; directory runs it in any folder
@@ -92,7 +91,7 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
       skipPermissions: skipPermissions ?? false,
     }
     pendingSessions.set(`${projectName}::${sessionDirName}`, sessionData)
-    return { ok: true, session: sessionData, key: `${projectName}::${sessionDirName}`, command: `cw launch ${acct}` }
+    return { ok: true, session: sessionData, command: `cw launch ${acct}` }
   }
 
   if (type === 'create') {
@@ -117,7 +116,7 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
       skipPermissions: skipPermissions ?? false,
     }
     pendingSessions.set(`${CREATING_PROJECT}::${sessionDirName}`, sessionData)
-    return { ok: true, session: sessionData, key: `${CREATING_PROJECT}::${sessionDirName}` }
+    return { ok: true, session: sessionData }
   }
 
   if (type === 'loop') {
@@ -175,7 +174,7 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
       skipPermissions: skipPermissions ?? false,
     }
     pendingSessions.set(`${project}::${sessionDirName}`, sessionData)
-    return { ok: true, session: sessionData, key: `${project}::${sessionDirName}` }
+    return { ok: true, session: sessionData }
   }
 
   if (!project || !task) {
@@ -299,7 +298,23 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
   // Store so pty-routes can find it before CW creates session.json on disk
   pendingSessions.set(`${project}::${sessionDirName}`, sessionData)
 
-  return { ok: true, session: sessionData, key: `${project}::${sessionDirName}`, command: `cw ${args.join(' ')}` }
+  return { ok: true, session: sessionData, command: `cw ${args.join(' ')}` }
+}
+
+// A session still in pendingSessions was just created by /start; anything else is a resume
+export function takeSession(reader: CWReader, project: string, sessionDir: string, general?: GeneralSessions): { session: CWSession; isNew: boolean } | null {
+  const sessionId = `${project}::${sessionDir}`
+  const pending = pendingSessions.get(sessionId)
+  if (pending) {
+    pendingSessions.delete(sessionId)
+    if (pending.type === 'general') general?.remember(sessionId, pending)
+    return { session: pending, isNew: true }
+  }
+  const session = reader.getSession(project, sessionDir)
+  if (session) return { session, isNew: false }
+  // a general session cannot resume, so it relaunches with the same account, harness and folder
+  const known = general?.get(sessionId)
+  return known ? { session: known, isNew: true } : null
 }
 
 // Starts a pending session's terminal now, with no browser tab attached
