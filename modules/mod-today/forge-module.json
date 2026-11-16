@@ -1,0 +1,9 @@
+{
+  "id": "today",
+  "name": "@forge-dev/mod-today",
+  "version": "0.1.0",
+  "sdk": "^1.1.0",
+  "displayName": "Today",
+  "description": "A daily digest of your Linear and Slack, read by a headless agent",
+  "server": "./dist/server.js"
+}

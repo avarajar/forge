@@ -1,0 +1,26 @@
+{
+  "name": "@forge-dev/mod-today",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Today: a daily digest of Linear and Slack read by a headless agent",
+  "keywords": ["forge-module"],
+  "forge": { "manifest": "forge-module.json" },
+  "files": ["dist", "forge-module.json"],
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "test": "tsc --noEmit && vitest run"
+  },
+  "peerDependencies": { "@forge-dev/sdk": "workspace:*", "@forge-dev/ui": "workspace:*", "preact": "^10.0.0" },
+  "devDependencies": {
+    "@forge-dev/sdk": "workspace:*",
+    "@forge-dev/ui": "workspace:*",
+    "@preact/signals": "^2.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "preact": "^10.25.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.0"
+  }
+}
