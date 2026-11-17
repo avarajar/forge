@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import { byAccount, failedLine, groupProblems, loadFailedLine, notesLine } from './ops'
-import { AccountChip, dayLabel, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useProjects } from './rows'
+import { AccountChip, dayLabel, dayName, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useProjects } from './rows'
 
 function View({ forge }: PanelProps) {
   const [days, setDays] = useState<string[]>([])
@@ -28,7 +28,7 @@ function View({ forge }: PanelProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         {days.length > 0 && (
           <select aria-label="Day" value={digest?.date ?? ''} onChange={e => setDay((e.target as HTMLSelectElement).value)} style={{ font: 'inherit', fontSize: '12.5px', padding: '5px 8px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--card)', color: 'var(--ink)' }}>
-            {days.map(d => <option key={d} value={d}>{d}</option>)}
+            {days.map(d => <option key={d} value={d}>{dayName(d)}</option>)}
           </select>
         )}
         {digest && <b style={{ fontSize: '13px', fontWeight: 600 }}>{dayLabel(new Date(), digest.date)}</b>}

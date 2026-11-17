@@ -3,7 +3,7 @@ import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
 import type { Digest, Item, Kind, Op, Reading } from './digest'
-import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, projectsFor, startsTask, type ProblemGroup, type ProjectList } from './ops'
+import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, projectsFor, startsTask, titleFor, whoOf, type ProblemGroup, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
@@ -168,12 +168,22 @@ export function foldedNow(folded: boolean, items: Item[]): boolean {
 
 export const clock = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 
+// a time as the reading's window names it: the clock, "yesterday 1:05 PM" or "Nov 12 1:05 PM"
+function windowTime(at: Date, read: Date): string {
+  if (at.toDateString() === read.toDateString()) return clock(at)
+  const yesterday = new Date(read.getTime() - 86_400_000).toDateString() === at.toDateString()
+  return `${yesterday ? 'yesterday' : at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${clock(at)}`
+}
+
 export function readLine(d: Digest): string {
   const read = new Date(d.readAt)
-  const since = new Date(d.since)
-  const same = read.toDateString() === since.toDateString()
-  const day = new Date(read.getTime() - 86_400_000).toDateString() === since.toDateString() ? 'yesterday ' : `${since.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} `
-  return `Read at ${clock(read)} · Linear, Slack and GitHub since ${same ? '' : day}${clock(since)}`
+  return `Read at ${clock(read)} · changes since ${windowTime(new Date(d.windowStart ?? d.since), read)}`
+}
+
+// the day as the picker shows it: "Monday 16"
+export function dayName(date: string): string {
+  const day = dayOf(date)
+  return `${day.toLocaleDateString('en-US', { weekday: 'long' })} ${day.getDate()}`
 }
 
 export function ago(iso: string, now = new Date()): string {
@@ -275,11 +285,11 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
       <div style={{ minWidth: 0 }}>
         <div style={{ fontWeight: 560, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           {item.issueKey && <span style={{ fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500 }}>{item.issueKey}</span>}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleFor(item)}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '11.5px', color: 'var(--ink-2)', flexWrap: 'wrap' }}>
-          <Avatar who={item.who} />
-          <span>{item.who} {where} {strong(item.where)}</span>
+          {whoOf(item) && <Avatar who={item.who} />}
+          <span>{whoOf(item) ? <>{item.who} {where} {strong(item.where)}</> : strong(item.where)}</span>
           <Sep />
           <span>{ago(item.when)}</span>
           {item.account && <><Sep /><AccountChip account={item.account} /></>}
