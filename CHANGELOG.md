@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- Today: Slack is read with an explicit procedure (your own user id, mentions, direct messages and replies in threads you took part in), so mentions and DMs no longer slip by.
+- Today: Pending gets Slack waiting on you, the mentions, DMs and thread replies of the last 7 days that you have not answered. Each has Open in Slack, Start a task (the message becomes its description), Research (a general session, only on a click) and Hide. They never start on their own.
+- Today: search box (title, key, who, where) and account and source filters with counts, remembered per viewer.
+
+### Changed
+
+- Today: the page is two columns, News and Pending, of one-line rows that open on a click; Pending groups (CI failing, Slack waiting on you, review requests, Linear in progress, issues assigned, Linear to do) fold and remember it. The columns stack on narrow screens, and Read now is called Refresh.
+- Today: the banner is one line, `N new · M pending (x CI · y Slack) · Open Today →`, plus at most three urgent rows (failing CI, Slack waiting on you, news) and a single reading or problems line; the full lists, Fold and Accept all moved out of it.
+
 ## 0.1.28 (2026-11-17)
 
 ### Added
