@@ -105,6 +105,13 @@ export default defineModule({
       run: (input, ctx) => startPending(ctx, input.id, input.project),
     }),
     defineAction<{ id: string }>({
+      id: 'pending-research',
+      label: 'Research',
+      effect: 'local',
+      input: { id: { type: 'string', required: true } },
+      run: (input, ctx) => startPending(ctx, input.id, undefined, true),
+    }),
+    defineAction<{ id: string }>({
       id: 'pending-hide',
       label: 'Hide',
       effect: 'local',

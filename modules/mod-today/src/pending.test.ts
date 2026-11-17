@@ -104,6 +104,100 @@ describe('pending snapshot', () => {
   })
 })
 
+const slackMsg = (over: Record<string, unknown> = {}) => ({ source: 'slack', kind: 'reply', title: 'Can you review the plan?', who: 'Ana', where: '#web', when: '2026-11-15T10:00:00Z', quote: 'need your ok', link: 'https://x.slack.com/archives/C1/p1', ...over })
+
+describe('Slack pending snapshot', () => {
+  it('stores an account\'s Slack messages and serves them after CI', async () => {
+    vi.mocked(github.fetchPending).mockResolvedValue({ items: [gh({ kind: 'ci', id: 'ci1', link: 'https://github.com/o/forge/pull/2' })] })
+    const s = stub(out([lin(), slackMsg()]))
+    await readNow(s.ctx, NOW)
+    expect(s.store.has('pending/slack/monoku')).toBe(true)
+    expect((await pendingNow(s.ctx)).map(p => p.source + ':' + p.kind)).toEqual(['github:ci', 'slack:reply', 'linear:issue'])
+  })
+
+  it('replaces the Slack list each reading', async () => {
+    const s = stub(out([slackMsg(), slackMsg({ link: 'https://x.slack.com/archives/C1/p2' })]))
+    await readNow(s.ctx, NOW)
+    expect(await pendingNow(s.ctx)).toHaveLength(2)
+    vi.mocked(s.ctx.agent.run).mockImplementation(out([]))
+    await readNow(s.ctx, new Date(2026, 10, 16, 10))
+    expect(await pendingNow(s.ctx)).toHaveLength(0)
+  })
+
+  it('keeps the Slack list on a Slack problem, but still replaces Linear', async () => {
+    const s = stub(out([lin(), slackMsg()]))
+    await readNow(s.ctx, NOW)
+    vi.mocked(s.ctx.agent.run).mockImplementation(out([], { problems: ['slack: down'] }))
+    await readNow(s.ctx, new Date(2026, 10, 16, 10))
+    expect((await pendingNow(s.ctx)).map(p => p.source)).toEqual(['slack'])
+    vi.mocked(s.ctx.agent.run).mockImplementation(out(undefined))
+    await readNow(s.ctx, new Date(2026, 10, 16, 11))
+    expect(await pendingNow(s.ctx)).toHaveLength(1)
+  })
+
+  it('a retry replaces only that account\'s Slack list, and a removed account is forgotten', async () => {
+    const s = stub(out([slackMsg()]), { accounts: [{ name: 'monoku' }, { name: 'meridian' }] })
+    await readNow(s.ctx, NOW)
+    expect(await pendingNow(s.ctx)).toHaveLength(2)
+    s.ctx.settings.accounts = 'monoku'
+    await readNow(s.ctx, new Date(2026, 10, 16, 10))
+    expect(await pendingNow(s.ctx)).toHaveLength(1)
+  })
+})
+
+describe('Slack pending actions', () => {
+  async function withSlack(opts: Parameters<typeof stub>[1] = {}) {
+    const s = stub(out([slackMsg()]), opts)
+    await readNow(s.ctx, NOW)
+    const [item] = await pendingNow(s.ctx)
+    return { s, item }
+  }
+
+  it('Start a task runs cw work with the message as its description in a picked project', async () => {
+    const { s, item } = await withSlack()
+    await startPending(s.ctx, item.id, 'forge')
+    expect(s.start).toHaveBeenCalledWith({
+      type: 'work',
+      project: 'forge',
+      task: 'can-you-review-the-plan',
+      description: 'Can you review the plan?\n\nneed your ok\n\nFrom Ana in #web: https://x.slack.com/archives/C1/p1',
+      account: 'monoku',
+    })
+    expect((await pendingNow(s.ctx))[0].targetSession).toEqual({ project: 'forge', sessionDir: 'task-1' })
+  })
+
+  it('needs a project of the same account', async () => {
+    const { s, item } = await withSlack({ projects: [{ name: 'atlas', path: '/p/atlas', account: 'meridian' }] })
+    await expect(startPending(s.ctx, item.id)).rejects.toThrow('pick a project')
+    await expect(startPending(s.ctx, item.id, 'atlas')).rejects.toThrow('project belongs to another account')
+    expect(s.start).not.toHaveBeenCalled()
+  })
+
+  it('Research opens a general session on the message, on a click only', async () => {
+    const { s, item } = await withSlack()
+    expect(s.start).not.toHaveBeenCalled()
+    await startPending(s.ctx, item.id, undefined, true)
+    expect(s.start).toHaveBeenCalledWith(expect.objectContaining({ type: 'general', account: 'monoku', task: 'Research: Can you review the plan?', prompt: expect.stringContaining('need your ok') }))
+  })
+
+  it('Research is only for Slack messages', async () => {
+    vi.mocked(github.fetchPending).mockResolvedValue({ items: [gh()] })
+    const s = stub(out([]))
+    await readNow(s.ctx, NOW)
+    await expect(startPending(s.ctx, 'g1', 'forge', true)).rejects.toThrow(/only Slack/)
+  })
+
+  it('Hide holds until the message changes', async () => {
+    const { s, item } = await withSlack()
+    await hidePending(s.ctx, item.id)
+    expect(await pendingNow(s.ctx)).toHaveLength(0)
+  })
+
+  it('pending-research is a local action', () => {
+    expect(server.actions!.find(a => a.id === 'pending-research')).toMatchObject({ effect: 'local' })
+  })
+})
+
 describe('hide', () => {
   it('hides until its date changes', async () => {
     vi.mocked(github.fetchPending).mockResolvedValue({ items: [gh()] })

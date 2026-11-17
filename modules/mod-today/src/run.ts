@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext, type ProjectInfo, type SessionInfo } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { countStart, dedupe, itemId, parseReaderOutput, parseReaderPending, parseReaderProblems, pendingCount, sortPending, startedBy, toProblem, type Digest, type Item, type Op, type PendingItem, type Problem, type Reading } from './digest'
+import { countStart, dedupe, itemId, parseReaderOutput, parseReaderPending, parseReaderProblems, parseSlackPending, pendingCount, sortPending, startedBy, toProblem, type Digest, type Item, type Op, type PendingItem, type Problem, type Reading } from './digest'
 import { errorMessage, githubPage, inAccount, oneLine, opFor, ownersOf, startsTask, untrusted } from './ops'
 import { fetchGithub, fetchPending, type GithubEvent } from './github'
 
@@ -87,11 +87,11 @@ function collapse(items: Item[]): Item[] {
   return [...byId.values()]
 }
 
-// pending is set only when the account's Linear was read in full
-interface Reader { account: string; items: Item[]; problems: Problem[]; pending?: PendingItem[] }
+// pending and slack are set only when that source was read in full
+interface Reader { account: string; items: Item[]; problems: Problem[]; pending?: PendingItem[]; slack?: PendingItem[] }
 
 // reads one account's connectors; a reader that got GitHub events marks its items manual
-async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string>; now: Date }): Promise<{ items: Item[]; problems: Problem[]; pending?: PendingItem[] }> {
+async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string>; now: Date }): Promise<{ items: Item[]; problems: Problem[]; pending?: PendingItem[]; slack?: PendingItem[] }> {
   const mine = <T extends { account?: string }>(x: T) => !x.account || x.account === account
   const sessions = o.sessions.filter(mine)
   const projects = o.projects.filter(mine).map(p => p.name)
@@ -112,12 +112,14 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
   const items = parseReaderOutput(out.text, known)
   // a Linear that did not answer leaves what was open as it was
   const pending = problems.some(p => p.source === 'linear') ? undefined : parseReaderPending(out.text, known, o.now)
+  // so does a Slack that did not answer
+  const slack = problems.some(p => p.source === 'slack') ? undefined : parseSlackPending(out.text, known, o.now)
 
   // a GitHub item belongs to its project's account, or to none
   const placed = checkGithub(items, fetched, toReview).map(i => (i.source === 'github' ? { ...i, account: o.owners[i.project ?? i.targetSession?.project ?? ''] } : i))
   const fresh = dedupe(collapse(placed), o.handled)
   // GitHub text shares the reader's call, so anything it read may be steered by it
-  return { items: github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh, problems, pending }
+  return { items: github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh, problems, pending, slack }
 }
 
 // one account's reading: a reader that throws is that account's reader problem
@@ -168,7 +170,7 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Re
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
   // the pull requests still asked of me, known only when GitHub was read in full
   const requested = gh.error ? undefined : new Set(gh.requested ?? gh.items.filter(e => e.type === 'review-request').map(e => e.pr))
-  const pending: Reread['pending'] = Object.fromEntries(results.map(r => [r.account, r.pending]))
+  const pending: Reread['pending'] = Object.fromEntries(results.flatMap(r => [[r.account, r.pending], [SLACK + r.account, r.slack]]))
   pending.github = gp.error ? undefined : placeGithub(gp.items, projects, owners)
   if (gp.error) notes.push(`GitHub pending: ${gp.error}`)
   return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems), requested, accounts, pending, githubCapped: gp.error ? undefined : !!gp.capped }
@@ -183,6 +185,8 @@ async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Pro
 }
 
 const PENDING = 'pending/'
+// an account's Slack snapshot lives beside its Linear one
+const SLACK = 'slack/'
 
 // replaces each source's snapshot that was read fine; a failed one keeps the last, and an account no longer read is forgotten
 async function savePending(ctx: ForgeContext, pending: Reread['pending'], accounts?: string[]): Promise<void> {
@@ -190,7 +194,8 @@ async function savePending(ctx: ForgeContext, pending: Reread['pending'], accoun
   if (!accounts) return
   for (const key of await ctx.storage.list(PENDING)) {
     const source = key.slice(key.lastIndexOf(PENDING) + PENDING.length)
-    if (source !== 'github' && !accounts.includes(source)) await ctx.storage.delete(key)
+    const account = source.startsWith(SLACK) ? source.slice(SLACK.length) : source
+    if (account !== 'github' && !accounts.includes(account)) await ctx.storage.delete(key)
   }
 }
 
@@ -331,7 +336,7 @@ export async function retryAccount(ctx: ForgeContext, account: string, now: Date
     if (problems.length) next.problems = problems
     else delete next.problems
     await saveDigest(ctx, next)
-    await savePending(ctx, { [account]: result.pending })
+    await savePending(ctx, { [account]: result.pending, [SLACK + account]: result.slack })
     await rememberHandled(ctx, result.items, now)
   })
   await autoResearch(ctx, date)
@@ -571,28 +576,47 @@ export function hidePending(ctx: ForgeContext, id: string): Promise<PendingItem[
 
 const pendingInFlight = new Set<string>()
 
-// starts a task for a pending item the person chose: a review for a review request, work for the rest; it never starts on its own and the item then offers Open task
-export async function startPending(ctx: ForgeContext, id: string, project?: string): Promise<{ session: { project: string; sessionDir: string } }> {
+// starts a task for a pending item the person chose: a review for a review request, work for the rest (a Slack message becomes the task's description), or with research a general session on a Slack message; it never starts on its own and the item then offers Open task
+export async function startPending(ctx: ForgeContext, id: string, project?: string, research = false): Promise<{ session: { project: string; sessionDir: string } }> {
   if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
   const item = await locked(async () => {
     const found = await requirePending(ctx, id)
+    if (research && found.kind !== 'reply') throw new ModuleError('bad_request', 'only Slack messages start a research session')
     if (pendingInFlight.has(id)) throw new ModuleError('bad_request', 'item is already being handled')
     pendingInFlight.add(id)
     return found
   })
   try {
-    const target = project ?? item.project
-    if (!target) throw new ModuleError('bad_request', 'pick a project')
-    const owner = (await ownersOf(await ctx.projects.list()))[target]
-    if (item.account && owner && owner !== item.account) throw new ModuleError('bad_request', 'project belongs to another account')
-    const account = item.account ?? owner
-    const url = githubPage(item.link) ?? item.link
-    const input = { type: item.kind === 'review' ? ('review' as const) : ('work' as const), project: target, task: url, ...(account ? { account } : {}) }
-    const session = await ctx.cw.start(input)
+    const session = research ? await ctx.cw.start(await researchInput(ctx, item)) : await ctx.cw.start(await workInput(ctx, item, project))
     await locked(async () => ctx.storage.set('pendingStarted', { ...(await startedOf(ctx)), [id]: session }))
     return { session }
   } finally {
     pendingInFlight.delete(id)
+  }
+}
+
+// the Slack message as text: who, where, what it said and its link
+const slackText = (p: PendingItem) => [p.title, p.quote, `From ${oneLine(p.who ?? '')} in ${oneLine(p.where ?? '')}: ${p.link}`].filter(Boolean).join('\n\n')
+
+async function workInput(ctx: ForgeContext, item: PendingItem, project?: string): Promise<Parameters<ForgeContext['cw']['start']>[0]> {
+  const target = project ?? item.project
+  if (!target) throw new ModuleError('bad_request', 'pick a project')
+  const owner = (await ownersOf(await ctx.projects.list()))[target]
+  if (item.account && owner && owner !== item.account) throw new ModuleError('bad_request', 'project belongs to another account')
+  const account = item.account ?? owner
+  const acct = account ? { account } : {}
+  if (item.kind === 'reply') return { type: 'work', project: target, task: slug(item.title), description: slackText(item), ...acct }
+  const url = githubPage(item.link) ?? item.link
+  return { type: item.kind === 'review' ? 'review' : 'work', project: target, task: url, ...acct }
+}
+
+async function researchInput(ctx: ForgeContext, item: PendingItem): Promise<Parameters<ForgeContext['cw']['start']>[0]> {
+  return {
+    ...(item.account ? { account: item.account } : {}),
+    type: 'general',
+    directory: await researchDirectory(ctx),
+    task: `Research: ${oneLine(item.title, 60)}`,
+    prompt: oneLine(`${item.title} — find out and leave the answer in the session. Context: ${[item.quote, item.link].filter(Boolean).join(' ')}`, 2000),
   }
 }
 

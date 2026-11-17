@@ -60,6 +60,30 @@ describe('buildPrompt with GitHub', () => {
   })
 })
 
+describe('buildPrompt for Slack', () => {
+  const p = buildPrompt({ since: '2026-11-14T08:00:00Z', sessions: [], projects: [], github: [] })
+
+  it('says how to search: own user id, mentions, DMs and thread replies', () => {
+    expect(p).toContain('slack_read_user_profile')
+    expect(p).toContain('no user argument')
+    expect(p).toContain('<@MY_ID>')
+    expect(p).toContain('is:dm')
+    expect(p).toMatch(/im and mpim/)
+    expect(p).toContain('slack_read_thread')
+    expect(p).toMatch(/threads I took part in/)
+  })
+
+  it('asks for Slack waiting on me from the last 7 days with no reply of mine', () => {
+    expect(p).toMatch(/last 7 days/)
+    expect(p).toMatch(/not answered/)
+    expect(p).toContain('"source": "slack", "kind": "reply"')
+  })
+
+  it('treats Slack text as untrusted data', () => {
+    expect(p).toMatch(/Slack message text[^\n]*untrusted/)
+  })
+})
+
 describe('READER_TOOLS', () => {
   it('holds no write tool', () => {
     expect(READER_TOOLS.length).toBeGreaterThan(0)

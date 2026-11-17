@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseReaderOutput, parseReaderPending, sortPending, type PendingItem, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
+import { parseReaderOutput, parseReaderPending, parseSlackPending, sortPending, type PendingItem, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
 
 const known = { projects: ['forge'], sessions: ['forge::task-1'] }
 const base = { who: 'Ana', where: '#dev', when: '2026-11-15T09:00:00Z', title: 'Something' }
@@ -180,7 +180,7 @@ describe('reader pending', () => {
     expect(parseReaderPending(out([]), known, NOW)).toEqual([])
   })
 
-  it('sorts failing CI, review requests, started, unstarted, issues, then newest first', () => {
+  it('sorts failing CI, Slack, review requests, started, issues, unstarted, then newest first', () => {
     const mk = (id: string, over: Partial<PendingItem>): PendingItem => ({ id, source: 'github', kind: 'issue', title: id, link: 'https://x.test', when: '2026-11-10T00:00:00Z', ...over })
     const sorted = sortPending([
       mk('issue', {}),
@@ -189,7 +189,43 @@ describe('reader pending', () => {
       mk('review', { kind: 'review' }),
       mk('ci', { kind: 'ci' }),
       mk('lin-st-new', { source: 'linear', started: true, when: '2026-11-12T00:00:00Z' }),
+      mk('slack', { source: 'slack', kind: 'reply' }),
     ]).map(p => p.id)
-    expect(sorted).toEqual(['ci', 'review', 'lin-st-new', 'lin-st-old', 'lin-un', 'issue'])
+    expect(sorted).toEqual(['ci', 'slack', 'review', 'lin-st-new', 'lin-st-old', 'issue', 'lin-un'])
+  })
+
+  it('leaves Slack entries out of the Linear list', () => {
+    const slack = { source: 'slack', kind: 'reply', title: 'Can you look?', who: 'Ana', where: '#web', when: '2026-11-16T09:00:00Z', link: 'https://x.slack.com/archives/C1/p1' }
+    expect(parseReaderPending(out([entry(), slack]), known, NOW)).toHaveLength(1)
+  })
+})
+
+describe('Slack pending', () => {
+  const NOW = new Date('2026-11-16T12:00:00Z')
+  const known = { projects: ['forge'], sessions: ['forge::t1'], account: 'monoku' }
+  const msg = (over: Record<string, unknown> = {}) => ({ source: 'slack', kind: 'reply', title: 'Can you look?', who: 'Ana', where: '#web', when: '2026-11-15T09:00:00Z', quote: 'ping', link: 'https://x.slack.com/archives/C1/p1', ...over })
+  const out = (pending: unknown[]) => JSON.stringify({ items: [], pending })
+
+  it('keeps a message with its account, known project and session only', () => {
+    const [p] = parseSlackPending(out([msg({ project: 'forge', targetSession: { project: 'forge', sessionDir: 't1' } })]), known, NOW)!
+    expect(p).toMatchObject({ source: 'slack', kind: 'reply', who: 'Ana', where: '#web', quote: 'ping', account: 'monoku', project: 'forge', targetSession: { project: 'forge', sessionDir: 't1' } })
+    const [q] = parseSlackPending(out([msg({ project: 'nope', targetSession: { project: 'x', sessionDir: 'y' } })]), known, NOW)!
+    expect(q.project).toBeUndefined()
+    expect(q.targetSession).toBeUndefined()
+  })
+
+  it('drops bad links, GitHub links, missing who or where, and anything older than 7 days', () => {
+    const list = parseSlackPending(out([msg({ link: 'javascript:alert(1)' }), msg({ link: 'https://github.com/o/r/pull/1' }), msg({ who: '' }), msg({ where: undefined }), msg({ when: '2026-11-08T00:00:00Z' }), msg({ when: 'soon' }), msg()]), known, NOW)!
+    expect(list).toHaveLength(1)
+  })
+
+  it('counts the same permalink once, and ignores Linear entries', () => {
+    const linear = { title: 'x', link: 'https://linear.app/x/1', when: '2026-11-15T10:00:00Z' }
+    expect(parseSlackPending(out([msg(), msg(), linear]), known, NOW)).toHaveLength(1)
+  })
+
+  it('is undefined when the reader gave no pending list', () => {
+    expect(parseSlackPending('{"items":[]}', known, NOW)).toBeUndefined()
+    expect(parseSlackPending(out([]), known, NOW)).toEqual([])
   })
 })

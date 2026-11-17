@@ -120,7 +120,7 @@ export function whoOf(i: { who: string; source: Item['source'] }): string | null
   return !who || who.toLowerCase() === SOURCE_NAMES[i.source].toLowerCase() ? null : who
 }
 
-export const pendingLabel = (p: PendingItem): string => (p.kind === 'ci' ? 'CI failing' : p.kind === 'review' ? 'Review requested' : p.source === 'linear' ? (p.started ? 'In progress' : 'To do') : 'Assigned')
+export const pendingLabel = (p: PendingItem): string => (p.kind === 'ci' ? 'CI failing' : p.kind === 'reply' ? 'Waiting on you' : p.kind === 'review' ? 'Review requested' : p.source === 'linear' ? (p.started ? 'In progress' : 'To do') : 'Assigned')
 
 // the pending items of one account when given, all otherwise
 export const pendingIn = (items: PendingItem[], account?: string): PendingItem[] => (account ? items.filter(p => p.account === account) : items)

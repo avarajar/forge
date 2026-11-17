@@ -320,7 +320,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
   )
 }
 
-const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green' }
+const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green', reply: '--purple' }
 
 // one open item: what it is, where it lives, and Open task or Start, and Hide
 export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: ProjectList; acting: Acting; forge: PanelClient; compact?: boolean }> = ({ item, projects = EMPTY_PROJECTS, acting, forge, compact }) => {
