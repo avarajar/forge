@@ -1,4 +1,4 @@
-import type { Item, Op, PendingItem, Problem } from './digest'
+import type { Item, Kind, Op, PendingItem, Problem } from './digest'
 
 // shared by the server and the views, so it stays free of Node imports
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -173,20 +173,28 @@ export function countFor(news: Item[], pending: PendingItem[], f: Filters): Coun
   return { total: all.filter(x => passes(x, f, 'account')).length, accounts, noAccount, sources }
 }
 
-export interface PendingGroup { id: string; title: string; items: PendingItem[]; folded: boolean }
+export type Entry = { kind: 'news'; item: Item } | { kind: 'pending'; item: PendingItem }
+export type GroupId = 'needs' | 'progress' | 'todo' | 'updates'
+export interface InboxGroup { id: GroupId; title: string; entries: Entry[]; folded: boolean }
 
-const PENDING_GROUPS: { id: string; title: string; pick: (p: PendingItem) => boolean; folded?: boolean }[] = [
-  { id: 'ci', title: 'CI failing', pick: p => p.kind === 'ci' },
-  { id: 'slack', title: 'Slack waiting on you', pick: p => p.kind === 'reply' },
-  { id: 'review', title: 'Review requests', pick: p => p.kind === 'review' },
-  { id: 'progress', title: 'Linear in progress', pick: p => p.source === 'linear' && !!p.started },
-  { id: 'issues', title: 'Issues assigned', pick: p => p.source === 'github' && p.kind === 'issue' },
-  { id: 'todo', title: 'Linear to do', pick: p => p.source === 'linear' && !p.started, folded: true },
+const GROUPS: { id: GroupId; title: string; folded?: boolean }[] = [
+  { id: 'needs', title: 'Needs you' },
+  { id: 'progress', title: 'In progress' },
+  { id: 'todo', title: 'To do', folded: true },
+  { id: 'updates', title: 'Updates' },
 ]
 
-// the non-empty pending groups in the page's order, each keeping the order it came in
-export function groupPending(items: PendingItem[]): PendingGroup[] {
-  return PENDING_GROUPS.map(g => ({ id: g.id, title: g.title, folded: !!g.folded, items: items.filter(g.pick) })).filter(g => g.items.length > 0)
+function groupOf(e: Entry): GroupId {
+  if (e.kind === 'news') return e.item.state === 'proposed' || e.item.state === 'failed' ? 'needs' : 'updates'
+  const p = e.item
+  if (p.kind === 'ci' || p.kind === 'reply') return 'needs'
+  return p.kind === 'review' || (p.source === 'linear' && p.started) ? 'progress' : 'todo'
+}
+
+// the non-empty inbox groups in order; pending comes before news inside a group, each keeping the order it came in
+export function inboxGroups(news: Item[], pending: PendingItem[]): InboxGroup[] {
+  const entries: Entry[] = [...pending.map(item => ({ kind: 'pending' as const, item })), ...news.map(item => ({ kind: 'news' as const, item }))]
+  return GROUPS.map(g => ({ ...g, folded: !!g.folded, entries: entries.filter(e => groupOf(e) === g.id) })).filter(g => g.entries.length > 0)
 }
 
 // a group is folded unless the person opened it, or folded when the page would have it so
@@ -237,5 +245,120 @@ export function isSlackLink(link: string): boolean {
     return (u.protocol === 'https:' || u.protocol === 'http:') && /(^|\.)slack\.com$/i.test(u.hostname)
   } catch {
     return false
+  }
+}
+
+// the entries the list shows, top to bottom: folded groups stay out unless a search is on
+export function visibleEntries(groups: InboxGroup[], folds: Record<string, boolean>, searching: boolean): Entry[] {
+  return groups.filter(g => searching || !isGroupFolded(g, folds)).flatMap(g => g.entries)
+}
+
+// the first of Needs you, else the first listed
+export function initialSelection(visible: Entry[]): string | null {
+  return (visible.find(e => groupOf(e) === 'needs') ?? visible[0])?.item.id ?? null
+}
+
+// one step up or down the list, stopping at its ends
+export function moveSelection(ids: string[], current: string | null, delta: 1 | -1): string | null {
+  if (!ids.length) return null
+  const at = current === null ? -1 : ids.indexOf(current)
+  if (at < 0) return ids[0]
+  return ids[Math.min(ids.length - 1, Math.max(0, at + delta))]
+}
+
+// new since the viewer's last visit; the first visit marks nothing
+export function isUnread(when: string, lastSeen: number | null): boolean {
+  const t = Date.parse(when)
+  return lastSeen !== null && !Number.isNaN(t) && t > lastSeen
+}
+
+export function parseLastSeen(raw: string | null | undefined): number | null {
+  const n = Number(raw)
+  return raw && Number.isFinite(n) && n > 0 ? n : null
+}
+
+const VERBS: Record<Kind, string> = { 'to-task': 'Send', issue: 'Start', request: 'Start', research: 'Research', review: 'Review' }
+export const verbFor = (kind: Kind): string => VERBS[kind]
+
+// the main thing an entry offers: an action, or opening the task or session it already has
+export interface Move { label: string; kind: 'op' | 'task' | 'session'; ready: boolean }
+
+const isOpen = (i: Item) => i.state === 'proposed' || i.state === 'failed'
+
+// whether the person must pick a project before it can start
+export function needsProject(e: Entry): boolean {
+  if (e.kind === 'news') return isOpen(e.item) && startsTask(e.item.kind) && !e.item.project
+  return !e.item.targetSession && !e.item.project
+}
+
+export function moveFor(e: Entry, project?: string): Move | null {
+  if (e.kind === 'pending') {
+    const p = e.item
+    if (p.targetSession) return { label: 'Open task', kind: 'task', ready: true }
+    return { label: p.kind === 'review' ? 'Review' : 'Start', kind: 'op', ready: !!(p.project ?? project) }
+  }
+  const i = e.item
+  if (isOpen(i)) return { label: i.state === 'failed' ? 'Retry' : verbFor(i.kind), kind: 'op', ready: !!opFor(i, project) }
+  return i.state === 'done' && i.startedSession ? { label: 'Open session', kind: 'session', ready: true } : null
+}
+
+// a Slack message with no task yet can be researched
+export const canResearch = (e: Entry): boolean => e.kind === 'pending' && e.item.kind === 'reply' && !e.item.targetSession
+
+export const canHide = (e: Entry): boolean => e.kind === 'pending' || isOpen(e.item)
+
+export type Command = 'next' | 'prev' | 'open' | 'start' | 'hide' | 'research' | 'search' | 'clear' | 'later' | 'close'
+
+const INBOX_KEYS: Record<string, Command> = { arrowdown: 'next', j: 'next', arrowup: 'prev', k: 'prev', enter: 'open', s: 'start', h: 'hide', r: 'research', '/': 'search' }
+const TRIAGE_KEYS: Record<string, Command> = { s: 'start', o: 'open', l: 'later', h: 'hide' }
+
+// what a key press means: nothing with a modifier (⌘F or Ctrl+F searches), and only Escape while typing
+export function keyCommand(e: { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean }, mode: 'inbox' | 'triage', typing: boolean): Command | null {
+  const key = e.key.toLowerCase()
+  if (mode === 'inbox' && key === 'f' && (e.metaKey || e.ctrlKey) && !e.altKey) return 'search'
+  if (e.metaKey || e.ctrlKey || e.altKey) return null
+  if (key === 'escape') return mode === 'inbox' ? 'clear' : 'close'
+  if (typing) return null
+  return (mode === 'inbox' ? INBOX_KEYS : TRIAGE_KEYS)[key] ?? null
+}
+
+export type Decision = 'started' | 'hidden' | 'later'
+export type Decisions = Record<string, Decision>
+
+// the cards to deal: Needs you, then In progress, then To do when asked; Updates never
+export function triageDeck(groups: InboxGroup[], withTodo: boolean): Entry[] {
+  const ids: GroupId[] = withTodo ? ['needs', 'progress', 'todo'] : ['needs', 'progress']
+  return ids.flatMap(id => groups.find(g => g.id === id)?.entries ?? [])
+}
+
+export const triageNext = (deck: Entry[], done: Decisions): Entry | null => deck.find(e => !done[e.item.id]) ?? null
+
+// sorted counts every decision, so an item that left the list after it still counts
+export function triageProgress(deck: Entry[], done: Decisions): { sorted: number; total: number } {
+  const ids = new Set([...deck.map(e => e.item.id), ...Object.keys(done)])
+  return { sorted: Object.keys(done).length, total: ids.size }
+}
+
+// what is left to decide in each group
+export function triageCounts(groups: InboxGroup[], done: Decisions): { id: GroupId; title: string; left: number }[] {
+  return groups.filter(g => g.id !== 'updates').map(g => ({ id: g.id, title: g.title, left: g.entries.filter(e => !done[e.item.id]).length }))
+}
+
+export function triageSummary(done: Decisions): Record<Decision, number> {
+  const sum = { started: 0, hidden: 0, later: 0 }
+  for (const d of Object.values(done)) sum[d]++
+  return sum
+}
+
+const DECISIONS: Decision[] = ['started', 'hidden', 'later']
+
+// the decisions stored for this date; another day starts clean
+export function parseTriage(raw: string | null | undefined, date: string): Decisions {
+  try {
+    const v: unknown = JSON.parse(raw ?? '')
+    if (!isRecord(v) || v.date !== date || !isRecord(v.done)) return {}
+    return Object.fromEntries(Object.entries(v.done).filter(([, d]) => DECISIONS.includes(d as Decision))) as Decisions
+  } catch {
+    return {}
   }
 }

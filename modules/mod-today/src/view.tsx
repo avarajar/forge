@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { acceptable, CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupPending, groupProblems, isGroupFolded, loadFailedLine, newsList, NO_ACCOUNT, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
-import { accountToken, Btn, dayName, Pill, Notes, PendingRow, primaryStyle, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useFilters, useFolds, useProjects, useReadingStyles } from './rows'
+import { acceptable, CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupProblems, inboxGroups, loadFailedLine, newsList, NO_ACCOUNT, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
+import { Inbox } from './inbox'
+import { accountToken, Btn, dayName, Pill, Notes, primaryStyle, ProblemRow, readLine, ReadingLine, SkeletonRows, takeStartDay, useActing, useDigest, useFilters, useFolds, useLastSeen, useProjects, useReadingStyles } from './rows'
 
-const heading = { margin: 0, fontSize: '13px', fontWeight: 650, letterSpacing: '-.01em' }
-const muted = { fontSize: '12.5px', color: 'var(--ink-2)', padding: '4px 6px' }
 const SOURCES: { id: SourceName; label: string }[] = [{ id: 'linear', label: 'Linear' }, { id: 'slack', label: 'Slack' }, { id: 'github', label: 'GitHub' }]
 
 function View({ forge }: PanelProps) {
@@ -39,6 +38,9 @@ function View({ forge }: PanelProps) {
   const searching = active.query.trim() !== ''
   const filtered = active.account !== '' || active.source !== '' || searching
   const set = (next: Partial<typeof filters>) => setFilters({ ...filters, ...next })
+  const groups = inboxGroups(news, pending)
+  const lastSeen = useLastSeen()
+  const search = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     forge.route<{ days: string[] }>('/days').then(r => setDays(r.days), () => {})
@@ -58,10 +60,9 @@ function View({ forge }: PanelProps) {
             </>
           ) : digest ? ` · ${dayName(digest.date)}` : null}
         </b>
-        <input type="search" aria-label="Search" placeholder="Search…" value={filters.query} onInput={e => set({ query: (e.target as HTMLInputElement).value })} style={{ font: 'inherit', fontSize: '12.5px', padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--card)', color: 'var(--ink)', minWidth: '180px', marginLeft: 'auto' }} />
-        <span style={{ display: 'flex', gap: '8px' }}>
+        <span style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
           {enabled && <ActionButton label={isReading ? 'Reading…' : 'Refresh'} variant="primary" size="sm" disabled={isReading} loading={isReading} onClick={acting.refresh} />}
-          {reply && <ActionButton label={enabled ? 'Turn off' : 'Turn on'} variant={enabled ? 'secondary' : 'primary'} size="sm" disabled={acting.busy} onClick={() => acting.run(() => forge.action(enabled ? 'disable' : 'enable'))} />}
+          {reply && <ActionButton label={enabled ? 'Turn off' : 'Turn on'} variant={enabled ? 'secondary' : 'primary'} size="sm" disabled={acting.busy} onClick={async () => { await acting.run(() => forge.action(enabled ? 'disable' : 'enable')) }} />}
         </span>
       </div>
 
@@ -96,49 +97,39 @@ function View({ forge }: PanelProps) {
         <EmptyState title="Nothing to show" description={enabled ? 'Today reads your Linear, Slack and GitHub once a day. Use Refresh to read them now.' : 'Turn Today on to read your Linear, Slack and GitHub.'} />
       ) : (
         <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {(accounts.length > 1 || (accounts.length > 0 && hasNone)) && (
-              <div role="group" aria-label="Account" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '11.5px', color: 'var(--ink-3)', minWidth: '52px' }}>Account</span>
-                <Pill label="All" n={counts.total} on={!active.account} onClick={() => set({ account: '' })} />
-                {accounts.map(a => <Pill key={a} label={a} token={accountToken(a)} n={counts.accounts[a] ?? 0} on={active.account === a} onClick={() => set({ account: a })} />)}
-                {hasNone && <Pill label="No account" n={counts.noAccount} on={active.account === NO_ACCOUNT} onClick={() => set({ account: NO_ACCOUNT })} />}
-              </div>
-            )}
-            <div role="group" aria-label="Source" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11.5px', color: 'var(--ink-3)', minWidth: '52px' }}>Source</span>
-              <Pill label="All" n={counts.sources.linear + counts.sources.slack + counts.sources.github} on={!active.source} onClick={() => set({ source: '' })} />
-              {present.map(s => <Pill key={s.id} label={s.label} n={counts.sources[s.id]} on={active.source === s.id} onClick={() => set({ source: s.id })} />)}
-              {filtered && <button type="button" onClick={() => setFilters(NO_FILTERS)} style={{ font: 'inherit', fontSize: '11.5px', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--ink-3)' }}>Clear</button>}
-            </div>
-          </div>
-
-          <div class="today-cols">
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <h3 style={{ ...heading, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                News · {news.length}
-                {ready.length > 0 && digest && <Btn label={`Accept ${ready.length === 1 ? 'it' : `the ${ready.length}`}`} style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('accept-all', { date: digest.date, ids: ready.map(i => i.id).join(',') }))} />}
-              </h3>
-              {news.length === 0 && <div style={muted}>{filtered && allNews.length > 0 ? 'No news matches.' : reply?.firstReading ? FIRST_READING_NOTE : 'Nothing new.'}</div>}
-              {news.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
-            </section>
-            <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <h3 style={heading}>Pending · {pending.length}{reply?.pendingCapped && <span style={{ fontWeight: 400, fontSize: '11.5px', color: 'var(--ink-3)' }}> · {CAPPED_NOTE} — <a href={GITHUB_SEARCH} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>see GitHub</a></span>}</h3>
-              {pending.length === 0 && <div style={muted}>{filtered && allPending.length > 0 ? 'No pending matches.' : PENDING_EMPTY}</div>}
-              {groupPending(pending).map(g => {
-                // a search shows the matches, so no group stays folded
-                const folded = !searching && isGroupFolded(g, folds)
-                return (
-                  <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <button type="button" aria-expanded={!folded} onClick={() => setFold(g.id, !folded)} style={{ alignSelf: 'flex-start', font: 'inherit', fontSize: '11px', fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase', padding: '2px 0', border: 0, background: 'none', cursor: 'pointer', color: 'var(--ink-3)' }}>
-                      {folded ? '▸' : '▾'} {g.title} · {g.items.length}
-                    </button>
-                    {!folded && g.items.map(p => <PendingRow key={p.id} item={p} projects={projects} acting={acting} forge={forge} />)}
+          <Inbox
+            forge={forge}
+            groups={groups}
+            folds={folds}
+            setFold={setFold}
+            searching={searching}
+            projects={projects}
+            acting={acting}
+            lastSeen={lastSeen}
+            keys
+            focusSearch={() => search.current?.focus()}
+            clearSearch={() => { set({ query: '' }); search.current?.blur() }}
+            empty={filtered && everything.length > 0 ? 'Nothing matches.' : reply?.firstReading ? FIRST_READING_NOTE : PENDING_EMPTY}
+            footer={reply?.pendingCapped ? <div style={{ fontSize: '11.5px', color: 'var(--ink-3)', padding: '8px 12px' }}>{CAPPED_NOTE} — <a href={GITHUB_SEARCH} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>see GitHub</a></div> : null}
+            header={
+              <>
+                <input ref={search} type="search" aria-label="Search" placeholder="Search…  ⌘F" value={filters.query} onInput={e => set({ query: (e.target as HTMLInputElement).value })} style={{ font: 'inherit', fontSize: '12.5px', padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--elev)', color: 'var(--ink)', width: '100%', boxSizing: 'border-box' }} />
+                {(accounts.length > 1 || (accounts.length > 0 && hasNone)) && (
+                  <div role="group" aria-label="Account" style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                    <Pill label="All" n={counts.total} on={!active.account} onClick={() => set({ account: '' })} />
+                    {accounts.map(a => <Pill key={a} label={a} token={accountToken(a)} n={counts.accounts[a] ?? 0} on={active.account === a} onClick={() => set({ account: a })} />)}
+                    {hasNone && <Pill label="No account" n={counts.noAccount} on={active.account === NO_ACCOUNT} onClick={() => set({ account: NO_ACCOUNT })} />}
                   </div>
-                )
-              })}
-            </section>
-          </div>
+                )}
+                <div role="group" aria-label="Source" style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                  <Pill label="All" n={counts.sources.linear + counts.sources.slack + counts.sources.github} on={!active.source} onClick={() => set({ source: '' })} />
+                  {present.map(s => <Pill key={s.id} label={s.label} n={counts.sources[s.id]} on={active.source === s.id} onClick={() => set({ source: s.id })} />)}
+                  {filtered && <button type="button" onClick={() => setFilters(NO_FILTERS)} style={{ font: 'inherit', fontSize: '11.5px', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--ink-3)' }}>Clear</button>}
+                </div>
+                {ready.length > 0 && digest && <Btn label={`Accept ${ready.length === 1 ? 'it' : `the ${ready.length}`}`} style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('accept-all', { date: digest.date, ids: ready.map(i => i.id).join(',') }))} />}
+              </>
+            }
+          />
         </>
       )}
     </div>
