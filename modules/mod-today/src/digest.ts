@@ -16,6 +16,8 @@ export interface Item {
   where: string
   when: string
   quote?: string
+  // plain text for the detail view (a Slack thread, a Linear description); never HTML
+  context?: string
   link: string
   issueKey?: string
   targetSession?: Ref
@@ -39,6 +41,7 @@ export interface PendingItem {
   who?: string
   where?: string
   quote?: string
+  context?: string
   link: string
   when: string
   account?: string
@@ -113,6 +116,15 @@ function text(o: Record<string, unknown>, key: string, n: number, optional = fal
   return v
 }
 
+export const CONTEXT_MAX = 800
+
+// the reader's context as plain text: a string, control characters gone, trimmed and capped; otherwise undefined
+export function parseContext(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined
+  const t = v.replace(/\r\n?/g, '\n').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim().slice(0, CONTEXT_MAX).trim()
+  return t || undefined
+}
+
 function extractJson(out: string): unknown {
   const start = out.indexOf('{')
   const end = out.lastIndexOf('}')
@@ -178,6 +190,8 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
     if (known.account) item.account = known.account
     const quote = text(raw, 'quote', n, true)
     if (quote) item.quote = quote
+    const context = parseContext(raw.context)
+    if (context) item.context = context
     const issueKey = text(raw, 'issueKey', n, true)
     if (issueKey) item.issueKey = issueKey
     const project = text(raw, 'project', n, true)
@@ -294,6 +308,8 @@ export function parseReaderPending(out: string, known: Known, now: Date): Pendin
     if (raw.started === true) item.started = true
     const key = base.str('issueKey')
     if (key) item.issueKey = key
+    const context = parseContext(raw.context)
+    if (context) item.context = context
     list.push(placed(item, raw, known, base.str))
   }
   return list
@@ -318,6 +334,8 @@ export function parseSlackPending(out: string, known: Known, now: Date): Pending
     const item: PendingItem = { id, source: 'slack', kind: 'reply', title: base.title.slice(0, 200), who: who.slice(0, 80), where: where.slice(0, 80), link: base.link, when: base.when }
     const quote = base.str('quote')
     if (quote) item.quote = quote.slice(0, 500)
+    const context = parseContext(raw.context)
+    if (context) item.context = context
     list.push(placed(item, raw, known, base.str))
   }
   return list

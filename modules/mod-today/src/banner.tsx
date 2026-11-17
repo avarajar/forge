@@ -1,7 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { bannerSummary, failedLine, FIRST_READING_NOTE, groupLine, groupProblems, loadFailedLine, notesLine, problemsLabel, summaryText, urgentRows } from './ops'
-import { Btn, ghostStyle, PendingRow, primaryStyle, readLine, ReadingLine, Row, shortDay, soft, useActing, useDigest, useProjects } from './rows'
+import { bannerSummary, inboxGroups, failedLine, FIRST_READING_NOTE, groupLine, groupProblems, loadFailedLine, notesLine, problemsLabel, summaryText, urgentRows } from './ops'
+import { Btn, ghostStyle, PendingRow, primaryStyle, readLine, ReadingLine, requestStartDay, Row, shortDay, soft, useActing, useDigest, useProjects } from './rows'
 
 function shell(children: ComponentChildren) {
   return (
@@ -65,6 +65,7 @@ function Banner({ forge }: PanelProps) {
   const pending = reply.pending ?? []
   const summary = bannerSummary(digest.items, pending)
   const rows = urgentRows(digest.items, pending)
+  const needing = inboxGroups(digest.items.filter(i => i.state !== 'dismissed'), pending).find(g => g.id === 'needs')?.entries.length ?? 0
   const problems = groupProblems(digest.problems ?? [])
   const notes = notesLine(digest.notes)
   const status = [isReading ? null : readLine(digest), reply.firstReading ? FIRST_READING_NOTE : null, notes].filter(Boolean).join(' · ')
@@ -99,6 +100,7 @@ function Banner({ forge }: PanelProps) {
     >
       <span>· {summaryText(summary)} ·</span>
       <button type="button" onClick={() => forge.openPage()} style={{ ...linkStyle, fontWeight: 600, color: 'var(--blue)' }}>Open Today →</button>
+      {needing > 0 && <button type="button" onClick={() => { requestStartDay(); forge.openPage() }} style={{ ...linkStyle, fontWeight: 600, color: 'var(--purple)' }}>Start the day →</button>}
     </Strip>
   )
 }

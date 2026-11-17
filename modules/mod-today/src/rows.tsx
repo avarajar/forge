@@ -3,10 +3,11 @@ import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
 import type { Digest, Item, Kind, Op, PendingItem, Reading } from './digest'
-import { ageShort, EMPTY_PROJECTS, errorMessage, groupLine, NO_FILTERS, opFor, parseFilters, projectsFor, safeHref, startsTask, tidyNotes, titleFor, whoOf, type Filters, type ProblemGroup, type ProjectList } from './ops'
+import { ageShort, EMPTY_PROJECTS, errorMessage, groupLine, NO_FILTERS, opFor, parseFilters, parseLastSeen, parseTriage, projectsFor, safeHref, startsTask, tidyNotes, titleFor, verbFor, whoOf, type Decision, type Decisions, type Filters, type ProblemGroup, type ProjectList } from './ops'
 
-export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
-export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<void>; researchPending: (item: PendingItem) => Promise<void>; hidePending: (item: PendingItem) => Promise<void> }
+// each action answers whether it ran, so a caller can tell a failure from a success
+export type OnAct = (item: Item, op: Op, project?: string) => Promise<boolean>
+export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<boolean>; run: (fn: () => Promise<unknown>) => Promise<boolean>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<boolean>; researchPending: (item: PendingItem) => Promise<boolean>; hidePending: (item: PendingItem) => Promise<boolean> }
 
 export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading; pending?: PendingItem[]; pendingCapped?: boolean; firstReading?: boolean }
 
@@ -30,6 +31,9 @@ export function AccountChip({ account }: { account: string }) {
 
 const FILTERS_KEY = 'today.filters'
 const FOLDS_KEY = 'today.folds'
+const LAST_SEEN_KEY = 'today.lastSeen'
+const TRIAGE_KEY = 'today.triage'
+const START_DAY_KEY = 'today.startDay'
 
 // a value kept in this viewer's browser; storage can be missing or throw, then it lasts until the page closes
 function useStored<T>(key: string, read: (raw: string | null) => T, empty: T): [T, (next: T) => void] {
@@ -61,6 +65,81 @@ export function useFolds(): [Record<string, boolean>, (id: string, folded: boole
     return typeof v === 'object' && v !== null && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([, f]) => typeof f === 'boolean')) as Record<string, boolean> : {}
   }, {})
   return [folds, (id, folded) => set({ ...folds, [id]: folded })]
+}
+
+// when this viewer last opened Today, read once; opening it now makes everything up to now seen for the next visit
+export function useLastSeen(): number | null {
+  const [seen] = useState<number | null>(() => {
+    try {
+      return parseLastSeen(localStorage.getItem(LAST_SEEN_KEY))
+    } catch {
+      return null
+    }
+  })
+  // stamped when the viewer leaves, so a trip to a session tab keeps the dots
+  useEffect(() => {
+    const stamp = () => {
+      try {
+        localStorage.setItem(LAST_SEEN_KEY, String(Date.now()))
+      } catch {
+        // the dots then show against the first visit
+      }
+    }
+    const hidden = () => { if (document.hidden) stamp() }
+    window.addEventListener('pagehide', stamp)
+    document.addEventListener('visibilitychange', hidden)
+    return () => {
+      window.removeEventListener('pagehide', stamp)
+      document.removeEventListener('visibilitychange', hidden)
+      stamp()
+    }
+  }, [])
+  return seen
+}
+
+// the triage decisions of one day, kept per viewer
+export function useTriage(date: string | undefined): [Decisions, (id: string, d: Decision) => void, () => void] {
+  const [stored, setStored] = useState<{ date: string; done: Decisions } | null>(null)
+  const day = date ?? ''
+  const base = (prev: { date: string; done: Decisions } | null): Decisions => {
+    if (prev?.date === day) return prev.done
+    try {
+      return parseTriage(localStorage.getItem(TRIAGE_KEY), day)
+    } catch {
+      return {}
+    }
+  }
+  // every change builds on the latest decisions, so two quick ones both stay
+  const save = (change: (done: Decisions) => Decisions) => setStored(prev => {
+    const next = { date: day, done: change(base(prev)) }
+    try {
+      localStorage.setItem(TRIAGE_KEY, JSON.stringify(next))
+    } catch {
+      // the day's decisions last until the page closes
+    }
+    return next
+  })
+  return [base(stored), (id, d) => save(done => ({ ...done, [id]: d })), () => save(() => ({}))]
+}
+
+// the banner asks the page to open the triage: a one-time flag in this browser
+export function requestStartDay() {
+  try {
+    localStorage.setItem(START_DAY_KEY, String(Date.now()))
+  } catch {
+    // the page then opens without it
+  }
+}
+
+export function takeStartDay(): boolean {
+  try {
+    const at = Number(localStorage.getItem(START_DAY_KEY))
+    localStorage.removeItem(START_DAY_KEY)
+    // a request older than a minute is stale
+    return at > 0 && Date.now() - at < 60_000
+  } catch {
+    return false
+  }
 }
 
 // loads the digest now, every 3 s while a reading runs and every minute otherwise; `path` picks a day
@@ -109,19 +188,23 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
   const [retrying, setRetrying] = useState<string | null>(null)
   const reading = useRef(false)
   // runs fn, tells the person when it fails, and loads what it changed
-  const guarded = async (fn: () => Promise<unknown>) => {
+  const guarded = async (fn: () => Promise<unknown>): Promise<boolean> => {
+    let ok = true
     try {
       await fn()
     } catch (e) {
+      ok = false
       showToast(errorMessage(e), 'error')
     }
     await reload()
+    return ok
   }
-  const run = async (fn: () => Promise<unknown>) => {
-    if (busy) return
+  const run = async (fn: () => Promise<unknown>): Promise<boolean> => {
+    if (busy) return false
     setBusy(true)
-    await guarded(fn)
+    const ok = await guarded(fn)
     setBusy(false)
+    return ok
   }
   const act: OnAct = (item, op, project) => run(async () => {
     if (date) await forge.action(op, { date, id: item.id, ...(project ? { project } : {}) })
@@ -233,12 +316,12 @@ export function SourceIcon({ source }: { source: Item['source'] }) {
   )
 }
 
-const KIND: Record<Kind, { label: string; token: string; verb: string }> = {
-  'to-task': { label: 'Send to the task', token: '--orange', verb: 'Send' },
-  issue: { label: 'New task', token: '--green', verb: 'Start' },
-  request: { label: 'New task', token: '--green', verb: 'Start' },
-  research: { label: 'Research', token: '--purple', verb: 'Research' },
-  review: { label: 'Review', token: '--blue', verb: 'Review' },
+const KIND: Record<Kind, { label: string; token: string }> = {
+  'to-task': { label: 'Send to the task', token: '--orange' },
+  issue: { label: 'New task', token: '--green' },
+  request: { label: 'New task', token: '--green' },
+  research: { label: 'Research', token: '--purple' },
+  review: { label: 'Review', token: '--blue' },
 }
 
 export function KindPill({ kind }: { kind: Kind }) {
@@ -248,7 +331,7 @@ export function KindPill({ kind }: { kind: Kind }) {
   )
 }
 
-function Avatar({ who }: { who: string }) {
+export function Avatar({ who }: { who: string }) {
   const initials = who.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('') || '?'
   let h = 0
   for (const c of who) h = (h * 31 + c.charCodeAt(0)) >>> 0
@@ -257,8 +340,8 @@ function Avatar({ who }: { who: string }) {
   )
 }
 
-const Sep = () => <span style={{ color: 'var(--ink-3)' }}>·</span>
-const strong = (t: string) => <b style={{ color: 'var(--ink)', fontWeight: 550 }}>{t}</b>
+export const Sep = () => <span style={{ color: 'var(--ink-3)' }}>·</span>
+export const strong = (t: string) => <b style={{ color: 'var(--ink)', fontWeight: 550 }}>{t}</b>
 
 export function LiveChip({ label }: { label: string }) {
   return (
@@ -277,7 +360,7 @@ export const Btn: FunctionComponent<{ label: string; style?: Record<string, stri
   <button type="button" title={title} disabled={disabled} style={{ ...style, opacity: disabled ? 0.55 : 1, cursor: disabled ? 'default' : 'pointer', transition: 'opacity .2s var(--ease)' }} onClick={onClick}>{label}</button>
 )
 
-function ProjectPicker({ projects, value, onChange }: { projects: string[]; value: string; onChange: (v: string) => void }) {
+export function ProjectPicker({ projects, value, onChange }: { projects: string[]; value: string; onChange: (v: string) => void }) {
   return (
     <select aria-label="Project" value={value} onChange={e => onChange((e.target as HTMLSelectElement).value)} style={{ font: 'inherit', fontSize: '12px', padding: '4px 6px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--card)', color: 'var(--ink)' }}>
       <option value="">Project…</option>
@@ -286,7 +369,7 @@ function ProjectPicker({ projects, value, onChange }: { projects: string[]; valu
   )
 }
 
-function outcome(item: Item): ComponentChildren {
+export function outcome(item: Item): ComponentChildren {
   const s = item.startedSession
   const where = s ? `${s.project} / ${s.sessionDir}` : ''
   if (item.kind === 'research') return <LiveChip label={`Researching${where ? ` · ${where}` : ''}`} />
@@ -294,7 +377,7 @@ function outcome(item: Item): ComponentChildren {
   return <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>Started{where ? ` · ${where}` : ''}</span>
 }
 
-const sourceOf = (p: { source: Item['source'] }) => SOURCE_LABEL[p.source]
+export const sourceOf = (p: { source: Item['source'] }) => SOURCE_LABEL[p.source]
 const mono = { fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500 }
 
 // a one-line row: icon, key, title, account, age and the primary button; a click opens the rest
@@ -317,9 +400,9 @@ function Line({ source, keyText, title, account, when, primary, children, dim }:
   )
 }
 
-const Quote = ({ text }: { text: string }) => <div style={{ fontSize: '12px', borderLeft: '2px solid var(--hair-2)', paddingLeft: '8px', fontStyle: 'italic' }}>“{text}”</div>
+export const Quote = ({ text }: { text: string }) => <div style={{ fontSize: '12px', borderLeft: '2px solid var(--hair-2)', paddingLeft: '8px', fontStyle: 'italic' }}>“{text}”</div>
 
-function OpenLink({ href, label }: { href: string; label: string }) {
+export function OpenLink({ href, label }: { href: string; label: string }) {
   const safe = safeHref(href)
   return safe ? <a href={safe} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>{label} ↗</a> : null
 }
@@ -333,7 +416,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
   const op = opFor(item, project)
   const where = item.source === 'slack' ? 'in' : 'on'
   const s = item.startedSession
-  const go = <Btn label={item.state === 'failed' ? 'Retry' : KIND[item.kind].verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />
+  const go = <Btn label={item.state === 'failed' ? 'Retry' : verbFor(item.kind)} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />
   // a task that needs a project is started from the opened row
   const primary = open ? (needsProject ? null : go) : item.state === 'done' ? (
     s ? <Btn label="Open session" onClick={() => forge.openSession(s.project, s.sessionDir)} /> : <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>{item.kind === 'to-task' ? 'Sent' : 'Done'}</span>
@@ -359,7 +442,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
   )
 }
 
-const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green', reply: '--purple' }
+export const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green', reply: '--purple' }
 
 // one open item: Open task or Start as the primary button; Hide, Research and the link when it is opened
 export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: ProjectList; acting: Acting; forge: PanelClient }> = ({ item, projects = EMPTY_PROJECTS, acting, forge }) => {
@@ -407,9 +490,20 @@ const READING_CSS = `
 @keyframes today-pulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
 .today-spin { animation: today-spin .8s linear infinite }
 .today-pulse { animation: today-pulse 1.4s ease-in-out infinite }
-.today-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; align-items: start }
-@media (max-width: 900px) { .today-cols { grid-template-columns: minmax(0, 1fr) } }
-@media (prefers-reduced-motion: reduce) { .today-spin, .today-pulse { animation: none } }`
+.today-inbox { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: calc(100vh - 250px); min-height: 440px; border: 1px solid var(--hair); border-radius: 12px; overflow: hidden }
+.today-list { display: flex; flex-direction: column; min-height: 0; background: var(--card); border-right: 1px solid var(--hair) }
+.today-detail { overflow-y: auto; min-width: 0; background: var(--elev) }
+.today-back { display: none }
+@media (max-width: 900px) {
+  .today-inbox { grid-template-columns: minmax(0, 1fr) }
+  .today-list { border-right: 0 }
+  .today-inbox[data-open="true"] .today-list, .today-inbox[data-open="false"] .today-detail { display: none }
+  .today-back { display: inline-block }
+  .today-triage { grid-template-columns: minmax(0, 1fr) !important }
+}
+@keyframes today-slide { from { opacity: 0; transform: translateX(28px) } to { opacity: 1; transform: none } }
+.today-slide { animation: today-slide .22s var(--ease) }
+@media (prefers-reduced-motion: reduce) { .today-spin, .today-pulse, .today-slide { animation: none } }`
 
 // the keyframes go into the page once, however many components use them
 export function useReadingStyles() {

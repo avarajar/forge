@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseReaderOutput, parseReaderPending, parseSlackPending, sortPending, type PendingItem, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
+import { parseReaderOutput, parseReaderPending, parseSlackPending, sortPending, type PendingItem, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, parseContext, startedBy, countStart, type Digest, type Item } from './digest'
 
 const known = { projects: ['forge'], sessions: ['forge::task-1'] }
 const base = { who: 'Ana', where: '#dev', when: '2026-11-15T09:00:00Z', title: 'Something' }
@@ -245,5 +245,30 @@ describe('Slack pending', () => {
   it('is undefined when the reader gave no pending list', () => {
     expect(parseSlackPending('{"items":[]}', known, NOW)).toBeUndefined()
     expect(parseSlackPending(out([]), known, NOW)).toEqual([])
+  })
+})
+
+describe('context', () => {
+  it('trims, caps at 800 characters and strips control characters', () => {
+    expect(parseContext('  Ana: hi\nLuis: ok  ')).toBe('Ana: hi\nLuis: ok')
+    expect(parseContext('a\u0000b\u001bc\u0007d\r\ne\tf')).toBe('abcd\ne\tf')
+    expect(parseContext('a\u200bb\u202ec\u2067d\u0085e\u200ff')).toBe('abcdef')
+    expect(parseContext('x'.repeat(900))).toHaveLength(800)
+    for (const bad of [undefined, null, 5, {}, '', '  \n ']) expect(parseContext(bad)).toBeUndefined()
+  })
+
+  it('news keeps the reader\'s context as plain text', () => {
+    const [i] = parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'https://x.slack.com/s/3', context: 'Ana: <b>review</b>\u0000 this' }]), known)
+    expect(i.context).toBe('Ana: <b>review</b> this')
+    const [j] = parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'https://x.slack.com/s/3', context: 7 }]), known)
+    expect(j.context).toBeUndefined()
+  })
+
+  it('pending Linear and Slack entries keep it too', () => {
+    const now = new Date('2026-11-16T09:00:00Z')
+    const linear = JSON.stringify({ pending: [{ issueKey: 'E-1', title: 'T', state: 'Todo', link: 'https://linear.app/e/1', when: '2026-11-15T09:00:00Z', context: 'Description: fix it\nLatest comment: soon' }] })
+    expect(parseReaderPending(linear, known, now)![0].context).toBe('Description: fix it\nLatest comment: soon')
+    const slack = JSON.stringify({ pending: [{ source: 'slack', kind: 'reply', title: 'T', who: 'Ana', where: '#dev', link: 'https://x.slack.com/s/1', when: '2026-11-15T09:00:00Z', context: 'Ana: hi\nLuis: yo' }] })
+    expect(parseSlackPending(slack, known, now)![0].context).toBe('Ana: hi\nLuis: yo')
   })
 })

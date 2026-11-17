@@ -96,3 +96,12 @@ describe('READER_TOOLS', () => {
     expect(READER_TOOLS.filter(t => /send|create|save|update|delete|schedule/.test(t))).toEqual([])
   })
 })
+
+describe('buildPrompt context', () => {
+  it('asks for a plain-text context, capped, and calls it untrusted', () => {
+    const p = buildPrompt({ since: '2026-11-14T08:00:00Z', slackSince: '2026-11-09T08:00:00Z', sessions: [], projects: [], github: [] })
+    expect(p).toContain('"context"?: string')
+    expect(p).toMatch(/context[^\n]*plain text[^\n]*800/i)
+    expect(p).toMatch(/context[^\n]*untrusted/i)
+  })
+})
