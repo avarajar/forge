@@ -3,6 +3,11 @@ import { useEffect, useRef } from 'preact/hooks'
 import type { Terminal as XTerm } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 
+// a plain window.open(url) lets the desktop app hand the link to the browser
+function openLink(uri: string): void {
+  if (/^https?:\/\//i.test(uri)) window.open(uri, '_blank', 'noopener')
+}
+
 interface TerminalProps {
   /** Static content to display (read-only) */
   content?: string
@@ -87,7 +92,9 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
         convertEol: !isInteractive,
         disableStdin: !isInteractive,
         cursorBlink: isInteractive,
-        scrollback: 10000
+        scrollback: 10000,
+        // OSC 8 hyperlinks (what Claude Code prints) open directly too, without xterm's confirm and blank window
+        linkHandler: { activate: (_event, uri) => openLink(uri), allowNonHttpProtocols: false }
       })
 
       termRef.current = term
@@ -99,9 +106,7 @@ export const ForgeTerminal: FunctionComponent<TerminalProps> = ({
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
       // the default handler opens a blank window first, which the desktop app cannot hand to the browser
-      term.loadAddon(new WebLinksAddon((_event, uri) => {
-        if (/^https?:\/\//i.test(uri)) window.open(uri, '_blank', 'noopener')
-      }))
+      term.loadAddon(new WebLinksAddon((_event, uri) => openLink(uri)))
 
       term.open(containerRef.current!)
       // Delay fit so the container has final dimensions from layout

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Terminal hyperlinks (OSC 8, what Claude Code prints for URLs) open in the browser without xterm's confirm and blank window, which the desktop app refused.
+
 ## 0.1.26 (2026-11-16)
 
 ### Fixed
