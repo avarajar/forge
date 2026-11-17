@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.28 (2026-11-17)
+
 ### Added
 
 - Today: a Pending section with what is open now, rebuilt on every reading: review requests asked of you, your pull requests with failing checks, issues assigned to you on GitHub, and your started and unstarted Linear issues (last 30 days). Each has Open task (when a session works on it) or Start, and Hide until it changes. The banner gets a `Pending · N` line that opens to five rows.
