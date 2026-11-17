@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { bannerSummary, failedLine, FIRST_READING_NOTE, groupProblems, loadFailedLine, notesLine, problemsLabel, summaryText, urgentRows } from './ops'
+import { bannerSummary, failedLine, FIRST_READING_NOTE, groupLine, groupProblems, loadFailedLine, notesLine, problemsLabel, summaryText, urgentRows } from './ops'
 import { Btn, ghostStyle, PendingRow, primaryStyle, readLine, ReadingLine, Row, shortDay, soft, useActing, useDigest, useProjects } from './rows'
 
 function shell(children: ComponentChildren) {
@@ -26,6 +26,7 @@ function Strip({ title, children, actions, below }: { title: string; children?: 
   )
 }
 
+const small = { ...ghostStyle, border: '1px solid var(--hair-2)', fontSize: '11.5px', padding: '2px 8px', color: 'var(--ink)' }
 const linkStyle = { font: 'inherit', fontSize: 'inherit', padding: 0, border: 0, background: 'none', cursor: 'pointer' }
 
 function Banner({ forge }: PanelProps) {
@@ -68,10 +69,18 @@ function Banner({ forge }: PanelProps) {
   const notes = notesLine(digest.notes)
   const status = [isReading ? null : readLine(digest), reply.firstReading ? FIRST_READING_NOTE : null, notes].filter(Boolean).join(' · ')
   const statusLine = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '11.5px', color: 'var(--ink-3)', padding: '2px 6px 0' }}>
-      {isReading ? <ReadingLine reading={reading} /> : <span>{status}</span>}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px', color: 'var(--ink-3)', padding: '2px 6px 0', minWidth: 0 }}>
+      {isReading ? <ReadingLine reading={reading} /> : <span title={status} style={{ minWidth: 0, flexShrink: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{status}</span>}
       {digest.error && <span style={{ color: 'var(--red)' }}>{failedLine(digest.error)}</span>}
-      {problems.length > 0 && <button type="button" onClick={() => forge.openPage()} style={{ ...linkStyle, color: 'var(--orange)' }}>{problemsLabel(problems.length)}</button>}
+      {problems.length === 1 && (
+        <span role="alert" title={problems[0].reasons.join('\n')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--ink-2)' }}>
+          <span style={{ color: 'var(--orange)' }}>⚠</span>
+          {groupLine(problems[0])}
+          <Btn label={acting.retrying === problems[0].account ? 'Reading…' : 'Retry'} style={small} disabled={acting.busy} onClick={() => acting.retry(problems[0].account)} />
+          <Btn label="Reconnect" style={{ ...small, ...ghostStyle, padding: '2px 8px' }} disabled={acting.busy} onClick={() => acting.reconnect(problems[0].account)} />
+        </span>
+      )}
+      {problems.length > 1 && <button type="button" onClick={() => forge.openPage()} style={{ ...linkStyle, color: 'var(--orange)' }}>{problemsLabel(problems.length)} · Fix on Today →</button>}
     </div>
   )
 

@@ -52,8 +52,15 @@ export const untrusted = (i: Item): boolean => !!i.manual || i.source === 'githu
 export const failedLine = (error: string) => `Last reading failed: ${error}`
 export const loadFailedLine = (error: string) => `Can't load Today: ${error}`
 
+const GH_SIGNED_OUT = 'GitHub: gh is not signed in (run gh auth login)'
+
+// a known gh sign-in error in one short sentence; other notes as they are, none twice
+export function tidyNotes(notes: string[]): string[] {
+  return [...new Set(notes.map(n => (/^github\b[^:]*:/i.test(n) && /gh auth login|GH_TOKEN/i.test(n) ? GH_SIGNED_OUT : n)))]
+}
+
 // problems that did not fail the reading, on one line
-export const notesLine = (notes: string[] | undefined) => (notes?.length ? notes.join(' · ') : null)
+export const notesLine = (notes: string[] | undefined) => (notes?.length ? tidyNotes(notes).join(' · ') : null)
 
 const SOURCE_NAME: Record<Problem['source'], string> = { slack: 'Slack', linear: 'Linear', reader: 'Reader' }
 
@@ -78,32 +85,6 @@ export const groupLine = (g: ProblemGroup) => `${g.account} · ${g.label} did no
 
 export const problemsLabel = (n: number) => `⚠ ${n} account problem${n === 1 ? '' : 's'}`
 
-const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
-  { title: 'In open tasks', pick: i => i.kind === 'to-task' },
-  { title: 'New', pick: i => i.kind === 'issue' || i.kind === 'request' },
-  { title: 'To review', pick: i => i.kind === 'review' },
-  { title: 'Researching', pick: i => i.kind === 'research' },
-]
-
-// live items by kind, then the dismissed ones
-export function sections(all: Item[]): { title: string; items: Item[] }[] {
-  const live = all.filter(i => i.state !== 'dismissed')
-  const groups = GROUPS.map(g => ({ title: g.title, items: live.filter(g.pick) }))
-  return [...groups, { title: 'Dismissed', items: all.filter(i => i.state === 'dismissed') }].filter(g => g.items.length > 0)
-}
-
-// the accounts that appear in items, in order of first appearance
-export const accountsOf = (items: Item[]): string[] => [...new Set(items.flatMap(i => (i.account ? [i.account] : [])))]
-
-// the page's groups: one block per account (items without one last) when there is more than one
-export function byAccount(items: Item[]): { account?: string; sections: ReturnType<typeof sections> }[] {
-  const accounts = accountsOf(items)
-  if (accounts.length < 2) return [{ sections: sections(items) }]
-  const blocks = accounts.map(account => ({ account, sections: sections(inAccount(items, account)) }))
-  const rest = items.filter(i => !i.account)
-  return rest.length ? [...blocks, { sections: sections(rest) }] : blocks
-}
-
 // a title without the issue key the row already shows as a chip
 export function titleFor(i: { title: string; issueKey?: string }): string {
   if (!i.issueKey) return i.title
@@ -118,20 +99,6 @@ const SOURCE_NAMES = { linear: 'Linear', slack: 'Slack', github: 'GitHub' }
 export function whoOf(i: { who: string; source: Item['source'] }): string | null {
   const who = i.who.trim()
   return !who || who.toLowerCase() === SOURCE_NAMES[i.source].toLowerCase() ? null : who
-}
-
-export const pendingLabel = (p: PendingItem): string => (p.kind === 'ci' ? 'CI failing' : p.kind === 'reply' ? 'Waiting on you' : p.kind === 'review' ? 'Review requested' : p.source === 'linear' ? (p.started ? 'In progress' : 'To do') : 'Assigned')
-
-// the pending items of one account when given, all otherwise
-export const pendingIn = (items: PendingItem[], account?: string): PendingItem[] => (account ? items.filter(p => p.account === account) : items)
-
-// the page's pending blocks: one per account (items without one last) when there is more than one
-export function pendingByAccount(items: PendingItem[]): { account?: string; items: PendingItem[] }[] {
-  const accounts = [...new Set(items.flatMap(p => (p.account ? [p.account] : [])))]
-  if (accounts.length < 2) return items.length ? [{ items }] : []
-  const blocks = accounts.map(account => ({ account, items: pendingIn(items, account) }))
-  const rest = items.filter(p => !p.account)
-  return rest.length ? [...blocks, { items: rest }] : blocks
 }
 
 export const CAPPED_NOTE = 'showing the latest 20'

@@ -3,7 +3,7 @@ import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
 import type { Digest, Item, Kind, Op, PendingItem, Reading } from './digest'
-import { ageShort, EMPTY_PROJECTS, errorMessage, groupLine, NO_FILTERS, opFor, parseFilters, projectsFor, safeHref, startsTask, titleFor, whoOf, type Filters, type ProblemGroup, type ProjectList } from './ops'
+import { ageShort, EMPTY_PROJECTS, errorMessage, groupLine, NO_FILTERS, opFor, parseFilters, projectsFor, safeHref, startsTask, tidyNotes, titleFor, whoOf, type Filters, type ProblemGroup, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<void>; researchPending: (item: PendingItem) => Promise<void>; hidePending: (item: PendingItem) => Promise<void> }
@@ -305,12 +305,12 @@ function Line({ source, keyText, title, account, when, primary, children, dim }:
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', minHeight: '30px' }}>
         <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px', font: 'inherit', fontSize: '12.5px', textAlign: 'left', padding: 0, border: 0, background: 'none', color: 'var(--ink)', cursor: 'pointer' }}>
           <SourceIcon source={source} />
-          {keyText && <span style={mono}>{keyText}</span>}
-          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 530 }}>{title}</span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 530 }}>{title}</span>
+          {keyText && <span style={{ ...mono, flexShrink: 0, marginLeft: 'auto' }}>{keyText}</span>}
         </button>
-        {account && <AccountChip account={account} />}
+        {account && <span style={{ flexShrink: 0 }}><AccountChip account={account} /></span>}
         <span title={when} style={{ fontSize: '11px', color: 'var(--ink-3)', minWidth: '26px', textAlign: 'right' }}>{ageShort(when)}</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>{primary}</span>
+        {primary && <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>{primary}</span>}
       </div>
       {open && <div style={{ padding: '2px 8px 9px 36px', display: 'flex', flexDirection: 'column', gap: '7px', fontSize: '11.5px', color: 'var(--ink-2)' }}>{children}</div>}
     </div>
@@ -333,12 +333,9 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
   const op = opFor(item, project)
   const where = item.source === 'slack' ? 'in' : 'on'
   const s = item.startedSession
-  const primary = open ? (
-    <>
-      {needsProject && <ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />}
-      <Btn label={item.state === 'failed' ? 'Retry' : KIND[item.kind].verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />
-    </>
-  ) : item.state === 'done' ? (
+  const go = <Btn label={item.state === 'failed' ? 'Retry' : KIND[item.kind].verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />
+  // a task that needs a project is started from the opened row
+  const primary = open ? (needsProject ? null : go) : item.state === 'done' ? (
     s ? <Btn label="Open session" onClick={() => forge.openSession(s.project, s.sessionDir)} /> : <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>{item.kind === 'to-task' ? 'Sent' : 'Done'}</span>
   ) : null
   return (
@@ -354,6 +351,7 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
       {item.error && <div style={{ color: 'var(--red)' }}>{item.error}</div>}
       {item.state === 'done' && outcome(item)}
       <Actions>
+        {open && needsProject && <><ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />{go}</>}
         <OpenLink href={item.link} label={`Open in ${sourceOf(item)}`} />
         {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => acting.act(item, 'dismiss')} />}
       </Actions>
@@ -369,14 +367,11 @@ export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: Proje
   const token = PENDING_TOKEN[item.kind]
   const target = item.project ?? project
   const slack = item.kind === 'reply'
+  const start = <Btn label={item.kind === 'review' ? 'Review' : 'Start'} disabled={acting.busy || !target} onClick={() => acting.startPending(item, item.project ? undefined : project)} />
+  // a task that needs a project is started from the opened row
   const primary = item.targetSession ? (
     <Btn label="Open task" onClick={() => forge.openSession(item.targetSession!.project, item.targetSession!.sessionDir)} />
-  ) : (
-    <>
-      {!item.project && <ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />}
-      <Btn label={item.kind === 'review' ? 'Review' : 'Start'} disabled={acting.busy || !target} onClick={() => acting.startPending(item, item.project ? undefined : project)} />
-    </>
-  )
+  ) : item.project ? start : null
   return (
     <Line source={item.source} keyText={item.issueKey} title={titleFor(item)} account={item.account} when={item.when} primary={primary}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -386,6 +381,7 @@ export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: Proje
       </div>
       {item.quote && <Quote text={item.quote} />}
       <Actions>
+        {!item.targetSession && !item.project && <><ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />{start}</>}
         <OpenLink href={item.link} label={`Open in ${sourceOf(item)}`} />
         {slack && !item.targetSession && <Btn label="Research" style={ghostStyle} disabled={acting.busy} onClick={() => acting.researchPending(item)} />}
         <Btn label="Hide" style={ghostStyle} disabled={acting.busy} onClick={() => acting.hidePending(item)} />
@@ -480,6 +476,22 @@ export function ProblemRow({ group, acting, details = false }: { group: ProblemG
         </span>
       </div>
       {details && <ul style={{ margin: '6px 0 0 22px', padding: 0, color: 'var(--ink-3)', fontSize: '11.5px' }}>{group.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
+    </div>
+  )
+}
+
+// notes as one muted line cut with an ellipsis; "details" lists them in full
+export function Notes({ notes }: { notes: string[] | undefined }) {
+  const [open, setOpen] = useState(false)
+  if (!notes?.length) return null
+  const short = tidyNotes(notes)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--ink-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', minWidth: 0 }}>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{short.join(' · ')}</span>
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{ font: 'inherit', fontSize: '11.5px', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--ink-3)', flexShrink: 0 }}>{open ? 'Hide details' : 'Details'}</button>
+      </div>
+      {open && <ul style={{ margin: 0, paddingLeft: '18px' }}>{notes.map(n => <li key={n} style={{ overflowWrap: 'anywhere' }}>{n}</li>)}</ul>}
     </div>
   )
 }

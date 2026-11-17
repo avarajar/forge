@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupPending, groupProblems, isGroupFolded, loadFailedLine, newsList, NO_FILTERS, notesLine, PENDING_EMPTY, type SourceName } from './ops'
-import { accountToken, dayName, Pill, PendingRow, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useFilters, useFolds, useProjects, useReadingStyles } from './rows'
+import { CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupPending, groupProblems, isGroupFolded, loadFailedLine, newsList, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
+import { accountToken, dayName, Pill, Notes, PendingRow, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useFilters, useFolds, useProjects, useReadingStyles } from './rows'
 
 const heading = { margin: 0, fontSize: '13px', fontWeight: 650, letterSpacing: '-.01em' }
 const muted = { fontSize: '12.5px', color: 'var(--ink-2)', padding: '4px 6px' }
@@ -22,7 +22,6 @@ function View({ forge }: PanelProps) {
   const isReading = acting.refreshing || !!reading
   const [details, setDetails] = useState(false)
   const problems = groupProblems(digest?.problems ?? [])
-  const notes = notesLine(digest?.notes)
   const enabled = reply?.enabled === true
   const allNews = newsList(digest?.items ?? [])
   const allPending = reply?.pending ?? []
@@ -45,12 +44,17 @@ function View({ forge }: PanelProps) {
   return (
     <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '1280px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        {days.length > 0 && (
-          <select aria-label="Day" value={digest?.date ?? ''} onChange={e => setDay((e.target as HTMLSelectElement).value)} style={{ font: 'inherit', fontSize: '12.5px', padding: '5px 8px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--card)', color: 'var(--ink)' }}>
-            {days.map(d => <option key={d} value={d}>{dayName(d)}</option>)}
-          </select>
-        )}
-        <b style={{ fontSize: '14px', fontWeight: 650 }}>Today{digest ? ` · ${dayName(digest.date)}` : ''}</b>
+        <b style={{ fontSize: '14px', fontWeight: 650, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          Today
+          {digest && days.length > 0 ? (
+            <>
+              <span style={{ color: 'var(--ink-3)', fontWeight: 400 }}>·</span>
+              <select aria-label="Day" value={digest.date} onChange={e => setDay((e.target as HTMLSelectElement).value)} style={{ font: 'inherit', fontSize: '13px', fontWeight: 600, padding: '4px 8px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--card)', color: 'var(--ink)' }}>
+                {days.map(d => <option key={d} value={d}>{dayName(d)}</option>)}
+              </select>
+            </>
+          ) : digest ? ` · ${dayName(digest.date)}` : null}
+        </b>
         <input type="search" aria-label="Search" placeholder="Search…" value={filters.query} onInput={e => set({ query: (e.target as HTMLInputElement).value })} style={{ font: 'inherit', fontSize: '12.5px', padding: '5px 10px', borderRadius: '8px', border: '1px solid var(--hair-2)', background: 'var(--card)', color: 'var(--ink)', minWidth: '180px', marginLeft: 'auto' }} />
         <span style={{ display: 'flex', gap: '8px' }}>
           {enabled && <ActionButton label={isReading ? 'Reading…' : 'Refresh'} variant="primary" size="sm" disabled={isReading} loading={isReading} onClick={acting.refresh} />}
@@ -81,7 +85,7 @@ function View({ forge }: PanelProps) {
         </div>
       )}
 
-      {notes && <div style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{notes}</div>}
+      <Notes notes={digest?.notes} />
 
       {!digest && isReading ? (
         <SkeletonRows />
