@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { githubPage, isSlackLink } from './ops'
 
 export type Op = 'send' | 'start' | 'research' | 'dismiss'
 export type Kind = 'to-task' | 'issue' | 'request' | 'research' | 'review'
@@ -29,10 +30,15 @@ export interface Item {
 // what is open now, from one source; rebuilt on every reading
 export interface PendingItem {
   id: string
-  source: 'linear' | 'github'
-  kind: 'issue' | 'review' | 'ci'
+  source: 'linear' | 'github' | 'slack'
+  // reply: a Slack message waiting on me
+  kind: 'issue' | 'review' | 'ci' | 'reply'
   title: string
   state?: string
+  // Slack only: who wrote it, where, and what it said
+  who?: string
+  where?: string
+  quote?: string
   link: string
   when: string
   account?: string
@@ -142,7 +148,7 @@ export function toProblem(account: string, text: string): Problem {
 export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[]; account?: string }): Item[] {
   const root = extractJson(out)
   if (!isRecord(root) || !Array.isArray(root.items)) throw new Error('reader output needs an items array')
-  return root.items.map((raw, n) => {
+  return root.items.flatMap((raw, n) => {
     if (!isRecord(raw)) throw new Error(`item ${n}: not an object`)
     const source = text(raw, 'source', n)!
     if (!SOURCES.includes(source)) throw new Error(`item ${n}: unknown source ${source}`)
@@ -182,7 +188,8 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
       if (known.sessions.includes(`${t.project}::${t.sessionDir}`)) item.targetSession = { project: t.project, sessionDir: t.sessionDir }
     }
     if (item.kind === 'to-task' && !item.targetSession) item.kind = item.issueKey ? 'issue' : 'request'
-    return item
+    // a Slack item must link to Slack (a GitHub link is judged later, by what gh fetched)
+    return source === 'slack' && !isSlackLink(link) && !githubPage(link) ? [] : [item]
   })
 }
 
@@ -211,64 +218,107 @@ export function pendingCount(d: Digest): number {
 }
 
 export const PENDING_MAX_AGE = 30 * 24 * 60 * 60 * 1000
+export const SLACK_MAX_AGE = 7 * 24 * 60 * 60 * 1000
 
-// open work not touched for 30 days is no longer pending
-export const isRecent = (when: string, now: Date): boolean => {
+// open work not touched for 30 days (a Slack message for 7) is no longer pending
+export const isRecent = (when: string, now: Date, maxAge = PENDING_MAX_AGE): boolean => {
   const t = Date.parse(when)
-  return !Number.isNaN(t) && now.getTime() - t <= PENDING_MAX_AGE
+  return !Number.isNaN(t) && now.getTime() - t <= maxAge
 }
 
 export function pendingId(source: PendingItem['source'], kind: PendingItem['kind'], link: string, account?: string): string {
   return createHash('sha1').update(`pending\n${source}\n${kind}\n${link}\n${account ?? ''}`).digest('hex').slice(0, 16)
 }
 
-const rank = (p: PendingItem): number => (p.kind === 'ci' ? 0 : p.kind === 'review' ? 1 : p.source === 'linear' ? (p.started ? 2 : 3) : 4)
+const rank = (p: PendingItem): number => (p.kind === 'ci' ? 0 : p.kind === 'reply' ? 1 : p.kind === 'review' ? 2 : p.source === 'linear' ? (p.started ? 3 : 5) : 4)
 
-// failing CI, review requests, Linear started, Linear unstarted, issues; then the latest first
+// failing CI, Slack waiting on me, review requests, Linear started, issues, Linear unstarted; then the latest first
 export const sortPending = (items: PendingItem[]): PendingItem[] =>
   [...items].sort((a, b) => rank(a) - rank(b) || Date.parse(b.when) - Date.parse(a.when))
 
-// a reader's pending list, or undefined when it did not give one; bad entries are dropped
-export function parseReaderPending(out: string, known: { projects: string[]; sessions: string[]; account?: string }, now: Date): PendingItem[] | undefined {
+type Known = { projects: string[]; sessions: string[]; account?: string }
+
+function pendingRoot(out: string): unknown[] | undefined {
   let root: unknown
   try {
     root = extractJson(out)
   } catch {
     return undefined
   }
-  if (!isRecord(root) || !Array.isArray(root.pending)) return undefined
+  return isRecord(root) && Array.isArray(root.pending) ? root.pending : undefined
+}
+
+// the fields every reader entry shares; null when it is unusable (not http(s), a GitHub host, or too old)
+function pendingBase(raw: Record<string, unknown>, known: Known, now: Date, maxAge: number): { link: string; title: string; when: string; str: (k: string) => string | undefined } | null {
+  const str = (k: string) => (typeof raw[k] === 'string' && (raw[k] as string).trim() ? (raw[k] as string) : undefined)
+  const link = str('link')
+  const title = str('title')
+  const when = str('when')
+  if (!link || !title || !when || !isRecent(when, now, maxAge)) return null
+  let url: URL
+  try {
+    url = new URL(link)
+  } catch {
+    return null
+  }
+  // a GitHub address only counts when gh fetched it, never from the reader
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:') || /(^|\.)github\.com$/i.test(url.hostname)) return null
+  return { link, title, when, str }
+}
+
+function placed(item: PendingItem, raw: Record<string, unknown>, known: Known, str: (k: string) => string | undefined): PendingItem {
+  if (known.account) item.account = known.account
+  const project = str('project')
+  if (project && known.projects.includes(project)) item.project = project
+  const t = raw.targetSession
+  if (isRecord(t) && typeof t.project === 'string' && typeof t.sessionDir === 'string' && known.sessions.includes(`${t.project}::${t.sessionDir}`)) item.targetSession = { project: t.project, sessionDir: t.sessionDir }
+  return item
+}
+
+// a reader's Linear pending list, or undefined when it did not give one; bad entries (and Slack ones) are dropped
+export function parseReaderPending(out: string, known: Known, now: Date): PendingItem[] | undefined {
+  const entries = pendingRoot(out)
+  if (!entries) return undefined
   const seen = new Set<string>()
   const list: PendingItem[] = []
-  for (const raw of root.pending) {
-    if (!isRecord(raw)) continue
-    const str = (k: string) => (typeof raw[k] === 'string' && (raw[k] as string).trim() ? (raw[k] as string) : undefined)
-    const link = str('link')
-    const title = str('title')
-    const when = str('when')
-    if (!link || !title || !when || !isRecent(when, now)) continue
-    let url: URL
-    try {
-      url = new URL(link)
-    } catch {
-      continue
-    }
-    // a GitHub address only counts when gh fetched it, never from the reader
-    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || /(^|\.)github\.com$/i.test(url.hostname)) continue
-    const id = pendingId('linear', 'issue', link, known.account)
+  for (const raw of entries) {
+    if (!isRecord(raw) || (raw.source !== undefined && raw.source !== 'linear')) continue
+    const base = pendingBase(raw, known, now, PENDING_MAX_AGE)
+    if (!base) continue
+    const id = pendingId('linear', 'issue', base.link, known.account)
     if (seen.has(id)) continue
     seen.add(id)
-    const item: PendingItem = { id, source: 'linear', kind: 'issue', title, link, when }
-    if (known.account) item.account = known.account
-    const state = str('state')
+    const item: PendingItem = { id, source: 'linear', kind: 'issue', title: base.title, link: base.link, when: base.when }
+    const state = base.str('state')
     if (state) item.state = state.slice(0, 40)
     if (raw.started === true) item.started = true
-    const key = str('issueKey')
+    const key = base.str('issueKey')
     if (key) item.issueKey = key
-    const project = str('project')
-    if (project && known.projects.includes(project)) item.project = project
-    const t = raw.targetSession
-    if (isRecord(t) && typeof t.project === 'string' && typeof t.sessionDir === 'string' && known.sessions.includes(`${t.project}::${t.sessionDir}`)) item.targetSession = { project: t.project, sessionDir: t.sessionDir }
-    list.push(item)
+    list.push(placed(item, raw, known, base.str))
+  }
+  return list
+}
+
+// the Slack messages waiting on me, from the last 7 days; undefined when the reader gave no pending list
+export function parseSlackPending(out: string, known: Known, now: Date): PendingItem[] | undefined {
+  const entries = pendingRoot(out)
+  if (!entries) return undefined
+  const seen = new Set<string>()
+  const list: PendingItem[] = []
+  for (const raw of entries) {
+    if (!isRecord(raw) || raw.source !== 'slack') continue
+    const base = pendingBase(raw, known, now, SLACK_MAX_AGE)
+    if (base && !isSlackLink(base.link)) continue
+    const who = base?.str('who')
+    const where = base?.str('where')
+    if (!base || !who || !where) continue
+    const id = pendingId('slack', 'reply', base.link, known.account)
+    if (seen.has(id)) continue
+    seen.add(id)
+    const item: PendingItem = { id, source: 'slack', kind: 'reply', title: base.title.slice(0, 200), who: who.slice(0, 80), where: where.slice(0, 80), link: base.link, when: base.when }
+    const quote = base.str('quote')
+    if (quote) item.quote = quote.slice(0, 500)
+    list.push(placed(item, raw, known, base.str))
   }
   return list
 }

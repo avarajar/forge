@@ -3,10 +3,10 @@ import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
 import type { Digest, Item, Kind, Op, PendingItem, Reading } from './digest'
-import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, pendingLabel, projectsFor, startsTask, titleFor, whoOf, type ProblemGroup, type ProjectList } from './ops'
+import { ageShort, EMPTY_PROJECTS, errorMessage, groupLine, NO_FILTERS, opFor, parseFilters, projectsFor, safeHref, startsTask, tidyNotes, titleFor, whoOf, type Filters, type ProblemGroup, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
-export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<void>; hidePending: (item: PendingItem) => Promise<void> }
+export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<void>; researchPending: (item: PendingItem) => Promise<void>; hidePending: (item: PendingItem) => Promise<void> }
 
 export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading; pending?: PendingItem[]; pendingCapped?: boolean; firstReading?: boolean }
 
@@ -28,27 +28,39 @@ export function AccountChip({ account }: { account: string }) {
   )
 }
 
-const FILTER_KEY = 'today.account'
+const FILTERS_KEY = 'today.filters'
+const FOLDS_KEY = 'today.folds'
 
-// the account this viewer looks at, kept in the browser; '' is every account
-export function useAccountFilter(): [string, (a: string) => void] {
-  const [account, setAccount] = useState(() => {
+// a value kept in this viewer's browser; storage can be missing or throw, then it lasts until the page closes
+function useStored<T>(key: string, read: (raw: string | null) => T, empty: T): [T, (next: T) => void] {
+  const [value, setValue] = useState<T>(() => {
     try {
-      return localStorage.getItem(FILTER_KEY) ?? ''
+      return read(localStorage.getItem(key))
     } catch {
-      return ''
+      return empty
     }
   })
-  const choose = (a: string) => {
-    setAccount(a)
+  const set = (next: T) => {
+    setValue(next)
     try {
-      if (a) localStorage.setItem(FILTER_KEY, a)
-      else localStorage.removeItem(FILTER_KEY)
+      localStorage.setItem(key, JSON.stringify(next))
     } catch {
       // the choice then lasts until the page closes
     }
   }
-  return [account, choose]
+  return [value, set]
+}
+
+// the account, source and search this viewer looks at
+export const useFilters = (): [Filters, (next: Filters) => void] => useStored(FILTERS_KEY, parseFilters, NO_FILTERS)
+
+// which pending groups the viewer folded (true) or opened (false)
+export function useFolds(): [Record<string, boolean>, (id: string, folded: boolean) => void] {
+  const [folds, set] = useStored<Record<string, boolean>>(FOLDS_KEY, raw => {
+    const v: unknown = JSON.parse(raw ?? '{}')
+    return typeof v === 'object' && v !== null && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([, f]) => typeof f === 'boolean')) as Record<string, boolean> : {}
+  }, {})
+  return [folds, (id, folded) => set({ ...folds, [id]: folded })]
 }
 
 // loads the digest now, every 3 s while a reading runs and every minute otherwise; `path` picks a day
@@ -117,6 +129,9 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
   const startPending = (item: PendingItem, project?: string) => run(async () => {
     await forge.action('pending-start', { id: item.id, ...(project ? { project } : {}) })
   })
+  const researchPending = (item: PendingItem) => run(async () => {
+    await forge.action('pending-research', { id: item.id })
+  })
   const hidePending = (item: PendingItem) => run(async () => {
     await forge.action('pending-hide', { id: item.id })
   })
@@ -145,7 +160,7 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     const s = await forge.action<{ project: string; sessionDir: string }>('reconnect', { account })
     if (s) forge.openSession(s.project, s.sessionDir)
   })
-  return { busy, refreshing, retrying, retry, reconnect, run, act, refresh, startPending, hidePending }
+  return { busy, refreshing, retrying, retry, reconnect, run, act, refresh, startPending, researchPending, hidePending }
 }
 
 function dayOf(date: string): Date {
@@ -206,13 +221,13 @@ const SOURCE_TINT: Record<Item['source'], string> = { linear: '#5e6ad2 22%', sla
 
 export function SourceIcon({ source }: { source: Item['source'] }) {
   return (
-    <div title={SOURCE_LABEL[source]} style={{ width: '30px', height: '30px', borderRadius: '8px', display: 'grid', placeItems: 'center', flexShrink: 0, background: `color-mix(in srgb, ${SOURCE_TINT[source]}, transparent)` }}>
+    <div title={SOURCE_LABEL[source]} style={{ width: '22px', height: '22px', borderRadius: '6px', display: 'grid', placeItems: 'center', flexShrink: 0, background: `color-mix(in srgb, ${SOURCE_TINT[source]}, transparent)` }}>
       {source === 'github' ? (
-        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" style={{ color: 'var(--ink)' }} d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
+        <svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" style={{ color: 'var(--ink)' }} d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" /></svg>
       ) : source === 'linear' ? (
-        <svg width="15" height="15" viewBox="0 0 100 100" aria-hidden="true"><path fill="#8c94f0" d="M1.2 61.5 38.5 98.8C19.8 95.6 4.4 80.2 1.2 61.5zM0 46.9 53.1 100c3.4-.2 6.8-.8 10-1.6L1.6 36.9C.8 40.1.2 43.5 0 46.9zM4.9 27 73 95.1c2.6-1.1 5.1-2.5 7.4-4L8.9 19.6c-1.5 2.3-2.9 4.8-4 7.4zM14.4 13.8C23.4 5.3 35.5 0 48.9 0 76 0 100 24 100 51.1c0 13.4-5.3 25.5-13.8 34.5z" /></svg>
+        <svg width="12" height="12" viewBox="0 0 100 100" aria-hidden="true"><path fill="#8c94f0" d="M1.2 61.5 38.5 98.8C19.8 95.6 4.4 80.2 1.2 61.5zM0 46.9 53.1 100c3.4-.2 6.8-.8 10-1.6L1.6 36.9C.8 40.1.2 43.5 0 46.9zM4.9 27 73 95.1c2.6-1.1 5.1-2.5 7.4-4L8.9 19.6c-1.5 2.3-2.9 4.8-4 7.4zM14.4 13.8C23.4 5.3 35.5 0 48.9 0 76 0 100 24 100 51.1c0 13.4-5.3 25.5-13.8 34.5z" /></svg>
       ) : (
-        <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke-width="2.6" stroke-linecap="round"><path stroke="#36c5f0" d="M9 3.5v6" /><path stroke="#2eb67d" d="M20.5 9h-6" /><path stroke="#ecb22e" d="M15 20.5v-6" /><path stroke="#e01e5a" d="M3.5 15h6" /></g></svg>
+        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke-width="2.6" stroke-linecap="round"><path stroke="#36c5f0" d="M9 3.5v6" /><path stroke="#2eb67d" d="M20.5 9h-6" /><path stroke="#ecb22e" d="M15 20.5v-6" /><path stroke="#e01e5a" d="M3.5 15h6" /></g></svg>
       )}
     </div>
   )
@@ -279,85 +294,110 @@ function outcome(item: Item): ComponentChildren {
   return <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>Started{where ? ` · ${where}` : ''}</span>
 }
 
+const sourceOf = (p: { source: Item['source'] }) => SOURCE_LABEL[p.source]
+const mono = { fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500 }
+
+// a one-line row: icon, key, title, account, age and the primary button; a click opens the rest
+function Line({ source, keyText, title, account, when, primary, children, dim }: { source: Item['source']; keyText?: string; title: string; account?: string; when: string; primary: ComponentChildren; children: ComponentChildren; dim?: boolean }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ borderRadius: '9px', background: open ? soft('--ink', 3) : 'transparent', border: `1px solid ${open ? 'var(--hair)' : 'transparent'}`, opacity: dim ? 0.55 : 1, transition: 'background .2s var(--ease)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', minHeight: '30px' }}>
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px', font: 'inherit', fontSize: '12.5px', textAlign: 'left', padding: 0, border: 0, background: 'none', color: 'var(--ink)', cursor: 'pointer' }}>
+          <SourceIcon source={source} />
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 530 }}>{title}</span>
+          {keyText && <span style={{ ...mono, flexShrink: 0, marginLeft: 'auto' }}>{keyText}</span>}
+        </button>
+        {account && <span style={{ flexShrink: 0 }}><AccountChip account={account} /></span>}
+        <span title={when} style={{ fontSize: '11px', color: 'var(--ink-3)', minWidth: '26px', textAlign: 'right' }}>{ageShort(when)}</span>
+        {primary && <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>{primary}</span>}
+      </div>
+      {open && <div style={{ padding: '2px 8px 9px 36px', display: 'flex', flexDirection: 'column', gap: '7px', fontSize: '11.5px', color: 'var(--ink-2)' }}>{children}</div>}
+    </div>
+  )
+}
+
+const Quote = ({ text }: { text: string }) => <div style={{ fontSize: '12px', borderLeft: '2px solid var(--hair-2)', paddingLeft: '8px', fontStyle: 'italic' }}>“{text}”</div>
+
+function OpenLink({ href, label }: { href: string; label: string }) {
+  const safe = safeHref(href)
+  return safe ? <a href={safe} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>{label} ↗</a> : null
+}
+
+const Actions = ({ children }: { children: ComponentChildren }) => <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>{children}</div>
+
 export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting: Acting; forge: PanelClient }> = ({ item, projects = EMPTY_PROJECTS, acting, forge }) => {
   const [project, setProject] = useState(item.project ?? '')
   const open = item.state === 'proposed' || item.state === 'failed'
   const needsProject = startsTask(item.kind) && !item.project
   const op = opFor(item, project)
   const where = item.source === 'slack' ? 'in' : 'on'
+  const s = item.startedSession
+  const go = <Btn label={item.state === 'failed' ? 'Retry' : KIND[item.kind].verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />
+  // a task that needs a project is started from the opened row
+  const primary = open ? (needsProject ? null : go) : item.state === 'done' ? (
+    s ? <Btn label="Open session" onClick={() => forge.openSession(s.project, s.sessionDir)} /> : <span style={{ fontSize: '11.5px', color: 'var(--green)' }}>{item.kind === 'to-task' ? 'Sent' : 'Done'}</span>
+  ) : null
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr auto', gap: '12px', alignItems: 'center', padding: '10px 12px', borderRadius: '11px', background: soft('--ink', 3), border: '1px solid var(--hair)', opacity: item.state === 'dismissed' ? 0.55 : 1, transition: 'background .2s var(--ease)' }}>
-      <SourceIcon source={item.source} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 560, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-          {item.issueKey && <span style={{ fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500 }}>{item.issueKey}</span>}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleFor(item)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '11.5px', color: 'var(--ink-2)', flexWrap: 'wrap' }}>
-          {whoOf(item) && <Avatar who={item.who} />}
-          <span>{whoOf(item) ? <>{item.who} {where} {strong(item.where)}</> : strong(item.where)}</span>
-          <Sep />
-          <span>{ago(item.when)}</span>
-          {item.account && <><Sep /><AccountChip account={item.account} /></>}
-          <Sep />
-          <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>View in {SOURCE_LABEL[item.source]} ↗</a>
-          {item.kind === 'to-task' && item.targetSession && <><Sep /><span>goes to {strong(item.targetSession.sessionDir)}</span></>}
-          {item.project && item.kind !== 'to-task' && <><Sep /><span>project {strong(item.project)}</span></>}
-        </div>
-        {item.quote && <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--ink-2)', borderLeft: '2px solid var(--hair-2)', paddingLeft: '8px', fontStyle: 'italic' }}>“{item.quote}”</div>}
-        {item.error && <div style={{ marginTop: '6px', fontSize: '11.5px', color: 'var(--red)' }}>{item.error}</div>}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <Line source={item.source} keyText={item.issueKey} title={titleFor(item)} account={item.account} when={item.when} primary={primary}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
         <KindPill kind={item.kind} />
-        {open && needsProject && <ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />}
-        {open && <Btn label={item.state === 'failed' ? 'Retry' : KIND[item.kind].verb} disabled={acting.busy || !op} onClick={() => op && acting.act(item, op, needsProject ? project : undefined)} />}
-        {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => acting.act(item, 'dismiss')} />}
-        {item.state === 'done' && outcome(item)}
-        {item.state === 'done' && item.startedSession && <Btn label="Open session" onClick={() => forge.openSession(item.startedSession!.project, item.startedSession!.sessionDir)} />}
-        {item.state === 'dismissed' && <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>Dismissed</span>}
+        {whoOf(item) && <Avatar who={item.who} />}
+        <span>{whoOf(item) ? <>{item.who} {where} {strong(item.where)}</> : strong(item.where)}</span>
+        {item.kind === 'to-task' && item.targetSession && <><Sep /><span>goes to {strong(item.targetSession.sessionDir)}</span></>}
+        {item.project && item.kind !== 'to-task' && <><Sep /><span>project {strong(item.project)}</span></>}
       </div>
-    </div>
+      {item.quote && <Quote text={item.quote} />}
+      {item.error && <div style={{ color: 'var(--red)' }}>{item.error}</div>}
+      {item.state === 'done' && outcome(item)}
+      <Actions>
+        {open && needsProject && <><ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />{go}</>}
+        <OpenLink href={item.link} label={`Open in ${sourceOf(item)}`} />
+        {open && <Btn label="Dismiss" style={ghostStyle} disabled={acting.busy} onClick={() => acting.act(item, 'dismiss')} />}
+      </Actions>
+    </Line>
   )
 }
 
-const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green' }
+const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green', reply: '--purple' }
 
-// one open item: what it is, where it lives, and Open task or Start, and Hide
-export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: ProjectList; acting: Acting; forge: PanelClient; compact?: boolean }> = ({ item, projects = EMPTY_PROJECTS, acting, forge, compact }) => {
+// one open item: Open task or Start as the primary button; Hide, Research and the link when it is opened
+export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: ProjectList; acting: Acting; forge: PanelClient }> = ({ item, projects = EMPTY_PROJECTS, acting, forge }) => {
   const [project, setProject] = useState(item.project ?? '')
   const token = PENDING_TOKEN[item.kind]
   const target = item.project ?? project
+  const slack = item.kind === 'reply'
+  const start = <Btn label={item.kind === 'review' ? 'Review' : 'Start'} disabled={acting.busy || !target} onClick={() => acting.startPending(item, item.project ? undefined : project)} />
+  // a task that needs a project is started from the opened row
+  const primary = item.targetSession ? (
+    <Btn label="Open task" onClick={() => forge.openSession(item.targetSession!.project, item.targetSession!.sessionDir)} />
+  ) : item.project ? start : null
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr auto', gap: '12px', alignItems: 'center', padding: compact ? '7px 10px' : '10px 12px', borderRadius: '11px', background: soft('--ink', 3), border: '1px solid var(--hair)' }}>
-      <SourceIcon source={item.source} />
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 560, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-          {item.issueKey && <span style={{ fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500 }}>{item.issueKey}</span>}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleFor(item)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '11.5px', color: 'var(--ink-2)', flexWrap: 'wrap' }}>
-          <span>{item.repo ? strong(item.repo) : null}{item.repo && item.state ? ' · ' : ''}{item.state}</span>
-          {(item.repo || item.state) && <Sep />}
-          <span>{ago(item.when)}</span>
-          {item.account && <><Sep /><AccountChip account={item.account} /></>}
-          <Sep />
-          <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>View in {SOURCE_LABEL[item.source]} ↗</a>
-          {item.project && <><Sep /><span>project {strong(item.project)}</span></>}
-        </div>
+    <Line source={item.source} keyText={item.issueKey} title={titleFor(item)} account={item.account} when={item.when} primary={primary}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px', whiteSpace: 'nowrap', color: `var(${token})`, background: soft(token, 15) }}>{slack ? 'Waiting on you' : item.kind === 'ci' ? 'CI failing' : item.kind === 'review' ? 'Review requested' : item.state}</span>
+        {slack ? <span>{item.who} in {strong(item.where ?? '')}</span> : <span>{item.repo ? strong(item.repo) : null}{item.repo && item.state ? ' · ' : ''}{item.state}</span>}
+        {item.project && <><Sep /><span>project {strong(item.project)}</span></>}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px', whiteSpace: 'nowrap', color: `var(${token})`, background: soft(token, 15) }}>{pendingLabel(item)}</span>
-        {item.targetSession ? (
-          <Btn label="Open task" onClick={() => forge.openSession(item.targetSession!.project, item.targetSession!.sessionDir)} />
-        ) : (
-          <>
-            {!item.project && <ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />}
-            <Btn label={item.kind === 'review' ? 'Review' : 'Start'} disabled={acting.busy || !target} onClick={() => acting.startPending(item, item.project ? undefined : project)} />
-          </>
-        )}
+      {item.quote && <Quote text={item.quote} />}
+      <Actions>
+        {!item.targetSession && !item.project && <><ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />{start}</>}
+        <OpenLink href={item.link} label={`Open in ${sourceOf(item)}`} />
+        {slack && !item.targetSession && <Btn label="Research" style={ghostStyle} disabled={acting.busy} onClick={() => acting.researchPending(item)} />}
         <Btn label="Hide" style={ghostStyle} disabled={acting.busy} onClick={() => acting.hidePending(item)} />
-      </div>
-    </div>
+      </Actions>
+    </Line>
+  )
+}
+
+// a filter pill with its count
+export function Pill({ label, n, on, token, onClick }: { label: string; n: number; on: boolean; token?: string; onClick: () => void }) {
+  const tint = token ?? '--blue'
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', font: 'inherit', fontSize: '11.5px', cursor: 'pointer', padding: '3px 9px', borderRadius: '20px', color: on ? 'var(--ink)' : 'var(--ink-2)', border: `1px solid ${on ? `var(${tint})` : 'var(--hair)'}`, background: on ? soft(tint, 15) : 'var(--elev)' }}>
+      {token && <i style={{ width: '7px', height: '7px', borderRadius: '50%', background: `var(${token})` }} />}
+      {label} · {n}
+    </button>
   )
 }
 
@@ -367,10 +407,12 @@ const READING_CSS = `
 @keyframes today-pulse { 0%, 100% { opacity: .55 } 50% { opacity: 1 } }
 .today-spin { animation: today-spin .8s linear infinite }
 .today-pulse { animation: today-pulse 1.4s ease-in-out infinite }
+.today-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; align-items: start }
+@media (max-width: 900px) { .today-cols { grid-template-columns: minmax(0, 1fr) } }
 @media (prefers-reduced-motion: reduce) { .today-spin, .today-pulse { animation: none } }`
 
 // the keyframes go into the page once, however many components use them
-function useReadingStyles() {
+export function useReadingStyles() {
   if (typeof document !== 'undefined' && !document.getElementById('today-reading-css')) {
     const el = document.createElement('style')
     el.id = 'today-reading-css'
@@ -434,6 +476,22 @@ export function ProblemRow({ group, acting, details = false }: { group: ProblemG
         </span>
       </div>
       {details && <ul style={{ margin: '6px 0 0 22px', padding: 0, color: 'var(--ink-3)', fontSize: '11.5px' }}>{group.reasons.map(r => <li key={r}>{r}</li>)}</ul>}
+    </div>
+  )
+}
+
+// notes as one muted line cut with an ellipsis; "details" lists them in full
+export function Notes({ notes }: { notes: string[] | undefined }) {
+  const [open, setOpen] = useState(false)
+  if (!notes?.length) return null
+  const short = tidyNotes(notes)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--ink-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', minWidth: 0 }}>
+        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{short.join(' · ')}</span>
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{ font: 'inherit', fontSize: '11.5px', padding: 0, border: 0, background: 'none', cursor: 'pointer', color: 'var(--ink-3)', flexShrink: 0 }}>{open ? 'Hide details' : 'Details'}</button>
+      </div>
+      {open && <ul style={{ margin: 0, paddingLeft: '18px' }}>{notes.map(n => <li key={n} style={{ overflowWrap: 'anywhere' }}>{n}</li>)}</ul>}
     </div>
   )
 }

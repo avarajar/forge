@@ -52,8 +52,15 @@ export const untrusted = (i: Item): boolean => !!i.manual || i.source === 'githu
 export const failedLine = (error: string) => `Last reading failed: ${error}`
 export const loadFailedLine = (error: string) => `Can't load Today: ${error}`
 
+const GH_SIGNED_OUT = 'GitHub: gh is not signed in (run gh auth login)'
+
+// a known gh sign-in error in one short sentence; other notes as they are, none twice
+export function tidyNotes(notes: string[]): string[] {
+  return [...new Set(notes.map(n => (/^github\b[^:]*:/i.test(n) && /gh auth login|GH_TOKEN/i.test(n) ? GH_SIGNED_OUT : n)))]
+}
+
 // problems that did not fail the reading, on one line
-export const notesLine = (notes: string[] | undefined) => (notes?.length ? notes.join(' · ') : null)
+export const notesLine = (notes: string[] | undefined) => (notes?.length ? tidyNotes(notes).join(' · ') : null)
 
 const SOURCE_NAME: Record<Problem['source'], string> = { slack: 'Slack', linear: 'Linear', reader: 'Reader' }
 
@@ -78,32 +85,6 @@ export const groupLine = (g: ProblemGroup) => `${g.account} · ${g.label} did no
 
 export const problemsLabel = (n: number) => `⚠ ${n} account problem${n === 1 ? '' : 's'}`
 
-const GROUPS: { title: string; pick: (i: Item) => boolean }[] = [
-  { title: 'In open tasks', pick: i => i.kind === 'to-task' },
-  { title: 'New', pick: i => i.kind === 'issue' || i.kind === 'request' },
-  { title: 'To review', pick: i => i.kind === 'review' },
-  { title: 'Researching', pick: i => i.kind === 'research' },
-]
-
-// live items by kind, then the dismissed ones
-export function sections(all: Item[]): { title: string; items: Item[] }[] {
-  const live = all.filter(i => i.state !== 'dismissed')
-  const groups = GROUPS.map(g => ({ title: g.title, items: live.filter(g.pick) }))
-  return [...groups, { title: 'Dismissed', items: all.filter(i => i.state === 'dismissed') }].filter(g => g.items.length > 0)
-}
-
-// the accounts that appear in items, in order of first appearance
-export const accountsOf = (items: Item[]): string[] => [...new Set(items.flatMap(i => (i.account ? [i.account] : [])))]
-
-// the page's groups: one block per account (items without one last) when there is more than one
-export function byAccount(items: Item[]): { account?: string; sections: ReturnType<typeof sections> }[] {
-  const accounts = accountsOf(items)
-  if (accounts.length < 2) return [{ sections: sections(items) }]
-  const blocks = accounts.map(account => ({ account, sections: sections(inAccount(items, account)) }))
-  const rest = items.filter(i => !i.account)
-  return rest.length ? [...blocks, { sections: sections(rest) }] : blocks
-}
-
 // a title without the issue key the row already shows as a chip
 export function titleFor(i: { title: string; issueKey?: string }): string {
   if (!i.issueKey) return i.title
@@ -120,21 +101,141 @@ export function whoOf(i: { who: string; source: Item['source'] }): string | null
   return !who || who.toLowerCase() === SOURCE_NAMES[i.source].toLowerCase() ? null : who
 }
 
-export const pendingLabel = (p: PendingItem): string => (p.kind === 'ci' ? 'CI failing' : p.kind === 'review' ? 'Review requested' : p.source === 'linear' ? (p.started ? 'In progress' : 'To do') : 'Assigned')
-
-// the pending items of one account when given, all otherwise
-export const pendingIn = (items: PendingItem[], account?: string): PendingItem[] => (account ? items.filter(p => p.account === account) : items)
-
-// the page's pending blocks: one per account (items without one last) when there is more than one
-export function pendingByAccount(items: PendingItem[]): { account?: string; items: PendingItem[] }[] {
-  const accounts = [...new Set(items.flatMap(p => (p.account ? [p.account] : [])))]
-  if (accounts.length < 2) return items.length ? [{ items }] : []
-  const blocks = accounts.map(account => ({ account, items: pendingIn(items, account) }))
-  const rest = items.filter(p => !p.account)
-  return rest.length ? [...blocks, { items: rest }] : blocks
-}
-
 export const CAPPED_NOTE = 'showing the latest 20'
 export const GITHUB_SEARCH = 'https://github.com/pulls/review-requested'
 export const PENDING_EMPTY = 'Nothing open — nice.'
 export const FIRST_READING_NOTE = 'First reading — what you have open is under Pending.'
+
+export type SourceName = Item['source']
+export interface Filters { account: string; source: '' | SourceName; query: string }
+export const NO_FILTERS: Filters = { account: '', source: '', query: '' }
+// the account filter value for items that have no account
+export const NO_ACCOUNT = '__none__'
+
+const SOURCE_IDS: SourceName[] = ['linear', 'slack', 'github']
+
+// the stored filters, tolerant of anything the browser kept before
+export function parseFilters(raw: string | null | undefined): Filters {
+  try {
+    const v: unknown = JSON.parse(raw ?? '')
+    if (!isRecord(v)) return NO_FILTERS
+    return {
+      account: typeof v.account === 'string' ? v.account : '',
+      source: SOURCE_IDS.includes(v.source as SourceName) ? (v.source as SourceName) : '',
+      query: typeof v.query === 'string' ? v.query : '',
+    }
+  } catch {
+    return NO_FILTERS
+  }
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+// what the search box looks at: title, key, who and where (a pull request's repository counts as where)
+interface Searchable { title: string; issueKey?: string; who?: string; where?: string; repo?: string; account?: string; source: SourceName }
+
+export function matchesQuery(x: Searchable, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return [x.title, x.issueKey, x.who, x.where, x.repo].some(f => !!f && f.toLowerCase().includes(q))
+}
+
+// each part of the filter on its own, so the pills can count what a click would show
+function passes(x: Searchable, f: Filters, skip?: 'account' | 'source'): boolean {
+  return (skip === 'account' || !f.account || (f.account === NO_ACCOUNT ? !x.account : x.account === f.account)) && (skip === 'source' || !f.source || x.source === f.source) && matchesQuery(x, f.query)
+}
+
+export const filterNews = (items: Item[], f: Filters): Item[] => items.filter(i => passes(i, f))
+export const filterPending = (items: PendingItem[], f: Filters): PendingItem[] => items.filter(p => passes(p, f))
+
+// news the page lists: everything but the dismissed, the ones still waiting first, then the latest first
+export function newsList(items: Item[]): Item[] {
+  const waiting = (i: Item) => (i.state === 'proposed' || i.state === 'failed' ? 0 : 1)
+  return items.filter(i => i.state !== 'dismissed').sort((a, b) => waiting(a) - waiting(b) || Date.parse(b.when) - Date.parse(a.when))
+}
+
+export interface Counts { total: number; accounts: Record<string, number>; noAccount: number; sources: Record<SourceName, number> }
+
+// counts for the pills: each pill row counts under the other filter and the search
+export function countFor(news: Item[], pending: PendingItem[], f: Filters): Counts {
+  const all: Searchable[] = [...news, ...pending]
+  const accounts: Record<string, number> = {}
+  let noAccount = 0
+  for (const x of all.filter(x => passes(x, f, 'account'))) {
+    if (x.account) accounts[x.account] = (accounts[x.account] ?? 0) + 1
+    else noAccount++
+  }
+  const sources: Record<SourceName, number> = { linear: 0, slack: 0, github: 0 }
+  for (const x of all.filter(x => passes(x, f, 'source'))) sources[x.source]++
+  // the account pills (with No account) add up to the same items as All
+  return { total: all.filter(x => passes(x, f, 'account')).length, accounts, noAccount, sources }
+}
+
+export interface PendingGroup { id: string; title: string; items: PendingItem[]; folded: boolean }
+
+const PENDING_GROUPS: { id: string; title: string; pick: (p: PendingItem) => boolean; folded?: boolean }[] = [
+  { id: 'ci', title: 'CI failing', pick: p => p.kind === 'ci' },
+  { id: 'slack', title: 'Slack waiting on you', pick: p => p.kind === 'reply' },
+  { id: 'review', title: 'Review requests', pick: p => p.kind === 'review' },
+  { id: 'progress', title: 'Linear in progress', pick: p => p.source === 'linear' && !!p.started },
+  { id: 'issues', title: 'Issues assigned', pick: p => p.source === 'github' && p.kind === 'issue' },
+  { id: 'todo', title: 'Linear to do', pick: p => p.source === 'linear' && !p.started, folded: true },
+]
+
+// the non-empty pending groups in the page's order, each keeping the order it came in
+export function groupPending(items: PendingItem[]): PendingGroup[] {
+  return PENDING_GROUPS.map(g => ({ id: g.id, title: g.title, folded: !!g.folded, items: items.filter(g.pick) })).filter(g => g.items.length > 0)
+}
+
+// a group is folded unless the person opened it, or folded when the page would have it so
+export const isGroupFolded = (g: { id: string; folded: boolean }, saved: Record<string, boolean>): boolean => saved[g.id] ?? g.folded
+
+// "5 min", "3 h", "2 d": one short unit for a row
+export function ageShort(iso: string, now = new Date()): string {
+  const min = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 60_000))
+  if (Number.isNaN(min)) return ''
+  if (min < 1) return 'now'
+  if (min < 60) return `${min}m`
+  if (min < 48 * 60) return `${Math.round(min / 60)}h`
+  return `${Math.round(min / 1440)}d`
+}
+
+// a link the page may open: http(s) only
+export const safeHref = (link: string): string | undefined => (/^https?:\/\//i.test(link) ? link : undefined)
+
+const isOpenNews = (i: Item) => i.state === 'proposed' || i.state === 'failed'
+
+// the banner's one line: new items waiting, open work and what is urgent in it
+export function bannerSummary(news: Item[], pending: PendingItem[]): { fresh: number; pending: number; ci: number; slack: number } {
+  return { fresh: news.filter(isOpenNews).length, pending: pending.length, ci: pending.filter(p => p.kind === 'ci').length, slack: pending.filter(p => p.kind === 'reply').length }
+}
+
+export function summaryText(s: ReturnType<typeof bannerSummary>): string {
+  const urgent = [s.ci ? `${s.ci} CI` : '', s.slack ? `${s.slack} Slack` : ''].filter(Boolean).join(' · ')
+  return `${s.fresh} new · ${s.pending} pending${urgent ? ` (${urgent})` : ''}`
+}
+
+export type Urgent = { kind: 'pending'; item: PendingItem } | { kind: 'news'; item: Item }
+
+// at most `max` rows for the banner: failing CI, then Slack waiting on you; when news waits, pending leaves room (two rows) so the newest news shows
+export function urgentRows(news: Item[], pending: PendingItem[], max = 3): Urgent[] {
+  const open = newsList(news).filter(isOpenNews)
+  const urgent = [...pending.filter(p => p.kind === 'ci'), ...pending.filter(p => p.kind === 'reply')]
+  const first = urgent.slice(0, open.length ? Math.max(1, max - 1) : max).map(item => ({ kind: 'pending' as const, item }))
+  return [...first, ...open.slice(0, max - first.length).map(item => ({ kind: 'news' as const, item }))]
+}
+
+// the news a click on Accept would start or send: open items that have what they need
+export const acceptable = (news: Item[]): Item[] => news.filter(i => i.state === 'proposed' && opFor(i))
+
+// a Slack link is on slack.com or one of its subdomains, over http(s)
+export function isSlackLink(link: string): boolean {
+  try {
+    const u = new URL(link)
+    return (u.protocol === 'https:' || u.protocol === 'http:') && /(^|\.)slack\.com$/i.test(u.hostname)
+  } catch {
+    return false
+  }
+}

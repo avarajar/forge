@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { accountToken, dayLabel, dayName, readLine, foldedNow, isToday, shortDay } from './rows'
-import { pendingByAccount, titleFor, whoOf, byAccount, failedLine, notesLine, opFor, groupLine, groupProblems, problemsLabel, projectsFor } from './ops'
+import { titleFor, whoOf, failedLine, notesLine, opFor, groupLine, groupProblems, problemsLabel, projectsFor } from './ops'
 import type { Digest, Item, PendingItem } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
@@ -50,6 +50,7 @@ describe('reading lines', () => {
   it('a failure says the reading failed and notes are listed as they are', () => {
     expect(failedLine('boom')).toBe('Last reading failed: boom')
     expect(notesLine(['GitHub: gh is not signed in', 'x'])).toBe('GitHub: gh is not signed in · x')
+    expect(notesLine(['GitHub: To get started with GitHub CLI, please run: gh auth login', 'GitHub pending: To get started with GitHub CLI, please run: gh auth login'])).toBe('GitHub: gh is not signed in (run gh auth login)')
     expect(notesLine(undefined)).toBeNull()
     expect(notesLine([])).toBeNull()
   })
@@ -70,13 +71,6 @@ describe('accounts in the views', () => {
   it('an account always gets the same theme token', () => {
     expect(accountToken('monoku')).toBe(accountToken('monoku'))
     expect(['--blue', '--purple', '--orange', '--green', '--teal']).toContain(accountToken('meridian'))
-  })
-
-  it('the page groups by account, then kind, only when there are two or more', () => {
-    expect(byAccount([at('a'), at('a', 'research')])).toEqual([{ sections: expect.any(Array) }])
-    const blocks = byAccount([at('a'), at('b', 'research'), at(undefined)])
-    expect(blocks.map(b => b.account)).toEqual(['a', 'b', undefined])
-    expect(blocks[1].sections.map(s => s.title)).toEqual(['Researching'])
   })
 
   it('the project picker lists the item\'s account and unowned projects', () => {
@@ -131,19 +125,5 @@ describe('window and day names', () => {
 
   it('shows the day as weekday and number', () => {
     expect(dayName('2026-11-16')).toBe('Monday 16')
-  })
-})
-
-describe('pendingByAccount', () => {
-  const p = (id: string, account?: string) => ({ id, account }) as PendingItem
-
-  it('is one block for a single account and empty for nothing', () => {
-    expect(pendingByAccount([])).toEqual([])
-    expect(pendingByAccount([p('a', 'monoku'), p('b')])).toEqual([{ items: [p('a', 'monoku'), p('b')] }])
-  })
-
-  it('splits by account with the unowned ones last', () => {
-    const blocks = pendingByAccount([p('a', 'monoku'), p('b'), p('c', 'meridian'), p('d', 'monoku')])
-    expect(blocks.map(b => [b.account, b.items.map(i => i.id)])).toEqual([['monoku', ['a', 'd']], ['meridian', ['c']], [undefined, ['b']]])
   })
 })
