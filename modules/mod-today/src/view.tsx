@@ -3,7 +3,8 @@ import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import { acceptable, CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupProblems, inboxGroups, loadFailedLine, newsList, NO_ACCOUNT, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
 import { Inbox } from './inbox'
-import { accountToken, Btn, dayName, Pill, Notes, primaryStyle, ProblemRow, readLine, ReadingLine, SkeletonRows, takeStartDay, useActing, useDigest, useFilters, useFolds, useLastSeen, useProjects, useReadingStyles } from './rows'
+import { Triage } from './triage'
+import { accountToken, Btn, dayName, Pill, Notes, primaryStyle, ProblemRow, readLine, ReadingLine, SkeletonRows, takeStartDay, useActing, useDigest, useFilters, useFolds, useLastSeen, useProjects, useReadingStyles, useTriage } from './rows'
 
 const SOURCES: { id: SourceName; label: string }[] = [{ id: 'linear', label: 'Linear' }, { id: 'slack', label: 'Slack' }, { id: 'github', label: 'GitHub' }]
 
@@ -41,6 +42,11 @@ function View({ forge }: PanelProps) {
   const groups = inboxGroups(news, pending)
   const lastSeen = useLastSeen()
   const search = useRef<HTMLInputElement>(null)
+  // the triage sees everything, whatever the filters
+  const allGroups = inboxGroups(allNews, allPending)
+  const [triage, setTriage] = useState(() => takeStartDay())
+  const [decided, decide, resetDecisions] = useTriage(digest?.date)
+  const toSort = allGroups.filter(g => g.id === 'needs' || g.id === 'progress').reduce((n, g) => n + g.entries.length, 0)
 
   useEffect(() => {
     forge.route<{ days: string[] }>('/days').then(r => setDays(r.days), () => {})
@@ -61,6 +67,7 @@ function View({ forge }: PanelProps) {
           ) : digest ? ` · ${dayName(digest.date)}` : null}
         </b>
         <span style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+          {enabled && digest && toSort > 0 && <ActionButton label="Start the day" variant="secondary" size="sm" onClick={() => setTriage(true)} />}
           {enabled && <ActionButton label={isReading ? 'Reading…' : 'Refresh'} variant="primary" size="sm" disabled={isReading} loading={isReading} onClick={acting.refresh} />}
           {reply && <ActionButton label={enabled ? 'Turn off' : 'Turn on'} variant={enabled ? 'secondary' : 'primary'} size="sm" disabled={acting.busy} onClick={async () => { await acting.run(() => forge.action(enabled ? 'disable' : 'enable')) }} />}
         </span>
@@ -106,7 +113,7 @@ function View({ forge }: PanelProps) {
             projects={projects}
             acting={acting}
             lastSeen={lastSeen}
-            keys
+            keys={!triage}
             focusSearch={() => search.current?.focus()}
             clearSearch={() => { set({ query: '' }); search.current?.blur() }}
             empty={filtered && everything.length > 0 ? 'Nothing matches.' : reply?.firstReading ? FIRST_READING_NOTE : PENDING_EMPTY}
@@ -132,6 +139,7 @@ function View({ forge }: PanelProps) {
           />
         </>
       )}
+      {triage && digest && <Triage forge={forge} groups={allGroups} done={decided} decide={decide} reset={resetDecisions} projects={projects} acting={acting} onClose={() => setTriage(false)} />}
     </div>
   )
 }

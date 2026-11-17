@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- Today: the page is an inbox. A list on the left (Needs you, In progress, To do, Updates, with unread dots) and the selected item on the right: the Slack thread or the Linear description and latest comment, the failing checks for GitHub, and the same actions as before. Keys: arrows or j/k, Enter opens the link, S starts, H hides, R researches, / or Cmd+F searches. Under 900px it shows the list, then the item with a Back button.
+- Today: Start the day, from the page or the banner, goes through what needs you one card at a time (S start, O open, L later, H hide) with progress kept for the day.
+
 ## 0.1.29 (2026-11-17)
 
 ### Added

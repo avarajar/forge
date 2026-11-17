@@ -486,6 +486,7 @@ const READING_CSS = `
   .today-list { border-right: 0 }
   .today-inbox[data-open="true"] .today-list, .today-inbox[data-open="false"] .today-detail { display: none }
   .today-back { display: inline-block }
+  .today-triage { grid-template-columns: minmax(0, 1fr) !important }
 }
 @keyframes today-slide { from { opacity: 0; transform: translateX(28px) } to { opacity: 1; transform: none } }
 .today-slide { animation: today-slide .22s var(--ease) }
