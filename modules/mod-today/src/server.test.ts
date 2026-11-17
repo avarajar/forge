@@ -3,7 +3,7 @@ import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import server from './server'
 import * as github from './github'
 
-vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })) }))
+vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })), fetchPending: vi.fn(async () => ({ items: [] })) }))
 
 beforeEach(() => vi.clearAllMocks())
 
