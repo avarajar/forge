@@ -60,14 +60,17 @@ function PendingFold({ pending, projects, acting, forge }: { pending: PendingIte
 }
 
 // the one-line states: a title, what follows it, and the buttons at the end
-function Strip({ title, children, actions }: { title: string; children?: ComponentChildren; actions: ComponentChildren }) {
+function Strip({ title, children, actions, below }: { title: string; children?: ComponentChildren; actions: ComponentChildren; below?: ComponentChildren }) {
   return shell(
+    <>
     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 16px', fontSize: '12.5px', color: 'var(--ink-2)' }}>
       <span style={{ color: 'var(--orange)' }}>☀︎</span>
       <b style={{ color: 'var(--ink)', fontWeight: 600 }}>{title}</b>
       {children}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>{actions}</span>
-    </div>,
+    </div>
+    {below && <div style={{ padding: '0 16px 10px' }}>{below}</div>}
+    </>,
   )
 }
 
@@ -77,7 +80,7 @@ function Banner({ forge }: PanelProps) {
   const [chosen, choose] = useAccountFilter()
   const digest = reply?.digest
   const allPending = reply?.pending ?? []
-  const pendingText = allPending.length ? ` · ${allPending.length} pending` : ''
+  const pendingText = (list: PendingItem[]) => (list.length ? ` · ${list.length} pending` : '')
   const acting = useActing(forge, digest?.date, reload, hurry)
   const reading = reply?.reading
   const isReading = acting.refreshing || !!reading
@@ -116,8 +119,8 @@ function Banner({ forge }: PanelProps) {
   }
   if (!reply || !digest || digest.items.length === 0) {
     return (
-      <Strip title={reply && !digest ? 'Not read yet' : shortDay(new Date(), digest?.date)} actions={refreshBtn}>
-        {!reply ? failure(loadFailedLine(error!)) : digest?.error ? failure(failedLine(digest.error)) : digest && <span>· {reply.firstReading ? FIRST_READING_NOTE : `nothing new since ${clock(new Date(digest.readAt))}`}{pendingText}</span>}
+      <Strip title={reply && !digest ? 'Not read yet' : shortDay(new Date(), digest?.date)} actions={refreshBtn} below={reply && <PendingFold pending={allPending} projects={projects} acting={acting} forge={forge} />}>
+        {!reply ? failure(loadFailedLine(error!)) : digest?.error ? failure(failedLine(digest.error)) : digest && <span>· {reply.firstReading ? FIRST_READING_NOTE : `nothing new since ${clock(new Date(digest.readAt))}`}{pendingText(allPending)}</span>}
         {problemsLink}
         {note}
       </Strip>
@@ -135,8 +138,8 @@ function Banner({ forge }: PanelProps) {
 
   if (folded) {
     return (
-      <Strip title={shortDay(new Date(), digest.date)} actions={<>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></>}>
-        <span>· {done(items, startsTask)} started · {done(items, k => k === 'research')} researching · {done(items, k => k === 'to-task')} sent{pendingText}</span>
+      <Strip title={shortDay(new Date(), digest.date)} actions={<>{refreshBtn}<Btn label="See all →" style={ghostStyle} onClick={() => forge.openPage()} /></>} below={<PendingFold pending={pendingIn(allPending, account)} projects={projects} acting={acting} forge={forge} />}>
+        <span>· {done(items, startsTask)} started · {done(items, k => k === 'research')} researching · {done(items, k => k === 'to-task')} sent{pendingText(pendingIn(allPending, account))}</span>
         {digest.error && failure(failedLine(digest.error))}
         {problemsLink}
         {note}

@@ -135,7 +135,7 @@ async function readOne(ctx: ForgeContext, account: string, o: Parameters<typeof 
 }
 
 // notes collects problems that do not fail the reading
-interface Reread { items: Item[]; problems: Problem[]; requested?: Set<string>; accounts: string[]; pending: Record<string, PendingItem[] | undefined> }
+interface Reread { items: Item[]; problems: Problem[]; requested?: Set<string>; accounts: string[]; pending: Record<string, PendingItem[] | undefined>; githubCapped?: boolean }
 
 // a GitHub item belongs to the project named like its repository, and that project's account
 function placeGithub(items: PendingItem[], projects: { name: string }[], owners: Record<string, string>): PendingItem[] {
@@ -170,7 +170,8 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Re
   const requested = gh.error ? undefined : new Set(gh.requested ?? gh.items.filter(e => e.type === 'review-request').map(e => e.pr))
   const pending: Reread['pending'] = Object.fromEntries(results.map(r => [r.account, r.pending]))
   pending.github = gp.error ? undefined : placeGithub(gp.items, projects, owners)
-  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems), requested, accounts, pending }
+  if (gp.error) notes.push(`GitHub pending: ${gp.error}`)
+  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems), requested, accounts, pending, githubCapped: gp.error ? undefined : !!gp.capped }
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -202,9 +203,13 @@ async function allPending(ctx: ForgeContext): Promise<PendingItem[]> {
 
 // what is open now and not hidden, in order; a hidden one returns when its date changes
 export async function pendingNow(ctx: ForgeContext): Promise<PendingItem[]> {
-  const [all, hidden] = await Promise.all([allPending(ctx), hiddenOf(ctx)])
-  return sortPending(all.filter(p => hidden[p.id] !== p.when))
+  const [all, hidden, started] = await Promise.all([allPending(ctx), hiddenOf(ctx), startedOf(ctx)])
+  // a started item shows Open task once its session exists
+  return sortPending(all.filter(p => hidden[p.id] !== p.when).map(p => (started[p.id] && !p.targetSession ? { ...p, targetSession: started[p.id] } : p)))
 }
+
+type Session = { project: string; sessionDir: string }
+const startedOf = async (ctx: ForgeContext) => (await ctx.storage.get<Record<string, Session>>('pendingStarted')) ?? {}
 
 // hidden ids of items that are gone are forgotten
 async function pruneHidden(ctx: ForgeContext): Promise<void> {
@@ -212,6 +217,9 @@ async function pruneHidden(ctx: ForgeContext): Promise<void> {
   const ids = new Set(all.map(p => p.id))
   const next = Object.fromEntries(Object.entries(hidden).filter(([id]) => ids.has(id)))
   if (Object.keys(next).length !== Object.keys(hidden).length) await ctx.storage.set('pendingHidden', next)
+  const started = await startedOf(ctx)
+  const keep = Object.fromEntries(Object.entries(started).filter(([id]) => ids.has(id)))
+  if (Object.keys(keep).length !== Object.keys(started).length) await ctx.storage.set('pendingStarted', keep)
 }
 
 // drops proposed reviews whose pull request is no longer asked of me
@@ -260,7 +268,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   const date = localDate(now)
   const notes: string[] = []
   try {
-    const { items: fresh, problems, requested, accounts, pending } = await reread(ctx, now, notes)
+    const { items: fresh, problems, requested, accounts, pending, githubCapped } = await reread(ctx, now, notes)
     const lastReadAt = await ctx.storage.get<string>('lastReadAt')
     await locked(async () => {
       const prev = await loadDigest(ctx, date)
@@ -280,6 +288,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
         ...(problems.length ? { problems } : {}),
       })
       await savePending(ctx, pending, accounts)
+      if (githubCapped !== undefined) await ctx.storage.set('pendingCapped', githubCapped)
       await pruneHidden(ctx)
       await rememberHandled(ctx, fresh, now)
       await ctx.storage.set('lastReadAt', now.toISOString())
@@ -562,7 +571,7 @@ export function hidePending(ctx: ForgeContext, id: string): Promise<PendingItem[
 
 const pendingInFlight = new Set<string>()
 
-// starts a task for a pending item the person chose: a review for a review request, work for the rest; it never starts on its own
+// starts a task for a pending item the person chose: a review for a review request, work for the rest; it never starts on its own and the item then offers Open task
 export async function startPending(ctx: ForgeContext, id: string, project?: string): Promise<{ session: { project: string; sessionDir: string } }> {
   if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
   const item = await locked(async () => {
@@ -580,7 +589,7 @@ export async function startPending(ctx: ForgeContext, id: string, project?: stri
     const url = githubPage(item.link) ?? item.link
     const input = { type: item.kind === 'review' ? ('review' as const) : ('work' as const), project: target, task: url, ...(account ? { account } : {}) }
     const session = await ctx.cw.start(input)
-    await locked(async () => ctx.storage.set('pendingHidden', { ...(await hiddenOf(ctx)), [id]: item.when }))
+    await locked(async () => ctx.storage.set('pendingStarted', { ...(await startedOf(ctx)), [id]: session }))
     return { session }
   } finally {
     pendingInFlight.delete(id)

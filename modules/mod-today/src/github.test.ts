@@ -192,3 +192,13 @@ describe('fetchPending', () => {
     expect(error).toMatch(/could not be checked/)
   })
 })
+
+describe('fetchPending cap', () => {
+  const NOW = new Date('2026-11-16T12:00:00Z')
+  const many = Array.from({ length: 20 }, (_, n) => ({ number: n + 1, title: `t${n}`, url: `https://github.com/o/r/issues/${n + 1}`, repository: repo, updatedAt: '2026-11-15T03:00:00Z' }))
+
+  it('says so when a search hit its limit, and not otherwise', async () => {
+    expect((await fetchPending(stub({ 'search issues': ok(many) }).ctx, NOW)).capped).toBe(true)
+    expect((await fetchPending(stub().ctx, NOW)).capped).toBeUndefined()
+  })
+})

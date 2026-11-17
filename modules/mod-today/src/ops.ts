@@ -134,5 +134,7 @@ export function pendingByAccount(items: PendingItem[]): { account?: string; item
   return rest.length ? [...blocks, { items: rest }] : blocks
 }
 
+export const CAPPED_NOTE = 'showing the latest 20'
+export const GITHUB_SEARCH = 'https://github.com/pulls/review-requested'
 export const PENDING_EMPTY = 'Nothing open — nice.'
 export const FIRST_READING_NOTE = 'First reading — what you have open is under Pending.'

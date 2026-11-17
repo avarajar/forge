@@ -130,11 +130,12 @@ describe('start', () => {
     return s
   }
 
-  it('a review request starts cw review on the pull request and then hides', async () => {
+  it('a review request starts cw review on the pull request and then offers Open task', async () => {
     const s = await withGithub(gh())
     await startPending(s.ctx, 'g1', 'forge')
     expect(s.start).toHaveBeenCalledWith({ type: 'review', project: 'forge', task: 'https://github.com/o/forge/pull/9' })
-    expect(await pendingNow(s.ctx)).toEqual([])
+    // it stays, now offering Open task
+    expect((await pendingNow(s.ctx))[0].targetSession).toEqual({ project: 'forge', sessionDir: 'task-1' })
   })
 
   it('an issue and failing CI start cw work on the link', async () => {
@@ -212,5 +213,29 @@ describe('reply and window', () => {
 describe('actions', () => {
   it('pending-start and pending-hide are local actions', () => {
     for (const id of ['pending-start', 'pending-hide']) expect(server.actions!.find(a => a.id === id)).toMatchObject({ effect: 'local' })
+  })
+})
+
+describe('github pending problems', () => {
+  it('a failed GitHub pending read is noted and keeps the snapshot', async () => {
+    vi.mocked(github.fetchPending).mockResolvedValue({ items: [gh()] })
+    const s = stub(out([]))
+    await readNow(s.ctx, NOW)
+    vi.mocked(github.fetchPending).mockResolvedValue({ items: [], error: 'gh down' })
+    await readNow(s.ctx, new Date(2026, 10, 16, 10))
+    expect(digestOf(s).notes).toContain('GitHub pending: gh down')
+    expect(await pendingNow(s.ctx)).toHaveLength(1)
+  })
+
+  it('the reply says when a GitHub list hit its limit', async () => {
+    const route = server.routes!.find(r => r.path === '/digest')!
+    const get = (c: ForgeContext) => route.handler({ params: {}, query: {}, body: undefined }, c) as Promise<{ pendingCapped: boolean }>
+    vi.mocked(github.fetchPending).mockResolvedValue({ items: [gh()], capped: true })
+    const s = stub(out([]))
+    await readNow(s.ctx, NOW)
+    expect((await get(s.ctx)).pendingCapped).toBe(true)
+    vi.mocked(github.fetchPending).mockResolvedValue({ items: [] })
+    await readNow(s.ctx, new Date(2026, 10, 16, 10))
+    expect((await get(s.ctx)).pendingCapped).toBe(false)
   })
 })

@@ -148,7 +148,7 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
 }
 
 // what is open on GitHub now: review requests asked of me, my pull requests with failing checks, issues assigned to me; any gh failure is an error and no items
-export async function fetchPending(ctx: ForgeContext, now: Date, deadlineMs = DEADLINE_MS): Promise<{ items: PendingItem[]; error?: string }> {
+export async function fetchPending(ctx: ForgeContext, now: Date, deadlineMs = DEADLINE_MS): Promise<{ items: PendingItem[]; error?: string; capped?: boolean }> {
   try {
     const search = (flag: string, kind = 'prs') => gh<Found[]>(ctx, ['search', kind, flag, '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
     const [mine, asked, issues] = await Promise.all([search('--author=@me'), search('user-review-requested:@me'), search('--assignee=@me', 'issues')])
@@ -183,7 +183,9 @@ export async function fetchPending(ctx: ForgeContext, now: Date, deadlineMs = DE
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, prs.length) }, worker))
     // a partial snapshot would drop work that is still open, so the previous one stays
     if (unread) return { items: [], error: `${unread} pull request${unread === 1 ? '' : 's'} could not be checked` }
-    return { items }
+    // a search that hit its limit may hide older open work
+    const capped = mine.length >= MAX_PRS || asked.length >= MAX_PRS || issues.length >= MAX_PRS
+    return { items, ...(capped ? { capped: true } : {}) }
   } catch (e) {
     return { items: [], error: errorMessage(e) }
   }

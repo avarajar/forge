@@ -35,7 +35,8 @@ async function digestFor(ctx: ForgeContext, date: string | undefined) {
   const enabled = await isEnabled(ctx)
   const reading = readingNow()
   const pending = await pendingNow(ctx)
-  return { ...(digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }), pending, firstReading: digest?.firstReading === true, ...(reading ? { reading } : {}) }
+  const pendingCapped = (await ctx.storage.get<boolean>('pendingCapped')) === true
+  return { ...(digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }), pending, pendingCapped, firstReading: digest?.firstReading === true, ...(reading ? { reading } : {}) }
 }
 
 export default defineModule({

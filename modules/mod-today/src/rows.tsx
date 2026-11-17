@@ -8,7 +8,7 @@ import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, pendingLabel, projectsF
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
 export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<void>; hidePending: (item: PendingItem) => Promise<void> }
 
-export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading; pending?: PendingItem[]; firstReading?: boolean }
+export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading; pending?: PendingItem[]; pendingCapped?: boolean; firstReading?: boolean }
 
 export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']

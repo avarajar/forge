@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { byAccount, failedLine, FIRST_READING_NOTE, groupProblems, loadFailedLine, notesLine, PENDING_EMPTY, pendingByAccount } from './ops'
+import { byAccount, CAPPED_NOTE, GITHUB_SEARCH, failedLine, FIRST_READING_NOTE, groupProblems, loadFailedLine, notesLine, PENDING_EMPTY, pendingByAccount } from './ops'
 import { AccountChip, dayLabel, dayName, ProblemRow, readLine, ReadingLine, PendingRow, Row, SkeletonRows, useActing, useDigest, useProjects } from './rows'
 
 const heading = { margin: '4px 0 0', fontSize: '13px', fontWeight: 650, letterSpacing: '-.01em' }
@@ -87,7 +87,7 @@ function View({ forge }: PanelProps) {
             ))}
           </section>
           <section style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <h3 style={heading}>Pending · {pending.length}</h3>
+            <h3 style={heading}>Pending · {pending.length}{reply?.pendingCapped && <span style={{ fontWeight: 400, fontSize: '11.5px', color: 'var(--ink-3)' }}> · {CAPPED_NOTE} — <a href={GITHUB_SEARCH} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>see GitHub</a></span>}</h3>
             {pending.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>{PENDING_EMPTY}</div>}
             {pendingByAccount(pending).map(({ account, items }) => (
               <div key={account ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
