@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { showToast } from '@forge-dev/ui'
 import type { PanelClient } from '@forge-dev/sdk'
-import type { Digest, Item, Kind, Op, Reading } from './digest'
-import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, projectsFor, startsTask, titleFor, whoOf, type ProblemGroup, type ProjectList } from './ops'
+import type { Digest, Item, Kind, Op, PendingItem, Reading } from './digest'
+import { EMPTY_PROJECTS, errorMessage, groupLine, opFor, pendingLabel, projectsFor, startsTask, titleFor, whoOf, type ProblemGroup, type ProjectList } from './ops'
 
 export type OnAct = (item: Item, op: Op, project?: string) => Promise<void>
-export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void> }
+export interface Acting { busy: boolean; refreshing: boolean; retrying: string | null; retry: (account: string) => Promise<void>; reconnect: (account: string) => Promise<void>; run: (fn: () => Promise<unknown>) => Promise<void>; act: OnAct; refresh: () => Promise<void>; startPending: (item: PendingItem, project?: string) => Promise<void>; hidePending: (item: PendingItem) => Promise<void> }
 
-export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading }
+export interface DigestReply { digest: Digest | null; folded: boolean; enabled: boolean; reading?: Reading; pending?: PendingItem[]; firstReading?: boolean }
 
 export const soft = (token: string, pct: number) => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
 const AVATARS = ['--blue', '--purple', '--orange', '--green', '--teal', '--red']
@@ -114,6 +114,12 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
   const act: OnAct = (item, op, project) => run(async () => {
     if (date) await forge.action(op, { date, id: item.id, ...(project ? { project } : {}) })
   })
+  const startPending = (item: PendingItem, project?: string) => run(async () => {
+    await forge.action('pending-start', { id: item.id, ...(project ? { project } : {}) })
+  })
+  const hidePending = (item: PendingItem) => run(async () => {
+    await forge.action('pending-hide', { id: item.id })
+  })
   const refresh = async () => {
     if (reading.current) return
     reading.current = true
@@ -139,7 +145,7 @@ export function useActing(forge: PanelClient, date: string | undefined, reload: 
     const s = await forge.action<{ project: string; sessionDir: string }>('reconnect', { account })
     if (s) forge.openSession(s.project, s.sessionDir)
   })
-  return { busy, refreshing, retrying, retry, reconnect, run, act, refresh }
+  return { busy, refreshing, retrying, retry, reconnect, run, act, refresh, startPending, hidePending }
 }
 
 function dayOf(date: string): Date {
@@ -309,6 +315,47 @@ export const Row: FunctionComponent<{ item: Item; projects?: ProjectList; acting
         {item.state === 'done' && outcome(item)}
         {item.state === 'done' && item.startedSession && <Btn label="Open session" onClick={() => forge.openSession(item.startedSession!.project, item.startedSession!.sessionDir)} />}
         {item.state === 'dismissed' && <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>Dismissed</span>}
+      </div>
+    </div>
+  )
+}
+
+const PENDING_TOKEN: Record<PendingItem['kind'], string> = { ci: '--red', review: '--blue', issue: '--green' }
+
+// one open item: what it is, where it lives, and Open task or Start, and Hide
+export const PendingRow: FunctionComponent<{ item: PendingItem; projects?: ProjectList; acting: Acting; forge: PanelClient; compact?: boolean }> = ({ item, projects = EMPTY_PROJECTS, acting, forge, compact }) => {
+  const [project, setProject] = useState(item.project ?? '')
+  const token = PENDING_TOKEN[item.kind]
+  const target = item.project ?? project
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr auto', gap: '12px', alignItems: 'center', padding: compact ? '7px 10px' : '10px 12px', borderRadius: '11px', background: soft('--ink', 3), border: '1px solid var(--hair)' }}>
+      <SourceIcon source={item.source} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 560, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          {item.issueKey && <span style={{ fontFamily: 'var(--mono, ui-monospace, monospace)', fontSize: '11.5px', color: 'var(--ink-2)', fontWeight: 500 }}>{item.issueKey}</span>}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleFor(item)}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', fontSize: '11.5px', color: 'var(--ink-2)', flexWrap: 'wrap' }}>
+          <span>{item.repo ? strong(item.repo) : null}{item.repo && item.state ? ' · ' : ''}{item.state}</span>
+          {(item.repo || item.state) && <Sep />}
+          <span>{ago(item.when)}</span>
+          {item.account && <><Sep /><AccountChip account={item.account} /></>}
+          <Sep />
+          <a href={item.link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--ink-2)', textDecoration: 'none', borderBottom: '1px dotted var(--ink-3)' }}>View in {SOURCE_LABEL[item.source]} ↗</a>
+          {item.project && <><Sep /><span>project {strong(item.project)}</span></>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '10.5px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px', whiteSpace: 'nowrap', color: `var(${token})`, background: soft(token, 15) }}>{pendingLabel(item)}</span>
+        {item.targetSession ? (
+          <Btn label="Open task" onClick={() => forge.openSession(item.targetSession!.project, item.targetSession!.sessionDir)} />
+        ) : (
+          <>
+            {!item.project && <ProjectPicker projects={projectsFor(projects, item.account)} value={project} onChange={setProject} />}
+            <Btn label={item.kind === 'review' ? 'Review' : 'Start'} disabled={acting.busy || !target} onClick={() => acting.startPending(item, item.project ? undefined : project)} />
+          </>
+        )}
+        <Btn label="Hide" style={ghostStyle} disabled={acting.busy} onClick={() => acting.hidePending(item)} />
       </div>
     </div>
   )

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { byAccount, failedLine, groupProblems, loadFailedLine, notesLine } from './ops'
-import { AccountChip, dayLabel, dayName, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useProjects } from './rows'
+import { byAccount, failedLine, FIRST_READING_NOTE, groupProblems, loadFailedLine, notesLine, PENDING_EMPTY, pendingByAccount } from './ops'
+import { AccountChip, dayLabel, dayName, ProblemRow, readLine, ReadingLine, PendingRow, Row, SkeletonRows, useActing, useDigest, useProjects } from './rows'
+
+const heading = { margin: '4px 0 0', fontSize: '13px', fontWeight: 650, letterSpacing: '-.01em' }
+const subheading = { margin: '4px 0', fontSize: '11px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' as const, color: 'var(--ink-3)' }
 
 function View({ forge }: PanelProps) {
   const [days, setDays] = useState<string[]>([])
@@ -17,6 +20,8 @@ function View({ forge }: PanelProps) {
   const problems = groupProblems(digest?.problems ?? [])
   const notes = notesLine(digest?.notes)
   const enabled = reply?.enabled === true
+  const pending = reply?.pending ?? []
+  const liveNews = (digest?.items ?? []).filter(i => i.state !== 'dismissed').length
 
   useEffect(() => {
     forge.route<{ days: string[] }>('/days').then(r => setDays(r.days), () => {})
@@ -62,20 +67,36 @@ function View({ forge }: PanelProps) {
 
       {!digest && isReading ? (
         <SkeletonRows />
-      ) : !digest || digest.items.length === 0 ? (
+      ) : !digest ? (
         <EmptyState title="Nothing to show" description={enabled ? 'Today reads your Linear, Slack and GitHub once a day. Use Read now to read them now.' : 'Turn Today on to read your Linear, Slack and GitHub.'} />
       ) : (
-        byAccount(digest.items).map(({ account, sections }) => (
-          <div key={account ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {account && <div><AccountChip account={account} /></div>}
-            {sections.map(({ title, items }) => (
-              <section key={title} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <h4 style={{ margin: '4px 0', fontSize: '11px', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-3)' }}>{title} · {items.length}</h4>
-                {items.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
-              </section>
+        <>
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={heading}>News · {liveNews}</h3>
+            {digest.items.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>{reply?.firstReading ? FIRST_READING_NOTE : 'Nothing new.'}</div>}
+            {byAccount(digest.items).map(({ account, sections }) => (
+              <div key={account ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {account && <div><AccountChip account={account} /></div>}
+                {sections.map(({ title, items }) => (
+                  <section key={title} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <h4 style={subheading}>{title} · {items.length}</h4>
+                    {items.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
+                  </section>
+                ))}
+              </div>
             ))}
-          </div>
-        ))
+          </section>
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <h3 style={heading}>Pending · {pending.length}</h3>
+            {pending.length === 0 && <div style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>{PENDING_EMPTY}</div>}
+            {pendingByAccount(pending).map(({ account, items }) => (
+              <div key={account ?? ''} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {account && <div><AccountChip account={account} /></div>}
+                {items.map(p => <PendingRow key={p.id} item={p} projects={projects} acting={acting} forge={forge} />)}
+              </div>
+            ))}
+          </section>
+        </>
       )}
     </div>
   )

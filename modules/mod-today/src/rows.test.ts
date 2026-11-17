@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { accountToken, dayLabel, dayName, readLine, foldedNow, isToday, shortDay } from './rows'
-import { titleFor, whoOf, byAccount, failedLine, notesLine, opFor, groupLine, groupProblems, problemsLabel, projectsFor } from './ops'
-import type { Digest, Item } from './digest'
+import { pendingByAccount, titleFor, whoOf, byAccount, failedLine, notesLine, opFor, groupLine, groupProblems, problemsLabel, projectsFor } from './ops'
+import type { Digest, Item, PendingItem } from './digest'
 
 const item = (state: Item['state']) => ({ state }) as Item
 
@@ -131,5 +131,19 @@ describe('window and day names', () => {
 
   it('shows the day as weekday and number', () => {
     expect(dayName('2026-11-16')).toBe('Monday 16')
+  })
+})
+
+describe('pendingByAccount', () => {
+  const p = (id: string, account?: string) => ({ id, account }) as PendingItem
+
+  it('is one block for a single account and empty for nothing', () => {
+    expect(pendingByAccount([])).toEqual([])
+    expect(pendingByAccount([p('a', 'monoku'), p('b')])).toEqual([{ items: [p('a', 'monoku'), p('b')] }])
+  })
+
+  it('splits by account with the unowned ones last', () => {
+    const blocks = pendingByAccount([p('a', 'monoku'), p('b'), p('c', 'meridian'), p('d', 'monoku')])
+    expect(blocks.map(b => [b.account, b.items.map(i => i.id)])).toEqual([['monoku', ['a', 'd']], ['meridian', ['c']], [undefined, ['b']]])
   })
 })
