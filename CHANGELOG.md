@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.29 (2026-11-17)
+
 ### Added
 
 - Today: Slack is read with an explicit procedure (your own user id, mentions, direct messages and replies in threads you took part in), so mentions and DMs no longer slip by.
