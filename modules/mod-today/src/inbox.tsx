@@ -198,7 +198,7 @@ export interface InboxProps {
 // the list on the left, the selected entry on the right; under 900px one at a time
 export function Inbox(p: InboxProps) {
   const { groups, folds, searching, acting, projects } = p
-  const api = entryApi(acting, p.forge)
+  const base = entryApi(acting, p.forge)
   const visible = visibleEntries(groups, folds, searching)
   const [selected, select] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
@@ -206,6 +206,18 @@ export function Inbox(p: InboxProps) {
   const currentId = visible.some(e => e.item.id === selected) ? selected : initialSelection(visible)
   const current = visible.find(e => e.item.id === currentId) ?? null
 
+  // a hide, by button or key, moves to the neighbour
+  const api: EntryApi = {
+    ...base,
+    hide: async e => {
+      const ids = visible.map(v => v.item.id)
+      const at = ids.indexOf(e.item.id)
+      const next = ids[at + 1] ?? ids[at - 1] ?? null
+      const ok = await base.hide(e)
+      if (ok) select(next)
+      return ok
+    },
+  }
   const pick = (id: string, project: string) => setPicks(prev => ({ ...prev, [id]: project }))
   const project = current ? picks[current.item.id] ?? current.item.project ?? '' : ''
 
@@ -220,19 +232,20 @@ export function Inbox(p: InboxProps) {
     if (c === 'open') return api.open(current)
     if (c === 'start') return void api.primary(current, project)
     if (c === 'research') return void api.research(current)
-    if (c === 'hide' && canHide(current)) {
-      const at = ids.indexOf(current.item.id)
-      const next = ids[at + 1] ?? ids[at - 1] ?? null
-      void api.hide(current).then(ok => ok && select(next))
-    }
+    if (c === 'hide' && canHide(current)) void api.hide(current)
   }
   useEffect(() => {
     if (!p.keys) return
     const onKey = (ev: KeyboardEvent) => {
+      // keys under a drawer or modal are theirs
+      const t = ev.target as HTMLElement | null
+      if (ev.defaultPrevented || (t !== document.body && !t?.closest?.('.today-inbox'))) return
       const c = keyCommand(ev, 'inbox', typingIn(ev.target))
       if (!c) return
-      // a pressed button keeps Enter for itself
-      if (c === 'open' && (ev.target as HTMLElement | null)?.tagName === 'BUTTON') return
+      // a held key repeats only the arrows
+      if (ev.repeat && c !== 'next' && c !== 'prev') return
+      // a focused button or link keeps Enter for itself
+      if (c === 'open' && /^(BUTTON|A)$/.test(t?.tagName ?? '')) return
       ev.preventDefault()
       latest.current(c)
     }

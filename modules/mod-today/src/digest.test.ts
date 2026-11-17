@@ -252,6 +252,7 @@ describe('context', () => {
   it('trims, caps at 800 characters and strips control characters', () => {
     expect(parseContext('  Ana: hi\nLuis: ok  ')).toBe('Ana: hi\nLuis: ok')
     expect(parseContext('a\u0000b\u001bc\u0007d\r\ne\tf')).toBe('abcd\ne\tf')
+    expect(parseContext('a\u200bb\u202ec\u2067d\u0085e\u200ff')).toBe('abcdef')
     expect(parseContext('x'.repeat(900))).toHaveLength(800)
     for (const bad of [undefined, null, 5, {}, '', '  \n ']) expect(parseContext(bad)).toBeUndefined()
   })

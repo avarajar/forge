@@ -4,7 +4,7 @@ import { definePanel, type PanelProps } from '@forge-dev/sdk'
 import { acceptable, CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupProblems, inboxGroups, loadFailedLine, newsList, NO_ACCOUNT, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
 import { Inbox } from './inbox'
 import { Triage } from './triage'
-import { accountToken, Btn, dayName, Pill, Notes, primaryStyle, ProblemRow, readLine, ReadingLine, SkeletonRows, takeStartDay, useActing, useDigest, useFilters, useFolds, useLastSeen, useProjects, useReadingStyles, useTriage } from './rows'
+import { accountToken, Btn, dayName, isToday, Pill, Notes, primaryStyle, ProblemRow, readLine, ReadingLine, SkeletonRows, takeStartDay, useActing, useDigest, useFilters, useFolds, useLastSeen, useProjects, useReadingStyles, useTriage } from './rows'
 
 const SOURCES: { id: SourceName; label: string }[] = [{ id: 'linear', label: 'Linear' }, { id: 'slack', label: 'Slack' }, { id: 'github', label: 'GitHub' }]
 
@@ -67,7 +67,7 @@ function View({ forge }: PanelProps) {
           ) : digest ? ` · ${dayName(digest.date)}` : null}
         </b>
         <span style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-          {enabled && digest && toSort > 0 && <ActionButton label="Start the day" variant="secondary" size="sm" onClick={() => setTriage(true)} />}
+          {enabled && digest && toSort > 0 && isToday(digest.date, new Date()) && <ActionButton label="Start the day" variant="secondary" size="sm" onClick={() => setTriage(true)} />}
           {enabled && <ActionButton label={isReading ? 'Reading…' : 'Refresh'} variant="primary" size="sm" disabled={isReading} loading={isReading} onClick={acting.refresh} />}
           {reply && <ActionButton label={enabled ? 'Turn off' : 'Turn on'} variant={enabled ? 'secondary' : 'primary'} size="sm" disabled={acting.busy} onClick={async () => { await acting.run(() => forge.action(enabled ? 'disable' : 'enable')) }} />}
         </span>

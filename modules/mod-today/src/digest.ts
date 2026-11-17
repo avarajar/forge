@@ -121,7 +121,7 @@ export const CONTEXT_MAX = 800
 // the reader's context as plain text: a string, control characters gone, trimmed and capped; otherwise undefined
 export function parseContext(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
-  const t = v.replace(/\r\n?/g, '\n').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '').trim().slice(0, CONTEXT_MAX).trim()
+  const t = v.replace(/\r\n?/g, '\n').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim().slice(0, CONTEXT_MAX).trim()
   return t || undefined
 }
 

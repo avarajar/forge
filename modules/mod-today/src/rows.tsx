@@ -76,11 +76,22 @@ export function useLastSeen(): number | null {
       return null
     }
   })
+  // stamped when the viewer leaves, so a trip to a session tab keeps the dots
   useEffect(() => {
-    try {
-      localStorage.setItem(LAST_SEEN_KEY, String(Date.now()))
-    } catch {
-      // the dots then show against the first visit
+    const stamp = () => {
+      try {
+        localStorage.setItem(LAST_SEEN_KEY, String(Date.now()))
+      } catch {
+        // the dots then show against the first visit
+      }
+    }
+    const hidden = () => { if (document.hidden) stamp() }
+    window.addEventListener('pagehide', stamp)
+    document.addEventListener('visibilitychange', hidden)
+    return () => {
+      window.removeEventListener('pagehide', stamp)
+      document.removeEventListener('visibilitychange', hidden)
+      stamp()
     }
   }, [])
   return seen
@@ -90,30 +101,31 @@ export function useLastSeen(): number | null {
 export function useTriage(date: string | undefined): [Decisions, (id: string, d: Decision) => void, () => void] {
   const [stored, setStored] = useState<{ date: string; done: Decisions } | null>(null)
   const day = date ?? ''
-  let current: Decisions = {}
-  if (stored?.date === day) current = stored.done
-  else {
+  const base = (prev: { date: string; done: Decisions } | null): Decisions => {
+    if (prev?.date === day) return prev.done
     try {
-      current = parseTriage(localStorage.getItem(TRIAGE_KEY), day)
+      return parseTriage(localStorage.getItem(TRIAGE_KEY), day)
     } catch {
-      // nothing was kept
+      return {}
     }
   }
-  const save = (done: Decisions) => {
-    setStored({ date: day, done })
+  // every change builds on the latest decisions, so two quick ones both stay
+  const save = (change: (done: Decisions) => Decisions) => setStored(prev => {
+    const next = { date: day, done: change(base(prev)) }
     try {
-      localStorage.setItem(TRIAGE_KEY, JSON.stringify({ date: day, done }))
+      localStorage.setItem(TRIAGE_KEY, JSON.stringify(next))
     } catch {
       // the day's decisions last until the page closes
     }
-  }
-  return [current, (id, d) => save({ ...current, [id]: d }), () => save({})]
+    return next
+  })
+  return [base(stored), (id, d) => save(done => ({ ...done, [id]: d })), () => save(() => ({}))]
 }
 
 // the banner asks the page to open the triage: a one-time flag in this browser
 export function requestStartDay() {
   try {
-    localStorage.setItem(START_DAY_KEY, '1')
+    localStorage.setItem(START_DAY_KEY, String(Date.now()))
   } catch {
     // the page then opens without it
   }
@@ -121,9 +133,10 @@ export function requestStartDay() {
 
 export function takeStartDay(): boolean {
   try {
-    const on = localStorage.getItem(START_DAY_KEY) === '1'
-    if (on) localStorage.removeItem(START_DAY_KEY)
-    return on
+    const at = Number(localStorage.getItem(START_DAY_KEY))
+    localStorage.removeItem(START_DAY_KEY)
+    // a request older than a minute is stale
+    return at > 0 && Date.now() - at < 60_000
   } catch {
     return false
   }

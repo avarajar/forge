@@ -40,16 +40,23 @@ export function Triage({ forge, groups, done, decide, reset, projects, acting, o
   const finished = !current && (withTodo || skipTodo || todoLeft === 0)
   const dialog = useRef<HTMLDivElement>(null)
 
+  // one decision at a time: the next card waits for the action in flight
+  const flying = useRef(false)
   const take = async (e: Entry, what: 'start' | 'hide') => {
-    if (acting.busy) return
-    const ok = what === 'start' ? await api.primary(e, picks[e.item.id] ?? e.item.project ?? '') : await api.hide(e)
-    if (ok) decide(e.item.id, what === 'start' ? 'started' : 'hidden')
+    if (acting.busy || flying.current) return
+    flying.current = true
+    try {
+      const ok = what === 'start' ? await api.primary(e, picks[e.item.id] ?? e.item.project ?? '') : await api.hide(e)
+      if (ok) decide(e.item.id, what === 'start' ? 'started' : 'hidden')
+    } finally {
+      flying.current = false
+    }
   }
 
   const latest = useRef<(c: Command) => void>(() => {})
   latest.current = c => {
     if (c === 'close') return onClose()
-    if (!current) return
+    if (!current || acting.busy || flying.current) return
     if (c === 'start' && move?.ready) void take(current, 'start')
     else if (c === 'open') api.open(current)
     else if (c === 'later') decide(current.item.id, 'later')
@@ -59,12 +66,33 @@ export function Triage({ forge, groups, done, decide, reset, projects, acting, o
     const onKey = (ev: KeyboardEvent) => {
       const c = keyCommand(ev, 'triage', typingIn(ev.target))
       if (!c) return
+      // a held key decides once
+      if (ev.repeat) return
       ev.preventDefault()
       latest.current(c)
     }
+    // Tab stays inside the overlay
+    const trap = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Tab' || !dialog.current) return
+      const items = Array.from(dialog.current.querySelectorAll<HTMLElement>('button:not([disabled]), select, a[href]'))
+      if (!items.length) return ev.preventDefault()
+      const first = items[0]
+      const last = items[items.length - 1]
+      const at = document.activeElement
+      if (ev.shiftKey && (at === first || at === dialog.current)) { ev.preventDefault(); last.focus() }
+      else if (!ev.shiftKey && at === last) { ev.preventDefault(); first.focus() }
+      else if (!dialog.current.contains(at)) { ev.preventDefault(); first.focus() }
+    }
+    // focus goes back to where it was when the overlay closes
+    const before = document.activeElement as HTMLElement | null
     window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', trap)
     dialog.current?.focus()
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', trap)
+      before?.focus?.()
+    }
   }, [])
 
   const pct = total ? Math.round((sorted / total) * 100) : 0
@@ -87,8 +115,8 @@ export function Triage({ forge, groups, done, decide, reset, projects, acting, o
               {needsProject(current) && <div><ProjectPicker projects={projectsFor(projects, current.item.account)} value={project} onChange={v => setPicks({ ...picks, [current.item.id]: v })} /></div>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px' }}>
                 {keyTile('S', move?.label ?? 'Start', acting.busy || !move?.ready, () => void take(current, 'start'), true)}
-                {keyTile('O', 'Open link', false, () => api.open(current))}
-                {keyTile('L', 'Later', false, () => decide(current.item.id, 'later'))}
+                {keyTile('O', 'Open link', acting.busy, () => api.open(current))}
+                {keyTile('L', 'Later', acting.busy, () => decide(current.item.id, 'later'))}
                 {keyTile('H', 'Hide', acting.busy || !canHide(current), () => void take(current, 'hide'))}
               </div>
             </div>
