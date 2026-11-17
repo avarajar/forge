@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { githubPage, isSlackLink } from './ops'
 
 export type Op = 'send' | 'start' | 'research' | 'dismiss'
 export type Kind = 'to-task' | 'issue' | 'request' | 'research' | 'review'
@@ -147,7 +148,7 @@ export function toProblem(account: string, text: string): Problem {
 export function parseReaderOutput(out: string, known: { projects: string[]; sessions: string[]; account?: string }): Item[] {
   const root = extractJson(out)
   if (!isRecord(root) || !Array.isArray(root.items)) throw new Error('reader output needs an items array')
-  return root.items.map((raw, n) => {
+  return root.items.flatMap((raw, n) => {
     if (!isRecord(raw)) throw new Error(`item ${n}: not an object`)
     const source = text(raw, 'source', n)!
     if (!SOURCES.includes(source)) throw new Error(`item ${n}: unknown source ${source}`)
@@ -187,7 +188,8 @@ export function parseReaderOutput(out: string, known: { projects: string[]; sess
       if (known.sessions.includes(`${t.project}::${t.sessionDir}`)) item.targetSession = { project: t.project, sessionDir: t.sessionDir }
     }
     if (item.kind === 'to-task' && !item.targetSession) item.kind = item.issueKey ? 'issue' : 'request'
-    return item
+    // a Slack item must link to Slack (a GitHub link is judged later, by what gh fetched)
+    return source === 'slack' && !isSlackLink(link) && !githubPage(link) ? [] : [item]
   })
 }
 
@@ -306,6 +308,7 @@ export function parseSlackPending(out: string, known: Known, now: Date): Pending
   for (const raw of entries) {
     if (!isRecord(raw) || raw.source !== 'slack') continue
     const base = pendingBase(raw, known, now, SLACK_MAX_AGE)
+    if (base && !isSlackLink(base.link)) continue
     const who = base?.str('who')
     const where = base?.str('where')
     if (!base || !who || !where) continue

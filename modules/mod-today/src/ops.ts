@@ -109,6 +109,8 @@ export const FIRST_READING_NOTE = 'First reading — what you have open is under
 export type SourceName = Item['source']
 export interface Filters { account: string; source: '' | SourceName; query: string }
 export const NO_FILTERS: Filters = { account: '', source: '', query: '' }
+// the account filter value for items that have no account
+export const NO_ACCOUNT = '__none__'
 
 const SOURCE_IDS: SourceName[] = ['linear', 'slack', 'github']
 
@@ -142,7 +144,7 @@ export function matchesQuery(x: Searchable, query: string): boolean {
 
 // each part of the filter on its own, so the pills can count what a click would show
 function passes(x: Searchable, f: Filters, skip?: 'account' | 'source'): boolean {
-  return (skip === 'account' || !f.account || x.account === f.account) && (skip === 'source' || !f.source || x.source === f.source) && matchesQuery(x, f.query)
+  return (skip === 'account' || !f.account || (f.account === NO_ACCOUNT ? !x.account : x.account === f.account)) && (skip === 'source' || !f.source || x.source === f.source) && matchesQuery(x, f.query)
 }
 
 export const filterNews = (items: Item[], f: Filters): Item[] => items.filter(i => passes(i, f))
@@ -154,16 +156,21 @@ export function newsList(items: Item[]): Item[] {
   return items.filter(i => i.state !== 'dismissed').sort((a, b) => waiting(a) - waiting(b) || Date.parse(b.when) - Date.parse(a.when))
 }
 
-export interface Counts { total: number; accounts: Record<string, number>; sources: Record<SourceName, number> }
+export interface Counts { total: number; accounts: Record<string, number>; noAccount: number; sources: Record<SourceName, number> }
 
 // counts for the pills: each pill row counts under the other filter and the search
 export function countFor(news: Item[], pending: PendingItem[], f: Filters): Counts {
   const all: Searchable[] = [...news, ...pending]
   const accounts: Record<string, number> = {}
-  for (const x of all.filter(x => passes(x, f, 'account'))) if (x.account) accounts[x.account] = (accounts[x.account] ?? 0) + 1
+  let noAccount = 0
+  for (const x of all.filter(x => passes(x, f, 'account'))) {
+    if (x.account) accounts[x.account] = (accounts[x.account] ?? 0) + 1
+    else noAccount++
+  }
   const sources: Record<SourceName, number> = { linear: 0, slack: 0, github: 0 }
   for (const x of all.filter(x => passes(x, f, 'source'))) sources[x.source]++
-  return { total: all.filter(x => passes(x, { ...f, account: '', source: '' })).length, accounts, sources }
+  // the account pills (with No account) add up to the same items as All
+  return { total: all.filter(x => passes(x, f, 'account')).length, accounts, noAccount, sources }
 }
 
 export interface PendingGroup { id: string; title: string; items: PendingItem[]; folded: boolean }
@@ -212,12 +219,23 @@ export function summaryText(s: ReturnType<typeof bannerSummary>): string {
 
 export type Urgent = { kind: 'pending'; item: PendingItem } | { kind: 'news'; item: Item }
 
-// at most `max` rows for the banner: failing CI, then Slack waiting on you, then news that waits
+// at most `max` rows for the banner: failing CI, then Slack waiting on you; when news waits, pending leaves room (two rows) so the newest news shows
 export function urgentRows(news: Item[], pending: PendingItem[], max = 3): Urgent[] {
-  const rows: Urgent[] = [
-    ...pending.filter(p => p.kind === 'ci').map(item => ({ kind: 'pending' as const, item })),
-    ...pending.filter(p => p.kind === 'reply').map(item => ({ kind: 'pending' as const, item })),
-    ...newsList(news).filter(isOpenNews).map(item => ({ kind: 'news' as const, item })),
-  ]
-  return rows.slice(0, max)
+  const open = newsList(news).filter(isOpenNews)
+  const urgent = [...pending.filter(p => p.kind === 'ci'), ...pending.filter(p => p.kind === 'reply')]
+  const first = urgent.slice(0, open.length ? Math.max(1, max - 1) : max).map(item => ({ kind: 'pending' as const, item }))
+  return [...first, ...open.slice(0, max - first.length).map(item => ({ kind: 'news' as const, item }))]
+}
+
+// the news a click on Accept would start or send: open items that have what they need
+export const acceptable = (news: Item[]): Item[] => news.filter(i => i.state === 'proposed' && opFor(i))
+
+// a Slack link is on slack.com or one of its subdomains, over http(s)
+export function isSlackLink(link: string): boolean {
+  try {
+    const u = new URL(link)
+    return (u.protocol === 'https:' || u.protocol === 'http:') && /(^|\.)slack\.com$/i.test(u.hostname)
+  } catch {
+    return false
+  }
 }

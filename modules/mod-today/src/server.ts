@@ -122,7 +122,7 @@ export default defineModule({
     itemAction('start', 'Start'),
     itemAction('research', 'Research'),
     itemAction('dismiss', 'Dismiss'),
-    defineAction<{ date: string; id?: string; project?: string; account?: string }>({
+    defineAction<{ date: string; id?: string; project?: string; account?: string; ids?: string }>({
       id: 'accept-all',
       label: 'Accept all',
       effect: 'local',
@@ -131,8 +131,10 @@ export default defineModule({
         id: { type: 'string' },
         project: { type: 'string' },
         account: { type: 'string' },
+        // comma separated item ids: only those are accepted
+        ids: { type: 'string' },
       },
-      run: (input, ctx) => acceptAll(ctx, input.date, input.id, input.project, input.account),
+      run: (input, ctx) => acceptAll(ctx, input.date, input.id, input.project, input.account, input.ids === undefined ? undefined : input.ids.split(',').filter(Boolean)),
     }),
     defineAction<{ date: string; folded: boolean }>({
       id: 'fold',

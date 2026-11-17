@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ageShort, bannerSummary, countFor, filterNews, filterPending, groupPending, isGroupFolded, matchesQuery, newsList, NO_FILTERS, parseFilters, safeHref, summaryText, urgentRows } from './ops'
+import { acceptable, isSlackLink, ageShort, bannerSummary, countFor, filterNews, filterPending, groupPending, isGroupFolded, matchesQuery, newsList, NO_FILTERS, parseFilters, safeHref, summaryText, urgentRows } from './ops'
 import type { Item, PendingItem } from './digest'
 
 const news = (over: Partial<Item> = {}): Item => ({ id: 'n', source: 'linear', kind: 'issue', title: 'Moved to review', who: 'Ana', where: 'Linear', when: '2026-11-16T08:00:00Z', link: 'https://linear.app/x', state: 'proposed', account: 'monoku', ...over })
@@ -90,6 +90,29 @@ describe('age and links', () => {
   })
 })
 
+describe('accept and Slack links', () => {
+  it('accepts only open items that have what they need', () => {
+    const list = [news({ id: 'ready', kind: 'request', project: 'forge' }), news({ id: 'needs-project', kind: 'request' }), news({ id: 'done', kind: 'request', project: 'forge', state: 'done' }), news({ id: 'research', kind: 'research' })]
+    expect(acceptable(list).map(i => i.id)).toEqual(['ready', 'research'])
+  })
+
+  it('takes slack.com and its subdomains only', () => {
+    expect(isSlackLink('https://x.slack.com/archives/C1/p1')).toBe(true)
+    expect(isSlackLink('https://slack.com/x')).toBe(true)
+    for (const bad of ['https://evilslack.com/x', 'https://slack.com.evil.test/x', 'https://x.test/1', 'javascript:alert(1)', 'nope']) expect(isSlackLink(bad)).toBe(false)
+  })
+})
+
+describe('account counts', () => {
+  it('the account pills with No account add up to All', () => {
+    const items = [news({ id: '1' }), news({ id: '2', account: 'meridian' }), news({ id: '3', account: undefined, source: 'github' })]
+    const c = countFor(items, [pend({ account: undefined })], { ...NO_FILTERS, query: '' })
+    expect(Object.values(c.accounts).reduce((a, b) => a + b, 0) + c.noAccount).toBe(c.total)
+    expect(c.noAccount).toBe(2)
+    expect(filterNews(items, { ...NO_FILTERS, account: '__none__' }).map(i => i.id)).toEqual(['3'])
+  })
+})
+
 describe('banner summary', () => {
   const pending = [pend({ source: 'github', kind: 'ci', id: 'c1' }), pend({ source: 'slack', kind: 'reply', id: 's1' }), pend({ source: 'slack', kind: 'reply', id: 's2' }), pend({ id: 'l1' })]
   const items = [news({ id: 'a' }), news({ id: 'b', state: 'done' }), news({ id: 'c', state: 'failed' })]
@@ -99,9 +122,10 @@ describe('banner summary', () => {
     expect(summaryText(bannerSummary([], [pend()]))).toBe('0 new · 1 pending')
   })
 
-  it('shows at most three urgent rows: CI, Slack, then news', () => {
+  it('shows at most three urgent rows: CI, Slack, and the newest open news last', () => {
     const rows = urgentRows(items, pending)
-    expect(rows.map(r => r.item.id)).toEqual(['c1', 's1', 's2'])
+    expect(rows.map(r => r.item.id)).toEqual(['c1', 's1', 'a'])
+    expect(urgentRows([], pending).map(r => r.item.id)).toEqual(['c1', 's1', 's2'])
     expect(urgentRows(items, [pending[0]]).map(r => r.item.id)).toEqual(['c1', 'a', 'c'])
     expect(urgentRows([], [pend()])).toEqual([])
   })

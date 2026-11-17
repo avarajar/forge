@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, EmptyState } from '@forge-dev/ui'
 import { definePanel, type PanelProps } from '@forge-dev/sdk'
-import { CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupPending, groupProblems, isGroupFolded, loadFailedLine, newsList, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
-import { accountToken, dayName, Pill, Notes, PendingRow, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useFilters, useFolds, useProjects, useReadingStyles } from './rows'
+import { acceptable, CAPPED_NOTE, countFor, failedLine, filterNews, filterPending, FIRST_READING_NOTE, GITHUB_SEARCH, groupPending, groupProblems, isGroupFolded, loadFailedLine, newsList, NO_ACCOUNT, NO_FILTERS, PENDING_EMPTY, type SourceName } from './ops'
+import { accountToken, Btn, dayName, Pill, Notes, PendingRow, primaryStyle, ProblemRow, readLine, ReadingLine, Row, SkeletonRows, useActing, useDigest, useFilters, useFolds, useProjects, useReadingStyles } from './rows'
 
 const heading = { margin: 0, fontSize: '13px', fontWeight: 650, letterSpacing: '-.01em' }
 const muted = { fontSize: '12.5px', color: 'var(--ink-2)', padding: '4px 6px' }
@@ -28,10 +28,13 @@ function View({ forge }: PanelProps) {
   const everything = [...allNews, ...allPending]
   const accounts = [...new Set(everything.flatMap(x => (x.account ? [x.account] : [])))]
   const present = SOURCES.filter(s => everything.some(x => x.source === s.id))
+  const hasNone = everything.some(x => !x.account)
   // a filter on an account or source that has nothing at all is not applied
-  const active = { ...filters, account: accounts.includes(filters.account) ? filters.account : '', source: present.some(s => s.id === filters.source) ? filters.source : '' }
+  const active = { ...filters, account: accounts.includes(filters.account) || (hasNone && filters.account === NO_ACCOUNT) ? filters.account : '', source: present.some(s => s.id === filters.source) ? filters.source : '' }
   const counts = countFor(allNews, allPending, active)
   const news = filterNews(allNews, active)
+  // what Accept would start or send: the news in view that has what it needs
+  const ready = acceptable(news)
   const pending = filterPending(allPending, active)
   const searching = active.query.trim() !== ''
   const filtered = active.account !== '' || active.source !== '' || searching
@@ -94,11 +97,12 @@ function View({ forge }: PanelProps) {
       ) : (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {accounts.length > 1 && (
+            {(accounts.length > 1 || (accounts.length > 0 && hasNone)) && (
               <div role="group" aria-label="Account" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11.5px', color: 'var(--ink-3)', minWidth: '52px' }}>Account</span>
                 <Pill label="All" n={counts.total} on={!active.account} onClick={() => set({ account: '' })} />
                 {accounts.map(a => <Pill key={a} label={a} token={accountToken(a)} n={counts.accounts[a] ?? 0} on={active.account === a} onClick={() => set({ account: a })} />)}
+                {hasNone && <Pill label="No account" n={counts.noAccount} on={active.account === NO_ACCOUNT} onClick={() => set({ account: NO_ACCOUNT })} />}
               </div>
             )}
             <div role="group" aria-label="Source" style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -111,7 +115,10 @@ function View({ forge }: PanelProps) {
 
           <div class="today-cols">
             <section style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <h3 style={{ ...heading, marginBottom: '4px' }}>News · {news.length}</h3>
+              <h3 style={{ ...heading, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                News · {news.length}
+                {ready.length > 0 && digest && <Btn label={`Accept ${ready.length === 1 ? 'it' : `the ${ready.length}`}`} style={primaryStyle} disabled={acting.busy} onClick={() => acting.run(() => forge.action('accept-all', { date: digest.date, ids: ready.map(i => i.id).join(',') }))} />}
+              </h3>
               {news.length === 0 && <div style={muted}>{filtered && allNews.length > 0 ? 'No news matches.' : reply?.firstReading ? FIRST_READING_NOTE : 'Nothing new.'}</div>}
               {news.map(i => <Row key={i.id} item={i} projects={projects} acting={acting} forge={forge} />)}
             </section>

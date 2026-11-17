@@ -12,10 +12,10 @@ describe('parseReaderOutput', () => {
   it('accepts the four kinds with links', () => {
     const items = parseReaderOutput(
       `Here you go:\n${out([
-        { ...base, source: 'slack', kind: 'to-task', link: 'https://s/1', targetSession: { project: 'forge', sessionDir: 'task-1' } },
+        { ...base, source: 'slack', kind: 'to-task', link: 'https://x.slack.com/s/1', targetSession: { project: 'forge', sessionDir: 'task-1' } },
         { ...base, source: 'linear', kind: 'issue', link: 'https://l/2', issueKey: 'ENG-1', project: 'forge', quote: 'q' },
-        { ...base, source: 'slack', kind: 'request', link: 'https://s/3' },
-        { ...base, source: 'slack', kind: 'research', link: 'https://s/4' },
+        { ...base, source: 'slack', kind: 'request', link: 'https://x.slack.com/s/3' },
+        { ...base, source: 'slack', kind: 'research', link: 'https://x.slack.com/s/4' },
       ])}`,
       known,
     )
@@ -28,7 +28,7 @@ describe('parseReaderOutput', () => {
   it('rejects non-JSON, truncated JSON and an unknown kind', () => {
     expect(() => parseReaderOutput('nothing here', known)).toThrow(Error)
     expect(() => parseReaderOutput('{"items":[{"kind":', known)).toThrow(Error)
-    expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'chore', link: 'https://s/1' }]), known)).toThrow(/kind/)
+    expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'chore', link: 'https://x.slack.com/s/1' }]), known)).toThrow(/kind/)
     expect(() => parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request' }]), known)).toThrow(/link/)
   })
 
@@ -50,7 +50,7 @@ describe('parseReaderOutput', () => {
   })
 
   it('rejects a when that is not a date', () => {
-    expect(() => parseReaderOutput(out([{ ...base, when: 'yesterday', source: 'slack', kind: 'request', link: 'https://s/1' }]), known)).toThrow(/when must be a date/)
+    expect(() => parseReaderOutput(out([{ ...base, when: 'yesterday', source: 'slack', kind: 'request', link: 'https://x.slack.com/s/1' }]), known)).toThrow(/when must be a date/)
   })
 
   it('accepts source github and kind review', () => {
@@ -67,7 +67,7 @@ describe('parseReaderOutput', () => {
     const [a, b] = parseReaderOutput(
       out([
         { ...base, source: 'linear', kind: 'to-task', link: 'https://l/1', issueKey: 'ENG-1', targetSession: gone },
-        { ...base, source: 'slack', kind: 'to-task', link: 'https://s/2', targetSession: gone },
+        { ...base, source: 'slack', kind: 'to-task', link: 'https://x.slack.com/s/2', targetSession: gone },
       ]),
       known,
     )
@@ -78,7 +78,7 @@ describe('parseReaderOutput', () => {
     const [a, b] = parseReaderOutput(
       out([
         { ...base, source: 'linear', kind: 'issue', link: 'https://l/1', project: 'nope' },
-        { ...base, source: 'slack', kind: 'to-task', link: 'https://s/2', targetSession: { project: 'forge', sessionDir: 'gone' } },
+        { ...base, source: 'slack', kind: 'to-task', link: 'https://x.slack.com/s/2', targetSession: { project: 'forge', sessionDir: 'gone' } },
       ]),
       known,
     )
@@ -90,12 +90,12 @@ describe('parseReaderOutput', () => {
 describe('dedupe', () => {
   it('keeps only newer activity', () => {
     const mk = (link: string, when: string): Item => ({ ...base, id: itemId('slack', link), source: 'slack', kind: 'request', link, when, state: 'proposed' })
-    const seen = mk('https://s/1', '2026-11-15T09:00:00Z')
-    const same = mk('https://s/2', '2026-11-15T09:00:00Z')
-    const newer = mk('https://s/3', '2026-11-15T11:00:00Z')
-    const fresh = mk('https://s/4', '2026-11-15T08:00:00Z')
+    const seen = mk('https://x.slack.com/s/1', '2026-11-15T09:00:00Z')
+    const same = mk('https://x.slack.com/s/2', '2026-11-15T09:00:00Z')
+    const newer = mk('https://x.slack.com/s/3', '2026-11-15T11:00:00Z')
+    const fresh = mk('https://x.slack.com/s/4', '2026-11-15T08:00:00Z')
     const handled = { [seen.id]: seen.when, [same.id]: same.when, [newer.id]: '2026-11-15T10:00:00Z' }
-    expect(dedupe([seen, same, newer, fresh], handled).map(i => i.link)).toEqual(['https://s/3', 'https://s/4'])
+    expect(dedupe([seen, same, newer, fresh], handled).map(i => i.link)).toEqual(['https://x.slack.com/s/3', 'https://x.slack.com/s/4'])
   })
 })
 
@@ -111,13 +111,13 @@ describe('shouldRead', () => {
 
 describe('accounts', () => {
   it('the account is part of a linear or slack id but not a github one', () => {
-    expect(itemId('slack', 'https://s/1', 'a')).not.toBe(itemId('slack', 'https://s/1', 'b'))
+    expect(itemId('slack', 'https://x.slack.com/s/1', 'a')).not.toBe(itemId('slack', 'https://x.slack.com/s/1', 'b'))
     expect(itemId('github', 'https://g/1', 'a')).toBe(itemId('github', 'https://g/1', 'b'))
-    expect(itemId('slack', 'https://s/1')).toBe(itemId('slack', 'https://s/1', undefined))
+    expect(itemId('slack', 'https://x.slack.com/s/1')).toBe(itemId('slack', 'https://x.slack.com/s/1', undefined))
   })
 
   it('parsed items carry the reader account', () => {
-    const [i] = parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'https://s/1' }]), { ...known, account: 'meridian' })
+    const [i] = parseReaderOutput(out([{ ...base, source: 'slack', kind: 'request', link: 'https://x.slack.com/s/1' }]), { ...known, account: 'meridian' })
     expect(i.account).toBe('meridian')
   })
 
@@ -197,6 +197,24 @@ describe('reader pending', () => {
   it('leaves Slack entries out of the Linear list', () => {
     const slack = { source: 'slack', kind: 'reply', title: 'Can you look?', who: 'Ana', where: '#web', when: '2026-11-16T09:00:00Z', link: 'https://x.slack.com/archives/C1/p1' }
     expect(parseReaderPending(out([entry(), slack]), known, NOW)).toHaveLength(1)
+  })
+})
+
+describe('Slack links', () => {
+  it('drops a Slack item that does not link to slack.com, and keeps a GitHub link for gh to judge', () => {
+    const items = parseReaderOutput(out([
+      { ...base, source: 'slack', kind: 'request', link: 'https://x.slack.com/archives/C1/p1' },
+      { ...base, source: 'slack', kind: 'request', link: 'https://evil.test/p2' },
+      { ...base, source: 'slack', kind: 'request', link: 'https://github.com/o/r/pull/1' },
+      { ...base, source: 'linear', kind: 'issue', link: 'https://linear.app/x/1' },
+    ]), known)
+    expect(items.map(i => i.link)).toEqual(['https://x.slack.com/archives/C1/p1', 'https://github.com/o/r/pull/1', 'https://linear.app/x/1'])
+  })
+
+  it('drops Slack pending off slack.com', () => {
+    const NOW = new Date('2026-11-16T12:00:00Z')
+    const m = (link: string) => ({ source: 'slack', kind: 'reply', title: 't', who: 'a', where: '#w', when: '2026-11-15T09:00:00Z', link })
+    expect(parseSlackPending(JSON.stringify({ pending: [m('https://evil.test/1'), m('https://a.slack.com/archives/C/p1')] }), known, NOW)!.map(p => p.link)).toEqual(['https://a.slack.com/archives/C/p1'])
   })
 })
 
