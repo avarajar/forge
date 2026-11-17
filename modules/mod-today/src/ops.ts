@@ -1,4 +1,4 @@
-import type { Item, Op, Problem } from './digest'
+import type { Item, Op, PendingItem, Problem } from './digest'
 
 // shared by the server and the views, so it stays free of Node imports
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -103,3 +103,38 @@ export function byAccount(items: Item[]): { account?: string; sections: ReturnTy
   const rest = items.filter(i => !i.account)
   return rest.length ? [...blocks, { sections: sections(rest) }] : blocks
 }
+
+// a title without the issue key the row already shows as a chip
+export function titleFor(i: { title: string; issueKey?: string }): string {
+  if (!i.issueKey) return i.title
+  const key = i.issueKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const rest = i.title.replace(new RegExp(`^\\s*\\[?${key}\\]?\\s*[:\\-–—]?\\s*`, 'i'), '')
+  return rest.trim() ? rest : i.title
+}
+
+const SOURCE_NAMES = { linear: 'Linear', slack: 'Slack', github: 'GitHub' }
+
+// who wrote it, or null when that is only the source's own name
+export function whoOf(i: { who: string; source: Item['source'] }): string | null {
+  const who = i.who.trim()
+  return !who || who.toLowerCase() === SOURCE_NAMES[i.source].toLowerCase() ? null : who
+}
+
+export const pendingLabel = (p: PendingItem): string => (p.kind === 'ci' ? 'CI failing' : p.kind === 'review' ? 'Review requested' : p.source === 'linear' ? (p.started ? 'In progress' : 'To do') : 'Assigned')
+
+// the pending items of one account when given, all otherwise
+export const pendingIn = (items: PendingItem[], account?: string): PendingItem[] => (account ? items.filter(p => p.account === account) : items)
+
+// the page's pending blocks: one per account (items without one last) when there is more than one
+export function pendingByAccount(items: PendingItem[]): { account?: string; items: PendingItem[] }[] {
+  const accounts = [...new Set(items.flatMap(p => (p.account ? [p.account] : [])))]
+  if (accounts.length < 2) return items.length ? [{ items }] : []
+  const blocks = accounts.map(account => ({ account, items: pendingIn(items, account) }))
+  const rest = items.filter(p => !p.account)
+  return rest.length ? [...blocks, { items: rest }] : blocks
+}
+
+export const CAPPED_NOTE = 'showing the latest 20'
+export const GITHUB_SEARCH = 'https://github.com/pulls/review-requested'
+export const PENDING_EMPTY = 'Nothing open — nice.'
+export const FIRST_READING_NOTE = 'First reading — what you have open is under Pending.'

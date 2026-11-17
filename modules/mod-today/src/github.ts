@@ -1,5 +1,6 @@
 import type { ForgeContext } from '@forge-dev/sdk'
 import { errorMessage, oneLine } from './ops'
+import { isRecent, pendingId, type PendingItem } from './digest'
 
 export interface GithubEvent {
   type: 'comment' | 'review' | 'review-request' | 'mention' | 'assigned' | 'ci-failure'
@@ -141,6 +142,50 @@ export async function fetchGithub(ctx: ForgeContext, since: string, deadlineMs =
     // every open pull request still asked of me, updated or not; unknown when the search hit its cap
     const requested = asked.length >= MAX_PRS ? undefined : asked.map(pr => pr.url)
     return unread ? { items, requested, error: `${unread} pull request${unread === 1 ? '' : 's'} could not be read` } : { items, requested }
+  } catch (e) {
+    return { items: [], error: errorMessage(e) }
+  }
+}
+
+// what is open on GitHub now: review requests asked of me, my pull requests with failing checks, issues assigned to me; any gh failure is an error and no items
+export async function fetchPending(ctx: ForgeContext, now: Date, deadlineMs = DEADLINE_MS): Promise<{ items: PendingItem[]; error?: string; capped?: boolean }> {
+  try {
+    const search = (flag: string, kind = 'prs') => gh<Found[]>(ctx, ['search', kind, flag, '--state=open', '--sort=updated', `--limit=${MAX_PRS}`, '--json', SEARCH_FIELDS])
+    const [mine, asked, issues] = await Promise.all([search('--author=@me'), search('user-review-requested:@me'), search('--assignee=@me', 'issues')])
+    const items: PendingItem[] = []
+    const add = (kind: PendingItem['kind'], f: Found, state?: string) => {
+      if (!isRecent(f.updatedAt, now)) return
+      items.push({ id: pendingId('github', kind, f.url), source: 'github', kind, title: f.title, link: f.url, when: f.updatedAt, repo: repoOf(f), ...(state ? { state } : {}) })
+    }
+    for (const pr of asked) add('review', pr)
+    for (const i of issues) add('issue', i)
+
+    const prs = mine.slice(0, MAX_PRS).filter(pr => isRecent(pr.updatedAt, now))
+    const deadline = Date.now() + deadlineMs
+    let next = 0
+    let unread = 0
+    const worker = async () => {
+      while (next < prs.length) {
+        const pr = prs[next++]
+        if (Date.now() >= deadline) {
+          unread++
+          continue
+        }
+        try {
+          const view = await gh<PrView>(ctx, ['pr', 'view', pr.url, '--json', 'statusCheckRollup'])
+          const failed = (view.statusCheckRollup ?? []).filter(c => FAILED.has(c.conclusion ?? c.state ?? ''))
+          if (failed.length) add('ci', pr, `failing: ${[...new Set(failed.map(c => c.name ?? c.context ?? 'check'))].join(', ').slice(0, 80)}`)
+        } catch {
+          unread++
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, prs.length) }, worker))
+    // a partial snapshot would drop work that is still open, so the previous one stays
+    if (unread) return { items: [], error: `${unread} pull request${unread === 1 ? '' : 's'} could not be checked` }
+    // a search that hit its limit may hide older open work
+    const capped = mine.length >= MAX_PRS || asked.length >= MAX_PRS || issues.length >= MAX_PRS
+    return { items, ...(capped ? { capped: true } : {}) }
   } catch (e) {
     return { items: [], error: errorMessage(e) }
   }

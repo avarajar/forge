@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { ForgeContext } from '@forge-dev/sdk'
-import { fetchGithub } from './github'
+import { fetchGithub, fetchPending } from './github'
 
 const SINCE = '2026-11-14T08:00:00Z'
 const PR = 'https://github.com/o/r/pull/7'
@@ -153,5 +153,52 @@ describe('fetchGithub', () => {
     const { ctx, calls } = stub({ 'search prs': ok(many) })
     await fetchGithub(ctx, SINCE)
     expect(calls.filter(a => a[0] === 'pr').length).toBeLessThanOrEqual(20)
+  })
+})
+
+describe('fetchPending', () => {
+  const NOW = new Date('2026-11-16T12:00:00Z')
+  const failing = { statusCheckRollup: [{ name: 'lint', conclusion: 'FAILURE', completedAt: '2026-11-15T04:00:00Z' }, { name: 'unit', conclusion: 'SUCCESS' }] }
+
+  it('maps direct review requests, my failing pull requests and assigned issues', async () => {
+    const { ctx, calls } = stub({ 'pr view': ok(failing) })
+    const { items, error } = await fetchPending(ctx, NOW)
+    expect(error).toBeUndefined()
+    expect(calls.some(a => a.includes('user-review-requested:@me'))).toBe(true)
+    expect(items.map(i => [i.kind, i.link])).toEqual(expect.arrayContaining([
+      ['review', 'https://github.com/o/r/pull/9'],
+      ['ci', PR],
+      ['issue', 'https://github.com/o/r/issues/4'],
+    ]))
+    expect(items).toHaveLength(4)
+    expect(items.find(i => i.kind === 'ci')).toMatchObject({ source: 'github', repo: 'o/r', state: 'failing: lint', title: 'Fix login' })
+  })
+
+  it('a pull request with passing checks is not pending', async () => {
+    const { ctx } = stub({ 'pr view': ok({ statusCheckRollup: [{ name: 'unit', conclusion: 'SUCCESS' }] }) })
+    expect((await fetchPending(ctx, NOW)).items.map(i => i.kind)).not.toContain('ci')
+  })
+
+  it('drops anything not updated in 30 days', async () => {
+    const { ctx } = stub({ 'pr view': ok(failing) })
+    const { items } = await fetchPending(ctx, new Date('2026-12-20T00:00:00Z'))
+    expect(items).toEqual([])
+  })
+
+  it('a gh failure is an error with no items, so the last snapshot stays', async () => {
+    expect((await fetchPending(stub({ 'search issues': { exitCode: 1, output: 'boom', timedOut: false } }).ctx, NOW)).error).toBe('boom')
+    const { items, error } = await fetchPending(stub({ 'pr view': { exitCode: 1, output: 'nope', timedOut: false } }).ctx, NOW)
+    expect(items).toEqual([])
+    expect(error).toMatch(/could not be checked/)
+  })
+})
+
+describe('fetchPending cap', () => {
+  const NOW = new Date('2026-11-16T12:00:00Z')
+  const many = Array.from({ length: 20 }, (_, n) => ({ number: n + 1, title: `t${n}`, url: `https://github.com/o/r/issues/${n + 1}`, repository: repo, updatedAt: '2026-11-15T03:00:00Z' }))
+
+  it('says so when a search hit its limit, and not otherwise', async () => {
+    expect((await fetchPending(stub({ 'search issues': ok(many) }).ctx, NOW)).capped).toBe(true)
+    expect((await fetchPending(stub().ctx, NOW)).capped).toBeUndefined()
   })
 })

@@ -4,7 +4,7 @@ import { readNow, readingNow, timing, retryAccount, reconnectAccount, applyItem,
 import type { Digest } from './digest'
 import * as github from './github'
 
-vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })) }))
+vi.mock('./github', () => ({ fetchGithub: vi.fn(async () => ({ items: [] })), fetchPending: vi.fn(async () => ({ items: [] })) }))
 
 const NOW = new Date(2026, 10, 15, 9, 0, 0)
 

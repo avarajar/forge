@@ -26,6 +26,24 @@ export interface Item {
   manual?: boolean
 }
 
+// what is open now, from one source; rebuilt on every reading
+export interface PendingItem {
+  id: string
+  source: 'linear' | 'github'
+  kind: 'issue' | 'review' | 'ci'
+  title: string
+  state?: string
+  link: string
+  when: string
+  account?: string
+  project?: string
+  targetSession?: Ref
+  issueKey?: string
+  repo?: string
+  // a Linear issue already in progress, for the order
+  started?: boolean
+}
+
 export interface Problem {
   account: string
   source: 'slack' | 'linear' | 'reader'
@@ -42,6 +60,10 @@ export interface Digest {
   date: string
   readAt: string
   since: string
+  // where the latest reading's window began (since the previous reading)
+  windowStart?: string
+  // the day's first reading had no previous one to compare with
+  firstReading?: boolean
   items: Item[]
   error?: string
   // problems that did not fail the reading, such as GitHub being unreadable
@@ -186,4 +208,67 @@ export function shouldRead(now: Date, time: string, lastReadAt?: string): boolea
 
 export function pendingCount(d: Digest): number {
   return d.items.filter(i => i.state === 'proposed').length
+}
+
+export const PENDING_MAX_AGE = 30 * 24 * 60 * 60 * 1000
+
+// open work not touched for 30 days is no longer pending
+export const isRecent = (when: string, now: Date): boolean => {
+  const t = Date.parse(when)
+  return !Number.isNaN(t) && now.getTime() - t <= PENDING_MAX_AGE
+}
+
+export function pendingId(source: PendingItem['source'], kind: PendingItem['kind'], link: string, account?: string): string {
+  return createHash('sha1').update(`pending\n${source}\n${kind}\n${link}\n${account ?? ''}`).digest('hex').slice(0, 16)
+}
+
+const rank = (p: PendingItem): number => (p.kind === 'ci' ? 0 : p.kind === 'review' ? 1 : p.source === 'linear' ? (p.started ? 2 : 3) : 4)
+
+// failing CI, review requests, Linear started, Linear unstarted, issues; then the latest first
+export const sortPending = (items: PendingItem[]): PendingItem[] =>
+  [...items].sort((a, b) => rank(a) - rank(b) || Date.parse(b.when) - Date.parse(a.when))
+
+// a reader's pending list, or undefined when it did not give one; bad entries are dropped
+export function parseReaderPending(out: string, known: { projects: string[]; sessions: string[]; account?: string }, now: Date): PendingItem[] | undefined {
+  let root: unknown
+  try {
+    root = extractJson(out)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(root) || !Array.isArray(root.pending)) return undefined
+  const seen = new Set<string>()
+  const list: PendingItem[] = []
+  for (const raw of root.pending) {
+    if (!isRecord(raw)) continue
+    const str = (k: string) => (typeof raw[k] === 'string' && (raw[k] as string).trim() ? (raw[k] as string) : undefined)
+    const link = str('link')
+    const title = str('title')
+    const when = str('when')
+    if (!link || !title || !when || !isRecent(when, now)) continue
+    let url: URL
+    try {
+      url = new URL(link)
+    } catch {
+      continue
+    }
+    // a GitHub address only counts when gh fetched it, never from the reader
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || /(^|\.)github\.com$/i.test(url.hostname)) continue
+    const id = pendingId('linear', 'issue', link, known.account)
+    if (seen.has(id)) continue
+    seen.add(id)
+    const item: PendingItem = { id, source: 'linear', kind: 'issue', title, link, when }
+    if (known.account) item.account = known.account
+    const state = str('state')
+    if (state) item.state = state.slice(0, 40)
+    if (raw.started === true) item.started = true
+    const key = str('issueKey')
+    if (key) item.issueKey = key
+    const project = str('project')
+    if (project && known.projects.includes(project)) item.project = project
+    const t = raw.targetSession
+    if (isRecord(t) && typeof t.project === 'string' && typeof t.sessionDir === 'string' && known.sessions.includes(`${t.project}::${t.sessionDir}`)) item.targetSession = { project: t.project, sessionDir: t.sessionDir }
+    list.push(item)
+  }
+  return list
 }

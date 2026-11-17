@@ -1,9 +1,9 @@
 import { homedir } from 'node:os'
 import { ModuleError, type ForgeContext, type ProjectInfo, type SessionInfo } from '@forge-dev/sdk'
 import { buildPrompt, READER_TOOLS } from './prompt'
-import { countStart, dedupe, itemId, parseReaderOutput, parseReaderProblems, pendingCount, startedBy, toProblem, type Digest, type Item, type Op, type Problem, type Reading } from './digest'
+import { countStart, dedupe, itemId, parseReaderOutput, parseReaderPending, parseReaderProblems, pendingCount, sortPending, startedBy, toProblem, type Digest, type Item, type Op, type PendingItem, type Problem, type Reading } from './digest'
 import { errorMessage, githubPage, inAccount, oneLine, opFor, ownersOf, startsTask, untrusted } from './ops'
-import { fetchGithub, type GithubEvent } from './github'
+import { fetchGithub, fetchPending, type GithubEvent } from './github'
 
 export type { Op }
 
@@ -87,10 +87,11 @@ function collapse(items: Item[]): Item[] {
   return [...byId.values()]
 }
 
-interface Reader { account: string; items: Item[]; problems: Problem[] }
+// pending is set only when the account's Linear was read in full
+interface Reader { account: string; items: Item[]; problems: Problem[]; pending?: PendingItem[] }
 
 // reads one account's connectors; a reader that got GitHub events marks its items manual
-async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string> }): Promise<{ items: Item[]; problems: Problem[] }> {
+async function readAccount(ctx: ForgeContext, account: string, o: { since: string; sessions: SessionInfo[]; projects: ProjectInfo[]; owners: Record<string, string>; github?: Promise<{ items: GithubEvent[] }>; handled: Record<string, string>; now: Date }): Promise<{ items: Item[]; problems: Problem[]; pending?: PendingItem[] }> {
   const mine = <T extends { account?: string }>(x: T) => !x.account || x.account === account
   const sessions = o.sessions.filter(mine)
   const projects = o.projects.filter(mine).map(p => p.name)
@@ -107,12 +108,16 @@ async function readAccount(ctx: ForgeContext, account: string, o: { since: strin
   const problems = parseReaderProblems(out.text).map(p => toProblem(account, p))
   const fetched = new Set(github.map(e => e.pr))
   const toReview = new Set(github.filter(e => e.type === 'review-request').map(e => e.pr))
-  const items = parseReaderOutput(out.text, { projects, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`), account })
+  const known = { projects, sessions: sessions.map(s => `${s.project}::${s.sessionDir}`), account }
+  const items = parseReaderOutput(out.text, known)
+  // a Linear that did not answer leaves what was open as it was
+  const pending = problems.some(p => p.source === 'linear') ? undefined : parseReaderPending(out.text, known, o.now)
+
   // a GitHub item belongs to its project's account, or to none
   const placed = checkGithub(items, fetched, toReview).map(i => (i.source === 'github' ? { ...i, account: o.owners[i.project ?? i.targetSession?.project ?? ''] } : i))
   const fresh = dedupe(collapse(placed), o.handled)
   // GitHub text shares the reader's call, so anything it read may be steered by it
-  return { items: github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh, problems }
+  return { items: github.length ? fresh.map(i => ({ ...i, manual: true })) : fresh, problems, pending }
 }
 
 // one account's reading: a reader that throws is that account's reader problem
@@ -130,11 +135,22 @@ async function readOne(ctx: ForgeContext, account: string, o: Parameters<typeof 
 }
 
 // notes collects problems that do not fail the reading
-async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<{ items: Item[]; problems: Problem[]; requested?: Set<string> }> {
+interface Reread { items: Item[]; problems: Problem[]; requested?: Set<string>; accounts: string[]; pending: Record<string, PendingItem[] | undefined>; githubCapped?: boolean }
+
+// a GitHub item belongs to the project named like its repository, and that project's account
+function placeGithub(items: PendingItem[], projects: { name: string }[], owners: Record<string, string>): PendingItem[] {
+  return items.map(i => {
+    const name = projects.find(p => p.name.toLowerCase() === i.repo?.split('/')[1]?.toLowerCase())?.name
+    return name ? { ...i, project: name, ...(owners[name] ? { account: owners[name] } : {}) } : i
+  })
+}
+
+async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<Reread> {
   const lastReadAt = await ctx.storage.get<string>('lastReadAt')
   const since = lastReadAt ?? new Date(now.getTime() - DAY).toISOString()
   // ctx has no repository for a project, so GitHub is read once, by the first account's reader, while the others start
   const github = fetchGithub(ctx, since)
+  const githubPending = fetchPending(ctx, now)
   const [sessions, projects, handled, accounts] = await Promise.all([
     ctx.sessions.list(),
     ctx.projects.list(),
@@ -143,15 +159,19 @@ async function reread(ctx: ForgeContext, now: Date, notes: string[]): Promise<{ 
   ])
   const owners = ownersOf(projects)
   if (progress) progress.accounts = Object.fromEntries(accounts.map(a => [a, 'reading' as const]))
-  const results = await Promise.all(accounts.map((account, n) => readOne(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {} })))
+  const results = await Promise.all(accounts.map((account, n) => readOne(ctx, account, { since, sessions, projects, owners, github: n === 0 ? github : undefined, handled: handled ?? {}, now })))
   const gh = await github
+  const gp = await githubPending
   if (gh.error) notes.push(`GitHub: ${gh.error}`)
   if (results[0].error && gh.items.length) notes.push('GitHub: not read')
   const failed = results.filter(r => r.error)
   if (failed.length === results.length) throw new Error(failed.length === 1 ? failed[0].error : failed.map(f => `${f.account}: ${f.error}`).join('; '))
   // the pull requests still asked of me, known only when GitHub was read in full
   const requested = gh.error ? undefined : new Set(gh.requested ?? gh.items.filter(e => e.type === 'review-request').map(e => e.pr))
-  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems), requested }
+  const pending: Reread['pending'] = Object.fromEntries(results.map(r => [r.account, r.pending]))
+  pending.github = gp.error ? undefined : placeGithub(gp.items, projects, owners)
+  if (gp.error) notes.push(`GitHub pending: ${gp.error}`)
+  return { items: collapse(results.flatMap(r => r.items)), problems: results.flatMap(r => r.problems), requested, accounts, pending, githubCapped: gp.error ? undefined : !!gp.capped }
 }
 
 async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Promise<void> {
@@ -160,6 +180,46 @@ async function rememberHandled(ctx: ForgeContext, items: Item[], now: Date): Pro
   for (const [id, when] of Object.entries(old)) if (now.getTime() - Date.parse(when) < HANDLED_KEEP) next[id] = when
   for (const i of items) next[i.id] = i.when
   await ctx.storage.set('handled', next)
+}
+
+const PENDING = 'pending/'
+
+// replaces each source's snapshot that was read fine; a failed one keeps the last, and an account no longer read is forgotten
+async function savePending(ctx: ForgeContext, pending: Reread['pending'], accounts?: string[]): Promise<void> {
+  for (const [source, items] of Object.entries(pending)) if (items) await ctx.storage.set(PENDING + source, items)
+  if (!accounts) return
+  for (const key of await ctx.storage.list(PENDING)) {
+    const source = key.slice(key.lastIndexOf(PENDING) + PENDING.length)
+    if (source !== 'github' && !accounts.includes(source)) await ctx.storage.delete(key)
+  }
+}
+
+const hiddenOf = async (ctx: ForgeContext) => (await ctx.storage.get<Record<string, string>>('pendingHidden')) ?? {}
+
+async function allPending(ctx: ForgeContext): Promise<PendingItem[]> {
+  const lists = await Promise.all((await ctx.storage.list(PENDING)).map(k => ctx.storage.get<PendingItem[]>(k)))
+  return lists.flatMap(l => l ?? [])
+}
+
+// what is open now and not hidden, in order; a hidden one returns when its date changes
+export async function pendingNow(ctx: ForgeContext): Promise<PendingItem[]> {
+  const [all, hidden, started] = await Promise.all([allPending(ctx), hiddenOf(ctx), startedOf(ctx)])
+  // a started item shows Open task once its session exists
+  return sortPending(all.filter(p => hidden[p.id] !== p.when).map(p => (started[p.id] && !p.targetSession ? { ...p, targetSession: started[p.id] } : p)))
+}
+
+type Session = { project: string; sessionDir: string }
+const startedOf = async (ctx: ForgeContext) => (await ctx.storage.get<Record<string, Session>>('pendingStarted')) ?? {}
+
+// hidden ids of items that are gone are forgotten
+async function pruneHidden(ctx: ForgeContext): Promise<void> {
+  const [all, hidden] = await Promise.all([allPending(ctx), hiddenOf(ctx)])
+  const ids = new Set(all.map(p => p.id))
+  const next = Object.fromEntries(Object.entries(hidden).filter(([id]) => ids.has(id)))
+  if (Object.keys(next).length !== Object.keys(hidden).length) await ctx.storage.set('pendingHidden', next)
+  const started = await startedOf(ctx)
+  const keep = Object.fromEntries(Object.entries(started).filter(([id]) => ids.has(id)))
+  if (Object.keys(keep).length !== Object.keys(started).length) await ctx.storage.set('pendingStarted', keep)
 }
 
 // drops proposed reviews whose pull request is no longer asked of me
@@ -208,7 +268,7 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
   const date = localDate(now)
   const notes: string[] = []
   try {
-    const { items: fresh, problems, requested } = await reread(ctx, now, notes)
+    const { items: fresh, problems, requested, accounts, pending, githubCapped } = await reread(ctx, now, notes)
     const lastReadAt = await ctx.storage.get<string>('lastReadAt')
     await locked(async () => {
       const prev = await loadDigest(ctx, date)
@@ -220,11 +280,16 @@ async function doRead(ctx: ForgeContext, now: Date): Promise<Digest> {
         date,
         readAt: now.toISOString(),
         since: prev?.since ?? lastReadAt ?? new Date(now.getTime() - DAY).toISOString(),
+        windowStart: lastReadAt ?? new Date(now.getTime() - DAY).toISOString(),
+        ...((prev?.firstReading ?? !lastReadAt) ? { firstReading: true } : {}),
         items,
         autoStarted: prev?.autoStarted ?? {},
         ...(notes.length ? { notes } : {}),
         ...(problems.length ? { problems } : {}),
       })
+      await savePending(ctx, pending, accounts)
+      if (githubCapped !== undefined) await ctx.storage.set('pendingCapped', githubCapped)
+      await pruneHidden(ctx)
       await rememberHandled(ctx, fresh, now)
       await ctx.storage.set('lastReadAt', now.toISOString())
       await ctx.storage.delete('lastFailedAt')
@@ -251,7 +316,7 @@ export async function retryAccount(ctx: ForgeContext, account: string, now: Date
   let result: Awaited<ReturnType<typeof readOne>>
   try {
     const [sessions, projects, handled] = await Promise.all([ctx.sessions.list(), ctx.projects.list(), ctx.storage.get<Record<string, string>>('handled')])
-    result = await readOne(ctx, account, { since: prev.since, sessions, projects, owners: ownersOf(projects), handled: handled ?? {} })
+    result = await readOne(ctx, account, { since: prev.since, sessions, projects, owners: ownersOf(projects), handled: handled ?? {}, now })
   } finally {
     // the last retry out clears the reading
     if (progress === mine && !Object.values(mine.accounts).includes('reading')) progress = undefined
@@ -266,6 +331,7 @@ export async function retryAccount(ctx: ForgeContext, account: string, now: Date
     if (problems.length) next.problems = problems
     else delete next.problems
     await saveDigest(ctx, next)
+    await savePending(ctx, { [account]: result.pending })
     await rememberHandled(ctx, result.items, now)
   })
   await autoResearch(ctx, date)
@@ -485,6 +551,49 @@ export async function acceptAll(ctx: ForgeContext, date: string, id?: string, pr
     }
   }
   return requireDigest(ctx, date)
+}
+
+// the pending item still open, or an error
+async function requirePending(ctx: ForgeContext, id: string): Promise<PendingItem> {
+  const item = (await pendingNow(ctx)).find(p => p.id === id)
+  if (!item) throw new ModuleError('not_found', 'no such pending item')
+  return item
+}
+
+// hides a pending item until its date changes
+export function hidePending(ctx: ForgeContext, id: string): Promise<PendingItem[]> {
+  return locked(async () => {
+    const item = await requirePending(ctx, id)
+    await ctx.storage.set('pendingHidden', { ...(await hiddenOf(ctx)), [id]: item.when })
+    return pendingNow(ctx)
+  })
+}
+
+const pendingInFlight = new Set<string>()
+
+// starts a task for a pending item the person chose: a review for a review request, work for the rest; it never starts on its own and the item then offers Open task
+export async function startPending(ctx: ForgeContext, id: string, project?: string): Promise<{ session: { project: string; sessionDir: string } }> {
+  if (!(await isEnabled(ctx))) throw new ModuleError('bad_request', OFF_MESSAGE)
+  const item = await locked(async () => {
+    const found = await requirePending(ctx, id)
+    if (pendingInFlight.has(id)) throw new ModuleError('bad_request', 'item is already being handled')
+    pendingInFlight.add(id)
+    return found
+  })
+  try {
+    const target = project ?? item.project
+    if (!target) throw new ModuleError('bad_request', 'pick a project')
+    const owner = (await ownersOf(await ctx.projects.list()))[target]
+    if (item.account && owner && owner !== item.account) throw new ModuleError('bad_request', 'project belongs to another account')
+    const account = item.account ?? owner
+    const url = githubPage(item.link) ?? item.link
+    const input = { type: item.kind === 'review' ? ('review' as const) : ('work' as const), project: target, task: url, ...(account ? { account } : {}) }
+    const session = await ctx.cw.start(input)
+    await locked(async () => ctx.storage.set('pendingStarted', { ...(await startedOf(ctx)), [id]: session }))
+    return { session }
+  } finally {
+    pendingInFlight.delete(id)
+  }
 }
 
 export function setFolded(ctx: ForgeContext, date: string, folded: boolean): Promise<void> {

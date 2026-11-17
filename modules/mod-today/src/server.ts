@@ -1,7 +1,7 @@
 import { defineModule, defineAction, defineRoute, defineJob, ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { ownersOf } from './ops'
 import { shouldRead, type Digest } from './digest'
-import { acceptAll, applyItem, digestDates, isEnabled, isFolded, localDate, OFF_MESSAGE, readingNow, readNow, reconnectAccount, retryAccount, setEnabled, setFolded, type Op } from './run'
+import { acceptAll, applyItem, digestDates, hidePending, isEnabled, isFolded, localDate, OFF_MESSAGE, pendingNow, readingNow, readNow, reconnectAccount, retryAccount, setEnabled, setFolded, startPending, type Op } from './run'
 
 const RETRY_AFTER_FAILURE = 60 * 60 * 1000
 const DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -34,7 +34,9 @@ async function digestFor(ctx: ForgeContext, date: string | undefined) {
   }
   const enabled = await isEnabled(ctx)
   const reading = readingNow()
-  return { ...(digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }), ...(reading ? { reading } : {}) }
+  const pending = await pendingNow(ctx)
+  const pendingCapped = (await ctx.storage.get<boolean>('pendingCapped')) === true
+  return { ...(digest ? { digest, folded, enabled } : { digest: null, folded: false, enabled }), pending, pendingCapped, firstReading: digest?.firstReading === true, ...(reading ? { reading } : {}) }
 }
 
 export default defineModule({
@@ -94,6 +96,20 @@ export default defineModule({
         await ctx.notify.clear('today')
         return { enabled: false }
       },
+    }),
+    defineAction<{ id: string; project?: string }>({
+      id: 'pending-start',
+      label: 'Start',
+      effect: 'local',
+      input: { id: { type: 'string', required: true }, project: { type: 'string' } },
+      run: (input, ctx) => startPending(ctx, input.id, input.project),
+    }),
+    defineAction<{ id: string }>({
+      id: 'pending-hide',
+      label: 'Hide',
+      effect: 'local',
+      input: { id: { type: 'string', required: true } },
+      run: async (input, ctx) => ({ pending: await hidePending(ctx, input.id) }),
     }),
     itemAction('send', 'Send'),
     itemAction('start', 'Start'),

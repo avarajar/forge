@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseReaderOutput, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
+import { parseReaderOutput, parseReaderPending, sortPending, type PendingItem, parseReaderProblems, toProblem, dedupe, shouldRead, itemId, startedBy, countStart, type Digest, type Item } from './digest'
 
 const known = { projects: ['forge'], sessions: ['forge::task-1'] }
 const base = { who: 'Ana', where: '#dev', when: '2026-11-15T09:00:00Z', title: 'Something' }
@@ -152,5 +152,44 @@ describe('toProblem', () => {
     expect(toProblem('meridian', 'claude.ai Slack connector down').source).toBe('slack')
     expect(toProblem('meridian', 'linear: unavailable')).toEqual({ account: 'meridian', source: 'linear', reason: 'unavailable' })
     expect(toProblem('meridian', 'timed out').source).toBe('reader')
+  })
+})
+
+describe('reader pending', () => {
+  const NOW = new Date('2026-11-16T12:00:00Z')
+  const known = { projects: ['forge'], sessions: ['forge::t1'], account: 'monoku' }
+  const entry = (over: Record<string, unknown> = {}) => ({ issueKey: 'MOB-1', title: 'Fix', state: 'In Progress', started: true, link: 'https://linear.app/x/issue/MOB-1', when: '2026-11-15T10:00:00Z', ...over })
+  const out = (pending: unknown[]) => JSON.stringify({ items: [], pending })
+
+  it('keeps valid entries with account, known project and session only', () => {
+    const [p] = parseReaderPending(out([entry({ project: 'forge', targetSession: { project: 'forge', sessionDir: 't1' } })]), known, NOW)!
+    expect(p).toMatchObject({ source: 'linear', kind: 'issue', account: 'monoku', project: 'forge', targetSession: { project: 'forge', sessionDir: 't1' }, started: true, issueKey: 'MOB-1' })
+    const [q] = parseReaderPending(out([entry({ project: 'nope', targetSession: { project: 'x', sessionDir: 'y' } })]), known, NOW)!
+    expect(q.project).toBeUndefined()
+    expect(q.targetSession).toBeUndefined()
+  })
+
+  it('drops bad links, GitHub links, bad dates and anything older than 30 days', () => {
+    const list = parseReaderPending(out([entry({ link: 'javascript:alert(1)' }), entry({ link: 'https://github.com/o/r/pull/1' }), entry({ when: 'soon' }), entry({ when: '2026-10-01T00:00:00Z' }), entry({ title: '' }), entry()]), known, NOW)!
+    expect(list).toHaveLength(1)
+  })
+
+  it('is undefined when the reader gave no pending list', () => {
+    expect(parseReaderPending('{"items":[]}', known, NOW)).toBeUndefined()
+    expect(parseReaderPending('nonsense', known, NOW)).toBeUndefined()
+    expect(parseReaderPending(out([]), known, NOW)).toEqual([])
+  })
+
+  it('sorts failing CI, review requests, started, unstarted, issues, then newest first', () => {
+    const mk = (id: string, over: Partial<PendingItem>): PendingItem => ({ id, source: 'github', kind: 'issue', title: id, link: 'https://x.test', when: '2026-11-10T00:00:00Z', ...over })
+    const sorted = sortPending([
+      mk('issue', {}),
+      mk('lin-un', { source: 'linear' }),
+      mk('lin-st-old', { source: 'linear', started: true }),
+      mk('review', { kind: 'review' }),
+      mk('ci', { kind: 'ci' }),
+      mk('lin-st-new', { source: 'linear', started: true, when: '2026-11-12T00:00:00Z' }),
+    ]).map(p => p.id)
+    expect(sorted).toEqual(['ci', 'review', 'lin-st-new', 'lin-st-old', 'lin-un', 'issue'])
   })
 })

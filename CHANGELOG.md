@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- Today: a Pending section with what is open now, rebuilt on every reading: review requests asked of you, your pull requests with failing checks, issues assigned to you on GitHub, and your started and unstarted Linear issues (last 30 days). Each has Open task (when a session works on it) or Start, and Hide until it changes. The banner gets a `Pending · N` line that opens to five rows.
+- Today: a first reading says that what you have open is under Pending instead of looking empty.
+
+### Changed
+
+- Today: the page shows News then Pending, the day picker reads `Monday 16`, and the header says `Read at 6:15 PM · changes since 1:05 PM` with the previous reading's time.
+- Today: rows no longer repeat the issue key in the title or name the source as its own author.
+
 ## 0.1.27 (2026-11-17)
 
 ### Fixed
