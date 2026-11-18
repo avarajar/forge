@@ -69,7 +69,11 @@ export interface LaunchHook extends HookLaunch {
 // a Forge started from inside a Forge session inherits that session's hook settings and token
 const INHERITED_HOOK_SETTINGS = /(^|\s)--settings\s+\S*\/claude-\d+\.json(?=\s|$)/g
 
+// what lets a process drive Forge or reach its database or Jev never goes to an agent
+const FORGE_SECRETS = ['FORGE_AUTH_TOKEN', 'FORGE_DB_URL', 'TYPESAFE_API_KEY']
+
 function withHook(env: Record<string, string>, session: CWSession, hook: LaunchHook | undefined): boolean {
+  for (const name of FORGE_SECRETS) delete env[name]
   delete env[TOKEN_ENV]
   delete env[SESSION_ENV]
   const inherited = (env.CW_CLAUDE_FLAGS ?? '').replace(INHERITED_HOOK_SETTINGS, ' ').trim()
@@ -77,7 +81,8 @@ function withHook(env: Record<string, string>, session: CWSession, hook: LaunchH
   else delete env.CW_CLAUDE_FLAGS
   if (!hook || (session.harness ?? 'claude') !== 'claude' || session.type === 'login') return false
   env[TOKEN_ENV] = hook.token
-  env[SESSION_ENV] = hook.key
+  // a header carries it, and project names can have any letter
+  env[SESSION_ENV] = encodeURIComponent(hook.key)
   if (session.type === 'general') return true
   // CW applies config.yaml's skip_permissions only while CW_CLAUDE_FLAGS is empty, so keep what it would have done;
   // --skip-permissions on the command line makes CW add the flag itself

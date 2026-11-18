@@ -84,7 +84,30 @@ describe('buildLaunch', () => {
       expect(launch.command).toBe("cw work 'app' 'fix' --account 'work'")
       expect(launch.env.CW_CLAUDE_FLAGS).toBe('--settings /home/me/.forge/hooks/claude-3000.json')
       expect(launch.env.FORGE_HOOK_TOKEN).toBe('t0k')
-      expect(launch.env.FORGE_HOOK_SESSION).toBe('app::fix')
+      expect(launch.env.FORGE_HOOK_SESSION).toBe('app%3A%3Afix')
+    })
+
+    it('encodes the session key, since project names can have any letter', () => {
+      expect(buildLaunch(session({}), false, { ...hook, key: 'diseño::fix' }).env.FORGE_HOOK_SESSION).toBe('dise%C3%B1o%3A%3Afix')
+    })
+
+    it('never passes Forge secrets to an agent', () => {
+      const saved = { a: process.env.FORGE_AUTH_TOKEN, d: process.env.FORGE_DB_URL, t: process.env.TYPESAFE_API_KEY }
+      process.env.FORGE_AUTH_TOKEN = 'global-secret-0123456789'
+      process.env.FORGE_DB_URL = 'postgres://u:p@h/db'
+      process.env.TYPESAFE_API_KEY = 'ts-key'
+      try {
+        for (const launch of [buildLaunch(session({}), false, hook), buildLaunch(session({ harness: 'codex' }), true), buildLaunch(session({ type: 'general' }), true)]) {
+          expect(launch.env.FORGE_AUTH_TOKEN).toBeUndefined()
+          expect(launch.env.FORGE_DB_URL).toBeUndefined()
+          expect(launch.env.TYPESAFE_API_KEY).toBeUndefined()
+        }
+      } finally {
+        for (const [k, v] of [['FORGE_AUTH_TOKEN', saved.a], ['FORGE_DB_URL', saved.d], ['TYPESAFE_API_KEY', saved.t]] as const) {
+          if (v === undefined) delete process.env[k]
+          else process.env[k] = v
+        }
+      }
     })
 
     it('keeps CW_CLAUDE_FLAGS the user set and appends the settings', () => {

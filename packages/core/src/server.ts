@@ -193,7 +193,8 @@ export function createForgeServer(options: ServerOptions) {
 
   // Claude Code's own hooks report here with the token Forge gave that one session, never FORGE_AUTH_TOKEN
   app.post(HOOK_PATH, async (c) => {
-    const key = c.req.header(SESSION_HEADER) ?? ''
+    let key = ''
+    try { key = decodeURIComponent(c.req.header(SESSION_HEADER) ?? '') } catch { /* stays empty and fails verify */ }
     if (!hooks.verify(key, c.req.header(TOKEN_HEADER))) return c.json({ error: 'Unauthorized' }, 401)
     const raw = await c.req.text()
     const event = parseHookEvent(raw)

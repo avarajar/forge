@@ -7,7 +7,7 @@ import { ClaudeHooks, HOOK_EVENTS_HTTP, cwSkipPermissionsDefault, hookSettings, 
 interface HookEntry { matcher?: string; hooks: Array<Record<string, unknown>> }
 
 describe('hookUrl', () => {
-  it('uses loopback unless Forge listens on one specific other address', () => {
+  it('uses the bound loopback, or the one specific address Forge listens on', () => {
     expect(hookUrl(3000)).toBe('http://127.0.0.1:3000/api/cw/hook-events')
     expect(hookUrl(3000, '127.0.0.1')).toBe('http://127.0.0.1:3000/api/cw/hook-events')
     expect(hookUrl(3000, 'localhost')).toBe('http://127.0.0.1:3000/api/cw/hook-events')
@@ -15,6 +15,9 @@ describe('hookUrl', () => {
     expect(hookUrl(3000, '::')).toBe('http://127.0.0.1:3000/api/cw/hook-events')
     expect(hookUrl(4100, '192.168.1.5')).toBe('http://192.168.1.5:4100/api/cw/hook-events')
     expect(hookUrl(4100, 'fd00::5')).toBe('http://[fd00::5]:4100/api/cw/hook-events')
+    expect(hookUrl(3000, '::1')).toBe('http://[::1]:3000/api/cw/hook-events')
+    expect(hookUrl(3000, '[::1]')).toBe('http://[::1]:3000/api/cw/hook-events')
+    expect(hookUrl(3000, '127.0.0.2')).toBe('http://127.0.0.2:3000/api/cw/hook-events')
   })
 })
 

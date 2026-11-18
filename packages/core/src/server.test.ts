@@ -262,7 +262,7 @@ describe('POST /api/cw/hook-events', () => {
     expect(server.listening(4555)).toBe(join(HOOK_DIR, 'local', 'hooks', 'claude-4555.json'))
     const a = server.hooks.launch('app::a')!
     const b = server.hooks.launch('app::b')!
-    const as = (key: string, token: string) => ({ 'X-Forge-Hook-Session': key, 'X-Forge-Hook-Token': token })
+    const as = (key: string, token: string) => ({ 'X-Forge-Hook-Session': encodeURIComponent(key), 'X-Forge-Hook-Token': token })
     expect((await post(server, as('app::a', a.token), event('Stop'))).status).toBe(204)
     expect((await post(server, as('app::a', b.token), event('Stop'))).status).toBe(401)
     expect((await post(server, as('app::a', 'nope'), event('Stop'))).status).toBe(401)
@@ -273,6 +273,9 @@ describe('POST /api/cw/hook-events', () => {
     // a PostToolUse after a large Read is accepted and read from its head
     const big = event('PostToolUse', { tool_name: 'Read', tool_response: 'x'.repeat(400 * 1024) })
     expect((await post(server, as('app::a', a.token), big)).status).toBe(204)
+    const n = server.hooks.launch('diseño::x')!
+    expect((await post(server, as('diseño::x', n.token), event('Stop'))).status).toBe(204)
+    expect((await post(server, { 'X-Forge-Hook-Session': '%E0%A4%A', 'X-Forge-Hook-Token': n.token }, event('Stop'))).status).toBe(401)
     server.hooks.revoke('app::a')
     expect((await post(server, as('app::a', a.token), event('Stop'))).status).toBe(401)
     server.close()
@@ -284,7 +287,7 @@ describe('POST /api/cw/hook-events', () => {
     const server = createForgeServer({ dataDir: join(HOOK_DIR, 'remote'), port: 0, localOnly: false, authToken: token })
     server.listening(4556, '0.0.0.0')
     const a = server.hooks.launch('app::a')!
-    expect((await post(server, { 'X-Forge-Hook-Session': 'app::a', 'X-Forge-Hook-Token': a.token }, event('Stop'))).status).toBe(204)
+    expect((await post(server, { 'X-Forge-Hook-Session': 'app%3A%3Aa', 'X-Forge-Hook-Token': a.token }, event('Stop'))).status).toBe(204)
     expect((await post(server, {}, event('Stop'))).status).toBe(401)
     expect((await server.fetch('/api/cw/session-states')).status).toBe(401)
     expect((await server.fetch('/api/cw/session-states', { headers: { Authorization: `Bearer ${token}` } })).status).toBe(200)

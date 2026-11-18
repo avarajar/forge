@@ -60,7 +60,8 @@ When `buildLaunch` builds a session whose harness is `claude` (`session.harness 
 
 1. Forge generates a random token for that session (at least 32 hex chars) and keeps `key → token` in memory, where `key` is the existing `project::sessionDir`.
 2. Forge adds to the PTY environment:
-   - `FORGE_HOOK_SESSION`: the session key.
+   - `FORGE_HOOK_SESSION`: the session key, URI-encoded (it travels in a header and project names can have any letter).
+   - and removes `FORGE_AUTH_TOKEN`, `FORGE_DB_URL` and `TYPESAFE_API_KEY` from every PTY environment, which until now inherited Forge's whole environment (found in the branch review).
    - `FORGE_HOOK_TOKEN`: the per-session token.
 3. Forge makes Claude Code load the hooks settings file:
    - For the `cw` subcommands: append `--settings <path>` to `CW_CLAUDE_FLAGS`, keeping whatever value the user already has in their environment. CW reads `skip_permissions: true` from `~/.cw/config.yaml` only when `CW_CLAUDE_FLAGS` is empty, so when the environment has no `CW_CLAUDE_FLAGS` and that config says `true`, Forge puts `--dangerously-skip-permissions` first, as CW would have (found during implementation; the user's config has it on).
@@ -83,7 +84,7 @@ Refined during implementation (2026-11-18): Claude Code 2.1.327 has `http` hooks
 - `POST /api/cw/hook-events`. Body: the trimmed event. Header: `X-Forge-Hook-Token: <per-session token>`.
 - It answers `204` when the session key is known and the token matches (constant-time comparison, as `auth.ts` does), `401` otherwise, `400` for a malformed body. Body size is capped (a few KB).
 - It goes through `localOriginGuard` in local mode like every route. When `bearerAuth` is on (`FORGE_HOST` or team mode), this route is exempt from the global token and authenticated by the per-session token instead, so the agent never needs `FORGE_AUTH_TOKEN`. That is the only exemption and it is listed next to `/api/health` in `bearerAuth`.
-- The URL is a loopback URL (`http://127.0.0.1:<port>`) whenever Forge listens on loopback or on all interfaces, since the agent runs on the same machine as Forge. When `FORGE_HOST` is a specific non-loopback address, that address is used.
+- The URL is built from the address the server is actually bound to: `127.0.0.1` for all interfaces, `[::1]` for an IPv6 loopback bind, otherwise that address itself.
 - The response is empty in this step. The approvals queue will later return a decision on the permission event; nothing here should prevent that (e.g. do not answer before reading the body).
 - A leaked per-session token only lets its holder write state for that one session, which the agent could already influence. This is accepted.
 
@@ -102,6 +103,8 @@ Forge stores and uses only: `hook_event_name`, `session_id`, `tool_name` (tool e
 | `StopFailure` | `error` |
 | permission request (dedicated event, or `Notification` whose type says a permission is pending) | `permission` |
 | `Notification` saying Claude is idle / waiting for input | `waiting` |
+| `Notification` `elicitation_dialog` (an MCP server asking the user) | `permission` |
+| `PreCompact` | `working` |
 | `Stop` | `waiting` |
 | `SessionEnd` | no state change; the PTY exit still sets `exited` |
 
@@ -109,7 +112,7 @@ Entries set from hooks have `source: 'hook'` and confidence 1. A `PreToolUse` or
 
 `SubagentStart` and `SubagentStop` do not change the state (the main session is still in its turn); they are accepted so step 2 can count subagents.
 
-**Which Claude session counts (builder-check call, refined during implementation).** One Forge key can see several Claude `session_id`s: each `cw loop` run starts a new one, `/clear` starts a new one, and agent teammates (`cw create --team`) inherit the PTY environment and fire their own events. The key follows one `session_id`. A `SessionStart` with another id switches to it only when the followed session has ended (`SessionEnd`) or when its `source` is `clear`; a teammate starting while the lead runs is ignored. Before any `SessionStart`, the first `session_id` seen is followed. Events of other sessions are accepted (204) and ignored for state.
+**Which Claude session counts (builder-check call, refined during implementation).** One Forge key can see several Claude `session_id`s: each `cw loop` run starts a new one, `/clear` starts a new one, and agent teammates (`cw create --team`) inherit the PTY environment and fire their own events. The key follows one `session_id`. A `SessionStart` with another id switches to it only when the followed session has ended (`SessionEnd`) or when its `source` is `clear` or `resume`; a teammate starting while the lead runs is ignored. Before any `SessionStart`, the first `session_id` seen is followed. Events of other sessions are accepted (204) and ignored for state.
 
 **Hook-driven, on and off (builder-check call).** A key becomes hook-driven on its first followed event. `SessionEnd` of the followed session turns hook-driven off, and the key goes back to today's screen reading until the next `SessionStart`. This covers CW still running in the PTY after `claude` exits (CW's own prompts, `cw loop` sleeping between runs).
 
@@ -117,7 +120,7 @@ Precedence while a key is hook-driven:
 
 - Hook events decide `working`, `waiting` and `permission`, and the remote classifier (Jev) is not asked.
 - The screen may still make two transitions that Claude Code has no hook for (builder-check call):
-  - `working` → `waiting` when the output has settled and the local rules say `waiting` with confidence at or above the local trust level (an interrupted turn with Esc fires no `Stop`).
+  - `working` or `permission` → `waiting` when the output has settled and the local rules say `waiting` with confidence at or above the local trust level (an interrupted turn, or a permission refused with Esc, fires no `Stop`).
   - `permission` → `working` on the existing output-burst rule (2 s of continuous output: a permission was granted and a long tool is running, and `PostToolUse` only comes at its end).
   
   No other screen-driven change applies: a redraw or the user typing must not turn `waiting` or `permission` into anything else.

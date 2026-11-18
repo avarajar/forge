@@ -16,16 +16,21 @@ export const SESSION_ENV = 'FORGE_HOOK_SESSION'
 // Claude Code POSTs these itself (`http` hooks); it skips http hooks for SessionStart, which goes through curl
 export const HOOK_EVENTS_HTTP = [
   'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest', 'PermissionDenied',
-  'Notification', 'Stop', 'StopFailure', 'SubagentStart', 'SubagentStop', 'SessionEnd',
+  'Notification', 'Stop', 'StopFailure', 'SubagentStart', 'SubagentStop', 'PreCompact', 'SessionEnd',
 ] as const
 
 const TIMEOUT_S = 2
 const WILDCARD_HOSTS = new Set(['0.0.0.0', '::', '[::]'])
 
-// The agent runs on Forge's machine, so loopback reaches Forge unless it listens on one specific other address
-export function hookUrl(port: number, host?: string): string {
-  if (!host || WILDCARD_HOSTS.has(host) || isLoopbackHost(host)) return `http://127.0.0.1:${port}${HOOK_PATH}`
-  const name = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+// The agent runs on Forge's machine. `address` is the one the server is bound to (net.Server#address), so
+// an IPv6-only bind gets [::1] and one specific address gets itself.
+export function hookUrl(port: number, address?: string): string {
+  const bare = address?.replace(/^\[|\]$/g, '')
+  let name: string
+  if (!bare || WILDCARD_HOSTS.has(bare)) name = '127.0.0.1'
+  else if (bare === '::1') name = '[::1]'
+  else if (isLoopbackHost(bare)) name = bare === 'localhost' ? '127.0.0.1' : bare
+  else name = bare.includes(':') ? `[${bare}]` : bare
   return `http://${name}:${port}${HOOK_PATH}`
 }
 

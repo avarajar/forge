@@ -60,11 +60,12 @@ export interface HookEvent {
 export function hookState(event: HookEvent): SessionState | null {
   switch (event.name) {
     case 'SessionStart': case 'Stop': return 'waiting'
-    case 'UserPromptSubmit': case 'PreToolUse': case 'PostToolUse': case 'PostToolUseFailure': case 'PermissionDenied': return 'working'
+    case 'UserPromptSubmit': case 'PreToolUse': case 'PostToolUse': case 'PostToolUseFailure': case 'PermissionDenied': case 'PreCompact': return 'working'
     case 'PermissionRequest': return 'permission'
     case 'StopFailure': return 'error'
     case 'Notification':
-      if (event.notificationType === 'permission_prompt') return 'permission'
+      // an MCP server asking the user something needs them as a permission does
+      if (event.notificationType === 'permission_prompt' || event.notificationType === 'elicitation_dialog') return 'permission'
       if (event.notificationType === 'idle_prompt') return 'waiting'
       return null
     default: return null
@@ -169,8 +170,9 @@ export class StateTracker {
     if (!tracked || tracked.exitedAt !== null) return
     const id = event.sessionId ?? null
     if (event.name === 'SessionStart') {
-      // a teammate starts while the lead runs; a new loop run or /clear starts once the previous one ended
-      if (tracked.hook?.sessionId && id !== tracked.hook.sessionId && event.source !== 'clear') return
+      // a teammate starts while the lead runs (source startup); /clear and /resume switch the lead's own session
+      const switches = event.source === 'clear' || event.source === 'resume'
+      if (tracked.hook?.sessionId && id !== tracked.hook.sessionId && !switches) return
       tracked.hook = { sessionId: id }
     } else if (!tracked.hook) {
       if (event.name === 'SessionEnd') return
@@ -242,8 +244,9 @@ export class StateTracker {
     const input = { text: terminalText(tracked.raw), quietMs, harness: tracked.harness, exitCode: null }
     const local = classifyLocal(input)
     if (tracked.hook) {
-      // exact error markers still count, and an interrupted turn (Esc) fires no Stop
-      const settledWaiting = tracked.entry.state === 'working' && local.state === 'waiting' && local.confidence >= this.localTrust
+      // exact error markers still count, and an interrupted turn or a permission refused with Esc fires no Stop
+      const settledWaiting = (tracked.entry.state === 'working' || tracked.entry.state === 'permission')
+        && local.state === 'waiting' && local.confidence >= this.localTrust
       if (local.state === 'error' || settledWaiting) this.apply(tracked, local)
       return
     }

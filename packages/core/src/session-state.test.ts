@@ -41,6 +41,8 @@ describe('StateTracker with Claude Code hooks', () => {
       [{ name: 'Stop' }, 'waiting'],
       [{ name: 'StopFailure' }, 'error'],
       [{ name: 'PermissionDenied' }, 'working'],
+      [{ name: 'Notification', notificationType: 'elicitation_dialog' }, 'permission'],
+      [{ name: 'PreCompact' }, 'working'],
     ]
     for (const [event, expected] of cases) {
       tracker.hookEvent('p::a', { ...event, sessionId: 'lead' })
@@ -76,6 +78,21 @@ describe('StateTracker with Claude Code hooks', () => {
     expect(state().state).toBe('waiting')
     tracker.hookEvent('p::a', { name: 'PreToolUse', sessionId: 'run-2' })
     expect(state().state).toBe('waiting')
+  })
+
+  it('follows the lead into a session it resumes', () => {
+    started('first')
+    tracker.hookEvent('p::a', { name: 'SessionStart', sessionId: 'older', source: 'resume' })
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'older' })
+    expect(state().state).toBe('permission')
+  })
+
+  it('reads a permission refused with Esc from the screen, since it fires no Stop', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'lead' })
+    tracker.output('p::a', '⎿  Interrupted · What should Claude do instead?\n❯ ')
+    vi.advanceTimersByTime(1600)
+    expect(state()).toMatchObject({ state: 'waiting', source: 'local' })
   })
 
   it('hands the session back to the screen after SessionEnd', () => {
