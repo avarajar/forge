@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- A Claude Code session started from Forge reports what it is doing through Claude Code's own hooks, so its card, the sidebar and the "needs me" notifications show working, waiting and permission as they happen instead of guessing from the screen. Forge loads its hooks with `--settings` next to each account's own (its `settings.json` and the hooks in it are not touched), and each session gets a token that only lets it report itself. The screen is still read for API and limit errors, for a turn interrupted with Esc, and for every other harness.
+
 ## 0.1.22 (2026-11-13)
 
 ## 0.1.21 (2026-11-13)

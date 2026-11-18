@@ -84,7 +84,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/pty-manager.ts` — node-pty session manager with idle cleanup
 - `packages/core/src/pty-routes.ts` — WebSocket server for terminal sessions
 - `packages/core/src/general-sessions.ts` — General sessions have no `session.json`; kept in `<dataDir>/general-sessions.json` so a reconnect relaunches them
-- `packages/core/src/session-state.ts` — `StateTracker`: a live terminal's state (working, waiting, permission, error, exited, idle), read when the output settles; `state-classifier-local.ts` holds the Claude Code rules (latest marker wins, fixtures in `__fixtures__/terminal/claude`), `state-classifier-jev.ts` the optional TypeSafe Jev classifier; `terminal-screen.ts` keeps each terminal's screen in `@xterm/headless`, and that screen is what Jev reads, not text stripped from the raw stream
+- `packages/core/src/session-state.ts` — `StateTracker`: a live terminal's state (working, waiting, permission, error, exited, idle), read when the output settles; `state-classifier-local.ts` holds the Claude Code rules (latest marker wins, fixtures in `__fixtures__/terminal/claude`), `state-classifier-jev.ts` the optional TypeSafe Jev classifier; `terminal-screen.ts` keeps each terminal's screen in `@xterm/headless`, and that screen is what Jev reads, not text stripped from the raw stream; Claude Code sessions Forge launches report through hooks instead (`claude-hooks.ts`: `~/.forge/hooks/claude-<port>.json` loaded with `--settings`, `http` hooks plus a `curl` one for SessionStart, a token per session in `FORGE_HOOK_TOKEN`), and `StateTracker.hookEvent` lets the screen only set `error`, an interrupted turn's `waiting` and a granted permission's `working` while hooks drive a session
 - `packages/core/src/db.ts` — SQLite database layer (`db-postgres.ts` and `db-factory.ts` for team mode)
 - `packages/core/src/runner.ts` — Command execution with streaming
 - `packages/core/src/action-params.ts` — `validateParams`: an action's declared params, matched in full, mapped to `FORGE_PARAM_*` env vars
@@ -190,6 +190,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 - `POST /terminal/kill` — Kill a session's PTY
 - `POST /terminal/command` — Types a slash command on one line (`slashLine` in `pty-manager.ts`) into a live Claude Code session's terminal; 400 for another harness, 409 without a terminal
 - `GET /session-states` — `{ classifier, shadow, states }`: state, confidence, since and source per live PTY (`project::sessionDir`); never terminal text
+- `POST /hook-events` — Claude Code's hooks report here; `X-Forge-Hook-Session` and `X-Forge-Hook-Token` (the session's own token, not `FORGE_AUTH_TOKEN`, which this one route does not need); keeps the event name, session id, source and notification type, 204
 
 ### Other
 - `WS /ws/terminal/:project/:sessionDir` — Interactive terminal via WebSocket
