@@ -104,6 +104,17 @@ describe('StateTracker with Claude Code hooks', () => {
     expect(state()).toMatchObject({ state: 'working', source: 'local' })
   })
 
+  it('does not count output from before the permission request as a burst after it', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'PreToolUse', sessionId: 'lead' })
+    for (let i = 0; i < 11; i++) { tracker.output('p::a', '✻ Brewing… '); vi.advanceTimersByTime(200) }
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'lead' })
+    tracker.output('p::a', PERMISSION)
+    vi.advanceTimersByTime(200)
+    tracker.output('p::a', ' ctx:20% ')
+    expect(state()).toMatchObject({ state: 'permission', source: 'hook' })
+  })
+
   it('reads an interrupted turn from the screen, since Esc fires no Stop', () => {
     started()
     tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })

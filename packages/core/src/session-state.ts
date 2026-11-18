@@ -188,6 +188,8 @@ export class StateTracker {
     if (!state) return
     // a remote answer about an older screen must not land after this
     tracked.version++
+    // output drawn before the event (the spinner before a permission dialog) is not a burst after it
+    tracked.burstStart = null
     this.apply(tracked, { state, confidence: 1, source: 'hook' })
   }
 
