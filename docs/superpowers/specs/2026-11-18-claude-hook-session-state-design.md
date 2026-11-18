@@ -98,7 +98,8 @@ Forge stores and uses only: `hook_event_name`, `session_id`, `tool_name` (tool e
 | Event | State |
 |---|---|
 | `SessionStart` | `waiting` (ready for input) |
-| `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `SubagentStart` | `working` |
+| `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied` | `working` |
+| `StopFailure` | `error` |
 | permission request (dedicated event, or `Notification` whose type says a permission is pending) | `permission` |
 | `Notification` saying Claude is idle / waiting for input | `waiting` |
 | `Stop` | `waiting` |
@@ -108,7 +109,7 @@ Entries set from hooks have `source: 'hook'` and confidence 1. A `PreToolUse` or
 
 `SubagentStart` and `SubagentStop` do not change the state (the main session is still in its turn); they are accepted so step 2 can count subagents.
 
-**Which Claude session counts (builder-check call).** One Forge key can see several Claude `session_id`s: each `cw loop` run starts a new one, `/clear` starts a new one, and agent teammates (`cw create --team`) inherit the PTY environment and fire their own events. The key follows the `session_id` of the latest `SessionStart` it received; events with any other `session_id` are accepted (204) and ignored for state. Before the first `SessionStart`, the first `session_id` seen is followed.
+**Which Claude session counts (builder-check call, refined during implementation).** One Forge key can see several Claude `session_id`s: each `cw loop` run starts a new one, `/clear` starts a new one, and agent teammates (`cw create --team`) inherit the PTY environment and fire their own events. The key follows one `session_id`. A `SessionStart` with another id switches to it only when the followed session has ended (`SessionEnd`) or when its `source` is `clear`; a teammate starting while the lead runs is ignored. Before any `SessionStart`, the first `session_id` seen is followed. Events of other sessions are accepted (204) and ignored for state.
 
 **Hook-driven, on and off (builder-check call).** A key becomes hook-driven on its first followed event. `SessionEnd` of the followed session turns hook-driven off, and the key goes back to today's screen reading until the next `SessionStart`. This covers CW still running in the PTY after `claude` exits (CW's own prompts, `cw loop` sleeping between runs).
 
