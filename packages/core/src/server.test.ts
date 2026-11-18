@@ -247,3 +247,57 @@ describe('Forge reachable from other machines', () => {
     }
   })
 })
+
+describe('POST /api/cw/hook-events', () => {
+  const HOOK_DIR = join(import.meta.dirname, '../.test-server-hooks')
+  const event = (name: string, extra: Record<string, unknown> = {}) => JSON.stringify({ session_id: 's1', hook_event_name: name, ...extra })
+  const post = (server: ReturnType<typeof createForgeServer>, headers: Record<string, string>, body: string) =>
+    server.fetch('/api/cw/hook-events', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body })
+
+  afterAll(() => rmSync(HOOK_DIR, { recursive: true, force: true }))
+
+  it('accepts an event only with the token Forge gave that session', async () => {
+    mkdirSync(join(HOOK_DIR, 'local'), { recursive: true })
+    const server = createForgeServer({ dataDir: join(HOOK_DIR, 'local'), port: 0 })
+    expect(server.listening(4555)).toBe(join(HOOK_DIR, 'local', 'hooks', 'claude-4555.json'))
+    const a = server.hooks.launch('app::a')!
+    const b = server.hooks.launch('app::b')!
+    const as = (key: string, token: string) => ({ 'X-Forge-Hook-Session': key, 'X-Forge-Hook-Token': token })
+    expect((await post(server, as('app::a', a.token), event('Stop'))).status).toBe(204)
+    expect((await post(server, as('app::a', b.token), event('Stop'))).status).toBe(401)
+    expect((await post(server, as('app::a', 'nope'), event('Stop'))).status).toBe(401)
+    expect((await post(server, as('app::zzz', a.token), event('Stop'))).status).toBe(401)
+    expect((await post(server, { 'X-Forge-Hook-Session': 'app::a' }, event('Stop'))).status).toBe(401)
+    expect((await post(server, as('app::a', a.token), 'not json')).status).toBe(400)
+    expect((await post(server, as('app::a', a.token), '{"session_id":"s1"}')).status).toBe(400)
+    // a PostToolUse after a large Read is accepted and read from its head
+    const big = event('PostToolUse', { tool_name: 'Read', tool_response: 'x'.repeat(400 * 1024) })
+    expect((await post(server, as('app::a', a.token), big)).status).toBe(204)
+    server.hooks.revoke('app::a')
+    expect((await post(server, as('app::a', a.token), event('Stop'))).status).toBe(401)
+    server.close()
+  })
+
+  it('needs no FORGE_AUTH_TOKEN, while every other route still does', async () => {
+    mkdirSync(join(HOOK_DIR, 'remote'), { recursive: true })
+    const token = 'remote-token-0123456789abcdef'
+    const server = createForgeServer({ dataDir: join(HOOK_DIR, 'remote'), port: 0, localOnly: false, authToken: token })
+    server.listening(4556, '0.0.0.0')
+    const a = server.hooks.launch('app::a')!
+    expect((await post(server, { 'X-Forge-Hook-Session': 'app::a', 'X-Forge-Hook-Token': a.token }, event('Stop'))).status).toBe(204)
+    expect((await post(server, {}, event('Stop'))).status).toBe(401)
+    expect((await server.fetch('/api/cw/session-states')).status).toBe(401)
+    expect((await server.fetch('/api/cw/session-states', { headers: { Authorization: `Bearer ${token}` } })).status).toBe(200)
+    server.close()
+  })
+})
+
+describe('parseHookEvent', () => {
+  it('keeps four short fields and nothing else', async () => {
+    const { parseHookEvent } = await import('./server.js')
+    expect(parseHookEvent(JSON.stringify({ hook_event_name: 'Notification', session_id: 's', notification_type: 'permission_prompt', message: 'secret' })))
+      .toEqual({ name: 'Notification', sessionId: 's', source: undefined, notificationType: 'permission_prompt' })
+    expect(parseHookEvent('[]')).toBeNull()
+    expect(parseHookEvent(JSON.stringify({ hook_event_name: 'x'.repeat(300) }))).toBeNull()
+  })
+})

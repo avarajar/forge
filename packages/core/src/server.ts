@@ -17,6 +17,8 @@ import { skillRoutes } from './skill-routes.js'
 import { PTYManager, slashLine } from './pty-manager.js'
 import { StateTracker, remoteClassifierFromEnv } from './session-state.js'
 import { createStateLog } from './state-log.js'
+import { ClaudeHooks, HOOK_PATH, SESSION_HEADER, TOKEN_HEADER } from './claude-hooks.js'
+import type { HookEvent } from './session-state.js'
 import { createTerminalWss } from './pty-routes.js'
 import { LoginManager } from './login-manager.js'
 import { GeneralSessions } from './general-sessions.js'
@@ -46,6 +48,34 @@ interface ServerOptions {
   forgeNodeModules?: string
   // versión de Forge que reporta /api/health
   version?: string
+}
+
+// An event carries tool input and output, which can be megabytes after a large Read. Forge keeps four short
+// fields; past this size it reads them from the head of the JSON, where Claude Code writes them.
+const HOOK_BODY_MAX = 256 * 1024
+const HOOK_FIELD_MAX = 200
+
+export function parseHookEvent(raw: string): HookEvent | null {
+  let body: Record<string, unknown> = {}
+  if (raw.length <= HOOK_BODY_MAX) {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+      body = parsed as Record<string, unknown>
+    } catch {
+      return null
+    }
+  } else {
+    const head = raw.slice(0, 8192)
+    for (const field of ['hook_event_name', 'session_id', 'source', 'notification_type']) {
+      const m = new RegExp(`"${field}"\\s*:\\s*"([^"\\\\]{1,${HOOK_FIELD_MAX}})"`).exec(head)
+      if (m) body[field] = m[1]
+    }
+  }
+  const text = (value: unknown) => (typeof value === 'string' && value.length > 0 && value.length <= HOOK_FIELD_MAX ? value : undefined)
+  const name = text(body.hook_event_name)
+  if (!name) return null
+  return { name, sessionId: text(body.session_id), source: text(body.source), notificationType: text(body.notification_type) }
 }
 
 export function createForgeServer(options: ServerOptions) {
@@ -96,7 +126,8 @@ export function createForgeServer(options: ServerOptions) {
       lastStateError = err.message
     },
   })
-  const ptyManager = new PTYManager(states)
+  const hooks = new ClaudeHooks({ dir: join(dataDir, 'hooks'), cwHome: cwReader.cwHome, warn: (message) => console.warn(message) })
+  const ptyManager = new PTYManager(states, hooks)
   const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, authToken, general: generalSessions })
 
@@ -159,6 +190,18 @@ export function createForgeServer(options: ServerOptions) {
 
   // states only, never terminal text
   app.get('/api/cw/session-states', (c) => c.json({ classifier: states.remoteName ?? 'local', shadow: states.isShadow, states: states.snapshot() }))
+
+  // Claude Code's own hooks report here with the token Forge gave that one session, never FORGE_AUTH_TOKEN
+  app.post(HOOK_PATH, async (c) => {
+    const key = c.req.header(SESSION_HEADER) ?? ''
+    if (!hooks.verify(key, c.req.header(TOKEN_HEADER))) return c.json({ error: 'Unauthorized' }, 401)
+    const raw = await c.req.text()
+    const event = parseHookEvent(raw)
+    if (!event) return c.json({ error: 'A JSON object with hook_event_name is required' }, 400)
+    states.hookEvent(key, event)
+    // an empty answer leaves every decision, a permission included, to Claude Code
+    return c.body(null, 204)
+  })
 
   app.post('/api/cw/terminal/kill', async (c) => {
     const { project, sessionDir } = await c.req.json<{ project: string; sessionDir: string }>()
@@ -363,6 +406,9 @@ export function createForgeServer(options: ServerOptions) {
     app,
     fetch,
     attachTerminalWs: (server: import('node:http').Server) => terminalWss.attachToServer(server),
+    // the hook settings carry the port, so they are written once the server listens
+    listening: (port: number, host?: string) => hooks.listen(port, host),
+    hooks,
     modulesReady,
     close: () => { moduleHost.close(); ptyManager.dispose(); states.dispose(); loginManager.dispose(); kioku.dispose(); db.close() }
   }

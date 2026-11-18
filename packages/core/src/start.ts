@@ -79,6 +79,7 @@ export async function startForge(options: StartForgeOptions): Promise<StartForge
 
   const address = (httpServer as NetServer).address()
   const actualPort = typeof address === 'object' && address ? address.port : port
+  server.listening(actualPort, host)
   return {
     status: 'listening',
     url: `http://localhost:${actualPort}`,
