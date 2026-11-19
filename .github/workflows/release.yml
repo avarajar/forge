@@ -18,6 +18,7 @@ on:
       - packages/sdk/**
       - packages/platform/**
       - modules/mod-qa/**
+      - modules/mod-today/**
       - pnpm-lock.yaml
       - '!**/*.test.ts'
       - '!**/__fixtures__/**'
@@ -49,7 +50,9 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           version=$(jq -r .version package.json)
-          if ! npm view "forge-cw@$version" version >/dev/null 2>&1; then
+          # npm can take minutes to list a version just published, so its tag also counts as taken
+          taken() { npm view "forge-cw@$1" version >/dev/null 2>&1 || git ls-remote --exit-code --tags origin "refs/tags/v$1" >/dev/null 2>&1; }
+          if ! taken "$version"; then
             echo "forge-cw $version is not on npm yet"
           elif [ "$EVENT" = push ]; then
             # from npm's latest too, in case main fell behind a version published by hand
@@ -57,6 +60,7 @@ jobs:
             highest=$(printf '%s\n%s\n' "$version" "$latest" | sort -V | tail -1)
             IFS=. read -r major minor patch <<< "$highest"
             version="$major.$minor.$((patch + 1))"
+            while taken "$version"; do version="$major.$minor.$((++patch + 1))"; done
             jq --arg v "$version" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
             echo "Raised the patch version to $version"
           else

@@ -42,4 +42,15 @@ describe('GeneralSessions', () => {
     writeFileSync(file, '{')
     expect(new GeneralSessions(file).get('k')).toBeUndefined()
   })
+
+  it('list returns remembered sessions and drops expired ones', () => {
+    const file = join(dir, 'listed.json')
+    const fresh = session(new Date().toISOString())
+    const old = session(new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString())
+    writeFileSync(file, JSON.stringify({ 'a::fresh': { ...fresh, project: 'a' }, 'b::old': { ...old, project: 'b' } }))
+    const store = new GeneralSessions(file)
+    expect(store.list().map((s) => s.project)).toEqual(['a'])
+    expect(store.list('b')).toEqual([])
+    expect(store.list('a')).toHaveLength(1)
+  })
 })

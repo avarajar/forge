@@ -93,6 +93,8 @@ the tool keeps it, through `fs:read`.
 | `fs:write` | same | `ctx.fs.write` |
 | `shell` | executables | `ctx.shell.exec`, shell actions |
 | `pty` | `true` | `ctx.pty.spawn` |
+| `cw` | `["start", "send"]` | `ctx.cw.start` (a CW session, headless; `type` is `work`, `review` (the pull request URL as `task`, session `review-pr-<n>`) or `general`; a work session's `description` goes to its notes, a general session's `prompt` is typed once Claude Code reaches its prompt; `directory` is not checked against the `fs` grants, so `cw.start` can open a session in any folder), `ctx.sessions.send` (types into a Claude Code session, resuming it if needed) |
+| `agent` | `true` | `ctx.agent.run` (a headless `claude -p` under a CW account, with every built-in tool turned off and run in an empty temporary folder; only `mcp__` tools may be allowed, so it cannot grant Bash around `shell`) |
 
 `{key}` fills in a setting and `{list[].field}` gives one grant per list item. A grant whose setting is empty is
 dropped, never widened, and a value that would change the literal part (`evil.com#` in a host, `..` in the middle
@@ -140,7 +142,7 @@ export default defineModule({
   `module.settings.changed`. Session payloads carry `harness`, `provider` and `model`. Handlers run after the event,
   with 10 s each.
 - **`ctx`** gives `settings`, `sessions`, `projects`, `accounts`, `git.status`, `storage` (JSON, scoped to the module),
-  `notify`, `fetch`, `fs`, `shell.exec(command, args)` (never a shell string), `pty` and `log`.
+  `notify`, `fetch`, `fs`, `shell.exec(command, args)` (never a shell string), `pty`, `cw.start`, `sessions.send`, `agent.run` and `log`.
 
 Bundle the SDK into `dist/server.js` (the scaffold does); Forge recognises its errors by name and code.
 
@@ -209,6 +211,8 @@ export default definePanel({ id: 'main', title: 'Harvey', component: View })
   `forge.action(id, input, { onOutput })` runs an action, going through the confirmation for `external` ones; it
   resolves `undefined` when the user cancels. `forge.settings` and `forge.status` are signals; `forge.openSettings()`
   opens the settings form.
+  `forge.openSession(project, sessionDir)` opens that session's tab in the console, like clicking a task row, and
+  `forge.openPage()` switches the console to your module's page (a banner uses it to link to the full view).
 - `preact`, `preact/hooks`, `preact/jsx-runtime`, `preact/compat`, `@preact/signals`, `@forge-dev/ui` and
   `@forge-dev/sdk` come from Forge through an import map: mark them external in your build (the scaffold does), so
   there is one Preact.
@@ -218,6 +222,13 @@ export default definePanel({ id: 'main', title: 'Harvey', component: View })
 - A view that throws shows an error card in its own area with **Reload view**; the rest of Forge keeps working.
 
 Module views run only in the built console that Forge serves (port 3000), not under the Vite dev server.
+
+### Banner
+
+Set `view.banner` to a second bundle (`"view": { "entry": "./dist/view.js", "banner": "./dist/banner.js" }`) that
+default-exports `definePanel({...})` like the view. Forge renders it at the top of the task list, above the start card,
+in its own error boundary. A bundled module's banner is on by default; any other module's is off until the person turns
+on **Show on task list** in the module's settings. The choice is kept in `<dataDir>/module-banners.json`.
 
 ---
 

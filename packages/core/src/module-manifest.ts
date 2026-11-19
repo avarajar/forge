@@ -16,7 +16,8 @@ export type SettingsResult =
 
 const V1_FIELDS = ['server', 'view', 'permissions', 'id']
 const TOP_LEVEL = new Set(['$schema', 'id', 'name', 'version', 'sdk', 'displayName', 'description', 'icon', 'color', 'server', 'view', 'permissions', 'settings', 'actions', 'detectors', 'panels', 'claude'])
-const PERMISSIONS = new Set(['network', 'fs:read', 'fs:write', 'shell', 'pty'])
+const PERMISSIONS = new Set(['network', 'fs:read', 'fs:write', 'shell', 'pty', 'cw', 'agent'])
+const BOOLEAN_PERMISSIONS = new Set(['pty', 'agent'])
 const SCALAR_TYPES = new Set(['string', 'number', 'boolean', 'enum'])
 const FORMATS = new Set(['path', 'cw-project', 'url'])
 
@@ -50,6 +51,7 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
   if (raw.view !== undefined) {
     if (!isObject(raw.view) || typeof raw.view.entry !== 'string' || raw.view.entry === '') err('/view/entry', 'required string')
     else if (raw.view.title !== undefined && typeof raw.view.title !== 'string') err('/view/title', 'must be a string')
+    if (isObject(raw.view) && raw.view.banner !== undefined && (typeof raw.view.banner !== 'string' || raw.view.banner === '')) err('/view/banner', 'must be a non-empty string')
   }
 
   if (raw.permissions !== undefined) {
@@ -57,9 +59,11 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
     else {
       for (const [key, value] of Object.entries(raw.permissions)) {
         if (!PERMISSIONS.has(key)) err(`/permissions/${key}`, 'unknown permission')
-        else if (key === 'pty' ? typeof value !== 'boolean' : !isStringArray(value)) {
-          err(`/permissions/${key}`, key === 'pty' ? 'must be a boolean' : 'must be a list of strings')
-        }
+        else if (BOOLEAN_PERMISSIONS.has(key)) {
+          if (typeof value !== 'boolean') err(`/permissions/${key}`, 'must be a boolean')
+        } else if (key === 'cw') {
+          if (!Array.isArray(value) || !value.every(v => v === 'start' || v === 'send')) err('/permissions/cw', 'must be a list of "start" or "send"')
+        } else if (!isStringArray(value)) err(`/permissions/${key}`, 'must be a list of strings')
       }
     }
   }
@@ -79,7 +83,7 @@ export function checkManifest(raw: unknown, moduleDir: string): ManifestCheck {
   }
 
   if (errors.length === 0) {
-    const entries: Array<[string, unknown]> = [['/server', raw.server], ['/view/entry', isObject(raw.view) ? raw.view.entry : undefined]]
+    const entries: Array<[string, unknown]> = [['/server', raw.server], ['/view/entry', isObject(raw.view) ? raw.view.entry : undefined], ['/view/banner', isObject(raw.view) ? raw.view.banner : undefined]]
     for (const [path, value] of entries) {
       if (typeof value === 'string' && !insideFolder(moduleDir, value)) err(path, 'points outside the module folder')
     }

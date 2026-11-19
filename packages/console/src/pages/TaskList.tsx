@@ -6,6 +6,7 @@ import { QUICK_TYPES, getHarnessStyle, projectOf, quickLabel, sessionKey, type Q
 import { TaskRow, DoneRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
 import { StartCard, type ProjectMap } from '../components/StartCard.js'
+import { ModuleBanners } from '../components/ModuleBanners.js'
 import { PageHeader } from '../components/PageHeader.js'
 import { Dot } from '../components/Dot.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
@@ -135,6 +136,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
       </PageHeader>
 
       <div class="flex flex-col w-full" style={{ padding: '18px 22px 40px', gap: '16px', maxWidth: '1180px' }}>
+        <ModuleBanners />
         <StartCard projects={projects} accounts={accountNames} onStarted={onStarted} onOpenDrawer={onNewTask} />
 
         <div class="flex items-center flex-wrap" style={{ gap: '12px' }}>

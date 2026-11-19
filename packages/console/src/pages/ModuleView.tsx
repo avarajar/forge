@@ -1,11 +1,12 @@
-import { Component, type ComponentChildren, type FunctionComponent } from 'preact'
+import { type FunctionComponent } from 'preact'
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { ActionButton, EmptyState, Modal, showToast } from '@forge-dev/ui'
 import type { ModuleStatus, PanelConfig, PanelProps } from '@forge-dev/sdk'
 import { PageHeader } from '../components/PageHeader.js'
 import { modules, moduleWarning, refreshModules } from '../hooks/useModules.js'
 import { markModuleSeen, moduleCounts } from '../hooks/useModuleNotifications.js'
-import { createPanelClient } from '../config/moduleClient.js'
+import { createPanelClient, importPanel } from '../config/moduleClient.js'
+import { ErrorBoundary } from '../components/ErrorBoundary.js'
 import { ModuleSettings } from '../components/ModuleSettings.js'
 import { errorText, requestJson } from '../config/api.js'
 
@@ -13,19 +14,6 @@ interface Props {
   moduleId: string
   cwProject: string | null
   onBack: () => void
-}
-
-// one broken view never takes the rest of the console with it
-class ViewBoundary extends Component<{ name: string; onReload: () => void; children: ComponentChildren }, { error: Error | null }> {
-  state = { error: null as Error | null }
-  componentDidCatch(error: Error) {
-    this.setState({ error })
-  }
-  render() {
-    const { error } = this.state
-    if (!error) return this.props.children
-    return <ViewError title={`${this.props.name}'s view crashed`} message={error.message} onReload={() => { this.setState({ error: null }); this.props.onReload() }} />
-  }
 }
 
 const ViewError: FunctionComponent<{ title: string; message: string; onReload: () => void }> = ({ title, message, onReload }) => (
@@ -70,22 +58,6 @@ const RemoveModule: FunctionComponent<{ status: ModuleStatus; onClose: () => voi
   )
 }
 
-const loadedViews = new Map<string, Promise<PanelConfig>>()
-
-function importView(status: ModuleStatus): Promise<PanelConfig> {
-  const url = `${status.view!.url}?v=${encodeURIComponent(status.view!.version)}`
-  let p = loadedViews.get(url)
-  if (!p) {
-    p = import(/* @vite-ignore */ url).then((m: { default?: PanelConfig }) => {
-      if (!m.default || typeof m.default.component !== 'function') throw new Error('view.js must default-export definePanel({...})')
-      return m.default
-    })
-    p.catch(() => loadedViews.delete(url))
-    loadedViews.set(url, p)
-  }
-  return p
-}
-
 export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBack }) => {
   const status = modules.value.find(m => m.id === moduleId)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -105,7 +77,7 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
   useEffect(() => {
     if (!status || !version) return
     let live = true
-    importView(status).then(
+    importPanel(status.view!.url, status.view!.version).then(
       config => { if (live) setPanel({ version, config }) },
       (err: Error) => { if (live) setPanel({ version, error: err.message }) },
     )
@@ -117,7 +89,7 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
   const header = (
     <PageHeader title={status?.view?.title ?? name} subtitle={status ? `${status.name} ${status.version}` : undefined}>
       {warning && <span class="mono truncate" title={warning} style={{ maxWidth: '320px', fontSize: '11.5px', color: 'var(--orange)' }}>⚠ {warning}</span>}
-      {status?.settingsSchema && Object.keys(status.settingsSchema).length > 0 && (
+      {((status?.settingsSchema && Object.keys(status.settingsSchema).length > 0) || status?.banner) && (
         <ActionButton label="Settings" icon="i-lucide-settings" variant="secondary" size="sm" onClick={() => setSettingsOpen(true)} />
       )}
       {status?.removable && (
@@ -155,14 +127,14 @@ export const ModuleView: FunctionComponent<Props> = ({ moduleId, cwProject, onBa
       {current?.error ? (
         <ViewError title={`${name}'s view did not load`} message={current.error} onReload={() => setAttempt(a => a + 1)} />
       ) : Panel ? (
-        <ViewBoundary key={`${version}-${attempt}`} name={name} onReload={() => setAttempt(a => a + 1)}>
+        <ErrorBoundary key={`${version}-${attempt}`} fallback={error => <ViewError title={`${name}'s view crashed`} message={error.message} onReload={() => setAttempt(a => a + 1)} />}>
           <Panel moduleId={moduleId} projectId={null} cwProject={cwProject} forge={client} />
-        </ViewBoundary>
+        </ErrorBoundary>
       ) : (
         <div class="py-20 text-center text-ink2">Loading {name}…</div>
       )}
-      {settingsOpen && status.settingsSchema && (
-        <ModuleSettings moduleId={moduleId} displayName={name} schema={status.settingsSchema} onClose={() => setSettingsOpen(false)} onSaved={() => { void client.reloadSettings(); void refreshModules() }} />
+      {settingsOpen && (status.settingsSchema || status.banner) && (
+        <ModuleSettings moduleId={moduleId} displayName={name} schema={status.settingsSchema ?? {}} banner={status.banner} onClose={() => setSettingsOpen(false)} onSaved={() => { void client.reloadSettings(); void refreshModules() }} />
       )}
     </div>
   )

@@ -2,8 +2,11 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { LegacyManifest as ModuleManifest, LegacyActionDef as ActionDef } from '@forge-dev/sdk'
 
-// módulos que viajan con Forge porque la consola los usa (la vista QA llama a mod-qa)
+// modules that ship with Forge because the console uses them (the QA view calls mod-qa)
 export const BUNDLED_MODULES = ['mod-qa']
+
+// bundled v1 modules: ModuleHost loads them and the legacy loader leaves them alone
+export const BUNDLED_V1_MODULES = ['mod-today']
 
 export class ModuleLoader {
   private modulesDir: string
@@ -19,7 +22,7 @@ export class ModuleLoader {
     this.loaded.clear()
     const manifests: ModuleManifest[] = []
 
-    // el incluido gana sobre uno instalado con el mismo nombre: la consola se compiló contra él
+    // the bundled copy wins over an installed one of the same name: the console was built against it
     const bundled = new Set<string>()
     if (this.bundledDir) {
       for (const name of BUNDLED_MODULES) {

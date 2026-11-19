@@ -206,6 +206,11 @@ export class StateTracker {
     this.sessions.delete(key)
   }
 
+  get(key: string): SessionStateEntry | undefined {
+    const tracked = this.sessions.get(key)
+    return tracked ? { ...tracked.entry } : undefined
+  }
+
   snapshot(): Record<string, SessionStateEntry> {
     const now = Date.now()
     const out: Record<string, SessionStateEntry> = {}

@@ -1,0 +1,1 @@
+{ "id": "with-banner", "name": "@test/mod-with-banner", "version": "0.1.0", "sdk": "^1.0.0", "displayName": "With banner", "view": { "entry": "./dist/view.js", "banner": "./dist/banner.js" } }

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { createForgeServer } from './server.js'
-import { cpSync, mkdirSync, rmSync } from 'node:fs'
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createServer, type Server } from 'node:http'
 import WebSocket from 'ws'
@@ -302,5 +302,37 @@ describe('parseHookEvent', () => {
       .toEqual({ name: 'Notification', sessionId: 's', source: undefined, notificationType: 'permission_prompt' })
     expect(parseHookEvent('[]')).toBeNull()
     expect(parseHookEvent(JSON.stringify({ hook_event_name: 'x'.repeat(300) }))).toBeNull()
+  })
+})
+
+describe('General sessions in /api/cw/spaces', () => {
+  const dir = join(import.meta.dirname, '../.test-server-general')
+  const session = {
+    project: '__general', type: 'general', account: 'default', workflow: '', worktree: '/tmp', notes: '',
+    status: 'active', created: new Date().toISOString(), last_opened: new Date().toISOString(), opens: 0, sessionDir: 'general-default-9',
+  }
+  let server: ReturnType<typeof createForgeServer>
+
+  beforeAll(() => {
+    mkdirSync(join(dir, 'cw/sessions'), { recursive: true })
+    mkdirSync(join(dir, 'modules'), { recursive: true })
+    writeFileSync(join(dir, 'general-sessions.json'), JSON.stringify({ '__general::general-default-9': session }))
+    server = createForgeServer({ dataDir: dir, cwDir: join(dir, 'cw'), port: 0, version: '1.0.0' })
+  })
+
+  afterAll(() => {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('a killed general session is gone from /spaces', async () => {
+    const dirs = async () => ((await (await server.fetch('/api/cw/spaces')).json()) as { sessionDir: string }[]).map((s) => s.sessionDir)
+    expect(await dirs()).toContain('general-default-9')
+    const res = await server.fetch('/api/cw/terminal/kill', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ project: '__general', sessionDir: 'general-default-9' }),
+    })
+    expect(res.status).toBe(200)
+    expect(await dirs()).not.toContain('general-default-9')
   })
 })

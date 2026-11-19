@@ -9,6 +9,8 @@ export interface Grants {
   fsWrite: string[]
   shell: string[]
   pty: boolean
+  cw: Set<'start' | 'send'>
+  agent: boolean
 }
 
 const TEMPLATE_RE = /\{([a-zA-Z0-9_]+)(\[\]\.([a-zA-Z0-9_]+))?\}/g
@@ -21,6 +23,8 @@ export function expandGrants(permissions: ModulePermissions | undefined, setting
     fsWrite: expandAll(p['fs:write'], settings, 'path').map(expandHome),
     shell: expandAll(p.shell, settings, 'path').map(expandHome),
     pty: p.pty === true,
+    cw: new Set(p.cw ?? []),
+    agent: p.agent === true,
   }
 }
 

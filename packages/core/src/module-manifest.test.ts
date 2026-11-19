@@ -52,6 +52,17 @@ describe('checkManifest', () => {
     expect(result.kind === 'invalid' && result.reason).toContain('/permissions/camera')
   })
 
+  it('accepts cw ["start","send"] and agent true', () => {
+    const result = checkManifest(v1({ permissions: { cw: ['start', 'send'], agent: true } }), dir)
+    expect(result.kind).toBe('v1')
+  })
+
+  it('rejects cw ["delete"]', () => {
+    const result = checkManifest(v1({ permissions: { cw: ['delete'] } }), dir)
+    expect(result.kind).toBe('invalid')
+    if (result.kind === 'invalid') expect(result.reason).toContain('/permissions/cw')
+  })
+
   it('refuses a non-object manifest', () => {
     expect(checkManifest('nope', dir).kind).toBe('invalid')
   })
@@ -59,7 +70,7 @@ describe('checkManifest', () => {
 
 describe('checkSdk', () => {
   it('names the range and the version when incompatible', () => {
-    expect(checkSdk('^2.0.0')).toBe('needs SDK ^2.0.0, Forge has 1.0.0')
+    expect(checkSdk('^2.0.0')).toBe('needs SDK ^2.0.0, Forge has 1.1.0')
   })
 
   it('accepts a compatible range', () => {

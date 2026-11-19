@@ -10,6 +10,93 @@
 
 - A Claude Code session started from Forge reports what it is doing through Claude Code's own hooks, so its card, the sidebar and the "needs me" notifications show working, waiting and permission as they happen instead of guessing from the screen. Forge loads its hooks with `--settings` next to each account's own (its `settings.json` and the hooks in it are not touched), and each session gets a token that only lets it report itself. The screen is still read for API and limit errors, for a turn interrupted with Esc, and for every other harness.
 
+## 0.1.30 (2026-11-17)
+
+### Added
+
+- Today: the page is an inbox. A list on the left (Needs you, In progress, To do, Updates, with unread dots) and the selected item on the right: the Slack thread or the Linear description and latest comment, the failing checks for GitHub, and the same actions as before. Keys: arrows or j/k, Enter opens the link, S starts, H hides, R researches, / or Cmd+F searches. Under 900px it shows the list, then the item with a Back button.
+- Today: Start the day, from the page or the banner, goes through what needs you one card at a time (S start, O open, L later, H hide) with progress kept for the day.
+
+## 0.1.29 (2026-11-17)
+
+### Added
+
+- Today: Slack is read with an explicit procedure (your own user id, mentions, direct messages and replies in threads you took part in), so mentions and DMs no longer slip by.
+- Today: Pending gets Slack waiting on you, the mentions, DMs and thread replies of the last 7 days that you have not answered. Each has Open in Slack, Start a task (the message becomes its description), Research (a general session, only on a click) and Hide. They never start on their own.
+- Today: Slack waiting on you looks a week back on every reading, so messages older than a day stay listed until you answer; Slack links must be on slack.com, and Research marks the Slack text as untrusted.
+- Today: search box (title, key, who, where) and account and source filters with counts, remembered per viewer.
+
+### Changed
+
+- Today: the page is two columns, News and Pending, of one-line rows that open on a click; Pending groups (CI failing, Slack waiting on you, review requests, Linear in progress, issues assigned, Linear to do) fold and remember it. The columns stack on narrow screens, and Read now is called Refresh.
+- Today: the banner is one line, `N new · M pending (x CI · y Slack) · Open Today →`, plus at most three urgent rows (failing CI, Slack waiting on you, news) and a single reading or problems line; the full lists and Fold moved out of it. Accept all is now `Accept the N` in the page's News heading and covers only the news in view (account, source and search filters apply).
+
+## 0.1.28 (2026-11-17)
+
+### Added
+
+- Today: a Pending section with what is open now, rebuilt on every reading: review requests asked of you, your pull requests with failing checks, issues assigned to you on GitHub, and your started and unstarted Linear issues (last 30 days). Each has Open task (when a session works on it) or Start, and Hide until it changes. The banner gets a `Pending · N` line that opens to five rows.
+- Today: a first reading says that what you have open is under Pending instead of looking empty.
+
+### Changed
+
+- Today: the page shows News then Pending, the day picker reads `Monday 16`, and the header says `Read at 6:15 PM · changes since 1:05 PM` with the previous reading's time.
+- Today: rows no longer repeat the issue key in the title or name the source as its own author.
+
+## 0.1.27 (2026-11-17)
+
+### Fixed
+
+- Terminal hyperlinks (OSC 8, what Claude Code prints for URLs) open in the browser without xterm's confirm and blank window, which the desktop app refused.
+
+## 0.1.26 (2026-11-16)
+
+### Fixed
+
+- Today: a reader waits for the account's claude.ai connectors (Linear, Slack) to connect before it starts, so connected accounts no longer report them as unreachable. The one retry after a failed read now waits 15 s.
+- Today: only Slack and Linear can be reported as problems; a GitHub hiccup no longer shows up as a reader problem.
+- Today: review requests you no longer have (reviewed, closed or reassigned) leave the digest instead of lingering as proposals.
+
+### Changed
+
+- Today: while a reading runs, the banner and page show "Reading monoku · meridian…" with a spinner, check or warning per account, refresh every 3 s, a disabled Refresh, and placeholder rows on a first reading.
+- Today: account problems take one line each (`meridian · Slack and Linear did not respond`) with the reasons in a tooltip and a Details toggle on the page.
+
+## 0.1.25 (2026-11-16)
+
+### Added
+
+- Today warns per account when Slack, Linear or the reader fails, with Retry and Reconnect (opens the account's Claude Code at /mcp).
+
+### Fixed
+
+- Today: review requests are the ones asked of you, not of a team you belong to.
+- Today: when a reader cannot reach Slack or Linear (for example while the account's connectors are still connecting) it tries once more and then says so on the banner, instead of reporting nothing new.
+
+## 0.1.24 (2026-11-16)
+
+### Fixed
+
+- Desktop app: links in a terminal open in the browser (xterm's default opened a blank window first, which the app refused), and Memory's Open viewer opens the viewer.
+
+## 0.1.23 (2026-11-16)
+
+### Added
+
+- Today module (`mod-today`, bundled): a daily Linear and Slack digest read by a headless agent, shown as a banner on the task list and as the Today page, with item actions (start a task, research, open a session or page).
+- Module banners: a module's `view.banner` bundle renders on the task list, served at `GET /api/modules/:id/banner.js` and switched with `PUT /api/modules/:id/banner` (on by default for bundled modules).
+- Module SDK 1.1.0: `cw` and `agent` permissions, `ctx.cw.start` (with a work session's `description` and a general session's first `prompt`), `ctx.sessions.send`, `ctx.agent.run` (no built-in tools, run in an empty temporary folder), and `openSession` and `openPage` on the panel client.
+- Bundled v1 modules ship in the npm package and the desktop app with their `package.json` and `dist/`.
+- Today module: a Refresh button on the banner (header and folded line) reads only what is new since the last reading; days with nothing new keep a minimal line with Refresh instead of hiding the banner.
+- Today module reads GitHub with `gh`: comments and reviews on your open pull requests, review requests, mentions, assigned issues and failing checks; a review request starts `cw review` on the pull request. A missing or signed out `gh` is shown as a muted note and the reading goes on. Research that comes from GitHub never starts on its own; it waits for your click.
+- Today module ships off: it reads nothing, spends no usage and starts no research until you press Turn on (banner or Today page); Turn off stops it again.
+- Today module reads every Claude account: one reader per account in parallel, each with that account's Linear and Slack connectors, projects and sessions; every item shows its account, tasks and research start under it, the banner filters by account and the Today page groups by account. The `account` setting becomes `accounts` (comma separated, empty reads every Claude account); research sessions per day count per account, and an account that fails becomes a note while the others are kept.
+- Module SDK: `cw.start` takes `type: 'review'`, and `SessionInfo.taskUrl` is the URL a session's task came from.
+
+### Fixed
+
+- General sessions show in the task list and their tabs come back after a reload: `GET /api/cw/spaces` now includes the ones Forge remembers (until their tab is closed). Marking one done closes it without running `cw`.
+
 ## 0.1.22 (2026-11-13)
 
 ## 0.1.21 (2026-11-13)

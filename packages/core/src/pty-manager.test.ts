@@ -252,6 +252,25 @@ describe('PTYManager', () => {
     vi.useRealTimers()
   })
 
+  it('headless session survives cleanup until a client leaves', () => {
+    vi.useFakeTimers()
+    const key = 'testproj::task-fix-bug'
+    const ptySession = manager.getOrCreate('testproj', 'task-fix-bug', makeSession(), { headless: true })
+    expect(ptySession?.headless).toBe(true)
+
+    vi.advanceTimersByTime(31 * 60 * 1000)
+    manager.cleanup()
+    expect(manager.has(key)).toBe(true)
+
+    const fakeWs = { send: vi.fn(), close: vi.fn() }
+    manager.attach(key, fakeWs)
+    manager.detach(key, fakeWs)
+    vi.advanceTimersByTime(31 * 60 * 1000)
+    manager.cleanup()
+    expect(manager.has(key)).toBe(false)
+    vi.useRealTimers()
+  })
+
   it('builds correct command for loop sessions with interval', () => {
     const session = makeSession({
       type: 'loop', task: 'watch-tests', sessionDir: 'loop-watch-tests',

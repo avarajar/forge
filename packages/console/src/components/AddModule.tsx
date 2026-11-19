@@ -14,6 +14,7 @@ interface Preview {
   displayName: string
   description?: string
   spec: string
+  banner?: boolean
   permissions: Array<{ kind: string; value: string }>
   trustNote: string
 }
@@ -89,6 +90,8 @@ export const AddModule: FunctionComponent<Props> = ({ onClose, onInstalled }) =>
             <div class="mono" style={{ marginTop: '2px', fontSize: '11.5px', color: 'var(--ink-3)' }}>{preview.name} {preview.version}{preview.kind === 'legacy' ? ' · legacy module' : ''}</div>
             {preview.description && <p style={{ marginTop: '8px', fontSize: '13px', color: 'var(--ink-2)' }}>{preview.description}</p>}
           </div>
+
+          {preview.banner && <span style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>Adds a banner to the task list</span>}
 
           <div class="flex flex-col" style={{ gap: '6px' }}>
             <span style={{ ...labelStyle, fontWeight: 600 }}>{preview.permissions.length ? 'It asks for' : 'It asks for no permissions'}</span>

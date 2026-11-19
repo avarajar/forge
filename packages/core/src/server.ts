@@ -27,6 +27,8 @@ import { kiokuRoutes } from './kioku-routes.js'
 import { ModuleHost, type LoadedModule } from './module-host.js'
 import { moduleRoutes } from './module-routes.js'
 import { ModuleInstaller } from './module-install.js'
+import { createCwDeps } from './module-cw.js'
+import { runAgent } from './agent-runner.js'
 import { createRunner } from './task-review.js'
 import { JobScheduler } from './module-jobs.js'
 import { ModuleEvents } from './module-events.js'
@@ -107,8 +109,9 @@ export function createForgeServer(options: ServerOptions) {
   }
 
   const cwReader = new CWReader(options.cwDir)
+  const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
   const loginManager = new LoginManager(resolveCwBin(cwReader.cwHome))
-  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
+  app.route('/api/cw', cwRoutes(cwReader, { loginManager, localOnly, general: generalSessions, killSession: (key) => ptyManager.kill(key), events: { emit: (name, payload) => moduleEvents.emit(name, payload) } }))
   app.route('/api/skills', skillRoutes(cwReader, { backupDir: join(dataDir, 'skill-backups') }))
 
   const { remote, shadow, warning } = remoteClassifierFromEnv()
@@ -128,7 +131,6 @@ export function createForgeServer(options: ServerOptions) {
   })
   const hooks = new ClaudeHooks({ dir: join(dataDir, 'hooks'), cwHome: cwReader.cwHome, warn: (message) => console.warn(message) })
   const ptyManager = new PTYManager(states, hooks)
-  const generalSessions = new GeneralSessions(join(dataDir, 'general-sessions.json'))
   const terminalWss = createTerminalWss(ptyManager, cwReader, { localOnly, authToken, general: generalSessions })
 
   app.route('/api/liveframe', liveframeRoutes())
@@ -162,7 +164,13 @@ export function createForgeServer(options: ServerOptions) {
     forgeNodeModules: options.forgeNodeModules,
     devFile: join(dataDir, 'dev-modules.json'),
     localOnly,
-    deps: { db, reader: cwReader, runner },
+    deps: {
+      db,
+      reader: cwReader,
+      runner,
+      cw: createCwDeps({ reader: cwReader, manager: ptyManager, states, general: generalSessions }),
+      agent: { run: (i) => runAgent(i, { cwHome: cwReader.cwHome }) },
+    },
     hooks: {
       loaded: (mod) => {
         for (const sub of mod.server?.events ?? []) moduleEvents.subscribe(mod.status.id, sub, mod.ctx)

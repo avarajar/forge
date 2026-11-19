@@ -2,8 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import type { Server } from 'node:http'
 import type { PTYManager } from './pty-manager.js'
 import type { CWReader } from './cw-reader.js'
-import type { CWSession } from './cw-types.js'
-import { pendingSessions } from './cw-routes.js'
+import { takeSession } from './cw-start.js'
 import { isLocalRequest } from './origin-guard.js'
 import { isAuthorized } from './auth.js'
 import type { GeneralSessions } from './general-sessions.js'
@@ -11,21 +10,7 @@ import type { GeneralSessions } from './general-sessions.js'
 // close code for a session the server will not open, so the client stops reconnecting
 export const REFUSED_CLOSE_CODE = 4404
 
-// A session still in pendingSessions was just created by /start; anything else is a resume
-export function takeSession(reader: CWReader, project: string, sessionDir: string, general?: GeneralSessions): { session: CWSession; isNew: boolean } | null {
-  const sessionId = `${project}::${sessionDir}`
-  const pending = pendingSessions.get(sessionId)
-  if (pending) {
-    pendingSessions.delete(sessionId)
-    if (pending.type === 'general') general?.remember(sessionId, pending)
-    return { session: pending, isNew: true }
-  }
-  const session = reader.getSession(project, sessionDir)
-  if (session) return { session, isNew: false }
-  // a general session cannot resume, so it relaunches with the same account, harness and folder
-  const known = general?.get(sessionId)
-  return known ? { session: known, isNew: true } : null
-}
+export { takeSession }
 
 export function createTerminalWss(manager: PTYManager, reader: CWReader, { localOnly = true, authToken, general }: { localOnly?: boolean; authToken?: string; general?: GeneralSessions } = {}) {
   const wss = new WebSocketServer({ noServer: true })

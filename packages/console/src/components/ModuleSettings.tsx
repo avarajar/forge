@@ -4,7 +4,7 @@ import { ActionButton, Drawer, ToggleSwitch, showToast } from '@forge-dev/ui'
 import type { ModuleSettings as Values, ScalarSettingDef, SettingDef } from '@forge-dev/sdk'
 import { Field, inputValue, labelStyle } from './Field.js'
 import { DirectoryPicker } from './DirectoryPicker.js'
-import { errorText } from '../config/api.js'
+import { errorText, requestJson } from '../config/api.js'
 
 type Errors = Record<string, string>
 type Item = Record<string, unknown>
@@ -13,6 +13,7 @@ interface Props {
   moduleId: string
   displayName: string
   schema: Record<string, SettingDef>
+  banner?: { enabled: boolean }
   onClose: () => void
   onSaved: () => void
 }
@@ -55,11 +56,12 @@ const Labeled: FunctionComponent<{ def: SettingDef; error?: string; plain?: bool
 )
 
 // a form generated from the module's settings schema; the server validates and answers with paths
-export const ModuleSettings: FunctionComponent<Props> = ({ moduleId, displayName, schema, onClose, onSaved }) => {
+export const ModuleSettings: FunctionComponent<Props> = ({ moduleId, displayName, schema, banner, onClose, onSaved }) => {
   const [values, setValues] = useState<Values | null>(null)
   const [errors, setErrors] = useState<Errors>({})
   const [projects, setProjects] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [showBanner, setShowBanner] = useState(banner?.enabled === true)
   const base = `/api/modules/${encodeURIComponent(moduleId)}/settings`
 
   useEffect(() => {
@@ -77,6 +79,15 @@ export const ModuleSettings: FunctionComponent<Props> = ({ moduleId, displayName
   const save = async () => {
     setSaving(true)
     try {
+      if (banner && showBanner !== banner.enabled) {
+        await requestJson('PUT', `/api/modules/${encodeURIComponent(moduleId)}/banner`, { enabled: showBanner })
+      }
+      if (Object.keys(schema).length === 0) {
+        showToast(`${displayName} settings saved`, 'success')
+        onSaved()
+        onClose()
+        return
+      }
       const res = await fetch(base, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) })
       if (res.status === 400) {
         const { errors: list } = await res.json() as { errors: Array<{ path: string; message: string }> }
@@ -99,6 +110,7 @@ export const ModuleSettings: FunctionComponent<Props> = ({ moduleId, displayName
     <Drawer title={`${displayName} settings`} onClose={onClose}>
       {!values ? <div class="text-ink2" style={{ fontSize: '13px' }}>Loading…</div> : (
         <div class="flex flex-col" style={{ gap: '14px' }}>
+          {banner && <ToggleSwitch checked={showBanner} onChange={setShowBanner} label="Show on task list" />}
           {Object.entries(schema).map(([key, def]) => {
             if (def.type !== 'list') {
               return (

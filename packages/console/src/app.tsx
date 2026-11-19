@@ -33,6 +33,7 @@ import { startAccount, startProject, typeOverride } from './state/startTask.js'
 import { useTabManager } from './hooks/useTabManager.js'
 import { useTaskFilters } from './hooks/useTaskFilters.js'
 import { loadReviewState, refreshReviewStates } from './hooks/useTaskReview.js'
+import { pageRequest, sessionRequest } from './state/moduleNav.js'
 import './styles/theme.css'
 import 'virtual:uno.css'
 
@@ -331,6 +332,26 @@ function App() {
     const name = modules.value.find(m => m.id === n.moduleId)?.displayName ?? n.moduleId
     notify(`${name}: ${n.title}`, n.body ?? '', `module:${n.moduleId}:${n.key}`, () => navigateRef.current(`module:${n.moduleId}`))
   }), [])
+
+  // module views ask for a session tab or their page through these signals; the first value is the initial one
+  useEffect(() => {
+    let first = true
+    return sessionRequest.subscribe((req) => {
+      if (first) { first = false; return }
+      if (!req) return
+      const { spaces: all, openSession: open } = sessionsRef.current
+      const session = all.find(s => s.project === req.project && s.sessionDir === req.sessionDir)
+      if (session) open(session)
+      else showToast('That session is not in the list (yet)', 'error')
+    })
+  }, [])
+  useEffect(() => {
+    let first = true
+    return pageRequest.subscribe((req) => {
+      if (first) { first = false; return }
+      if (req) navigateRef.current(`module:${req.moduleId}`)
+    })
+  }, [])
 
   const waitingCount = Object.values(sessionStates.value).filter(needsYou).length
   useEffect(() => {

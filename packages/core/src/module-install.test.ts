@@ -48,7 +48,7 @@ describe('previewManifest', () => {
 
   it('refuses an invalid manifest with its reason', async () => {
     await expect(previewManifest(join(FIXTURES, 'sdk-incompatible'), { cwd: root, run: async () => ({ code: 0, stdout: '', stderr: '' }) }))
-      .rejects.toThrow('needs SDK ^2.0.0, Forge has 1.0.0')
+      .rejects.toThrow('needs SDK ^2.0.0, Forge has 1.1.0')
   })
 
   it('reports npm pack failing', async () => {

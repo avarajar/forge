@@ -118,7 +118,11 @@ export const Memory: FunctionComponent<MemoryProps> = ({ project, onProject }) =
     try {
       const { address } = await postJson<{ address: string }>('/api/kioku/viewer', {})
       if (tab) tab.location.href = address
-      else showToast(`Viewer running at ${address}`, 'info')
+      else {
+        // the desktop app refuses blank windows and opens real addresses in the browser
+        window.open(address, '_blank')
+        showToast(`Viewer running at ${address}`, 'info')
+      }
       void loadKioku()
     } catch (err) {
       tab?.close()
