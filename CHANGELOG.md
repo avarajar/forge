@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.34 (2026-11-20)
+
 ### Changed
 
 - Visual refresh: AA text contrast, quieter task rows, depth instead of hairlines, consistent radii and titles.
