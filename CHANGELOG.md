@@ -4,7 +4,7 @@
 
 ### Security
 
-- Sessions no longer inherit `FORGE_AUTH_TOKEN`, `FORGE_DB_URL` or `TYPESAFE_API_KEY` from Forge's environment. Before, an agent running in a Forge reachable from other machines could read the token and use the whole API, other sessions' terminals included.
+- Sessions, and the headless agent Today reads with, no longer inherit `FORGE_AUTH_TOKEN`, `FORGE_DB_URL` or `TYPESAFE_API_KEY` from Forge's environment. Before, an agent running in a Forge reachable from other machines could read the token and use the whole API, other sessions' terminals included.
 
 ### Changed
 

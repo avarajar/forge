@@ -4,7 +4,7 @@ import { existsSync, chmodSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import type { CWSession } from './cw-types.js'
-import { envWithoutHarness } from './cw-doctor.js'
+import { envWithoutHarness, FORGE_SECRETS } from './cw-doctor.js'
 import { supports } from './harness-capabilities.js'
 import type { StateTracker } from './session-state.js'
 import { SESSION_ENV, TOKEN_ENV, type ClaudeHooks, type HookLaunch } from './claude-hooks.js'
@@ -72,9 +72,6 @@ export interface LaunchHook extends HookLaunch {
 
 // a Forge started from inside a Forge session inherits that session's hook settings and token
 const INHERITED_HOOK_SETTINGS = /(^|\s)--settings\s+\S*\/claude-\d+\.json(?=\s|$)/g
-
-// what lets a process drive Forge or reach its database or Jev never goes to an agent
-const FORGE_SECRETS = ['FORGE_AUTH_TOKEN', 'FORGE_DB_URL', 'TYPESAFE_API_KEY']
 
 function withHook(env: Record<string, string>, session: CWSession, hook: LaunchHook | undefined): boolean {
   for (const name of FORGE_SECRETS) delete env[name]

@@ -48,6 +48,20 @@ describe('runAgent', () => {
     expect(opts.env.MCP_TIMEOUT).toBe('60000')
   })
 
+  it('never passes Forge secrets to the agent, its MCP servers or its hooks', async () => {
+    const secrets = { FORGE_AUTH_TOKEN: 'remote-token', FORGE_DB_URL: 'postgres://x', TYPESAFE_API_KEY: 'ts-key' }
+    Object.assign(process.env, secrets)
+    const child = new FakeChild()
+    const spawn = vi.fn(() => child)
+    const promise = runAgent(input, { cwHome: home(), spawn: spawn as never })
+    child.finish(JSON.stringify({ result: 'done' }))
+    await promise
+    for (const name of Object.keys(secrets)) delete process.env[name]
+    const [, , opts] = spawn.mock.calls[0] as unknown as [string, string[], { env: Record<string, string> }]
+    for (const name of Object.keys(secrets)) expect(opts.env[name]).toBeUndefined()
+    expect(opts.env.PATH).toBe(process.env.PATH)
+  })
+
   it('runs in a fresh empty folder that is removed afterwards', async () => {
     const child = new FakeChild()
     let seen: { cwd: string; empty: boolean } | undefined
