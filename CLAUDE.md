@@ -177,7 +177,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 
 ### CW (`/api/cw`)
 - `GET /spaces` — List all sessions (sorted by last_opened)
-- `GET /session/:project/:sessionDir`, `GET /notes/:project/:sessionDir` — One session, its notes
+- `GET /session/:project/:sessionDir`, `GET /notes/:project/:sessionDir` — One session (also a general one, or one launched headless that CW has not written yet, kept 15 min in `cw-start.ts`), its notes
 - `GET /projects` — List registered CW projects
 - `POST /register-project`, `POST /move-project`, `POST /delete-project`, `GET /browse-dirs` — Project management
 - `GET /accounts` — List CW accounts

@@ -18,7 +18,7 @@ import type { TaskReviewState } from './cw-types.js'
 import { detectEditors, openInEditor, systemProbe, type DetectedEditor } from './editors.js'
 import { tailOutput } from './output.js'
 import type { GeneralSessions } from './general-sessions.js'
-import { prepareStart, pendingSessions, type StartInput } from './cw-start.js'
+import { prepareStart, pendingSessions, recentLaunch, type StartInput } from './cw-start.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -114,7 +114,9 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
 
   app.get('/session/:project/:sessionDir', (c) => {
     const { project, sessionDir } = c.req.param()
-    const session = reader.getSession(project, sessionDir)
+    // a session started headless (a module's cw.start) is known before CW writes its session.json
+    const key = `${project}::${sessionDir}`
+    const session = reader.getSession(project, sessionDir) ?? options.general?.get(key) ?? recentLaunch(key)
     if (!session) return c.json({ error: 'Session not found' }, 404)
     return c.json(session)
   })

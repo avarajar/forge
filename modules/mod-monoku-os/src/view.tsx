@@ -49,13 +49,13 @@ function View({ forge }: PanelProps) {
 
       {mine.length > 0 && (
         <Section title="Solicitudes para ti">
-          {mine.map(s => <SolicitudRow key={s.id} s={s} forge={forge} onAnswered={reload} detail />)}
+          {mine.map(s => <SolicitudRow key={s.id} s={s} tickets={r?.tickets ?? []} forge={forge} onAnswered={reload} detail />)}
         </Section>
       )}
 
       {carried.length > 0 && (
         <Section title="Solicitudes que llevas">
-          {carried.map(s => <SolicitudRow key={s.id} s={s} forge={forge} onAnswered={reload} detail />)}
+          {carried.map(s => <SolicitudRow key={s.id} s={s} tickets={r?.tickets ?? []} forge={forge} onAnswered={reload} detail />)}
         </Section>
       )}
 

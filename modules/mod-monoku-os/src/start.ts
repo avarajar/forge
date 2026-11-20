@@ -5,7 +5,20 @@ import { accountOf, type Reading } from './reader'
 export interface Mapping { monoku: string; project: string }
 export interface Started { project: string; sessionDir: string }
 
-export const ticketUrl = (numero: number) => `https://os.monoku.com/ver/${numero}`
+const BASE = 'https://os.monoku.com/ver/'
+
+// Django's slugify, which Monoku OS builds its links with: accents dropped, punctuation removed, spaces and hyphens joined
+export function webSlug(text: string): string {
+  return text.normalize('NFKD').replace(/[^\x00-\x7f]/g, '').replace(/[^\w\s-]/g, '').toLowerCase().trim().replace(/[-\s]+/g, '-').replace(/^[-_]+|[-_]+$/g, '')
+}
+
+// a ticket's web page is /ver/<client>/<project>/<numero>-<title>/; without its client and project, the list
+export function ticketUrl(t: Pick<Ticket, 'numero' | 'titulo' | 'cliente' | 'proyecto'> | undefined): string {
+  if (!t?.cliente || !t.proyecto) return BASE
+  const proyecto = t.proyecto.startsWith(`${t.cliente}/`) ? t.proyecto.slice(t.cliente.length + 1) : t.proyecto
+  const parts = [webSlug(t.cliente), webSlug(proyecto), `${t.numero}-${webSlug(t.titulo)}`]
+  return parts.every(Boolean) ? `${BASE}${parts.join('/')}/` : BASE
+}
 
 export function mappingsOf(ctx: ForgeContext): Mapping[] {
   const list = Array.isArray(ctx.settings.projects) ? ctx.settings.projects : []
@@ -74,7 +87,7 @@ export function briefFor(t: Ticket): string {
     `Trabajas el ticket #${t.numero} de Monoku OS: "${t.titulo}".`,
     t.siguientePaso ? `Monoku OS dice que el siguiente paso es: ${t.siguientePaso.replace(/_/g, ' ')}.` : '',
     `Antes de nada, lee la ficha con la herramienta ticket (numero ${t.numero}) y el contexto del proyecto con contexto_del_proyecto (numero ${t.numero}) del conector de Monoku OS.`,
-    `Ficha web: ${ticketUrl(t.numero)}`,
+    `Ficha web: ${ticketUrl(t)}`,
   ].filter(Boolean).join('\n')
 }
 
