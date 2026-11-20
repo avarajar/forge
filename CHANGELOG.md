@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.32 (2026-11-20)
+
 ### Added
 
 - Monoku OS module (`modules/mod-monoku-os`, not shipped in the npm package): what Monoku OS expects from you (`lo_que_me_toca`), read by a headless agent under your Monoku account, in a banner on the task list and a page of its own. **Empezar** opens a CW session already told which ticket it works on, in the CW project whose git origin is the repository Monoku OS lists for the ticket's project (it asks only when none matches, or which repo when several do, and a choice it remembers wins), **Abrir** opens the ticket page, and **Responder…** answers a question addressed to you after showing exactly what will be written. You choose when it reads: on open (default, when the last reading is older than 30 minutes), every N minutes, once a day, or only by hand. Load it with `forge module dev modules/mod-monoku-os` and turn on "Show on task list".
