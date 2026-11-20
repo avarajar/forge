@@ -36,6 +36,7 @@ modules/
   mod-design/     — Figma + tokens + wireframes
   mod-qa/         — qa-pilot escalation inbox (PRs that need a human)
   mod-today/      — Daily Linear, Slack and GitHub digest per Claude account, banner on the task list
+  mod-monoku-os/  — Monoku OS pending work (tickets, requests) read through the claude.ai connector, banner and page; not bundled, load with `forge module dev`
   mod-release/    — Deploy, flags, rollback, changelog
   mod-monitor/    — Health, errors, uptime, costs
 tests/integration/ — Cross-package tests (not wired, see Development)

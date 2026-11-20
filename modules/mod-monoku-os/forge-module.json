@@ -1,0 +1,67 @@
+{
+  "id": "monoku-os",
+  "name": "@forge-dev/mod-monoku-os",
+  "version": "0.1.0",
+  "sdk": "^1.1.0",
+  "displayName": "Monoku OS",
+  "description": "What Monoku OS expects from you, read by a headless agent",
+  "server": "./dist/server.js",
+  "view": {
+    "entry": "./dist/view.js",
+    "title": "Monoku OS",
+    "banner": "./dist/banner.js"
+  },
+  "permissions": {
+    "agent": true,
+    "cw": ["start"],
+    "shell": ["git"]
+  },
+  "settings": {
+    "schema": {
+      "account": {
+        "type": "string",
+        "label": "CW account",
+        "help": "The account whose Claude has the Monoku OS connector",
+        "pattern": "^[a-zA-Z0-9._-]+$",
+        "default": "monoku"
+      },
+      "when": {
+        "type": "enum",
+        "label": "When to read",
+        "help": "on-open: when you look at Forge and the last reading is older than the minutes below; interval: every N minutes; daily: once a day; manual: only with Read now",
+        "values": ["on-open", "interval", "daily", "manual"],
+        "default": "on-open"
+      },
+      "every": {
+        "type": "number",
+        "label": "Minutes",
+        "help": "on-open: how old a reading may be; interval: how often to read",
+        "min": 5,
+        "max": 240,
+        "default": 30
+      },
+      "time": {
+        "type": "string",
+        "label": "Daily at",
+        "help": "Local time, HH:MM",
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+        "default": "08:00"
+      },
+      "model": {
+        "type": "enum",
+        "label": "Reader model",
+        "values": ["haiku", "sonnet"],
+        "default": "haiku"
+      },
+      "projects": {
+        "type": "list",
+        "label": "Projects",
+        "help": "Which CW project each Monoku OS project opens in; a project may have several rows, one per repo. Without a row, the CW project whose git origin is the repository Monoku OS lists is used",
+        "item": {
+          "monoku": { "type": "string", "required": true, "label": "Monoku OS project (cliente/proyecto)" },
+          "project": { "type": "string", "required": true, "format": "cw-project", "label": "CW project" }
+        }
+      }
+    }
+  }
+}
