@@ -21,6 +21,7 @@ function View({ forge }: PanelProps) {
   const problem = error ?? state?.lastError?.message
   const mine = r?.solicitudes.filter(s => s.paraMi) ?? []
   const carried = r?.solicitudes.filter(s => !s.paraMi) ?? []
+  const enCurso = r?.enCurso ?? []
 
   return (
     <div style={{ padding: '22px clamp(16px, 3vw, 32px)', color: 'var(--ink)', display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '980px' }}>
@@ -47,15 +48,21 @@ function View({ forge }: PanelProps) {
         </Section>
       ))}
 
+      {enCurso.length > 0 && (
+        <Section title="En curso · le toca a otra persona">
+          {enCurso.map(t => <TicketRow key={t.numero} ticket={t} start={start} following />)}
+        </Section>
+      )}
+
       {mine.length > 0 && (
         <Section title="Solicitudes para ti">
-          {mine.map(s => <SolicitudRow key={s.id} s={s} tickets={r?.tickets ?? []} forge={forge} onAnswered={reload} detail />)}
+          {mine.map(s => <SolicitudRow key={s.id} s={s} tickets={[...r?.tickets ?? [], ...enCurso]} forge={forge} onAnswered={reload} detail />)}
         </Section>
       )}
 
       {carried.length > 0 && (
         <Section title="Solicitudes que llevas">
-          {carried.map(s => <SolicitudRow key={s.id} s={s} tickets={r?.tickets ?? []} forge={forge} onAnswered={reload} detail />)}
+          {carried.map(s => <SolicitudRow key={s.id} s={s} tickets={[...r?.tickets ?? [], ...enCurso]} forge={forge} onAnswered={reload} detail />)}
         </Section>
       )}
 

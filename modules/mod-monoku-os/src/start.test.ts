@@ -38,11 +38,11 @@ describe('slug and brief', () => {
 
 describe('ticketUrl', () => {
   it('builds the ficha web link Monoku OS uses', () => {
-    const t = { numero: 42, titulo: 'Notificaciones: marchado, eliminado, caído, sin conexión', cliente: 'Seim Seim', proyecto: 'Seim Seim/POS' }
-    expect(ticketUrl(t)).toBe('https://os.monoku.com/ver/seim-seim/pos/42-notificaciones-marchado-eliminado-caido-sin-conexion/')
+    const t = { numero: 42, titulo: 'Avisos: pedido, anulado, caído, sin conexión', cliente: 'Casa Norte', proyecto: 'Casa Norte/Caja' }
+    expect(ticketUrl(t)).toBe('https://os.monoku.com/ver/casa-norte/caja/42-avisos-pedido-anulado-caido-sin-conexion/')
   })
   it('takes a project written without its client', () => {
-    expect(ticketUrl({ numero: 7, titulo: 'Menú', cliente: 'Seim Seim', proyecto: 'Reservas' })).toBe('https://os.monoku.com/ver/seim-seim/reservas/7-menu/')
+    expect(ticketUrl({ numero: 7, titulo: 'Menú', cliente: 'Casa Norte', proyecto: 'Agenda' })).toBe('https://os.monoku.com/ver/casa-norte/agenda/7-menu/')
   })
   it('falls back to the list without a client, a project or a ticket', () => {
     expect(ticketUrl({ numero: 7, titulo: 'x', proyecto: 'POS' })).toBe('https://os.monoku.com/ver/')
@@ -59,6 +59,12 @@ describe('startTicket', () => {
     await expect(startTicket(withReading().ctx, 7)).rejects.toMatchObject({ code: 'not_found' })
   })
 
+  it('starts a ticket that is in progress, not your turn', async () => {
+    const s = stub({ projects: [{ monoku: 'acme/web', project: 'acme-web' }] })
+    s.store.set('reading', { at: 'x', tickets: [], enCurso: [ticket], solicitudes: [], dropped: 0 })
+    await expect(startTicket(s.ctx, 42)).resolves.toMatchObject({ reused: false })
+  })
+
   it('asks for a project when none is mapped, and to pick when several are', async () => {
     await expect(startTicket(withReading().ctx, 42)).rejects.toMatchObject({ code: 'bad_request', message: 'no_project' })
     const many = withReading({ projects: [{ monoku: 'acme/web', project: 'acme-web' }, { monoku: 'acme/web', project: 'acme-api' }] })
@@ -69,6 +75,7 @@ describe('startTicket', () => {
     const s = withReading({ account: 'monoku', projects: [{ monoku: 'acme/web', project: 'acme-web' }] })
     expect(await startTicket(s.ctx, 42)).toEqual({ session: { project: 'acme-web', sessionDir: 'work-1' }, reused: false })
     expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'acme-web', account: 'monoku', task: 'monoku-42-login-con-google', description: briefFor(ticket) })
+    expect(s.store.get('followed')).toEqual([42])
   })
 
   it('takes a chosen project only if CW knows it', async () => {

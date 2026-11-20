@@ -19,7 +19,7 @@ function Banner({ forge }: PanelProps) {
     <Frame>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px 4px', fontSize: '12.5px', color: 'var(--ink-2)' }}>
         <b style={{ color: 'var(--ink)', fontWeight: 600 }}>Monoku OS</b>
-        <span>· {r ? pendientes(total) : reading ? 'leyendo…' : 'sin leer todavía'}</span>
+        <span>· {r ? pendientes(total) : reading ? 'leyendo…' : 'sin leer todavía'}{r?.enCurso?.length ? ` · ${r.enCurso.length} en curso` : ''}</span>
         <button type="button" onClick={() => forge.openPage()} style={link}>Ver todo →</button>
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {r && <span style={muted}>{ago(r.at)}</span>}
@@ -29,7 +29,7 @@ function Banner({ forge }: PanelProps) {
       <div style={{ padding: '0 14px 8px' }}>
         {rows.map(row => (row.kind === 'ticket'
           ? <TicketRow key={`t${row.item.numero}`} ticket={row.item} start={start} />
-          : <SolicitudRow key={`s${row.item.id}`} s={row.item} tickets={r?.tickets ?? []} forge={forge} onAnswered={reload} />))}
+          : <SolicitudRow key={`s${row.item.id}`} s={row.item} tickets={[...r?.tickets ?? [], ...r?.enCurso ?? []]} forge={forge} onAnswered={reload} />))}
         {more > 0 && <button type="button" onClick={() => forge.openPage()} style={{ ...link, fontSize: '12px', padding: '4px 0' }}>+{more} más</button>}
         {problem && <div role="alert" style={{ ...muted, color: 'var(--orange)', padding: '2px 0' }}>⚠ No se pudo leer Monoku OS: {problem}</div>}
       </div>

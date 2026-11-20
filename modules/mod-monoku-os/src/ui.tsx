@@ -128,8 +128,12 @@ export function PickProject({ ticket, start }: { ticket: Ticket; start: ReturnTy
   )
 }
 
-export function TicketRow({ ticket, start, detail }: { ticket: Ticket; start: ReturnType<typeof useStart>; detail?: boolean }) {
-  const where = [ticket.proyecto ?? ticket.cliente, ticket.siguientePaso && `te toca: ${words(ticket.siguientePaso)}`].filter(Boolean).join(' · ')
+// following: a ticket that was yours and is someone else's turn now
+export function TicketRow({ ticket, start, detail, following }: { ticket: Ticket; start: ReturnType<typeof useStart>; detail?: boolean; following?: boolean }) {
+  const turn = following
+    ? [ticket.casilla && `en ${casillaLabel(ticket.casilla)}`, ticket.leTocaA && `le toca a ${ticket.leTocaA}${ticket.siguientePaso ? `: ${words(ticket.siguientePaso)}` : ''}`]
+    : [ticket.siguientePaso && `te toca: ${words(ticket.siguientePaso)}`]
+  const where = [ticket.proyecto ?? ticket.cliente, ...turn].filter(Boolean).join(' · ')
   return (
     <div style={{ padding: '4px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12.5px', minWidth: 0 }}>

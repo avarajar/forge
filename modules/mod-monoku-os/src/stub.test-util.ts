@@ -3,8 +3,8 @@ import type { AgentRunInput, ForgeContext, ModuleSettings } from '@forge-dev/sdk
 
 export const yo = { persona: { nombre: 'José Andrade', usuario: 'jose', correo: 'jose@monoku.com' } }
 
-export function answer(meToca: { tickets?: unknown[]; solicitudes?: unknown[] }, clientes?: unknown) {
-  return { text: JSON.stringify({ yo, me_toca: { tickets: meToca.tickets ?? [], solicitudes: meToca.solicitudes ?? [] }, clientes: clientes ?? null }) }
+export function answer(meToca: { tickets?: unknown[]; solicitudes?: unknown[] }, clientes?: unknown, seguidos?: unknown[]) {
+  return { text: JSON.stringify({ yo, me_toca: { tickets: meToca.tickets ?? [], solicitudes: meToca.solicitudes ?? [] }, clientes: clientes ?? null, ...(seguidos ? { seguidos } : {}) }) }
 }
 
 export function stub(settings: ModuleSettings = {}) {

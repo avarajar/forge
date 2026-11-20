@@ -37,7 +37,10 @@ export interface Solicitud {
 
 export interface Me { usuario?: string; nombre?: string; correo?: string }
 
-export interface ParsedReading { tickets: Ticket[]; solicitudes: Solicitud[]; yo?: Me; dropped: number }
+// enCurso: followed tickets that are not your turn now; cerrados: followed tickets that closed (listo, congelado, archivado)
+export interface ParsedReading { tickets: Ticket[]; solicitudes: Solicitud[]; yo?: Me; dropped: number; enCurso?: Ticket[]; cerrados?: number[] }
+
+const CLOSED = ['listo', 'congelado', 'archivado']
 
 type Obj = Record<string, unknown>
 
@@ -181,15 +184,28 @@ export function parseReading(text: string): ParsedReading | { problem: string } 
     return v ? [v] : []
   })
   const repos = parseClientes(data.clientes)
-  const tickets = keep(body.tickets, toTicket).map(t => {
-    const repo = repoFor(repos, t)
-    return repo ? { ...t, repo } : t
-  })
+  const tickets = keep(body.tickets, toTicket).map(t => withRepo(repos, t))
   const solicitudes = keep(body.solicitudes, o => toSolicitud(o, yo))
-  return { tickets, solicitudes, ...(yo ? { yo } : {}), dropped }
+  const reading: ParsedReading = { tickets, solicitudes, ...(yo ? { yo } : {}), dropped }
+  if (!Array.isArray(data.seguidos)) return reading
+  const mine = new Set(tickets.map(t => t.numero))
+  const enCurso: Ticket[] = []
+  const cerrados: number[] = []
+  for (const row of data.seguidos) {
+    const t = isObj(row) ? toTicket(row) : undefined
+    if (!t || mine.has(t.numero) || enCurso.some(x => x.numero === t.numero)) continue
+    if (CLOSED.includes(valor(row.casilla)?.toLowerCase() ?? '')) cerrados.push(t.numero)
+    else enCurso.push(withRepo(repos, t))
+  }
+  return { ...reading, enCurso, cerrados }
 }
 
 export interface ProjectRepo { cliente: string; proyecto: string; repo: string }
+
+function withRepo(repos: ProjectRepo[], t: Ticket): Ticket {
+  const repo = repoFor(repos, t)
+  return repo ? { ...t, repo } : t
+}
 
 export function normalizeRepo(value: string | undefined): string | undefined {
   if (!value) return undefined

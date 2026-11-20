@@ -1,6 +1,6 @@
 import { ModuleError, type ForgeContext } from '@forge-dev/sdk'
 import { normalizeRepo, type Ticket } from './parse'
-import { accountOf, type Reading } from './reader'
+import { accountOf, follow, type Reading } from './reader'
 
 export interface Mapping { monoku: string; project: string }
 export interface Started { project: string; sessionDir: string }
@@ -93,7 +93,7 @@ export function briefFor(t: Ticket): string {
 
 export async function ticketIn(ctx: ForgeContext, numero: number): Promise<Ticket> {
   const reading = await ctx.storage.get<Reading>('reading')
-  const ticket = reading?.tickets.find(t => t.numero === numero)
+  const ticket = reading?.tickets.find(t => t.numero === numero) ?? reading?.enCurso?.find(t => t.numero === numero)
   if (!ticket) throw new ModuleError('not_found', `ticket ${numero} is not in the last reading`)
   return ticket
 }
@@ -123,5 +123,6 @@ export async function startTicket(ctx: ForgeContext, numero: number, chosen?: st
     description: briefFor(ticket),
   })
   await ctx.storage.set(`started/${numero}`, session)
+  await follow(ctx, [numero])
   return { session, reused: false }
 }
