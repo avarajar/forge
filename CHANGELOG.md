@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+
+- A session a module starts (Monoku OS's **Empezar**) opens its tab right away instead of saying "That session is not in the list (yet)", which happened while CW was still creating the worktree. `GET /api/cw/session/:project/:sessionDir` now also answers for a session launched headless before CW writes its `session.json`.
+- Monoku OS's **Abrir** opens the ticket's page (`/ver/<client>/<project>/<number>-<title>/`) instead of a 404. The session brief carries the same link.
+
 ## 0.1.32 (2026-11-20)
 
 ### Added

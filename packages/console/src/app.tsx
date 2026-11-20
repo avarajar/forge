@@ -317,6 +317,8 @@ function App() {
   // the listener outlives renders, so it reads the latest sessions through a ref
   const sessionsRef = useRef({ openTabs: tabs.openTabs, spaces, openSession })
   sessionsRef.current = { openTabs: tabs.openTabs, spaces, openSession }
+  const refreshAfterActionRef = useRef(refreshAfterAction)
+  refreshAfterActionRef.current = refreshAfterAction
   useEffect(() => watchSessionStates((key, entry) => {
     if (document.visibilityState === 'visible' && key === activeSessionKey.value) return
     const { openTabs, spaces: all, openSession: open } = sessionsRef.current
@@ -341,8 +343,15 @@ function App() {
       if (!req) return
       const { spaces: all, openSession: open } = sessionsRef.current
       const session = all.find(s => s.project === req.project && s.sessionDir === req.sessionDir)
-      if (session) open(session)
-      else showToast('That session is not in the list (yet)', 'error')
+      if (session) { open(session); return }
+      // a session a module just started is not in the list until CW writes it; the server already knows it
+      void fetch(`/api/cw/session/${encodeURIComponent(req.project)}/${encodeURIComponent(req.sessionDir)}`)
+        .then(async (res) => {
+          if (!res.ok) throw new Error(String(res.status))
+          sessionsRef.current.openSession(await res.json() as CWSession)
+          refreshAfterActionRef.current()
+        })
+        .catch(() => showToast('That session is not in the list (yet)', 'error'))
     })
   }, [])
   useEffect(() => {

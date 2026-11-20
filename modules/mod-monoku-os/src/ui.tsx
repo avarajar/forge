@@ -139,7 +139,7 @@ export function TicketRow({ ticket, start, detail }: { ticket: Ticket; start: Re
         <span style={{ ...muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{where}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexShrink: 0 }}>
           <Btn label={start.busy === ticket.numero ? 'Abriendo…' : 'Empezar'} disabled={start.busy !== null} onClick={() => start.run(ticket)} />
-          <a href={ticketUrl(ticket.numero)} target="_blank" rel="noopener noreferrer" style={{ ...ghost, textDecoration: 'none' }}>Abrir ↗</a>
+          <a href={ticketUrl(ticket)} target="_blank" rel="noopener noreferrer" style={{ ...ghost, textDecoration: 'none' }}>Abrir ↗</a>
         </span>
       </div>
       {detail && (
@@ -156,7 +156,7 @@ export function TicketRow({ ticket, start, detail }: { ticket: Ticket; start: Re
   )
 }
 
-export function SolicitudRow({ s, forge, onAnswered, detail }: { s: Solicitud; forge: PanelClient; onAnswered: () => void; detail?: boolean }) {
+export function SolicitudRow({ s, tickets, forge, onAnswered, detail }: { s: Solicitud; tickets: Ticket[]; forge: PanelClient; onAnswered: () => void; detail?: boolean }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -189,7 +189,7 @@ export function SolicitudRow({ s, forge, onAnswered, detail }: { s: Solicitud; f
         <span style={{ ...muted, whiteSpace: 'nowrap', color: red ? 'var(--red)' : 'var(--ink-3)' }}>{meta}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexShrink: 0 }}>
           {canAnswer && !open && <Btn label="Responder…" onClick={() => setOpen(true)} />}
-          {s.ticket && <a href={ticketUrl(s.ticket)} target="_blank" rel="noopener noreferrer" style={{ ...ghost, textDecoration: 'none' }}>Abrir ↗</a>}
+          {s.ticket && <a href={ticketUrl(tickets.find(t => t.numero === s.ticket))} target="_blank" rel="noopener noreferrer" style={{ ...ghost, textDecoration: 'none' }}>Abrir ↗</a>}
         </span>
       </div>
       {open && (

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import type { ForgeContext } from '@forge-dev/sdk'
-import { briefFor, candidatesFor, projectsFor, resetRemotes, slug, startTicket } from './start'
+import { briefFor, candidatesFor, projectsFor, resetRemotes, slug, startTicket, ticketUrl, webSlug } from './start'
 import { stub } from './stub.test-util'
 
 beforeEach(() => resetRemotes())
 
-const ticket = { numero: 42, titulo: 'Login con Google', proyecto: 'acme/web', siguientePaso: 'construir' }
+const ticket = { numero: 42, titulo: 'Login con Google', cliente: 'acme', proyecto: 'acme/web', siguientePaso: 'construir' }
 
 function withReading(settings: Record<string, unknown> = {}) {
   const s = stub(settings)
@@ -32,7 +32,25 @@ describe('slug and brief', () => {
     const b = briefFor(ticket)
     expect(b).toContain('ticket #42')
     expect(b).toContain('contexto_del_proyecto')
-    expect(b).toContain('https://os.monoku.com/ver/42')
+    expect(b).toContain('https://os.monoku.com/ver/acme/web/42-login-con-google/')
+  })
+})
+
+describe('ticketUrl', () => {
+  it('builds the ficha web link Monoku OS uses', () => {
+    const t = { numero: 42, titulo: 'Notificaciones: marchado, eliminado, caído, sin conexión', cliente: 'Seim Seim', proyecto: 'Seim Seim/POS' }
+    expect(ticketUrl(t)).toBe('https://os.monoku.com/ver/seim-seim/pos/42-notificaciones-marchado-eliminado-caido-sin-conexion/')
+  })
+  it('takes a project written without its client', () => {
+    expect(ticketUrl({ numero: 7, titulo: 'Menú', cliente: 'Seim Seim', proyecto: 'Reservas' })).toBe('https://os.monoku.com/ver/seim-seim/reservas/7-menu/')
+  })
+  it('falls back to the list without a client, a project or a ticket', () => {
+    expect(ticketUrl({ numero: 7, titulo: 'x', proyecto: 'POS' })).toBe('https://os.monoku.com/ver/')
+    expect(ticketUrl(undefined)).toBe('https://os.monoku.com/ver/')
+    expect(ticketUrl({ numero: 7, titulo: 'x', cliente: '!!', proyecto: 'POS' })).toBe('https://os.monoku.com/ver/')
+  })
+  it('slugs like Django', () => {
+    expect(webSlug('  Año — 2/3 _x_ ')).toBe('ano-23-_x')
   })
 })
 

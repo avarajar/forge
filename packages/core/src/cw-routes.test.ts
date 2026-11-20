@@ -11,6 +11,7 @@ import type { Runner } from './task-review.js'
 import type { TaskReviewState } from './cw-types.js'
 import type { DetectedEditor } from './editors.js'
 import { GeneralSessions } from './general-sessions.js'
+import { noteLaunch, recentLaunch } from './cw-start.js'
 import { makeFixtureRepo, type FixtureRepo } from './test-git.js'
 
 const TEST_CW = join(import.meta.dirname, '../.test-cw-routes')
@@ -151,6 +152,20 @@ describe('CW Routes', () => {
   it('GET /api/cw/session/testproj/nonexistent returns 404', async () => {
     const res = await app.request('/api/cw/session/testproj/nonexistent')
     expect(res.status).toBe(404)
+  })
+
+  it('GET /api/cw/session answers a session launched headless before CW writes it', async () => {
+    noteLaunch('testproj::task-launched', { project: 'testproj', type: 'work', task: 'launched', account: 'default', workflow: '', worktree: '', notes: '', status: 'active', created: '', last_opened: '', opens: 0, sessionDir: 'task-launched' })
+    const res = await app.request('/api/cw/session/testproj/task-launched')
+    expect(res.status).toBe(200)
+    expect((await res.json() as { task: string }).task).toBe('launched')
+  })
+
+  it('forgets a headless launch after 15 minutes', () => {
+    const at = Date.now()
+    noteLaunch('testproj::task-old', { project: 'testproj', type: 'work', task: 'old', account: 'default', workflow: '', worktree: '', notes: '', status: 'active', created: '', last_opened: '', opens: 0, sessionDir: 'task-old' }, at)
+    expect(recentLaunch('testproj::task-old', at + 60_000)?.task).toBe('old')
+    expect(recentLaunch('testproj::task-old', at + 16 * 60_000)).toBeUndefined()
   })
 
   it('POST /api/cw/accounts rejects empty name', async () => {

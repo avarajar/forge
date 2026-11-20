@@ -317,9 +317,27 @@ export function takeSession(reader: CWReader, project: string, sessionDir: strin
   return known ? { session: known, isNew: true } : null
 }
 
+// Sessions launched headless, kept until CW has written their session.json, so the console can open a tab for one in the meantime
+const LAUNCH_TTL_MS = 15 * 60_000
+const launched = new Map<string, { session: CWSession; at: number }>()
+
+export function noteLaunch(key: string, session: CWSession, now = Date.now()) {
+  for (const [k, v] of launched) if (now - v.at > LAUNCH_TTL_MS) launched.delete(k)
+  launched.set(key, { session, at: now })
+}
+
+export function recentLaunch(key: string, now = Date.now()): CWSession | undefined {
+  const hit = launched.get(key)
+  if (hit && now - hit.at <= LAUNCH_TTL_MS) return hit.session
+  launched.delete(key)
+  return undefined
+}
+
 // Starts a pending session's terminal now, with no browser tab attached
 export function launchHeadless(project: string, sessionDir: string, deps: { reader: CWReader; manager: PTYManager; general: GeneralSessions }): PTYSession | null {
   const taken = takeSession(deps.reader, project, sessionDir, deps.general)
   if (!taken) return null
-  return deps.manager.getOrCreate(project, sessionDir, taken.session, { isNew: taken.isNew, headless: true })
+  const pty = deps.manager.getOrCreate(project, sessionDir, taken.session, { isNew: taken.isNew, headless: true })
+  if (pty && taken.isNew) noteLaunch(`${project}::${sessionDir}`, taken.session)
+  return pty
 }
