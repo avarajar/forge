@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { StateTracker, remoteClassifierFromEnv, type RemoteCall } from './session-state.js'
+import { StateTracker, remoteClassifierFromEnv, type HookEvent, type RemoteCall } from './session-state.js'
 import type { Classification, StateClassifier } from './state-classifier.js'
 
 const DONE = '✻ Brewed for 3s\n❯ '
@@ -12,6 +12,161 @@ const remoteReturning = (answer: Classification | Error, calls: string[] = []): 
     if (answer instanceof Error) throw answer
     return answer
   },
+})
+
+describe('StateTracker with Claude Code hooks', () => {
+  let tracker: StateTracker
+
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(0) })
+  afterEach(() => { tracker?.dispose(); vi.useRealTimers(); vi.restoreAllMocks() })
+
+  const started = (sessionId = 'lead') => {
+    tracker = new StateTracker()
+    tracker.track('p::a', 'claude')
+    tracker.hookEvent('p::a', { name: 'SessionStart', sessionId, source: 'startup' })
+  }
+  const state = () => tracker.snapshot()['p::a']
+
+  it('maps hook events to states with full confidence', () => {
+    started()
+    expect(state()).toMatchObject({ state: 'waiting', source: 'hook', confidence: 1 })
+    const cases: Array<[HookEvent, string]> = [
+      [{ name: 'UserPromptSubmit' }, 'working'],
+      [{ name: 'PermissionRequest' }, 'permission'],
+      [{ name: 'PreToolUse' }, 'working'],
+      [{ name: 'Notification', notificationType: 'permission_prompt' }, 'permission'],
+      [{ name: 'PostToolUse' }, 'working'],
+      [{ name: 'Notification', notificationType: 'idle_prompt' }, 'waiting'],
+      [{ name: 'PostToolUseFailure' }, 'working'],
+      [{ name: 'Stop' }, 'waiting'],
+      [{ name: 'StopFailure' }, 'error'],
+      [{ name: 'PermissionDenied' }, 'working'],
+      [{ name: 'Notification', notificationType: 'elicitation_dialog' }, 'permission'],
+      [{ name: 'PreCompact' }, 'working'],
+    ]
+    for (const [event, expected] of cases) {
+      tracker.hookEvent('p::a', { ...event, sessionId: 'lead' })
+      expect(state().state, event.name).toBe(expected)
+    }
+  })
+
+  it('changes nothing on subagent events or other notifications', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })
+    tracker.hookEvent('p::a', { name: 'SubagentStart', sessionId: 'lead' })
+    tracker.hookEvent('p::a', { name: 'SubagentStop', sessionId: 'lead' })
+    tracker.hookEvent('p::a', { name: 'Notification', sessionId: 'lead', notificationType: 'auth_success' })
+    expect(state().state).toBe('working')
+  })
+
+  it('ignores an agent teammate that starts while the lead runs', () => {
+    started('lead')
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })
+    tracker.hookEvent('p::a', { name: 'SessionStart', sessionId: 'mate', source: 'startup' })
+    tracker.hookEvent('p::a', { name: 'Stop', sessionId: 'mate' })
+    expect(state().state).toBe('working')
+  })
+
+  it('follows the next Claude session after the previous one ended, or after /clear', () => {
+    started('run-1')
+    tracker.hookEvent('p::a', { name: 'SessionEnd', sessionId: 'run-1' })
+    tracker.hookEvent('p::a', { name: 'SessionStart', sessionId: 'run-2', source: 'startup' })
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'run-2' })
+    expect(state().state).toBe('working')
+    tracker.hookEvent('p::a', { name: 'SessionStart', sessionId: 'run-3', source: 'clear' })
+    tracker.hookEvent('p::a', { name: 'Stop', sessionId: 'run-2' })
+    expect(state().state).toBe('waiting')
+    tracker.hookEvent('p::a', { name: 'PreToolUse', sessionId: 'run-2' })
+    expect(state().state).toBe('waiting')
+  })
+
+  it('follows the lead into a session it resumes', () => {
+    started('first')
+    tracker.hookEvent('p::a', { name: 'SessionStart', sessionId: 'older', source: 'resume' })
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'older' })
+    expect(state().state).toBe('permission')
+  })
+
+  it('reads a permission refused with Esc from the screen, since it fires no Stop', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'lead' })
+    tracker.output('p::a', '⎿  Interrupted · What should Claude do instead?\n❯ ')
+    vi.advanceTimersByTime(1600)
+    expect(state()).toMatchObject({ state: 'waiting', source: 'local' })
+  })
+
+  it('hands the session back to the screen after SessionEnd', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'Stop', sessionId: 'lead' })
+    tracker.hookEvent('p::a', { name: 'SessionEnd', sessionId: 'lead' })
+    for (let i = 0; i < 11; i++) { tracker.output('p::a', '✻ Brewing… '); vi.advanceTimersByTime(200) }
+    expect(state()).toMatchObject({ state: 'working', source: 'local' })
+  })
+
+  it('holds waiting and permission through redraws and typing', () => {
+    started()
+    for (let i = 0; i < 11; i++) { tracker.output('p::a', '✻ Brewing… '); vi.advanceTimersByTime(200) }
+    vi.advanceTimersByTime(2000)
+    expect(state()).toMatchObject({ state: 'waiting', source: 'hook' })
+  })
+
+  it('moves a granted permission to working when output keeps flowing', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'lead' })
+    tracker.output('p::a', PERMISSION)
+    vi.advanceTimersByTime(300)
+    tracker.output('p::a', 'y')
+    expect(state().state).toBe('permission')
+    for (let i = 0; i < 11; i++) { tracker.output('p::a', '✻ Running… '); vi.advanceTimersByTime(200) }
+    expect(state()).toMatchObject({ state: 'working', source: 'local' })
+  })
+
+  it('does not count output from before the permission request as a burst after it', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'PreToolUse', sessionId: 'lead' })
+    for (let i = 0; i < 11; i++) { tracker.output('p::a', '✻ Brewing… '); vi.advanceTimersByTime(200) }
+    tracker.hookEvent('p::a', { name: 'PermissionRequest', sessionId: 'lead' })
+    tracker.output('p::a', PERMISSION)
+    vi.advanceTimersByTime(200)
+    tracker.output('p::a', ' ctx:20% ')
+    expect(state()).toMatchObject({ state: 'permission', source: 'hook' })
+  })
+
+  it('reads an interrupted turn from the screen, since Esc fires no Stop', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })
+    tracker.output('p::a', '⎿  Interrupted · What should Claude do instead?\n❯ ')
+    vi.advanceTimersByTime(1600)
+    expect(state()).toMatchObject({ state: 'waiting', source: 'local' })
+  })
+
+  it('still takes an error from the screen, and the next hook event replaces it', () => {
+    started()
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })
+    tracker.output('p::a', 'API Error: 529 overloaded')
+    vi.advanceTimersByTime(1600)
+    expect(state().state).toBe('error')
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })
+    expect(state()).toMatchObject({ state: 'working', source: 'hook' })
+  })
+
+  it('never asks the remote classifier about a session hooks drive', () => {
+    const calls: string[] = []
+    tracker = new StateTracker({ remote: remoteReturning({ state: 'idle', confidence: 0.99, source: 'fake' }, calls) })
+    tracker.track('p::a', 'claude')
+    tracker.hookEvent('p::a', { name: 'Stop', sessionId: 'lead' })
+    tracker.output('p::a', 'something unclear')
+    vi.advanceTimersByTime(5000)
+    expect(calls).toHaveLength(0)
+    expect(state().state).toBe('waiting')
+  })
+
+  it('keeps exited once the process ended', () => {
+    started()
+    tracker.exit('p::a', 0)
+    tracker.hookEvent('p::a', { name: 'UserPromptSubmit', sessionId: 'lead' })
+    expect(state().state).toBe('exited')
+  })
 })
 
 describe('StateTracker', () => {

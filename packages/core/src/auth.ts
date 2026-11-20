@@ -33,7 +33,8 @@ export function isAuthorized(token: string, authorization: string | undefined, c
 
 export function bearerAuth(token: string): MiddlewareHandler {
   return async (c, next) => {
-    if (c.req.path === '/api/health') {
+    // the hook route checks the per-session token Forge gave the agent instead (claude-hooks.ts)
+    if (c.req.path === '/api/health' || c.req.path === '/api/cw/hook-events') {
       return next()
     }
     if (!isAuthorized(token, c.req.header('Authorization'), c.req.header('Cookie'))) {

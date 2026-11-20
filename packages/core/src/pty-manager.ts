@@ -4,9 +4,10 @@ import { existsSync, chmodSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { createRequire } from 'node:module'
 import type { CWSession } from './cw-types.js'
-import { envWithoutHarness } from './cw-doctor.js'
+import { envWithoutHarness, FORGE_SECRETS } from './cw-doctor.js'
 import { supports } from './harness-capabilities.js'
 import type { StateTracker } from './session-state.js'
+import { SESSION_ENV, TOKEN_ENV, type ClaudeHooks, type HookLaunch } from './claude-hooks.js'
 
 const SCROLLBACK_LIMIT = 5000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
@@ -65,8 +66,36 @@ export interface Launch {
   env: Record<string, string>
 }
 
-export function buildLaunch(session: CWSession, isNew: boolean): Launch {
+export interface LaunchHook extends HookLaunch {
+  key: string
+}
+
+// a Forge started from inside a Forge session inherits that session's hook settings and token
+const INHERITED_HOOK_SETTINGS = /(^|\s)--settings\s+\S*\/claude-\d+\.json(?=\s|$)/g
+
+function withHook(env: Record<string, string>, session: CWSession, hook: LaunchHook | undefined): boolean {
+  for (const name of FORGE_SECRETS) delete env[name]
+  delete env[TOKEN_ENV]
+  delete env[SESSION_ENV]
+  const inherited = (env.CW_CLAUDE_FLAGS ?? '').replace(INHERITED_HOOK_SETTINGS, ' ').trim()
+  if (inherited) env.CW_CLAUDE_FLAGS = inherited
+  else delete env.CW_CLAUDE_FLAGS
+  if (!hook || (session.harness ?? 'claude') !== 'claude' || session.type === 'login') return false
+  env[TOKEN_ENV] = hook.token
+  // a header carries it, and project names can have any letter
+  env[SESSION_ENV] = encodeURIComponent(hook.key)
+  if (session.type === 'general') return true
+  // CW applies config.yaml's skip_permissions only while CW_CLAUDE_FLAGS is empty, so keep what it would have done;
+  // --skip-permissions on the command line makes CW add the flag itself
+  const flags = inherited
+    || (hook.skipPermissionsDefault && !session.skipPermissions ? '--dangerously-skip-permissions' : '')
+  env.CW_CLAUDE_FLAGS = `${flags ? `${flags} ` : ''}--settings ${hook.settingsPath}`
+  return true
+}
+
+export function buildLaunch(session: CWSession, isNew: boolean, hook?: LaunchHook): Launch {
   const env = envWithoutHarness()
+  const hooked = withHook(env, session, hook)
   const harness = session.harness ?? 'claude'
   const harnessFlag = isNew && session.harness ? ` --harness ${shellQuote(harness)}` : ''
   const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
@@ -78,6 +107,7 @@ export function buildLaunch(session: CWSession, isNew: boolean): Launch {
     if (harness === 'claude') {
       if (session.model) cmd += ` --model ${shellQuote(session.model)}`
       if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
+      if (hooked && hook) cmd += ` --settings ${shellQuote(hook.settingsPath)}`
     }
     if (isNew && session.harness) env.CW_HARNESS = harness
     return { command: cmd, env }
@@ -127,7 +157,7 @@ export class PTYManager {
   // told when a session's agent starts and when its process exits
   onLifecycle?: (event: 'started' | 'ended', session: CWSession) => void
 
-  constructor(private readonly states: StateTracker | null = null) {
+  constructor(private readonly states: StateTracker | null = null, private readonly hooks: ClaudeHooks | null = null) {
     this.cleanupTimer = setInterval(() => this.cleanup(), CLEANUP_INTERVAL_MS)
   }
 
@@ -141,7 +171,9 @@ export class PTYManager {
     if (existing) return existing
 
     const shell = process.env.SHELL || '/bin/zsh'
-    const { command, env } = buildLaunch(session, options.isNew ?? false)
+    const wantsHook = (session.harness ?? 'claude') === 'claude' && session.type !== 'login'
+    const hookLaunch = wantsHook ? this.hooks?.launch(key) ?? null : null
+    const { command, env } = buildLaunch(session, options.isNew ?? false, hookLaunch ? { ...hookLaunch, key } : undefined)
     const cwd = session.worktree && existsSync(session.worktree)
       ? session.worktree
       : (session.type === 'general' || session.type === 'create' || session.type === 'login')
@@ -159,6 +191,7 @@ export class PTYManager {
       })
     } catch (err) {
       console.error(`[pty] Failed to spawn for ${key}: ${err}`)
+      this.hooks?.revoke(key)
       return null
     }
 
@@ -196,6 +229,7 @@ export class PTYManager {
 
     ptySession.onExitDisposable = ptyProcess.onExit(({ exitCode }) => {
       this.states?.exit(key, exitCode)
+      this.hooks?.revoke(key)
       const message = JSON.stringify({ type: 'exit', code: exitCode })
       for (const client of ptySession.clients) {
         try {
@@ -246,6 +280,7 @@ export class PTYManager {
       session.pty.kill()
     } catch {}
     this.states?.forget(sessionId)
+    this.hooks?.revoke(sessionId)
     this.sessions.delete(sessionId)
   }
 

@@ -17,6 +17,16 @@ export function envWithoutHost(env: NodeJS.ProcessEnv = process.env): Record<str
   return out
 }
 
+// what lets a process drive Forge or reach its database or Jev never goes to an agent
+export const FORGE_SECRETS = ['FORGE_AUTH_TOKEN', 'FORGE_DB_URL', 'TYPESAFE_API_KEY'] as const
+
+// Forge's environment for an agent: no harness override and none of Forge's secrets
+export function envForAgent(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const out = envWithoutHarness(env)
+  for (const name of FORGE_SECRETS) delete out[name]
+  return out
+}
+
 export function envWithoutHarness(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {

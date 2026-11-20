@@ -47,6 +47,36 @@ export interface RemoteCall {
 
 const TAIL_CHARS = 32_000
 
+// what Forge keeps of a Claude Code hook event; never tool input, output or messages
+export interface HookEvent {
+  name: string
+  sessionId?: string
+  // SessionStart: startup, resume, clear or compact
+  source?: string
+  notificationType?: string
+}
+
+// Subagent events and SessionEnd change no state; SessionEnd hands the session back to the screen
+export function hookState(event: HookEvent): SessionState | null {
+  switch (event.name) {
+    case 'SessionStart': case 'Stop': return 'waiting'
+    case 'UserPromptSubmit': case 'PreToolUse': case 'PostToolUse': case 'PostToolUseFailure': case 'PermissionDenied': case 'PreCompact': return 'working'
+    case 'PermissionRequest': return 'permission'
+    case 'StopFailure': return 'error'
+    case 'Notification':
+      // an MCP server asking the user something needs them as a permission does
+      if (event.notificationType === 'permission_prompt' || event.notificationType === 'elicitation_dialog') return 'permission'
+      if (event.notificationType === 'idle_prompt') return 'waiting'
+      return null
+    default: return null
+  }
+}
+
+interface HookFollow {
+  // the Claude session whose events count; agent teammates and older loop runs share the key
+  sessionId: string | null
+}
+
 interface Tracked {
   harness: string
   raw: string
@@ -58,6 +88,8 @@ interface Tracked {
   askedScreen: string | null
   entry: SessionStateEntry
   exitedAt: number | null
+  // set while Claude Code hooks drive this session's state
+  hook: HookFollow | null
 }
 
 export class StateTracker {
@@ -96,7 +128,7 @@ export class StateTracker {
     const now = Date.now()
     this.forget(key)
     const tracked: Tracked = {
-      harness, raw: '', lastOutputAt: now, burstStart: now, version: 0, timer: null, screen: new TerminalScreen(), askedScreen: null, exitedAt: null,
+      harness, raw: '', lastOutputAt: now, burstStart: now, version: 0, timer: null, screen: new TerminalScreen(), askedScreen: null, exitedAt: null, hook: null,
       entry: { state: 'working', confidence: 0.6, since: now, source: 'local' },
     }
     this.sessions.set(key, tracked)
@@ -114,7 +146,9 @@ export class StateTracker {
     tracked.lastOutputAt = now
     tracked.version++
     tracked.burstStart ??= now
-    if (now - tracked.burstStart >= this.burstMs && tracked.entry.state !== 'working') {
+    // with hooks, only a granted permission whose tool runs long has no event until it ends
+    const burstMayApply = tracked.hook ? tracked.entry.state === 'permission' : tracked.entry.state !== 'working'
+    if (now - tracked.burstStart >= this.burstMs && burstMayApply) {
       this.apply(tracked, { state: 'working', confidence: 0.95, source: 'local' })
     }
     this.schedule(key, tracked)
@@ -129,6 +163,36 @@ export class StateTracker {
     tracked.version++
     this.apply(tracked, { state: 'exited', confidence: 1, source: 'local' })
     tracked.entry.exitCode = exitCode
+  }
+
+  hookEvent(key: string, event: HookEvent): void {
+    const tracked = this.sessions.get(key)
+    if (!tracked || tracked.exitedAt !== null) return
+    const id = event.sessionId ?? null
+    if (event.name === 'SessionStart') {
+      // a teammate starts while the lead runs (source startup); /clear and /resume switch the lead's own session
+      const switches = event.source === 'clear' || event.source === 'resume'
+      if (tracked.hook?.sessionId && id !== tracked.hook.sessionId && !switches) return
+      tracked.hook = { sessionId: id }
+    } else if (!tracked.hook) {
+      if (event.name === 'SessionEnd') return
+      tracked.hook = { sessionId: id }
+    } else if (tracked.hook.sessionId && id && id !== tracked.hook.sessionId) {
+      return
+    } else if (!tracked.hook.sessionId) {
+      tracked.hook.sessionId = id
+    }
+    if (event.name === 'SessionEnd') {
+      tracked.hook = null
+      return
+    }
+    const state = hookState(event)
+    if (!state) return
+    // a remote answer about an older screen must not land after this
+    tracked.version++
+    // output drawn before the event (the spinner before a permission dialog) is not a burst after it
+    tracked.burstStart = null
+    this.apply(tracked, { state, confidence: 1, source: 'hook' })
   }
 
   resize(key: string, cols: number, rows: number): void {
@@ -184,6 +248,13 @@ export class StateTracker {
     const quietMs = Math.max(Date.now() - tracked.lastOutputAt, this.settleMs)
     const input = { text: terminalText(tracked.raw), quietMs, harness: tracked.harness, exitCode: null }
     const local = classifyLocal(input)
+    if (tracked.hook) {
+      // exact error markers still count, and an interrupted turn or a permission refused with Esc fires no Stop
+      const settledWaiting = (tracked.entry.state === 'working' || tracked.entry.state === 'permission')
+        && local.state === 'waiting' && local.confidence >= this.localTrust
+      if (local.state === 'error' || settledWaiting) this.apply(tracked, local)
+      return
+    }
     this.apply(tracked, local)
     if (!this.remote) return
     // error markers are exact API and limit messages, so a remote guess never overrules one

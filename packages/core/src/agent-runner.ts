@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { ModuleError } from '@forge-dev/sdk'
 import type { AgentRunInput, AgentRunResult } from '@forge-dev/sdk'
 import { ACCOUNT_NAME_RE } from './cw-types.js'
-import { envWithoutHarness } from './cw-doctor.js'
+import { envForAgent } from './cw-doctor.js'
 
 const DEFAULT_TIMEOUT_MS = 180_000
 
@@ -34,7 +34,7 @@ export function runAgent(input: AgentRunInput, o: { cwHome: string; spawn?: type
   const cleanup = () => rmSync(cwd, { recursive: true, force: true })
 
   return new Promise<AgentRunResult>((resolve, reject) => {
-    const child = spawn('claude', args, { cwd, env: { ...envWithoutHarness(), CLAUDE_CONFIG_DIR: configDir, ...CONNECTOR_ENV }, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn('claude', args, { cwd, env: { ...envForAgent(), CLAUDE_CONFIG_DIR: configDir, ...CONNECTOR_ENV }, stdio: ['pipe', 'pipe', 'pipe'] })
     // the prompt goes over stdin so one that starts with a dash is never read as a flag
     child.stdin?.on('error', () => {})
     child.stdin?.end(input.prompt)

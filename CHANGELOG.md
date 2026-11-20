@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Security
+
+- Sessions, and the headless agent Today reads with, no longer inherit `FORGE_AUTH_TOKEN`, `FORGE_DB_URL` or `TYPESAFE_API_KEY` from Forge's environment. Before, an agent running in a Forge reachable from other machines could read the token and use the whole API, other sessions' terminals included.
+
+### Changed
+
+- A Claude Code session started from Forge reports what it is doing through Claude Code's own hooks, so its card, the sidebar and the "needs me" notifications show working, waiting and permission as they happen instead of guessing from the screen. Forge loads its hooks with `--settings` next to each account's own (its `settings.json` and the hooks in it are not touched), and each session gets a token that only lets it report itself. The screen is still read for API and limit errors, for a turn interrupted with Esc, and for every other harness.
+
 ## 0.1.30 (2026-11-17)
 
 ### Added
