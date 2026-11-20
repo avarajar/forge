@@ -50,3 +50,10 @@ export function rowStatus(s: TaskReviewState): string {
   if (s.uncommitted > 0) parts.push(`${s.uncommitted} uncommitted`)
   return parts.length > 0 ? parts.join(' · ') : 'no changes yet'
 }
+
+// the hue a row's status line carries, or null for plain ink-2
+export function rowTone(s: TaskReviewState): string | null {
+  if (s.workspace === 'missing') return null
+  if (s.pr.status === 'found') return s.pr.state === 'MERGED' ? '--purple' : s.pr.state === 'OPEN' && !s.pr.isDraft ? '--green' : null
+  return unpushedCount(s) > 0 && s.commits ? '--orange' : null
+}

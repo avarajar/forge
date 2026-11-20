@@ -1,6 +1,6 @@
 import { type FunctionComponent } from 'preact'
 import { useState } from 'preact/hooks'
-import { Tabs, showToast } from '@forge-dev/ui'
+import { ActionButton, Tabs, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
 import { QUICK_TYPES, findCell, quickLabel, soft, getHarnessStyle, resolveHarness, type QuickType } from '../config/types.js'
 import { effectiveType, inferTask, startSummary, type StartContext } from '../config/inference.js'
@@ -18,10 +18,10 @@ export const InferenceLine: FunctionComponent<{ ctx: StartContext; size?: 'md' |
     <p
       class="flex items-center min-w-0"
       aria-live="polite"
-      style={{ gap: '7px', fontSize: size === 'md' ? '12.5px' : '12px', color: detected ? 'var(--blue)' : 'var(--ink-3)' }}
+      style={{ gap: '7px', fontSize: size === 'md' ? '12.5px' : '12px', color: detected ? 'var(--blue-ink)' : 'var(--ink-3)' }}
     >
       {detected && (
-        <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: '50%', background: soft('--blue', 22) }}>
+        <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: '50%', background: soft('--blue') }}>
           <span class="i-lucide-check" style={{ width: '10px', height: '10px' }} />
         </span>
       )}
@@ -47,10 +47,10 @@ interface StartCardProps {
   onOpenDrawer: () => void
 }
 
-const pickerStyle = { width: 'auto', maxWidth: '180px', height: '30px', padding: '0 26px 0 10px', borderRadius: '9px', fontSize: '12.5px', background: 'var(--bg-2)' }
+const pickerStyle = { width: 'auto', maxWidth: '180px', height: '30px', padding: '0 26px 0 10px', borderRadius: 'var(--r-sm)', fontSize: '12.5px' }
 
 const Picker: FunctionComponent<{ label: string; value: string; onChange: (v: string) => void; options: Array<{ value: string; label: string }> }> = ({ label, value, onChange, options }) => (
-  <label class="inline-flex items-center shrink-0" style={{ gap: '6px', fontSize: '12px', color: 'var(--ink-3)' }}>
+  <label class="inline-flex items-center shrink-0" style={{ gap: '6px', fontSize: '12px', color: 'var(--ink-2)' }}>
     {label}
     <select class="field" aria-label={label} style={pickerStyle} value={value} onChange={(e) => onChange((e.target as HTMLSelectElement).value)}>
       {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -117,13 +117,13 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, account
   return (
     <section
       // its own layer, so the project list opens over the cards below
-      style={{ position: 'relative', zIndex: 5, padding: '14px', borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', animation: 'riseIn .34s var(--ease) both' }}
+      style={{ position: 'relative', zIndex: 5, padding: '14px', borderRadius: 'var(--r-lg)', background: 'var(--card)', boxShadow: 'var(--lit), var(--shadow-l)', animation: 'riseIn .34s var(--ease) both' }}
       aria-label="Start a task"
     >
       <div class="flex items-center flex-wrap" style={{ gap: '9px' }}>
         <input
           class="field min-w-0"
-          style={{ flex: '1 1 300px', height: '40px', padding: '0 13px', borderRadius: '11px', background: 'var(--bg-2)', fontSize: '14.5px' }}
+          style={{ flex: '1 1 300px', height: '40px', padding: '0 13px', borderRadius: 'var(--r-md)', fontSize: '14.5px' }}
           placeholder={isGeneral ? 'A general session needs no name — pick the account below' : 'Paste a Linear ticket, a PR link, or type a task name'}
           aria-label="Task name, ticket or pull request"
           value={startInput.value}
@@ -131,22 +131,7 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, account
           onKeyDown={(e) => { if (e.key === 'Enter') void start() }}
         />
         <TypeSegmented />
-        <button
-          type="button"
-          disabled={disabled}
-          class={disabled ? '' : 'cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:brightness-106'}
-          style={{
-            height: '40px', padding: '0 18px', borderRadius: '11px', border: 0, fontSize: '13.5px', fontWeight: 600,
-            background: disabled && !starting ? 'var(--elev)' : 'linear-gradient(180deg, var(--blue-2), var(--blue))',
-            color: disabled && !starting ? 'var(--ink-3)' : '#fff',
-            boxShadow: disabled && !starting ? 'none' : 'var(--shadow-m)',
-            opacity: disabled && !starting ? 0.8 : 1,
-            cursor: disabled ? 'not-allowed' : 'pointer',
-          }}
-          onClick={() => void start()}
-        >
-          {starting ? 'Starting…' : isGeneral ? 'Launch' : 'Start'}
-        </button>
+        <ActionButton size="lg" label={isGeneral ? 'Launch' : 'Start'} loading={starting} disabled={disabled} onClick={start} />
       </div>
       <div class="flex items-center flex-wrap" style={{ gap: '8px 14px', marginTop: '10px', padding: '0 2px' }}>
         <div class="flex-1 min-w-0" style={{ flexBasis: '280px' }}>
@@ -155,7 +140,7 @@ export const StartCard: FunctionComponent<StartCardProps> = ({ projects, account
         {isGeneral && (
           <Picker label="Account" value={account} onChange={changeAccount} options={accounts.map(a => ({ value: a, label: a }))} />
         )}
-        <div class="inline-flex items-center shrink-0" style={{ gap: '6px', fontSize: '12px', color: 'var(--ink-3)' }}>
+        <div class="inline-flex items-center shrink-0" style={{ gap: '6px', fontSize: '12px', color: 'var(--ink-2)' }}>
           <span aria-hidden="true">Project</span>
           <Combobox
             label="Project"

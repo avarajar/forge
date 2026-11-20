@@ -1,8 +1,8 @@
-import { type FunctionComponent } from 'preact'
+import { type ComponentChildren, type FunctionComponent } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 import type { CWDoctorAccount, CWSession } from '@forge-dev/core'
-import { avatarPair, findCell, getHarnessStyle, pageCard, pageNote as note, soft } from '../config/types.js'
+import { avatarPair, findCell, getHarnessStyle, pageCard } from '../config/types.js'
 import { harnesses, loadHarnesses, supportsIn } from '../hooks/useHarnesses.js'
 import { AccountCell, cellDetailLine, cellView } from '../components/AccountCell.js'
 import { AccountLimits } from '../components/AccountLimits.js'
@@ -21,6 +21,15 @@ interface AccountsProps {
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
 
 const card = { ...pageCard, overflow: 'hidden' }
+
+// a doctor notice, toned by how much it matters
+const Notice: FunctionComponent<{ tone: '--orange' | '--red'; children: ComponentChildren }> = ({ tone, children }) => (
+  <div role="status" class="flex items-start" style={{ gap: '10px', padding: '10px 14px', borderRadius: 'var(--r-md)', fontSize: '12.5px', color: 'var(--ink-2)',
+    background: `color-mix(in srgb, var(${tone}) 8%, var(--card))`, boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(${tone}) 28%, transparent)` }}>
+    <span class={tone === '--red' ? 'i-lucide-octagon-alert' : 'i-lucide-triangle-alert'} aria-hidden="true" style={{ width: '15px', height: '15px', marginTop: '1px', flexShrink: 0, color: `var(${tone}-ink)` }} />
+    <span>{children}</span>
+  </div>
+)
 
 const RemoveAccount: FunctionComponent<{ account: string; onRemoved: () => void }> = ({ account, onRemoved }) => {
   const [confirming, setConfirming] = useState(false)
@@ -108,22 +117,22 @@ export const Accounts: FunctionComponent<AccountsProps> = ({ projects, onOpenSes
     const defaultLabel = [getHarnessStyle(account.default_harness).label, defaultCell && defaultCell.provider !== 'native' ? defaultCell.provider : null].filter(Boolean).join(' · ')
     return (
       <section key={account.name} style={{ ...card, animation: `riseIn .36s var(--ease) ${index * 90}ms both` }} aria-label={account.name}>
-        <div class="flex items-center flex-wrap" style={{ gap: '11px', padding: '12px 15px', borderBottom: '1px solid var(--hair)', background: 'var(--elev)' }}>
+        <div class="flex items-center flex-wrap" style={{ gap: '11px', padding: '12px 15px', boxShadow: 'inset 0 -1px 0 var(--hair-soft)' }}>
           <span class="grid place-items-center shrink-0" style={{ width: '28px', height: '28px', borderRadius: '9px', background: `linear-gradient(160deg, var(${c1}), var(${c2}))`, boxShadow: 'var(--shadow-s)', color: '#fff', fontSize: '12px', fontWeight: 700 }}>
             {account.name.charAt(0).toUpperCase()}
           </span>
-          <span style={{ fontSize: '15px', fontWeight: 650, letterSpacing: '-0.01em' }}>{account.name}</span>
+          <span style={{ fontSize: '14px', fontWeight: 650, letterSpacing: '-0.01em' }}>{account.name}</span>
           <span style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>Default {defaultLabel} · {n} project{n === 1 ? '' : 's'}</span>
           <span class="flex-1" />
           <RemoveAccount account={account.name} onRemoved={() => { loadHarnesses(true); onAccountsChanged() }} />
         </div>
-        {doctor.harnesses.map(h => {
+        {doctor.harnesses.map((h, i) => {
           const cell = findCell(doctor, account.name, h.name)
           const connecting = deviceLogin?.account === account.name && deviceLogin.harness === h.name
           const style = getHarnessStyle(h.name)
           const view = cell ? cellView(cell, connecting) : null
           return (
-            <div key={h.name} style={{ borderBottom: '1px solid var(--hair)' }}>
+            <div key={h.name} style={{ boxShadow: i < doctor.harnesses.length - 1 ? 'inset 0 -1px 0 var(--hair-soft)' : 'none' }}>
               <div class="flex items-center flex-wrap" style={{ gap: '12px', padding: '11px 15px' }}>
                 <span class="inline-flex items-center shrink-0" style={{ gap: '6px', width: '132px', fontSize: '13px', fontWeight: 600 }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: style.color }} />
@@ -179,13 +188,13 @@ export const Accounts: FunctionComponent<AccountsProps> = ({ projects, onOpenSes
         )}
 
         {doctor && remote && (
-          <p style={{ ...note, background: soft('--orange') }}>
+          <Notice tone="--orange">
             Forge is not opened on localhost. Browser logins redirect to localhost on the machine running the harness, so only device-code logins work from here.
-          </p>
+          </Notice>
         )}
 
-        {doctor && doctor.issues.map(f => <p key={f.code} style={{ ...note, background: soft('--red'), color: 'var(--ink)' }}>{f.message}</p>)}
-        {doctor && doctor.warnings.map(f => <p key={f.code} style={{ ...note, background: 'var(--elev)', color: 'var(--ink-2)' }}>{f.message}</p>)}
+        {doctor && doctor.issues.map(f => <Notice key={f.code} tone="--red">{f.message}</Notice>)}
+        {doctor && doctor.warnings.map(f => <Notice key={f.code} tone="--orange">{f.message}</Notice>)}
 
         {doctor?.accounts.map(renderAccount)}
       </div>

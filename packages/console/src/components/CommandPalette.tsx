@@ -85,7 +85,7 @@ export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
   return (
     <div
       class="fixed inset-0 z-[60] flex justify-center items-start overflow-auto"
-      style={{ background: 'rgba(0,0,0,.42)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: '88px 16px 16px' }}
+      style={{ background: 'var(--scrim)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: '88px 16px 16px' }}
       onClick={onClose}
     >
       <div
@@ -94,9 +94,9 @@ export const CommandPalette: FunctionComponent<CommandPaletteProps> = ({
         aria-label="Command palette"
         class="flex flex-col overflow-hidden"
         style={{
-          width: 'min(560px, 100%)', maxHeight: 'calc(100vh - 104px)', borderRadius: '18px',
+          width: 'min(560px, 100%)', maxHeight: 'calc(100vh - 104px)', borderRadius: 'var(--r-xl)',
           background: 'var(--glass)', backdropFilter: 'blur(30px) saturate(180%)', WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-          border: '1px solid var(--hair-2)', boxShadow: 'var(--shadow-l)', animation: 'popIn .26s var(--ease) both',
+          boxShadow: 'var(--shadow-l)', animation: 'popIn .26s var(--ease) both',
         }}
         onClick={(e) => e.stopPropagation()}
       >

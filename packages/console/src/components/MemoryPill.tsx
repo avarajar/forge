@@ -10,27 +10,28 @@ export const MemoryPill: FunctionComponent<{ project: string }> = ({ project }) 
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
   const chain = useKiokuChain(project)
   if (chain.length === 0) return null
+  if (sumPages(chain) === 0) return null
 
   return (
     <span
       class="inline-flex items-center shrink-0 whitespace-nowrap"
-      style={{ gap: '6px', padding: '3px 9px', borderRadius: '99px', background: 'var(--elev)', border: '1px solid var(--hair)', color: 'var(--ink-2)', fontSize: '11.5px', fontWeight: 600 }}
+      style={{ gap: '6px', height: '20px', padding: '0 8px', borderRadius: 'var(--r-pill)', background: 'var(--well)', color: 'var(--ink-2)', fontSize: '11px', fontWeight: 600 }}
       aria-label={`Memory: ${chain.map(brainName).join(', ')}`}
       onMouseEnter={(e) => setAnchor((e.currentTarget as HTMLElement).getBoundingClientRect())}
       onMouseLeave={() => setAnchor(null)}
     >
       <span class="inline-flex">
         {chain.map((b, i) => (
-          <span key={b.key} style={{ width: '9px', height: '9px', borderRadius: '50%', background: `var(${tierToken(b.tier)})`, border: '2px solid var(--card)', marginLeft: i === 0 ? 0 : '-4px' }} />
+          <span key={b.key} style={{ width: '9px', height: '9px', borderRadius: '50%', background: `var(${tierToken(b.tier)})`, border: '2px solid var(--bg-2)', marginLeft: i === 0 ? 0 : '-4px' }} />
         ))}
       </span>
       <span class="mono">{sumPages(chain)}</span>
       {anchor && createPortal(
         <span
           class="flex flex-col"
-          style={{ position: 'fixed', top: `${anchor.bottom + 8}px`, right: `${window.innerWidth - anchor.right}px`, zIndex: 50, width: '240px', gap: '6px', padding: '10px 12px', borderRadius: '12px', background: 'var(--card-2)', border: '1px solid var(--hair-2)', boxShadow: 'var(--shadow-l)', animation: 'riseIn .2s var(--ease) both' }}
+          style={{ position: 'fixed', top: `${anchor.bottom + 8}px`, right: `${window.innerWidth - anchor.right}px`, zIndex: 50, width: '240px', gap: '6px', padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--card-2)', boxShadow: 'var(--shadow-l)', animation: 'riseIn .2s var(--ease) both' }}
         >
-          <span style={{ fontSize: '10.5px', fontWeight: 600, letterSpacing: '.03em', color: 'var(--ink-3)' }}>THIS SESSION REMEMBERS</span>
+          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)' }}>This session remembers</span>
           {chain.map(b => (
             <span key={b.key} class="flex items-center" style={{ gap: '7px', fontSize: '12px', color: 'var(--ink)', fontWeight: 500 }}>
               <Dot color={`var(${tierToken(b.tier)})`} />

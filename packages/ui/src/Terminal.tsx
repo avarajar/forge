@@ -32,6 +32,7 @@ interface TerminalProps {
 
 const MONO = 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace'
 
+// mirrors --term / --term-ink in theme.css
 const themeFor = (mode: 'dark' | 'light') => ({
   background: mode === 'dark' ? '#0e0e10' : '#1c1c1e',
   foreground: '#e3e3e8',

@@ -197,7 +197,7 @@ export const DeviceLoginPanel: FunctionComponent<DeviceLoginPanelProps> = ({
       {login && login.output.length > 0 && (
         <details style={{ fontSize: '12.5px' }}>
           <summary class="cursor-pointer" style={{ color: 'var(--ink-2)' }}>Output</summary>
-          <pre class="overflow-x-auto" style={{ marginTop: '8px', padding: '10px 12px', borderRadius: '11px', background: 'var(--term)', color: '#e3e3e8', fontSize: '11.5px' }}>
+          <pre class="overflow-x-auto" style={{ marginTop: '8px', padding: '10px 12px', borderRadius: 'var(--r-md)', background: 'var(--term)', color: 'var(--term-ink)', fontSize: '11.5px' }}>
             {login.output.join('\n')}
           </pre>
         </details>

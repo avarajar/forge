@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import type { CWDoctorCell } from '@forge-dev/core'
 import { ActionButton } from '@forge-dev/ui'
-import { soft } from '../config/types.js'
+import { inkOf, soft } from '../config/types.js'
 
 export type CellView =
   | { kind: 'connecting' }
@@ -52,15 +52,17 @@ export const cellDetailLine = (view: CellView, version: string | null, headless:
   return parts.join(' · ')
 }
 
-const Pill: FunctionComponent<{ token: string | null; label: string }> = ({ token, label }) => (
+const Pill: FunctionComponent<{ token: string | null; label: string; check?: boolean }> = ({ token, label, check }) => (
   <span
     class="inline-flex items-center shrink-0 whitespace-nowrap"
     style={{
-      gap: '6px', padding: '3px 10px', borderRadius: '99px', fontSize: '11.5px', fontWeight: 600,
-      background: token ? soft(token) : 'var(--elev)', color: token ? `var(${token})` : 'var(--ink-3)',
+      gap: '6px', height: '20px', padding: '0 9px', borderRadius: 'var(--r-pill)', fontSize: '11px', fontWeight: 600,
+      background: token ? soft(token) : 'var(--well)', color: token ? inkOf(token) : 'var(--ink-3)',
     }}
   >
-    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
+    {check
+      ? <span class="i-lucide-check" aria-hidden="true" style={{ width: '11px', height: '11px' }} />
+      : <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />}
     {label}
   </span>
 )
@@ -81,8 +83,8 @@ export const AccountCell: FunctionComponent<{
     case 'not_installed': return <Pill token={null} label="Not installed" />
     case 'error': return <Pill token="--red" label="Error" />
     case 'local': return <Pill token="--orange" label="Local" />
-    case 'api_key': return <Pill token="--green" label="API key" />
-    case 'connected': return <Pill token="--green" label="Connected" />
+    case 'api_key': return <Pill token="--green" label="API key" check />
+    case 'connected': return <Pill token="--green" label="Connected" check />
     case 'connect':
       return (
         <ActionButton label="Connect" size="sm" onClick={onConnect} />

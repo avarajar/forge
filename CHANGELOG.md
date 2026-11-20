@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Visual refresh: AA text contrast, quieter task rows, depth instead of hairlines, consistent radii and titles.
+
 ### Added
 
 - Monoku OS shows **En curso**: tickets that were yours (your turn once, a request of yours, or started with **Empezar**) and are now someone else's turn, with their box and who has the next step. They do not count as pending and do not notify; a ticket leaves the list when it closes (listo, congelado, archivado). Each reading asks Monoku OS for those tickets' ficha (up to 20).

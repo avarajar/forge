@@ -2,13 +2,14 @@ import { type FunctionComponent } from 'preact'
 import { useMemo, useState } from 'preact/hooks'
 import { ActionButton, Tabs } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, getHarnessStyle, projectOf, quickLabel, sessionKey, type QuickType } from '../config/types.js'
+import { QUICK_TYPES, getHarnessStyle, pageCard, projectOf, quickLabel, sessionKey, type QuickType } from '../config/types.js'
 import { TaskRow, DoneRow } from '../components/TaskCard.js'
 import { ProjectBanner } from '../components/ProjectBanner.js'
 import { StartCard, type ProjectMap } from '../components/StartCard.js'
 import { ModuleBanners } from '../components/ModuleBanners.js'
 import { PageHeader } from '../components/PageHeader.js'
 import { Dot } from '../components/Dot.js'
+import { HarnessBadge } from '../components/HarnessBadge.js'
 import { stackParts, useProjectStack } from '../hooks/useProjectStack.js'
 
 interface TaskListProps {
@@ -48,33 +49,61 @@ const readLayout = (): Layout => {
   }
 }
 
-const cardStyle = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)', overflow: 'hidden' }
-const cardHeader = { padding: '11px 15px', borderBottom: '1px solid var(--hair)', background: 'var(--elev)' }
+const listCard = { ...pageCard, overflow: 'hidden' }
+const listHeader = { padding: '11px 15px', boxShadow: 'inset 0 -1px 0 var(--hair-soft)' }
+
+// the harness most of a card's tasks run on; ties go to the first one seen
+const commonHarness = (list: CWSession[]): string => {
+  const counts = new Map<string, number>()
+  for (const s of list) {
+    const h = s.harness ?? 'claude'
+    counts.set(h, (counts.get(h) ?? 0) + 1)
+  }
+  let best = 'claude'
+  let top = 0
+  for (const [h, n] of counts) if (n > top) { best = h; top = n }
+  return best
+}
+
+// names the common harness once in the header, only when more than one harness is in play
+const DefaultHarness: FunctionComponent<{ harness: string; sessions: CWSession[]; harnessNames: string[] }> = ({ harness, sessions, harnessNames }) =>
+  harnessNames.length > 1 || sessions.some(s => (s.harness ?? 'claude') !== harness)
+    ? (
+      <>
+        <HarnessBadge quiet session={{ harness }} />
+        <span style={{ fontSize: '12px', color: 'var(--ink-3)' }}>by default</span>
+      </>
+    )
+    : null
 
 const GroupCard: FunctionComponent<{
   project: string
   account: string
   sessions: CWSession[]
   index: number
+  harnessNames: string[]
   openTabKeys: Set<string>
   onSelectTask: (session: CWSession) => void
   onMarkDone: (session: CWSession) => void | Promise<void>
-}> = ({ project, account, sessions, index, openTabKeys, onSelectTask, onMarkDone }) => {
+}> = ({ project, account, sessions, index, harnessNames, openTabKeys, onSelectTask, onMarkDone }) => {
   const stack = stackParts(useProjectStack(project))
+  const def = commonHarness(sessions)
   const live = sessions.some(s => openTabKeys.has(sessionKey(s)))
   return (
-    <section style={{ ...cardStyle, animation: `riseIn .4s var(--ease) ${index * 70}ms both` }} aria-label={project || 'No project'}>
-      <div class="flex items-center flex-wrap" style={{ ...cardHeader, gap: '10px' }}>
+    <section style={{ ...listCard, animation: `riseIn .4s var(--ease) ${index * 70}ms both` }} aria-label={project || 'No project'}>
+      <div class="flex items-center flex-wrap" style={{ ...listHeader, gap: '10px' }}>
         <Dot size={9} live={live} />
         <span style={{ fontSize: '14px', fontWeight: 650, letterSpacing: '-0.01em' }}>{project || 'No project'}</span>
         <span class="truncate" style={{ fontSize: '12.5px', color: 'var(--ink-2)' }}>{[account, stack.join(' · ')].filter(Boolean).join(' · ')}</span>
         <span class="flex-1" />
-        <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{sessions.length} task{sessions.length === 1 ? '' : 's'}</span>
+        <DefaultHarness harness={def} sessions={sessions} harnessNames={harnessNames} />
+        <span class="mono num" style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{sessions.length} task{sessions.length === 1 ? '' : 's'}</span>
       </div>
       {sessions.map(s => (
         <TaskRow
           key={sessionKey(s)}
           session={s}
+          defaultHarness={def}
           isOpenInTab={openTabKeys.has(sessionKey(s))}
           onSelect={() => onSelectTask(s)}
           onMarkDone={s.type === 'login' ? undefined : () => onMarkDone(s)}
@@ -122,6 +151,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
     return Array.from(byProject, ([project, sessions]) => ({ project, sessions }))
   }, [active])
 
+  const recentHarness = useMemo(() => commonHarness(active), [active])
+
   const projectAccount = filterProject ? projects[filterProject]?.account ?? active[0]?.account : undefined
 
   const subtitle = filterProject
@@ -139,7 +170,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         <ModuleBanners />
         <StartCard projects={projects} accounts={accountNames} onStarted={onStarted} onOpenDrawer={onNewTask} />
 
-        <div class="flex items-center flex-wrap" style={{ gap: '12px' }}>
+        <div class="flex items-center flex-wrap" style={{ gap: '10px' }}>
           <Tabs
             label="Filter by type"
             tabs={[
@@ -150,32 +181,37 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             onChange={(id) => onFilterType(id === 'all' ? null : id as QuickType)}
           />
           {harnessNames.length > 1 && (
-            <Tabs
-              label="Filter by harness"
-              tabs={[{ id: 'all', label: 'Any harness' }, ...harnessNames.map(h => ({ id: h, label: getHarnessStyle(h).label }))]}
-              active={filterHarness ?? 'all'}
-              onChange={(id) => onFilterHarness(id === 'all' ? null : id)}
-            />
+            <select
+              class="cursor-pointer bg-transparent hover:bg-elev transition-colors duration-160"
+              aria-label="Filter by harness"
+              value={filterHarness ?? 'all'}
+              onChange={(e) => { const v = (e.target as HTMLSelectElement).value; onFilterHarness(v === 'all' ? null : v) }}
+              style={{ height: '30px', padding: '0 26px 0 10px', borderRadius: 'var(--r-sm)', border: 0, color: 'var(--ink-2)', fontSize: '12.5px', fontWeight: 500 }}
+            >
+              <option value="all">Any harness</option>
+              {harnessNames.map(h => <option key={h} value={h}>{getHarnessStyle(h).label}</option>)}
+            </select>
           )}
           <span class="flex-1" />
+          <button
+            type="button"
+            aria-pressed={showDone}
+            class={`cursor-pointer transition-all duration-180 ease-spring${showDone ? '' : ' bg-transparent hover:bg-elev'}`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', height: '30px', padding: '0 10px', borderRadius: 'var(--r-sm)', border: 0, background: showDone ? 'var(--card)' : undefined, boxShadow: showDone ? 'var(--shadow-s)' : 'none', color: showDone ? 'var(--ink)' : 'var(--ink-2)', fontSize: '12.5px', fontWeight: 500 }}
+            onClick={() => onShowDone(!showDone)}
+          >
+            <span class={showDone ? 'i-lucide-square-check' : 'i-lucide-square'} aria-hidden="true" style={{ width: '13px', height: '13px' }} />
+            Done
+          </button>
           {!filterProject && (
             <Tabs
-              size="sm"
+              size="xs"
               label="Order tasks"
-              tabs={[{ id: 'recent', label: 'Recent' }, { id: 'project', label: 'By project' }]}
+              tabs={[{ id: 'recent', label: 'Recent', icon: 'i-lucide-clock' }, { id: 'project', label: 'By project', icon: 'i-lucide-folder' }]}
               active={layout}
               onChange={(id) => changeLayout(id === 'project' ? 'project' : 'recent')}
             />
           )}
-          <button
-            type="button"
-            aria-pressed={showDone}
-            class="cursor-pointer transition-all duration-180 ease-spring"
-            style={{ padding: '6px 12px', borderRadius: '9px', border: '1px solid var(--hair)', background: showDone ? 'var(--card)' : 'transparent', color: showDone ? 'var(--ink)' : 'var(--ink-2)', fontSize: '12.5px', fontWeight: 500, boxShadow: showDone ? 'var(--shadow-s)' : 'none' }}
-            onClick={() => onShowDone(!showDone)}
-          >
-            {showDone ? 'Hide done' : 'Show done'}
-          </button>
         </div>
 
         {filterProject && (
@@ -189,17 +225,19 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         )}
 
         {layout === 'recent' && !filterProject && active.length > 0 && (
-          <section style={{ ...cardStyle, animation: 'riseIn .4s var(--ease) both' }} aria-label="Recently opened">
-            <div class="flex items-center" style={{ ...cardHeader, gap: '10px' }}>
+          <section style={{ ...listCard, animation: 'riseIn .4s var(--ease) both' }} aria-label="Recently opened">
+            <div class="flex items-center" style={{ ...listHeader, gap: '10px' }}>
               <span class="i-lucide-clock shrink-0" style={{ width: '14px', height: '14px', color: 'var(--ink-2)' }} />
               <span style={{ fontSize: '14px', fontWeight: 650, letterSpacing: '-0.01em' }}>Recently opened</span>
               <span class="flex-1" />
-              <span class="mono" style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{active.length} task{active.length === 1 ? '' : 's'}</span>
+              <DefaultHarness harness={recentHarness} sessions={active} harnessNames={harnessNames} />
+              <span class="mono num" style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{active.length} task{active.length === 1 ? '' : 's'}</span>
             </div>
             {active.map(s => (
               <TaskRow
                 key={sessionKey(s)}
                 session={s}
+                defaultHarness={recentHarness}
                 showProject
                 isOpenInTab={openTabKeys.has(sessionKey(s))}
                 onSelect={() => onSelectTask(s)}
@@ -216,6 +254,7 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
             account={projects[g.project]?.account ?? g.sessions[0].account}
             sessions={g.sessions}
             index={i}
+            harnessNames={harnessNames}
             openTabKeys={openTabKeys}
             onSelectTask={onSelectTask}
             onMarkDone={onMarkDone}
@@ -223,9 +262,9 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         ))}
 
         {groups.length === 0 && (
-          <section style={{ ...cardStyle, animation: 'riseIn .4s var(--ease) both' }}>
+          <section style={{ ...listCard, animation: 'riseIn .4s var(--ease) both' }}>
             {filterProject && (
-              <div class="flex items-center" style={{ ...cardHeader, gap: '10px' }}>
+              <div class="flex items-center" style={{ ...listHeader, gap: '10px' }}>
                 <Dot size={9} />
                 <span style={{ fontSize: '14px', fontWeight: 650, letterSpacing: '-0.01em' }}>{filterProject}</span>
               </div>
@@ -240,8 +279,8 @@ export const TaskList: FunctionComponent<TaskListProps> = ({
         )}
 
         {showDone && done.length > 0 && (
-          <section style={{ ...cardStyle, boxShadow: 'var(--shadow-s)' }} aria-label="Done">
-            <div style={{ ...cardHeader, padding: '10px 15px', fontSize: '13px', fontWeight: 600, color: 'var(--ink-2)' }}>
+          <section style={{ ...listCard, boxShadow: 'var(--shadow-s)' }} aria-label="Done">
+            <div style={{ ...listHeader, padding: '10px 15px', fontSize: '13px', fontWeight: 600, color: 'var(--ink-2)' }}>
               Done · last {Math.min(DONE_LIMIT, done.length)} of {done.length}
             </div>
             {done.slice(0, DONE_LIMIT).map(s => (

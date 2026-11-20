@@ -12,7 +12,7 @@ const Row: FunctionComponent<{ children: ComponentChildren }> = ({ children }) =
 )
 
 const Note: FunctionComponent<{ warn?: boolean }> = ({ warn, children }) => (
-  <span style={{ fontSize: '11.5px', color: warn ? 'var(--orange)' : 'var(--ink-3)' }}>{children}</span>
+  <span style={{ fontSize: '11px', color: warn ? 'var(--orange-ink)' : 'var(--ink-3)' }}>{children}</span>
 )
 
 export const AccountLimits: FunctionComponent<{ account: string; harness: string }> = ({ account, harness }) => {

@@ -254,8 +254,8 @@ const SkillEditor: FunctionComponent<{ skill: SkillEntry; accounts: string[]; pr
         {files.map(f => {
           const on = activeFile === f
           return (
-            <span key={f} class="inline-flex items-center" style={{ gap: '4px', padding: on ? '5px 8px 5px 11px' : '5px 11px', borderRadius: '9px', background: on ? 'var(--card)' : 'transparent', border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`, boxShadow: on ? 'var(--shadow-s)' : 'none' }}>
-              <button type="button" role="tab" aria-selected={on} class="mono cursor-pointer" style={{ border: 0, background: 'none', padding: 0, fontSize: '12px', fontWeight: on ? 600 : 400, color: on ? 'var(--ink)' : 'var(--ink-3)' }} onClick={() => setActiveFile(f)}>{f}</button>
+            <span key={f} class="inline-flex items-center" style={{ gap: '4px', padding: on ? '5px 8px 5px 11px' : '5px 11px', borderRadius: 'var(--r-sm)', background: on ? 'var(--card)' : 'transparent', border: 0, boxShadow: on ? 'var(--lit), var(--shadow-s)' : 'none' }}>
+              <button type="button" role="tab" aria-selected={on} class="mono cursor-pointer" style={{ border: 0, background: 'none', padding: 0, fontSize: '12px', fontWeight: on ? 600 : 400, color: on ? 'var(--ink)' : 'var(--ink-2)' }} onClick={() => setActiveFile(f)}>{f}</button>
               {on && f !== 'SKILL.md' && (
                 <button type="button" aria-label={`Delete ${f}`} class="grid place-items-center cursor-pointer text-ink3 hover:text-red" style={{ border: 0, background: 'none', padding: 0 }} onClick={() => handleDeleteReference(f)}>
                   <span class="i-lucide-x" style={{ width: '12px', height: '12px' }} />
@@ -265,9 +265,7 @@ const SkillEditor: FunctionComponent<{ skill: SkillEntry; accounts: string[]; pr
           )
         })}
         <span class="flex-1" />
-        <button type="button" class="cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px" style={{ padding: '5px 10px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--blue)', fontSize: '12px', fontWeight: 500 }} onClick={handleAddReference} disabled={!detail}>
-          + Reference
-        </button>
+        <ActionButton variant="secondary" size="sm" icon="i-lucide-plus" label="Reference" disabled={!detail} onClick={handleAddReference} />
       </div>
       <div class="flex-1 min-h-0" style={{ padding: '12px 20px 20px' }}>
         {loading ? (
@@ -461,11 +459,11 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
 
   return (
     <main class="skills-page grid min-w-0" style={{ gridTemplateColumns: '292px minmax(0,1fr)', height: '100vh' }}>
-      <div class="skills-rail flex flex-col min-h-0 overflow-hidden" style={{ borderRight: '1px solid var(--hair)', background: 'var(--bg-2)' }}>
-        <div class="flex flex-col shrink-0" style={{ padding: '12px 14px', borderBottom: '1px solid var(--hair)', gap: '10px' }}>
+      <div class="skills-rail flex flex-col min-h-0 overflow-hidden" style={{ background: 'var(--bg)', boxShadow: 'inset -1px 0 0 var(--hair-soft)' }}>
+        <div class="flex flex-col shrink-0" style={{ padding: '12px 14px', boxShadow: 'inset 0 -1px 0 var(--hair-soft)', gap: '10px' }}>
           <div class="flex items-center" style={{ gap: '10px' }}>
             <MenuButton />
-            <h1 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.02em' }}>Skills</h1>
+            <h1 style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em' }}>Skills</h1>
             <span class="flex-1" />
             <ActionButton label="New" variant="primary" size="sm" onClick={() => setPane({ kind: 'create' })} />
           </div>
@@ -473,7 +471,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
             class="field"
             type="search"
             aria-label="Search skills"
-            style={{ height: '32px', padding: '0 11px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink)', fontSize: '13px', outline: 'none' }}
+            style={{ height: '32px', padding: '0 11px', borderRadius: 'var(--r-sm)', color: 'var(--ink)', fontSize: '13px', outline: 'none' }}
             placeholder="Search installed or skills.sh"
             value={search}
             onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
@@ -512,7 +510,7 @@ export const Skills: FunctionComponent<SkillsProps> = ({ accounts, projects, onC
                 type="button"
                 aria-current={on ? 'true' : undefined}
                 class="block w-full text-left cursor-pointer transition-all duration-180 ease-spring hover:bg-elev"
-                style={{ padding: '9px 11px', marginBottom: '4px', borderRadius: '11px', border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`, background: on ? 'var(--card)' : 'transparent', boxShadow: on ? 'var(--shadow-s)' : 'none', color: 'var(--ink)' }}
+                style={{ padding: '9px 11px', marginBottom: '4px', borderRadius: 'var(--r-md)', border: 0, background: on ? 'var(--card)' : 'transparent', boxShadow: on ? 'var(--lit), var(--shadow-s)' : 'none', color: 'var(--ink)' }}
                 onClick={() => setPane({ kind: 'editor', skill: s })}
               >
                 <span class="flex items-center" style={{ gap: '8px' }}>

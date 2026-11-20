@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useEffect } from 'preact/hooks'
 import type { CWSession, UsageWindow } from '@forge-dev/core'
 import { Tabs, ToggleSwitch, UsageMeter, showToast } from '@forge-dev/ui'
-import { projectOf, soft, sessionLabel, getHarnessStyle, usageBars, formatReset, needsYou, stateLabel, stateToken } from '../config/types.js'
+import { PRIMARY_FILL, inkOf, projectOf, soft, sessionLabel, getHarnessStyle, usageBars, formatReset, needsYou, stateLabel, stateShape, stateToken } from '../config/types.js'
 import { theme, setTheme, sidebarOpen } from '../shell.js'
 import { forgeVersion, loadForgeVersion } from '../hooks/useForgeVersion.js'
 import { skills } from '../hooks/useSkills.js'
@@ -44,48 +44,60 @@ export interface SidebarProps {
 const rowBase = 'flex items-center w-full text-left cursor-pointer transition-all duration-180 ease-spring hover:bg-elev'
 
 const selectedRow = (on: boolean) => ({
-  borderRadius: '9px',
-  border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`,
+  borderRadius: 'var(--r-sm)',
+  border: 0,
   background: on ? 'var(--card)' : 'transparent',
-  boxShadow: on ? 'var(--shadow-s)' : 'none',
+  boxShadow: on ? 'var(--lit), var(--shadow-s)' : 'none',
   color: 'var(--ink)',
 })
 
 const cardClass = 'flex flex-col text-left cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m'
 
-const cardStyle = { gap: '6px', padding: '9px 10px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', color: 'var(--ink)' }
+const cardStyle = { gap: '6px', padding: '9px 10px', borderRadius: 'var(--r-md)', border: 0, background: 'var(--card)', boxShadow: 'var(--lit), var(--shadow-s)', color: 'var(--ink)' }
 
-const cardFoot = { fontSize: '10.5px', color: 'var(--ink-3)' }
+const cardFoot = { fontSize: '11px', color: 'var(--ink-3)' }
 
 const Label: FunctionComponent = ({ children }) => (
-  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)', letterSpacing: '.02em' }}>{children}</span>
+  <span style={{ display: 'block', paddingTop: '4px', fontSize: '11px', fontWeight: 600, color: 'var(--ink-3)' }}>{children}</span>
 )
 
-const LiveCard: FunctionComponent<{ id: string; session: CWSession; index: number; onOpen: () => void }> = ({ id, session, index, onOpen }) => {
+const LiveCard: FunctionComponent<{ id: string; session: CWSession; onOpen: () => void }> = ({ id, session, onOpen }) => {
   const m = metricsFor(id).value
   const state = sessionStates.value[id]
   const urgent = needsYou(state)
   const isLoop = session.type === 'loop'
   const pct = m?.context ?? null
-  const [c1, c2] = index % 2 === 0 ? ['var(--blue)', 'var(--purple)'] : ['var(--purple)', 'var(--blue)']
+  const tok = state ? stateToken(state) : '--green'
+  const fill = pct !== null && pct >= 90 ? 'var(--red)' : pct !== null && pct >= 70 ? 'var(--orange)' : 'var(--ink-2)'
   const sub = urgent ? stateLabel(state!) : isLoop
     ? (session.loop_interval ? `every ${session.loop_interval}` : 'self-paced')
     : m && (m.tokens !== null || m.cost !== null)
       ? [m.tokens !== null ? `${formatTokens(m.tokens)} tokens` : null, m.cost !== null ? formatCost(m.cost) : null].filter(Boolean).join(' · ')
       : projectOf(session) || session.account
   return (
-    <button type="button" class={cardClass} style={urgent ? { ...cardStyle, borderColor: `var(${stateToken(state!)})` } : cardStyle} onClick={onOpen} title={state ? stateLabel(state) : undefined}>
+    <button
+      type="button"
+      class={cardClass}
+      style={urgent
+        ? { ...cardStyle, position: 'relative', background: `color-mix(in srgb, var(${tok}) 10%, var(--card))`, boxShadow: `var(--lit), 0 0 0 1px color-mix(in srgb, var(${tok}) 40%, transparent), var(--shadow-s)` }
+        : cardStyle}
+      onClick={onOpen}
+      title={state ? stateLabel(state) : undefined}
+    >
+      {urgent && <span aria-hidden="true" style={{ position: 'absolute', left: 0, top: '10px', bottom: '10px', width: '3px', borderRadius: '0 3px 3px 0', background: `var(${tok})` }} />}
       <span class="flex items-center w-full" style={{ gap: '6px' }}>
-        <Dot size={6} color={state ? `var(${stateToken(state)})` : c1} live={!state || state.state === 'working' || urgent} />
+        <Dot size={6} color={state ? `var(${tok})` : undefined} shape={state ? stateShape(state) : 'solid'} live={!state || state.state === 'working' || urgent} />
         <span class="truncate" style={{ fontSize: '12.5px', fontWeight: 600 }}>{sessionLabel(session)}</span>
         <span class="flex-1" />
-        <span class="mono" style={{ fontSize: '11px', color: 'var(--ink-2)' }}>{pct !== null ? `${Math.round(pct)}%` : '—'}</span>
+        <span class="mono num" style={{ fontSize: '11px', color: 'var(--ink-2)' }}>{pct !== null ? `${Math.round(pct)}%` : '—'}</span>
       </span>
-      <span class="relative block w-full overflow-hidden" style={{ height: '5px', borderRadius: '99px', background: 'var(--elev)' }}>
-        <span class="block h-full" style={{ width: `${pct ?? 0}%`, borderRadius: '99px', background: `linear-gradient(90deg, ${c1}, ${c2})`, transition: 'width .6s var(--ease)' }} />
-        <span class="absolute inset-y-0 left-0" style={{ width: '30%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent)', animation: 'sweep 2.6s ease-in-out infinite' }} />
+      <span class="relative block w-full overflow-hidden" style={{ height: '4px', borderRadius: '99px', background: 'var(--well)' }}>
+        <span class="block h-full" style={{ width: `${pct ?? 0}%`, borderRadius: '99px', background: fill, transition: 'width .6s var(--ease)' }} />
+        {state?.state === 'working' && (
+          <span class="absolute inset-y-0 left-0" style={{ width: '30%', background: 'linear-gradient(90deg, transparent, var(--sheen), transparent)', animation: 'sweep 2.6s ease-in-out infinite' }} />
+        )}
       </span>
-      <span class="mono truncate w-full" style={urgent ? { ...cardFoot, color: `var(${stateToken(state!)})`, fontWeight: 600 } : cardFoot}>{sub}</span>
+      <span class="mono truncate w-full" style={urgent ? { ...cardFoot, color: inkOf(tok), fontWeight: 600 } : cardFoot}>{sub}</span>
     </button>
   )
 }
@@ -123,17 +135,17 @@ const ModuleNav: FunctionComponent<{ view: View; onNavigate: (view: View) => voi
             aria-current={on ? 'page' : undefined}
             title={off ? `${m.displayName} is disabled: ${m.reason ?? ''}` : warning ?? m.displayName}
             class={rowBase}
-            style={{ ...selectedRow(on), gap: '9px', height: '32px', padding: '0 9px', fontSize: '13.5px', fontWeight: on ? 600 : 450, opacity: off ? 0.5 : 1 }}
+            style={{ ...selectedRow(on), gap: '9px', height: '32px', padding: '0 9px', fontSize: '13.5px', fontWeight: on ? 600 : 500, opacity: off ? 0.5 : 1 }}
             onClick={() => onNavigate(target)}
           >
             <span class="grid place-items-center shrink-0" style={{
-              width: '18px', height: '18px', borderRadius: '5px', fontSize: '10px', fontWeight: 600,
-              background: on ? `color-mix(in srgb, ${tint} 18%, transparent)` : 'var(--elev)',
+              width: '18px', height: '18px', borderRadius: 'var(--r-xs)', fontSize: '11px', fontWeight: 600,
+              background: on ? `color-mix(in srgb, ${tint} var(--tint), transparent)` : 'var(--elev)',
               color: on ? tint : 'var(--ink-3)',
             }}>{m.displayName.charAt(0).toUpperCase()}</span>
             <span class="flex-1 sb-label truncate">{m.displayName}</span>
             {warning && <span class="sb-label" aria-label="Has a warning" style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--orange)' }} />}
-            {c && c.attention > 0 && <span class="mono sb-label" aria-label={`${c.attention} need you`} style={{ fontSize: '10.5px', fontWeight: 700, padding: '0 6px', borderRadius: '99px', color: '#fff', background: 'var(--red)' }}>{c.attention}</span>}
+            {c && c.attention > 0 && <span class="mono sb-label" aria-label={`${c.attention} need you`} style={{ fontSize: '11px', fontWeight: 700, padding: '0 6px', borderRadius: '99px', color: '#fff', background: 'var(--red-fill)' }}>{c.attention}</span>}
             {c && c.badge > 0 && <span class="mono sb-label" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{c.badge}</span>}
           </button>
         )
@@ -144,7 +156,7 @@ const ModuleNav: FunctionComponent<{ view: View; onNavigate: (view: View) => voi
 
 const NotifySwitch: FunctionComponent = () => (
   <label class="flex items-center justify-between" style={{ gap: '8px', padding: '0 9px', fontSize: '12px', color: 'var(--ink-2)' }}>
-    <span class="sb-label">Notify me when a session or module needs me</span>
+    <span class="sb-label">Notify when waiting</span>
     <ToggleSwitch
       checked={notifySessions.value}
       label="Notify me when a session or module needs me"
@@ -164,7 +176,7 @@ const LimitCard: FunctionComponent<{ account: string; harness: string; windows: 
       <span class="flex items-center w-full" style={{ gap: '6px' }}>
         <span class="truncate" style={{ fontSize: '12.5px', fontWeight: 600 }}>{account}</span>
         <span class="flex-1" />
-        <span class="mono truncate" style={{ fontSize: '10px', color: 'var(--ink-3)' }}>{harnessLabel}</span>
+        <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{harnessLabel}</span>
       </span>
       <UsageMeter bars={usageBars(windows)} size="sm" />
       <span class="mono truncate w-full" style={cardFoot}>
@@ -190,30 +202,30 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
     aria-label="Sidebar"
     style={{
       position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', overscrollBehavior: 'contain',
-      gap: '18px', padding: '14px 10px 12px', background: 'var(--bg-2)', borderRight: '1px solid var(--hair)',
+      gap: '20px', padding: '14px 10px 12px', background: 'var(--bg-2)', boxShadow: 'inset -1px 0 0 var(--hair-soft)',
     }}
   >
     <div role="button" tabIndex={0} class="flex items-center cursor-pointer" style={{ gap: '9px', padding: '2px 8px' }}
       onClick={() => onNavigate('list')}
       onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') onNavigate('list') }}
     >
-      <span class="grid place-items-center shrink-0" style={{ width: '22px', height: '22px', borderRadius: '7px', background: 'linear-gradient(160deg, var(--blue), var(--purple))', boxShadow: 'var(--shadow-s)', fontSize: '12px', fontWeight: 700, color: '#fff' }}>F</span>
+      <span class="grid place-items-center shrink-0" style={{ width: '22px', height: '22px', borderRadius: 'var(--r-xs)', background: PRIMARY_FILL, boxShadow: 'var(--shadow-s)', fontSize: '12px', fontWeight: 700, color: '#fff' }}>F</span>
       <span class="sb-label" style={{ fontSize: '15px', fontWeight: 600, letterSpacing: '-0.015em' }}>Forge</span>
       <span class="flex-1 sb-label" />
-      {version && <span class="mono sb-label" style={{ fontSize: '10px', color: 'var(--ink-3)' }} title="Forge version">{version}</span>}
+      {version && <span class="mono sb-label" style={{ fontSize: '11px', color: 'var(--ink-3)' }} title="Forge version">{version}</span>}
     </div>
 
     {onSearch && (
       <button
         type="button"
-        class="flex items-center text-left cursor-pointer transition-all duration-180 ease-spring text-ink2 hover:text-ink hover:border-hair2 hover:-translate-y-px hover:shadow-m"
-        style={{ gap: '8px', padding: '6px 9px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)', fontSize: '12.5px', boxShadow: 'var(--shadow-s)' }}
+        class="flex items-center text-left cursor-pointer transition-all duration-180 ease-spring text-ink2 hover:text-ink hover:-translate-y-px hover:shadow-m"
+        style={{ gap: '8px', padding: '6px 9px', borderRadius: 'var(--r-sm)', border: 0, background: 'var(--card)', fontSize: '12.5px', boxShadow: 'var(--shadow-s)' }}
         onClick={onSearch}
         aria-label="Search (⌘K)"
       >
         <span class="i-lucide-search shrink-0" style={{ width: '13px', height: '13px', opacity: 0.7 }} />
         <span class="flex-1 sb-label">Search</span>
-        <kbd class="sb-label" style={{ fontSize: '10px', padding: '1px 5px', borderRadius: '5px', background: 'var(--elev)', border: '1px solid var(--hair)' }}>⌘K</kbd>
+        <kbd class="sb-label" style={{ fontSize: '11px', padding: '1px 5px', borderRadius: 'var(--r-xs)', background: 'var(--well)' }}>⌘K</kbd>
       </button>
     )}
 
@@ -227,13 +239,13 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
             aria-current={on ? 'page' : undefined}
             title={n.label}
             class={rowBase}
-            style={{ ...selectedRow(on), gap: '9px', height: '32px', padding: '0 9px', fontSize: '13.5px', fontWeight: on ? 600 : 450 }}
+            style={{ ...selectedRow(on), gap: '9px', height: '32px', padding: '0 9px', fontSize: '13.5px', fontWeight: on ? 600 : 500 }}
             onClick={() => onNavigate(n.view)}
           >
             <span class="grid place-items-center shrink-0" style={{
-              width: '18px', height: '18px', borderRadius: '5px', fontSize: '10px', fontWeight: 600,
+              width: '18px', height: '18px', borderRadius: 'var(--r-xs)', fontSize: '11px', fontWeight: 600,
               background: on ? soft(n.token) : 'var(--elev)',
-              color: on ? `var(${n.token})` : 'var(--ink-3)',
+              color: on ? inkOf(n.token) : 'var(--ink-3)',
             }}>{n.glyph}</span>
             <span class="flex-1 sb-label">{n.label}</span>
             {n.count !== null && <span class="mono sb-label" style={{ fontSize: '11px', color: 'var(--ink-3)' }}>{n.count}</span>}
@@ -250,7 +262,7 @@ export const Sidebar: FunctionComponent<SidebarProps> = ({
       {live.length > 0 && (
         <div class="flex flex-col sb-section" style={{ gap: '8px' }}>
           <span style={{ padding: '0 9px' }}><Label>Live now</Label></span>
-          {liveOrdered.map((l, i) => <LiveCard key={l.key} id={l.key} session={l.session} index={i} onOpen={() => onOpenLive(l.session)} />)}
+          {liveOrdered.map(l => <LiveCard key={l.key} id={l.key} session={l.session} onOpen={() => onOpenLive(l.session)} />)}
         </div>
       )}
       {limits.length > 0 && (

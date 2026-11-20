@@ -2,7 +2,7 @@ import { type FunctionComponent, type ComponentChildren } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, ForgeTerminal, showToast } from '@forge-dev/ui'
 import type { CWSession } from '@forge-dev/core'
-import { getTypeStyle, harnessLabel, projectOf, sessionDirOf, sessionKey, sessionLabel, soft, tierToken } from '../config/types.js'
+import { getTypeStyle, harnessLabel, inkOf, pageCard, projectOf, sessionDirOf, sessionKey, sessionLabel, soft, tierToken } from '../config/types.js'
 import { reviewSummary, unpushedCount } from '../config/review.js'
 import { copyText, errorText, postJson } from '../config/api.js'
 import { EditorButton, GitHubButton, TicketButton, secondaryButton, secondaryClass } from '../components/TaskLinks.js'
@@ -27,21 +27,37 @@ interface TaskDetailProps {
 // the second stop of each type's avatar gradient
 const AVATAR_PAIR: Record<string, string> = { '--orange': '--red', '--blue': '--purple', '--purple': '--blue', '--green': '--teal' }
 
-const Metric: FunctionComponent<{ label: string; index: number; color?: string; bar?: number | null; title?: string; children: ComponentChildren }> = ({ label, index, color = 'var(--ink)', bar, title, children }) => (
-  <div
-    class="min-w-0"
-    title={title}
-    style={{ padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: `riseIn .34s var(--ease) ${index * 60}ms both` }}
-  >
-    <div style={{ fontSize: '11.5px', color: 'var(--ink-2)' }}>{label}</div>
-    <div class="mono truncate" style={{ fontSize: '19px', fontWeight: 650, color, marginTop: '2px' }}>{children}</div>
+// a cell of the metric strip; the strip is the card, cells only pad
+const metricCell = { padding: '10px 14px', minWidth: 0 }
+const metricLabel = { fontSize: '11px', fontWeight: 500, color: 'var(--ink-2)' }
+
+// a solid fill that warms only as the context fills up
+const contextFill = (pct: number): string => pct >= 90 ? 'var(--red)' : pct >= 70 ? 'var(--orange)' : 'var(--ink-2)'
+
+const Unit: FunctionComponent<{ children: ComponentChildren }> = ({ children }) => (
+  <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--ink-2)', marginLeft: '2px' }}>{children}</span>
+)
+
+const Metric: FunctionComponent<{ label: string; color?: string; bar?: number | null; title?: string; empty?: boolean; unit?: string; children: ComponentChildren }> = ({ label, color = 'var(--ink)', bar, title, empty, unit, children }) => (
+  <div title={title} style={metricCell}>
+    <div style={metricLabel}>{label}</div>
+    <div class="truncate num" style={{ fontSize: '17px', lineHeight: '24px', fontWeight: empty ? 400 : 650, color: empty ? 'var(--ink-4)' : color, marginTop: '2px' }}>
+      {children}{!empty && unit && <Unit>{unit}</Unit>}
+    </div>
     {bar !== undefined && (
-      <div style={{ height: '5px', borderRadius: '99px', background: 'var(--elev)', marginTop: '7px', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${bar ?? 0}%`, borderRadius: '99px', background: 'linear-gradient(90deg, var(--blue), var(--purple))', transition: 'width .6s var(--ease)' }} />
+      <div style={{ height: '4px', borderRadius: '99px', background: 'var(--well)', marginTop: '7px', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${bar ?? 0}%`, borderRadius: '99px', background: contextFill(bar ?? 0), transition: 'width .6s var(--ease)' }} />
       </div>
     )}
   </div>
 )
+
+// splits a k or M suffix off formatTokens, so it reads as a unit
+const tokenParts = (n: number): [string, string | undefined] => {
+  const text = formatTokens(n)
+  const m = /^(.*?)([kM])$/.exec(text)
+  return m ? [m[1], m[2]] : [text, undefined]
+}
 
 const RememberForm: FunctionComponent<{ value: string; onChange: (value: string) => void; onSend: () => void; onCancel: () => void }> = ({ value, onChange, onSend, onCancel }) => {
   const ref = useAutoFocus<HTMLInputElement>()
@@ -82,15 +98,12 @@ const MemoryMetric: FunctionComponent<{ session: CWSession; onOpen?: (project: s
     }
   }
   return (
-    <div
-      class="min-w-0"
-      style={{ gridColumn: 'span 2', padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', animation: 'riseIn .34s var(--ease) 360ms both' }}
-    >
-      <div class="flex items-center" style={{ fontSize: '11.5px', color: 'var(--ink-2)' }}>
+    <div style={{ ...metricCell, gridColumn: 'span 2' }}>
+      <div class="flex items-center" style={metricLabel}>
         Memory · {sumPages(chain)} pages
         <span class="flex-1" />
         {canRemember && note === null && (
-          <button type="button" class="cursor-pointer hover:text-ink" style={{ border: 0, background: 'none', padding: 0, fontSize: '11.5px', fontWeight: 600, color: 'var(--blue)' }} onClick={() => setNote('')}>Remember…</button>
+          <button type="button" class="cursor-pointer hover:text-ink" style={{ border: 0, background: 'none', padding: 0, fontSize: '11px', fontWeight: 600, color: 'var(--blue-ink)' }} onClick={() => setNote('')}>Remember…</button>
         )}
       </div>
       {note !== null && <RememberForm value={note} onChange={setNote} onSend={remember} onCancel={() => setNote(null)} />}
@@ -101,7 +114,7 @@ const MemoryMetric: FunctionComponent<{ session: CWSession; onOpen?: (project: s
             <button
               type="button"
               class="cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px"
-              style={{ padding: '2px 9px', borderRadius: '99px', fontSize: '12px', fontWeight: 600, border: 0, background: soft(tierToken(b.tier)), color: `var(${tierToken(b.tier)})` }}
+              style={{ padding: '2px 9px', borderRadius: '99px', fontSize: '12px', fontWeight: 600, border: 0, background: soft(tierToken(b.tier)), color: inkOf(tierToken(b.tier)) }}
               title={`${b.tier ?? 'brain'} · ${b.pages} pages`}
               onClick={() => onOpen?.(project)}
             >{brainName(b)}</button>
@@ -113,8 +126,8 @@ const MemoryMetric: FunctionComponent<{ session: CWSession; onOpen?: (project: s
 }
 
 const ChipCard: FunctionComponent<{ title: string; items: Array<{ name: string; title?: string; muted?: boolean }>; tone: string | null; empty: string }> = ({ title, items, tone, empty }) => (
-  <div style={{ padding: '11px 13px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)' }}>
-    <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '5px' }}>{title}</div>
+  <div style={{ padding: '11px 13px', borderRadius: 'var(--r-md)', background: 'var(--card)', boxShadow: 'var(--lit), var(--shadow-s)' }}>
+    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink-2)', marginBottom: '5px' }}>{title}</div>
     <div class="flex flex-wrap" style={{ gap: '5px' }}>
       {items.length === 0 && <span style={{ fontSize: '12px', color: 'var(--ink-3)' }}>{empty}</span>}
       {items.map(i => (
@@ -124,7 +137,7 @@ const ChipCard: FunctionComponent<{ title: string; items: Array<{ name: string; 
           style={{
             padding: '2px 8px', borderRadius: '99px', fontSize: '11px', fontWeight: 500,
             background: tone && !i.muted ? soft(tone) : 'var(--elev)',
-            color: tone && !i.muted ? `var(${tone})` : 'var(--ink-2)',
+            color: tone && !i.muted ? inkOf(tone) : 'var(--ink-2)',
             opacity: i.muted ? 0.6 : 1,
           }}
         >{i.name}</span>
@@ -194,14 +207,14 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
         <div class="flex items-center flex-wrap" style={{ gap: '12px' }}>
           <span
             class="grid place-items-center shrink-0"
-            style={{ width: '34px', height: '34px', borderRadius: '11px', background: `linear-gradient(160deg, var(${style.token}), var(${AVATAR_PAIR[style.token] ?? style.token}))`, boxShadow: 'var(--shadow-m)', color: '#fff', fontSize: '13px', fontWeight: 700 }}
+            style={{ width: '34px', height: '34px', borderRadius: 'var(--r-md)', background: `linear-gradient(160deg, var(${style.token}), var(${AVATAR_PAIR[style.token] ?? style.token}))`, boxShadow: 'var(--shadow-m)', color: '#fff', fontSize: '13px', fontWeight: 700 }}
             aria-hidden="true"
           >{style.glyph}</span>
           <div class="min-w-0">
-            <h1 class="truncate" style={{ fontSize: '19px', fontWeight: 700, letterSpacing: '-0.02em' }}>{sessionLabel(session)}</h1>
+            <h1 class="truncate" style={{ fontSize: '17px', fontWeight: 700, letterSpacing: '-0.02em' }}>{sessionLabel(session)}</h1>
             <p class="truncate" style={{ marginTop: '1px', fontSize: '12.5px', color: 'var(--ink-2)' }}>{identity}</p>
             {!isLogin && (
-              <p class="mono truncate" style={{ marginTop: '2px', fontSize: '11.5px', color: 'var(--ink-3)' }} title={changes}>{changes}</p>
+              <p class="mono truncate" style={{ marginTop: '2px', fontSize: '11px', color: 'var(--ink-3)' }} title={changes}>{changes}</p>
             )}
           </div>
           <span style={{ flex: '1 1 60px' }} />
@@ -220,15 +233,17 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
         </div>
 
         {!isLogin && (
-          <div class="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(138px, 1fr))', gap: '9px' }}>
-            <Metric index={0} label="Context used" color="var(--blue)" bar={metrics?.context ?? null} title="Read from the harness status line">
-              {metrics?.context != null ? `${Math.round(metrics.context)}%` : '—'}
+          <div class="grid metric-strip" style={{ ...pageCard, overflow: 'hidden', gridTemplateColumns: 'repeat(auto-fit, minmax(128px, 1fr))', gap: 0, animation: 'riseIn .34s var(--ease) both' }}>
+            <Metric label="Context used" bar={metrics?.context ?? null} title="Read from the harness status line" empty={metrics?.context == null} unit="%">
+              {metrics?.context != null ? Math.round(metrics.context) : '—'}
             </Metric>
-            <Metric index={1} label="Tokens">{metrics?.tokens != null ? formatTokens(metrics.tokens) : '—'}</Metric>
-            <Metric index={2} label="Cost" color="var(--green)">{metrics?.cost != null ? formatCost(metrics.cost) : '—'}</Metric>
-            {reviewed && <Metric index={3} label="Commits">{state?.commits ?? '—'}</Metric>}
+            {metrics?.tokens != null
+              ? <Metric label="Tokens" unit={tokenParts(metrics.tokens)[1]}>{tokenParts(metrics.tokens)[0]}</Metric>
+              : <Metric label="Tokens" empty>—</Metric>}
+            <Metric label="Cost" empty={metrics?.cost == null}>{metrics?.cost != null ? formatCost(metrics.cost) : '—'}</Metric>
+            {reviewed && <Metric label="Commits" empty={state?.commits == null}>{state?.commits ?? '—'}</Metric>}
             {reviewed && (
-              <Metric index={4} label="Unpushed" color={state && unpushedCount(state) > 0 ? 'var(--orange)' : 'var(--ink)'}>
+              <Metric label="Unpushed" empty={!state} color={state && unpushedCount(state) > 0 ? 'var(--orange-ink)' : 'var(--ink)'}>
                 {state ? unpushedCount(state) : '—'}
               </Metric>
             )}
@@ -236,15 +251,15 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
             {shownBranch && (
               <button
                 type="button"
-                class="text-left cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m min-w-0"
-                style={{ padding: '10px 12px', borderRadius: '13px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-s)', color: 'var(--ink)', animation: 'riseIn .34s var(--ease) 300ms both' }}
+                class="text-left cursor-pointer transition-colors duration-180 ease-spring bg-transparent hover:bg-elev min-w-0"
+                style={{ ...metricCell, border: 0, color: 'var(--ink)' }}
                 title="Copy branch name"
                 onClick={() => copyText(shownBranch, 'Branch')}
               >
-                <div class="flex items-center" style={{ gap: '4px', fontSize: '11.5px', color: 'var(--ink-2)' }}>
+                <div class="flex items-center" style={{ ...metricLabel, gap: '4px' }}>
                   Branch <span class="i-lucide-copy" style={{ width: '11px', height: '11px' }} />
                 </div>
-                <div class="mono truncate" style={{ fontSize: '13px', fontWeight: 600, marginTop: '6px' }}>{shownBranch}</div>
+                <div class="mono truncate" style={{ fontSize: '13px', lineHeight: '24px', fontWeight: 600, marginTop: '2px' }}>{shownBranch}</div>
               </button>
             )}
           </div>
@@ -271,18 +286,18 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
 
       <div
         class="task-terminal relative flex-1 min-h-0"
-        style={{ margin: '0 20px 20px', borderRadius: '14px', overflow: 'hidden', background: 'var(--term)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-l)' }}
+        style={{ margin: '0 20px 20px', borderRadius: 'var(--r-lg)', overflow: 'hidden', background: 'var(--term)', boxShadow: 'var(--lit), var(--shadow-l)' }}
       >
         <div class="absolute inset-0 flex flex-col">
           <div class="flex items-center shrink-0" style={{ gap: '7px', padding: '8px 12px', borderBottom: '1px solid rgba(255,255,255,.08)' }}>
             <span style={{ width: '11px', height: '11px', borderRadius: '50%', background: '#ff5f57' }} />
             <span style={{ width: '11px', height: '11px', borderRadius: '50%', background: '#febc2e' }} />
             <span style={{ width: '11px', height: '11px', borderRadius: '50%', background: '#28c840' }} />
-            <span class="mono truncate" style={{ fontSize: '11px', color: '#8a8a92', marginLeft: '6px' }}>
+            <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--term-chrome)', marginLeft: '6px' }}>
               {shownBranch || sessionLabel(session)} — {session.harness ?? 'claude'}
             </span>
             <span class="flex-1" />
-            <span class="mono" style={{ fontSize: '11px', color: connected ? '#30d158' : '#8a8a92' }}>{connected ? 'connected' : ptyExited ? 'exited' : 'offline'}</span>
+            <span class="mono" style={{ fontSize: '11px', color: connected ? '#30d158' /* the bar is dark in both themes */ : 'var(--term-chrome)' }}>{connected ? 'connected' : ptyExited ? 'exited' : 'offline'}</span>
           </div>
           <div class="relative flex-1 min-h-0" style={{ padding: '12px 6px 6px 14px' }}>
             <ForgeTerminal
