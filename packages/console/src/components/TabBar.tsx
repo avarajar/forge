@@ -1,7 +1,7 @@
 import { type FunctionComponent } from 'preact'
 import { useState, useRef, useEffect, useCallback } from 'preact/hooks'
 import type { CWSession } from '@forge-dev/core'
-import { QUICK_TYPES, projectOf, quickLabel, sessionKey, sessionLabel, needsYou, stateLabel, stateToken } from '../config/types.js'
+import { QUICK_TYPES, projectOf, quickLabel, sessionKey, sessionLabel, needsYou, stateLabel, stateShape, stateToken } from '../config/types.js'
 import { sessionStates } from '../hooks/useSessionStates.js'
 import { TypeTile } from './TaskCard.js'
 import { Dot } from './Dot.js'
@@ -66,7 +66,7 @@ const AddMenu: FunctionComponent<{
               onClick={() => { onOpenSession(s); onClose() }}>
               <TypeTile type={s.type} size={22} radius={7} font={10} />
               <span class="flex-1 truncate">{sessionLabel(s)}</span>
-              <span class="mono truncate" style={{ fontSize: '10.5px', color: 'var(--ink-3)', maxWidth: '110px' }}>{projectOf(s)}</span>
+              <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{projectOf(s)}</span>
             </button>
           ))}
         </>
@@ -98,7 +98,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
       class="glass flex items-center shrink-0 overflow-x-auto"
       role="tablist"
       aria-label="Open sessions"
-      style={{ gap: '8px', padding: '9px 16px', borderBottom: '1px solid var(--hair)' }}
+      style={{ gap: '8px', padding: '9px 16px', boxShadow: 'var(--chrome-edge)' }}
     >
       <MenuButton />
       <BackButton onClick={onBack} />
@@ -115,15 +115,15 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
             title={[urgent ? stateLabel(state!) : null, i < 5 ? `⌘${i + 1}` : null].filter(Boolean).join(' · ') || undefined}
             class="flex items-center shrink-0 whitespace-nowrap cursor-pointer transition-all duration-200 ease-spring"
             style={{
-              gap: '8px', padding: '6px 11px', borderRadius: '10px', fontSize: '12.5px',
+              gap: '8px', padding: '6px 11px', borderRadius: 'var(--r-sm)', fontSize: '12.5px',
               background: on ? 'var(--card)' : 'transparent',
-              border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`,
-              boxShadow: on ? 'var(--shadow-s)' : 'none',
+              border: 0,
+              boxShadow: on ? 'var(--lit), var(--shadow-s)' : 'none',
             }}
             onClick={() => onActivate(i)}
             onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(i) } }}
           >
-            <Dot size={6} live={session.status === 'active'} color={urgent ? `var(${stateToken(state!)})` : undefined} />
+            <Dot size={6} live={session.status === 'active'} color={urgent ? `var(${stateToken(state!)})` : undefined} shape={urgent ? stateShape(state!) : 'solid'} />
             <span style={{ fontWeight: 600, color: on ? 'var(--ink)' : 'var(--ink-2)' }}>{sessionLabel(session)}</span>
             <span class="mono truncate" style={{ fontSize: '11px', color: 'var(--ink-3)', maxWidth: '110px' }}>{projectOf(session)}</span>
             <button
@@ -144,7 +144,7 @@ export const TabBar: FunctionComponent<TabBarProps> = ({
         ref={addBtnRef}
         type="button"
         class="grid place-items-center shrink-0 cursor-pointer text-ink2 hover:text-ink"
-        style={{ width: '26px', height: '26px', borderRadius: '8px', border: '1px solid var(--hair)', background: 'var(--card)' }}
+        style={{ width: '26px', height: '26px', borderRadius: 'var(--r-sm)', border: 0, background: 'var(--card)', boxShadow: 'var(--shadow-s)' }}
         onClick={toggleMenu}
         aria-expanded={menuOpen}
         title="Open or create a tab"

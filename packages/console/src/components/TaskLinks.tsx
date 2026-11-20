@@ -7,12 +7,12 @@ import { editorsInfo, loadEditors, openTaskInEditor } from '../hooks/useEditors.
 import { ticketLink } from '../config/types.js'
 
 export const secondaryButton = {
-  padding: '6px 12px', borderRadius: '9px', border: '1px solid var(--hair)', background: 'var(--card)',
+  padding: '6px 12px', borderRadius: 'var(--r-sm)', border: 0, background: 'var(--card)',
   color: 'var(--ink)', fontSize: '12.5px', fontWeight: 500, boxShadow: 'var(--shadow-s)', whiteSpace: 'nowrap' as const,
 }
 export const secondaryClass = 'inline-flex items-center gap-1 cursor-pointer transition-all duration-180 ease-spring hover:-translate-y-px hover:shadow-m hover:text-ink'
 
-const disabledButton = { ...secondaryButton, color: 'var(--ink-3)', boxShadow: 'none' }
+const disabledButton = { ...secondaryButton, background: 'var(--well)', color: 'var(--ink-4)', boxShadow: 'var(--inset-s)' }
 
 const LinkButton: FunctionComponent<{ href: string; title: string }> = ({ href, title, children }) => (
   <a class={secondaryClass} style={secondaryButton} href={href} target="_blank" rel="noopener noreferrer" title={title}>

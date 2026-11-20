@@ -5,6 +5,8 @@ interface Tab {
   label: string
   count?: number | string
   disabled?: boolean
+  // an icon class shown in place of the label, which stays as the accessible name
+  icon?: string
 }
 
 interface TabsProps {
@@ -25,7 +27,7 @@ export const Tabs: FunctionComponent<TabsProps> = ({ tabs, active, onChange, fil
       role="tablist"
       aria-label={label}
       class={`${fill ? 'flex' : 'inline-flex'} max-w-full overflow-x-auto`}
-      style={{ padding: '3px', borderRadius: sm ? '10px' : '11px', background: 'var(--elev)', border: '1px solid var(--hair)' }}
+      style={{ padding: '3px', borderRadius: 'var(--r-md)', background: 'var(--well)', boxShadow: 'var(--inset-s)' }}
     >
       {tabs.map(tab => {
         const on = active === tab.id
@@ -36,22 +38,24 @@ export const Tabs: FunctionComponent<TabsProps> = ({ tabs, active, onChange, fil
             role="tab"
             aria-selected={on}
             disabled={tab.disabled}
+            aria-label={tab.icon ? tab.label : undefined}
+            title={tab.icon ? tab.label : undefined}
             class={`flex items-center justify-center gap-1.5 whitespace-nowrap transition-all duration-200 ease-spring ${fill ? 'flex-1' : ''} ${tab.disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
             style={{
-              padding: xs ? '4px 0' : fill ? (sm ? '5px 6px' : '7px 8px') : (sm ? '5px 11px' : '6px 12px'),
+              padding: tab.icon ? '5px 9px' : xs ? '4px 0' : fill ? (sm ? '5px 6px' : '7px 8px') : (sm ? '5px 11px' : '6px 12px'),
               border: 0,
-              borderRadius: sm ? '7px' : '8px',
-              fontSize: xs ? '11.5px' : sm ? '12px' : '12.5px',
+              borderRadius: 'var(--r-sm)',
+              fontSize: xs ? '11px' : sm ? '12px' : '12.5px',
               fontWeight: 600,
-              background: on ? 'var(--card)' : 'transparent',
-              color: on ? 'var(--ink)' : 'var(--ink-3)',
-              boxShadow: on ? 'var(--shadow-s)' : 'none',
+              background: on ? 'var(--seg-on, var(--card))' : 'transparent',
+              color: on ? 'var(--ink)' : 'var(--ink-2)',
+              boxShadow: on ? 'var(--lit), var(--shadow-s)' : 'none',
             }}
             onClick={() => onChange(tab.id)}
           >
-            {tab.label}
+            {tab.icon ? <span class={tab.icon} aria-hidden="true" style={{ width: '14px', height: '14px' }} /> : tab.label}
             {tab.count !== undefined && (
-              <span class="mono" style={{ fontSize: '11px', fontWeight: 400, color: 'var(--ink-3)' }}>{tab.count}</span>
+              <span class="mono num" style={{ fontSize: '11px', fontWeight: 400, color: 'var(--ink-3)' }}>{tab.count}</span>
             )}
           </button>
         )

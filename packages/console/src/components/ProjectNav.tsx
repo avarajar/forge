@@ -70,7 +70,7 @@ export const ProjectNav: FunctionComponent<ProjectNavProps> = ({ projects, accou
           aria-label="Filter projects"
           placeholder="Filter projects"
           value={query}
-          style={{ height: '28px', padding: '0 8px 0 27px', borderRadius: '8px', fontSize: '12.5px', background: 'var(--elev)' }}
+          style={{ height: '28px', padding: '0 8px 0 27px', borderRadius: 'var(--r-sm)', fontSize: '12.5px', background: 'var(--elev)' }}
           onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
           onKeyDown={(e) => { if (e.key === 'Escape') setQuery('') }}
         />
@@ -92,16 +92,16 @@ export const ProjectNav: FunctionComponent<ProjectNavProps> = ({ projects, accou
                 type="button"
                 aria-expanded={open}
                 class="flex items-center w-full text-left cursor-pointer transition-colors duration-160 hover:bg-elev"
-                style={{ gap: '7px', height: '26px', padding: '0 7px', borderRadius: '8px', border: 0, background: 'none', color: 'var(--ink-2)' }}
+                style={{ gap: '7px', height: '26px', padding: '0 7px', borderRadius: 'var(--r-sm)', border: 0, background: 'none', color: 'var(--ink-2)' }}
                 onClick={() => toggleCollapsed(g.account)}
               >
                 <span class="i-lucide-chevron-right shrink-0" style={{ width: '11px', height: '11px', color: 'var(--ink-3)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s var(--ease)' }} />
-                <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: '5px', background: `linear-gradient(160deg, var(${c1}), var(${c2}))`, color: '#fff', fontSize: '9px', fontWeight: 700 }}>
+                <span class="grid place-items-center shrink-0" style={{ width: '16px', height: '16px', borderRadius: 'var(--r-xs)', background: `linear-gradient(160deg, var(${c1}), var(${c2}))`, color: '#fff', fontSize: '10px', fontWeight: 700 }}>
                   {g.account.charAt(0).toUpperCase()}
                 </span>
                 <span class="flex-1 truncate" style={{ fontSize: '12px', fontWeight: 600 }}>{g.account}</span>
                 {live && <Dot size={5} live glow={false} />}
-                <span class="mono" style={{ fontSize: '10.5px', color: 'var(--ink-3)' }} title={`${g.items.length} projects · ${g.active} active tasks`}>{g.items.length}</span>
+                <span class="mono num" style={{ fontSize: '11px', color: 'var(--ink-3)' }} title={`${g.items.length} projects · ${g.active} active tasks`}>{g.items.length}</span>
               </button>
 
               {open && (
@@ -115,7 +115,7 @@ export const ProjectNav: FunctionComponent<ProjectNavProps> = ({ projects, accou
                         aria-pressed={on}
                         class="flex items-center w-full text-left shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:bg-elev"
                         style={{
-                          gap: '8px', height: '27px', padding: '0 8px', borderRadius: '8px', fontSize: '13px', color: 'var(--ink)',
+                          gap: '8px', height: '27px', padding: '0 8px', borderRadius: 'var(--r-sm)', fontSize: '13px', color: 'var(--ink)',
                           border: `1px solid ${on ? 'var(--hair)' : 'transparent'}`, background: on ? 'var(--card)' : 'transparent',
                           boxShadow: on ? 'var(--shadow-s)' : 'none',
                         }}

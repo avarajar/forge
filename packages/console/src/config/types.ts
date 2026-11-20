@@ -2,16 +2,23 @@ import type { CWDoctor, CWDoctorCell, CWSession, SessionState, SessionStateEntry
 import type { UsageBar } from '@forge-dev/ui'
 
 // avatar gradients, cycled per account
-const AVATAR_PAIRS: Array<[string, string]> = [['--blue', '--purple'], ['--teal', '--blue'], ['--orange', '--red'], ['--green', '--teal']]
+const AVATAR_PAIRS: Array<[string, string]> = [['--orange', '--red'], ['--green', '--teal'], ['--blue', '--purple'], ['--teal', '--blue']]
 export const avatarPair = (index: number): [string, string] => AVATAR_PAIRS[index % AVATAR_PAIRS.length]
 
 /* ── Type visual config ── */
 
-export const soft = (token: string, pct = 18): string => `color-mix(in srgb, var(${token}) ${pct}%, transparent)`
+export const soft = (token: string, pct?: number): string =>
+  `color-mix(in srgb, var(${token}) ${pct != null ? `${pct}%` : 'var(--tint)'}, transparent)`
+
+// text colour for a hue token: its AA ink where one exists, else the token itself
+export const inkOf = (token: string): string => `var(${token}-ink, var(${token}))`
+
+// the one action fill, deepened from the system blue so white text passes AA
+export const PRIMARY_FILL = 'linear-gradient(180deg, var(--accent-top), var(--accent-bot))'
 
 // a page's card and its inline notice
-export const pageCard = { borderRadius: '16px', background: 'var(--card)', border: '1px solid var(--hair)', boxShadow: 'var(--shadow-m)' }
-export const pageNote = { padding: '10px 14px', borderRadius: '12px', fontSize: '12.5px' }
+export const pageCard = { borderRadius: 'var(--r-lg)', background: 'var(--card)', boxShadow: 'var(--shadow-card)' }
+export const pageNote = { padding: '10px 14px', borderRadius: 'var(--r-md)', fontSize: '12.5px' }
 
 // kioku brain tiers and page kinds, one token each
 const TIER_TOKEN: Record<string, string> = { personal: '--blue', project: '--green', client: '--green', team: '--purple' }
@@ -38,11 +45,11 @@ export interface TypeStyle {
 }
 
 const typeStyle = (label: string, glyph: string, token: string): TypeStyle =>
-  ({ label, glyph, token, ink: `var(${token})`, fill: soft(token) })
+  ({ label, glyph, token, ink: inkOf(token), fill: soft(token) })
 
 export const TYPE_STYLES: Record<string, TypeStyle> = {
   task: typeStyle('Dev', 'D', '--orange'),
-  review: typeStyle('Review', 'R', '--blue'),
+  review: typeStyle('Review', 'R', '--indigo'),
   loop: typeStyle('Loop', 'L', '--purple'),
   general: typeStyle('General', 'G', '--green'),
 }
@@ -73,16 +80,18 @@ export const sessionTypeOf = (key: QuickType): CWSession['type'] => QUICK_TYPES.
 
 /* ── Session states ── */
 
-export interface StateStyle { label: string; token: string; attention: boolean }
+export type DotShape = 'solid' | 'ring' | 'diamond' | 'hollow'
+
+export interface StateStyle { label: string; token: string; attention: boolean; shape: DotShape }
 
 // what a live terminal is doing; attention states are the ones that notify
 export const STATE_STYLES: Record<SessionState, StateStyle> = {
-  working: { label: 'Working', token: '--green', attention: false },
-  waiting: { label: 'Waiting for you', token: '--orange', attention: true },
-  permission: { label: 'Needs approval', token: '--red', attention: true },
-  error: { label: 'Stopped on an error', token: '--red', attention: true },
-  exited: { label: 'Exited', token: '--ink-3', attention: false },
-  idle: { label: 'Idle', token: '--ink-3', attention: false },
+  working: { label: 'Working', token: '--green', attention: false, shape: 'solid' },
+  waiting: { label: 'Waiting for you', token: '--orange', attention: true, shape: 'ring' },
+  permission: { label: 'Needs approval', token: '--red', attention: true, shape: 'diamond' },
+  error: { label: 'Stopped on an error', token: '--red', attention: true, shape: 'diamond' },
+  exited: { label: 'Exited', token: '--ink-3', attention: false, shape: 'hollow' },
+  idle: { label: 'Idle', token: '--ink-3', attention: false, shape: 'hollow' },
 }
 
 // a crash is worth a look, a clean exit is not
@@ -94,6 +103,10 @@ export const stateLabel = (entry: SessionStateEntry): string =>
 
 export const stateToken = (entry: SessionStateEntry): string =>
   entry.state === 'exited' && entry.exitCode ? '--red' : STATE_STYLES[entry.state].token
+
+// the dot's shape, so state does not rest on hue alone; a crash reads like an error
+export const stateShape = (entry: SessionStateEntry): DotShape =>
+  entry.state === 'exited' && entry.exitCode ? 'diamond' : STATE_STYLES[entry.state].shape
 
 /* ── Shared helpers ── */
 
@@ -138,11 +151,12 @@ export const shortAgo = (date: string): string => {
 export interface HarnessStyle {
   label: string
   color: string
+  ink: string
   bg: string
 }
 
 const harnessStyle = (label: string, name: string): HarnessStyle =>
-  ({ label, color: `var(--forge-harness-${name})`, bg: soft(`--forge-harness-${name}`) })
+  ({ label, color: `var(--forge-harness-${name})`, ink: inkOf(`--forge-harness-${name}`), bg: soft(`--forge-harness-${name}`) })
 
 export const HARNESS_STYLES: Record<string, HarnessStyle> = {
   claude: harnessStyle('Claude Code', 'claude'),
@@ -152,7 +166,7 @@ export const HARNESS_STYLES: Record<string, HarnessStyle> = {
 }
 
 export const getHarnessStyle = (harness?: string): HarnessStyle =>
-  HARNESS_STYLES[harness ?? 'claude'] ?? { label: harness ?? 'claude', color: 'var(--ink-3)', bg: 'var(--elev)' }
+  HARNESS_STYLES[harness ?? 'claude'] ?? { label: harness ?? 'claude', color: 'var(--ink-3)', ink: 'var(--ink-2)', bg: 'var(--elev)' }
 
 export const harnessLabel = (s: Pick<CWSession, 'harness' | 'provider' | 'model'>): string => {
   const label = getHarnessStyle(s.harness).label

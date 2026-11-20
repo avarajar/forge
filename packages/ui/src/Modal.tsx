@@ -16,7 +16,7 @@ export const CloseButton: FunctionComponent<{ onClick: () => void; label?: strin
     type="button"
     aria-label={label}
     class="grid place-items-center shrink-0 cursor-pointer transition-all duration-180 ease-spring hover:text-ink"
-    style={{ width: '26px', height: '26px', borderRadius: '50%', border: '1px solid var(--hair)', background: 'var(--card)', color: 'var(--ink-2)' }}
+    style={{ width: '26px', height: '26px', borderRadius: '50%', border: 0, background: 'var(--card)', boxShadow: 'var(--shadow-s)', color: 'var(--ink-2)' }}
     onClick={onClick}
   >
     <span class="i-lucide-x" style={{ width: '13px', height: '13px' }} />
@@ -39,7 +39,7 @@ export const Modal: FunctionComponent<ModalProps> = ({
   return createPortal(
     <div
       class="fixed inset-0 z-[55] flex items-start justify-center overflow-auto"
-      style={{ background: 'rgba(0,0,0,.42)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: '56px 16px 16px' }}
+      style={{ background: 'var(--scrim)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', padding: '56px 16px 16px' }}
       onClick={onClose}
     >
       <div
@@ -48,8 +48,8 @@ export const Modal: FunctionComponent<ModalProps> = ({
         aria-label={title}
         class="flex flex-col overflow-hidden"
         style={{
-          width: `min(${width}px, 100%)`, maxHeight: 'calc(100vh - 72px)', borderRadius: '18px',
-          background: 'var(--bg-2)', border: '1px solid var(--hair-2)', boxShadow: 'var(--shadow-l)',
+          width: `min(${width}px, 100%)`, maxHeight: 'calc(100vh - 72px)', borderRadius: 'var(--r-xl)',
+          background: 'var(--bg-2)', boxShadow: 'var(--shadow-l)',
           animation: 'popIn .26s var(--ease) both',
         }}
         onClick={(e) => e.stopPropagation()}

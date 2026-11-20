@@ -19,7 +19,8 @@ export const ToggleSwitch: FunctionComponent<ToggleSwitchProps> = ({
     class={`relative shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     style={{
       width: '44px', height: '26px', borderRadius: '99px', border: 0,
-      background: checked ? 'var(--green)' : 'var(--hair-2)',
+      background: checked ? 'linear-gradient(180deg, var(--accent-top), var(--accent-bot))' : 'var(--well)',
+      boxShadow: checked ? 'none' : 'inset 0 0 0 1px var(--hair-2), var(--inset-s)',
       transition: 'background .22s var(--ease)',
     }}
     onClick={() => !disabled && onChange(!checked)}

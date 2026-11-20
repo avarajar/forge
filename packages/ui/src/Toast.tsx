@@ -31,7 +31,7 @@ export const ToastContainer: FunctionComponent = () => {
           key={t.id}
           class="flex items-center gap-2.5"
           style={{
-            padding: '10px 14px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--hair)',
+            padding: '10px 14px', borderRadius: 'var(--r-md)', background: 'var(--card)',
             boxShadow: 'var(--shadow-l)', fontSize: '13px', color: 'var(--ink)', animation: 'riseIn .3s var(--ease) both',
           }}
         >
