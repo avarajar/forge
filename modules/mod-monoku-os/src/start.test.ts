@@ -59,6 +59,12 @@ describe('startTicket', () => {
     await expect(startTicket(withReading().ctx, 7)).rejects.toMatchObject({ code: 'not_found' })
   })
 
+  it('starts a ticket that is in progress, not your turn', async () => {
+    const s = stub({ projects: [{ monoku: 'acme/web', project: 'acme-web' }] })
+    s.store.set('reading', { at: 'x', tickets: [], enCurso: [ticket], solicitudes: [], dropped: 0 })
+    await expect(startTicket(s.ctx, 42)).resolves.toMatchObject({ reused: false })
+  })
+
   it('asks for a project when none is mapped, and to pick when several are', async () => {
     await expect(startTicket(withReading().ctx, 42)).rejects.toMatchObject({ code: 'bad_request', message: 'no_project' })
     const many = withReading({ projects: [{ monoku: 'acme/web', project: 'acme-web' }, { monoku: 'acme/web', project: 'acme-api' }] })
@@ -69,6 +75,7 @@ describe('startTicket', () => {
     const s = withReading({ account: 'monoku', projects: [{ monoku: 'acme/web', project: 'acme-web' }] })
     expect(await startTicket(s.ctx, 42)).toEqual({ session: { project: 'acme-web', sessionDir: 'work-1' }, reused: false })
     expect(s.start).toHaveBeenCalledWith({ type: 'work', project: 'acme-web', account: 'monoku', task: 'monoku-42-login-con-google', description: briefFor(ticket) })
+    expect(s.store.get('followed')).toEqual([42])
   })
 
   it('takes a chosen project only if CW knows it', async () => {

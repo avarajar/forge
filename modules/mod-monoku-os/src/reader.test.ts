@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { readNow, READER_TOOLS, stateOf, timing } from './reader'
+import { readerPrompt, readNow, READER_TOOLS, stateOf, timing } from './reader'
 import { answer, stub } from './stub.test-util'
 
 beforeEach(() => { timing.retryMs = 0 })
@@ -12,7 +12,7 @@ describe('readNow', () => {
     const s = stub({ account: 'monoku', model: 'haiku' })
     await readNow(s.ctx)
     expect(s.run).toHaveBeenCalledWith(expect.objectContaining({ account: 'monoku', model: 'haiku', allowedTools: READER_TOOLS }))
-    expect(READER_TOOLS).toEqual(['mcp__claude_ai_Monoku_OS__quien_soy', 'mcp__claude_ai_Monoku_OS__lo_que_me_toca', 'mcp__claude_ai_Monoku_OS__clientes'])
+    expect(READER_TOOLS).toEqual(['mcp__claude_ai_Monoku_OS__quien_soy', 'mcp__claude_ai_Monoku_OS__lo_que_me_toca', 'mcp__claude_ai_Monoku_OS__clientes', 'mcp__claude_ai_Monoku_OS__ticket'])
   })
 
   it('stores the reading and clears a previous error', async () => {
@@ -78,5 +78,49 @@ describe('readNow', () => {
     s.run.mockResolvedValue(answer({}))
     await readNow(s.ctx)
     expect(s.clear).toHaveBeenCalledWith('pending')
+  })
+
+})
+
+describe('followed tickets', () => {
+  const ficha42 = { numero: 42, titulo: 'Login con Google', cliente: { id: 1, nombre: 'acme' }, proyecto: { id: 1, nombre: 'web' }, casilla: { valor: 'definicion', frase: 'definición' }, siguiente_paso: { valor: 'revisar_la_definicion', frase: 'revisar la definición' }, le_toca_a_nombre: 'Luis' }
+
+  it('asks for the ficha of each followed ticket only when there are some', () => {
+    expect(readerPrompt()).not.toContain('ticket once')
+    const p = readerPrompt([42, 7])
+    expect(p).toContain('mcp__claude_ai_Monoku_OS__ticket once for each of these ticket numbers that lo_que_me_toca did not return: 42, 7')
+    expect(p).toContain('"seguidos"')
+  })
+
+  it('starts from the last reading, follows what was yours, and shows it in progress once it is not your turn', async () => {
+    const s = stub()
+    s.store.set('reading', { at: 'x', tickets: [{ numero: 42, titulo: 'Login con Google' }], solicitudes: [], dropped: 0 })
+    s.run.mockResolvedValue(answer({}, null, [ficha42]))
+    await readNow(s.ctx)
+    expect(s.run.mock.calls[0][0].prompt).toContain('did not return: 42.')
+    const r = (await stateOf(s.ctx)).reading
+    expect(r?.tickets).toEqual([])
+    expect(r?.enCurso).toEqual([expect.objectContaining({ numero: 42, casilla: 'definición', leTocaA: 'Luis', cliente: 'acme', proyecto: 'acme/web' })])
+    expect(s.store.get('followed')).toEqual([42])
+    expect(s.badge).not.toHaveBeenCalled()
+  })
+
+  it('adds tickets that become yours and drops closed ones', async () => {
+    const s = stub()
+    s.store.set('followed', [42, 9])
+    s.run.mockResolvedValue(answer({ tickets: [{ id: 50, titulo: 'Nuevo' }] }, null, [{ ...ficha42, casilla: { valor: 'listo', frase: 'listo' } }]))
+    await readNow(s.ctx)
+    expect(s.store.get('followed')).toEqual([50, 9])
+    expect((await stateOf(s.ctx)).reading?.enCurso).toEqual([])
+  })
+
+  it("follows a request's ticket and every ticket started here", async () => {
+    const s = stub()
+    s.store.set('followed', [])
+    s.store.set('started/42', { project: 'p', sessionDir: 'd' })
+    s.run.mockResolvedValue(answer({ solicitudes: [{ ...s12, ticket: 7 }] }))
+    await readNow(s.ctx)
+    expect(s.run.mock.calls[0][0].prompt).toContain('did not return: 42.')
+    expect(s.store.get('followed')).toEqual([7, 42])
   })
 })

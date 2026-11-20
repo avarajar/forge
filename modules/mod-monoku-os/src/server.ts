@@ -6,7 +6,7 @@ import { projectsFor, remoteIndex, startTicket } from './start'
 
 async function fullState(ctx: ForgeContext) {
   const state = await stateOf(ctx)
-  const tickets = state.reading?.tickets ?? []
+  const tickets = [...state.reading?.tickets ?? [], ...state.reading?.enCurso ?? []]
   const index = tickets.some(t => t.repo) ? await remoteIndex(ctx).catch(() => new Map<string, string[]>()) : new Map<string, string[]>()
   // which CW projects each ticket can start in, so the view knows when to ask
   const projects = Object.fromEntries(await Promise.all(tickets.map(async t => [t.numero, await projectsFor(ctx, t, index)] as const)))
