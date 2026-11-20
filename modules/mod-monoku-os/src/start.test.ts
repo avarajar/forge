@@ -38,11 +38,11 @@ describe('slug and brief', () => {
 
 describe('ticketUrl', () => {
   it('builds the ficha web link Monoku OS uses', () => {
-    const t = { numero: 42, titulo: 'Notificaciones: marchado, eliminado, caído, sin conexión', cliente: 'Seim Seim', proyecto: 'Seim Seim/POS' }
-    expect(ticketUrl(t)).toBe('https://os.monoku.com/ver/seim-seim/pos/42-notificaciones-marchado-eliminado-caido-sin-conexion/')
+    const t = { numero: 42, titulo: 'Avisos: pedido, anulado, caído, sin conexión', cliente: 'Casa Norte', proyecto: 'Casa Norte/Caja' }
+    expect(ticketUrl(t)).toBe('https://os.monoku.com/ver/casa-norte/caja/42-avisos-pedido-anulado-caido-sin-conexion/')
   })
   it('takes a project written without its client', () => {
-    expect(ticketUrl({ numero: 7, titulo: 'Menú', cliente: 'Seim Seim', proyecto: 'Reservas' })).toBe('https://os.monoku.com/ver/seim-seim/reservas/7-menu/')
+    expect(ticketUrl({ numero: 7, titulo: 'Menú', cliente: 'Casa Norte', proyecto: 'Agenda' })).toBe('https://os.monoku.com/ver/casa-norte/agenda/7-menu/')
   })
   it('falls back to the list without a client, a project or a ticket', () => {
     expect(ticketUrl({ numero: 7, titulo: 'x', proyecto: 'POS' })).toBe('https://os.monoku.com/ver/')
