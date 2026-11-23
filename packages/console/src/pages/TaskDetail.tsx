@@ -12,7 +12,7 @@ import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/use
 import { brainName, sumPages, useKiokuChain } from '../hooks/useKioku.js'
 import { useAutoFocus } from '../hooks/useAutoFocus.js'
 import { theme } from '../shell.js'
-import { toolsUrl, type ToolsInfo } from '../components/ClaudeTools.js'
+import { mcpPrefix, toolsUrl, type ToolsInfo } from '../components/ClaudeTools.js'
 
 
 interface TaskDetailProps {
@@ -269,7 +269,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
               title={`MCP · ${mcpList.length}`}
               tone="--blue"
               empty="No MCP servers"
-              items={mcpList.map(m => ({ name: m.name, title: `${m.type} · ${m.source}` }))}
+              items={mcpList.map(m => {
+                const off = session.disabledMcps?.includes(mcpPrefix(m.name)) ?? false
+                return { name: m.name, muted: off, title: `${m.type} · ${m.source}${off ? ' · off for this session' : ''}` }
+              })}
             />
             <ChipCard
               title={`Plugins · ${pluginList.length}`}

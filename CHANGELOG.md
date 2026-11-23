@@ -9,6 +9,7 @@
 ### Added
 
 - New Task shows the MCPs and plugins Claude Code will load for the chosen account and project before the session starts.
+- A click on an MCP in New Task starts the Claude Code session without its tools (`--disallowedTools`); the choice is kept when the task reopens.
 
 ## 0.1.34 (2026-11-20)
 

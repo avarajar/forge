@@ -54,9 +54,14 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
   const [starting, setStarting] = useState(false)
   const [loopInterval, setLoopInterval] = useState('')
   const [harness, setHarness] = useState('claude')
+  // MCP tool prefixes the session starts without; another account or project has other MCPs
+  const [disabledMcps, setDisabledMcps] = useState<string[]>([])
   const nameRef = useAutoFocus<HTMLInputElement>()
 
   useEffect(() => { loadHarnesses() }, [])
+  useEffect(() => { setDisabledMcps([]) }, [selectedAccount, project])
+  const toggleMcp = (prefix: string) =>
+    setDisabledMcps(list => list.includes(prefix) ? list.filter(p => p !== prefix) : [...list, prefix])
 
   const response = harnesses.value
   const doctor = response?.available ? response.doctor : null
@@ -160,6 +165,7 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         body.project = project
       }
       body.model = showModel ? (model || undefined) : undefined
+      if (harness === 'claude' && disabledMcps.length > 0) body.disabledMcps = disabledMcps
 
       const res = await fetch('/api/cw/start', {
         method: 'POST',
@@ -271,7 +277,9 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
         />
       )}
 
-      {harness === 'claude' && selectedAccount && <ClaudeTools project={project} account={selectedAccount} />}
+      {harness === 'claude' && selectedAccount && (
+        <ClaudeTools project={project} account={selectedAccount} disabled={disabledMcps} onToggle={toggleMcp} />
+      )}
 
       {showModel && (
         <div class="grid" style={{ gridTemplateColumns: type === 'dev' ? '1fr 1fr' : '1fr', gap: '10px' }}>

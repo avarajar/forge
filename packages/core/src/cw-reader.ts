@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
-import { ACCOUNT_NAME_RE } from './cw-types.js'
+import { dirname, join, resolve, sep } from 'node:path'
+import { ACCOUNT_NAME_RE, MCP_TOOL_PREFIX_RE } from './cw-types.js'
 import type { CWProject, CWSession, SkillEntry, SkillDetail, StackDetection } from './cw-types.js'
 
 export interface ToolMcp { name: string; type: string; source: 'local' | 'project' | 'account' | 'cw'; url?: string }
@@ -33,6 +33,13 @@ export function sessionFolder(cwDir: string, project: string, sessionDir = ''): 
 const withHarnessDefaults = (session: CWSession): CWSession =>
   ({ ...session, harness: session.harness ?? 'claude', provider: session.provider ?? 'native' })
 
+// Forge keeps the MCPs a session starts without in its own forge.json, which CW never writes
+function withForgeChoices(session: CWSession, dir: string): CWSession {
+  const saved = readJsonObject(join(dir, 'forge.json')).disabledMcps
+  const disabled = Array.isArray(saved) ? saved.filter((v): v is string => typeof v === 'string' && MCP_TOOL_PREFIX_RE.test(v)) : []
+  return disabled.length > 0 ? { ...session, disabledMcps: disabled } : session
+}
+
 export class CWReader {
   private cwDir: string
 
@@ -64,7 +71,7 @@ export class CWReader {
         try {
           const data = JSON.parse(readFileSync(absPath, 'utf-8')) as CWSession
           data.sessionDir = relPath
-          sessions.push(withHarnessDefaults(data))
+          sessions.push(withForgeChoices(withHarnessDefaults(data), dirname(absPath)))
         } catch {
           // skip corrupt session files
         }
@@ -84,7 +91,7 @@ export class CWReader {
     try {
       const data = JSON.parse(readFileSync(path, 'utf-8')) as CWSession
       data.sessionDir = sessionDir
-      return withHarnessDefaults(data)
+      return withForgeChoices(withHarnessDefaults(data), dir)
     } catch {
       return null
     }

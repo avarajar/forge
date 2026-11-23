@@ -190,7 +190,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 - `GET /tools?project=X&account=Y`, `GET /mcps` — MCPs + plugins Claude Code loads for a project under an account (the project's by default)
 - `GET /detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info
-- `POST /start` — Start a task, review, loop, general or create session (spawns cw command); a general session takes `directory` and `task` to run in any folder under a name
+- `POST /start` — Start a task, review, loop, general or create session (spawns cw command); a general session takes `directory` and `task` to run in any folder under a name; `disabledMcps` (Claude Code only) starts it without those MCPs' tools
 - `POST /done` — Runs `cw <work|review|loop> --done` and waits; `500 { error }` when CW fails; a general session (with `sessionDir`) kills its PTY and is forgotten, without running CW
 - `GET /review-state/:project/:sessionDir` — Changes, pull request, GitHub link and close warnings (30 s cache, `?fresh=1`)
 - `GET /editors`, `POST /open-in-editor` — Detected editors and opening a worktree (local mode only)
@@ -216,7 +216,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 4. `cw`: `~/.cw/mcps/*.json`
 5. Plugins: `<configDir>/plugins/installed_plugins.json`, enabled per `<configDir>/settings.json` → `enabledPlugins`, each with its `.mcp.json`
 
-New Task shows the result before a Claude Code session starts (`components/ClaudeTools.tsx`), and so do the project banner and TaskDetail's context panel.
+New Task shows the result before a Claude Code session starts (`components/ClaudeTools.tsx`), and so do the project banner and TaskDetail's context panel. A click on an MCP there starts the session without it: `/start` takes `disabledMcps` (tool prefixes `mcp__<server>`, a plugin's `mcp__plugin_<plugin>_<server>`, up to 64), kept on the session and in `forge.json` beside CW's `session.json` (read back by `getSession` and `getSpaces`, so a resume keeps it), and `buildLaunch` passes `--disallowedTools=<prefixes>` in `CW_CLAUDE_FLAGS` (on the command line for General). The server still starts; Claude gets none of its tools.
 
 Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 

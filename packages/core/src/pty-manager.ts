@@ -3,11 +3,11 @@ import type { IPty } from 'node-pty'
 import { existsSync, chmodSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { createRequire } from 'node:module'
-import type { CWSession } from './cw-types.js'
+import { MCP_TOOL_PREFIX_RE, type CWSession } from './cw-types.js'
 import { envWithoutHarness, FORGE_SECRETS } from './cw-doctor.js'
 import { supports } from './harness-capabilities.js'
 import type { StateTracker } from './session-state.js'
-import { SESSION_ENV, TOKEN_ENV, type ClaudeHooks, type HookLaunch } from './claude-hooks.js'
+import { SESSION_ENV, TOKEN_ENV, cwSkipPermissionsDefault, type ClaudeHooks, type HookLaunch } from './claude-hooks.js'
 
 const SCROLLBACK_LIMIT = 5000
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
@@ -73,29 +73,40 @@ export interface LaunchHook extends HookLaunch {
 // a Forge started from inside a Forge session inherits that session's hook settings and token
 const INHERITED_HOOK_SETTINGS = /(^|\s)--settings\s+\S*\/claude-\d+\.json(?=\s|$)/g
 
-function withHook(env: Record<string, string>, session: CWSession, hook: LaunchHook | undefined): boolean {
+// the MCP servers a Claude Code session starts without: their tools are taken away, the servers still start.
+// The = form keeps the variadic option from swallowing the arguments CW adds after it, and has no spaces for CW's split
+export function disallowedMcpFlag(session: CWSession): string | null {
+  const prefixes = (session.disabledMcps ?? []).filter(p => MCP_TOOL_PREFIX_RE.test(p))
+  return prefixes.length > 0 ? `--disallowedTools=${prefixes.join(',')}` : null
+}
+
+function withHook(env: Record<string, string>, session: CWSession, hook: LaunchHook | undefined, skipPermissionsDefault: () => boolean): boolean {
   for (const name of FORGE_SECRETS) delete env[name]
   delete env[TOKEN_ENV]
   delete env[SESSION_ENV]
   const inherited = (env.CW_CLAUDE_FLAGS ?? '').replace(INHERITED_HOOK_SETTINGS, ' ').trim()
   if (inherited) env.CW_CLAUDE_FLAGS = inherited
   else delete env.CW_CLAUDE_FLAGS
-  if (!hook || (session.harness ?? 'claude') !== 'claude' || session.type === 'login') return false
-  env[TOKEN_ENV] = hook.token
-  // a header carries it, and project names can have any letter
-  env[SESSION_ENV] = encodeURIComponent(hook.key)
-  if (session.type === 'general') return true
+  if ((session.harness ?? 'claude') !== 'claude' || session.type === 'login') return false
+  if (hook) {
+    env[TOKEN_ENV] = hook.token
+    // a header carries it, and project names can have any letter
+    env[SESSION_ENV] = encodeURIComponent(hook.key)
+  }
+  if (session.type === 'general') return Boolean(hook)
+  const extra = [hook ? `--settings ${hook.settingsPath}` : '', disallowedMcpFlag(session) ?? ''].filter(Boolean)
+  if (extra.length === 0) return false
   // CW applies config.yaml's skip_permissions only while CW_CLAUDE_FLAGS is empty, so keep what it would have done;
   // --skip-permissions on the command line makes CW add the flag itself
-  const flags = inherited
-    || (hook.skipPermissionsDefault && !session.skipPermissions ? '--dangerously-skip-permissions' : '')
-  env.CW_CLAUDE_FLAGS = `${flags ? `${flags} ` : ''}--settings ${hook.settingsPath}`
-  return true
+  const skipDefault = hook ? hook.skipPermissionsDefault : skipPermissionsDefault()
+  const flags = inherited || (skipDefault && !session.skipPermissions ? '--dangerously-skip-permissions' : '')
+  env.CW_CLAUDE_FLAGS = [flags, ...extra].filter(Boolean).join(' ')
+  return Boolean(hook)
 }
 
-export function buildLaunch(session: CWSession, isNew: boolean, hook?: LaunchHook): Launch {
+export function buildLaunch(session: CWSession, isNew: boolean, hook?: LaunchHook, cwHome = join(process.env.HOME ?? '', '.cw')): Launch {
   const env = envWithoutHarness()
-  const hooked = withHook(env, session, hook)
+  const hooked = withHook(env, session, hook, () => cwSkipPermissionsDefault(cwHome))
   const harness = session.harness ?? 'claude'
   const harnessFlag = isNew && session.harness ? ` --harness ${shellQuote(harness)}` : ''
   const prefix = session.skipPermissions ? 'cw --skip-permissions' : 'cw'
@@ -108,6 +119,8 @@ export function buildLaunch(session: CWSession, isNew: boolean, hook?: LaunchHoo
       if (session.model) cmd += ` --model ${shellQuote(session.model)}`
       if (session.skipPermissions) cmd += ' --dangerously-skip-permissions'
       if (hooked && hook) cmd += ` --settings ${shellQuote(hook.settingsPath)}`
+      const disallowed = disallowedMcpFlag(session)
+      if (disallowed) cmd += ` ${shellQuote(disallowed)}`
     }
     if (isNew && session.harness) env.CW_HARNESS = harness
     return { command: cmd, env }

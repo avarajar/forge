@@ -8,6 +8,10 @@ export const HARNESS_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/
 export const PROVIDER_NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,63}$/
 
 /** Valid model name: alphanumeric, then alphanumeric/hyphen/underscore/dot/colon/slash, max 128 chars */
+/** A Claude Code tool prefix for every tool of one MCP server: mcp__ then the server name with other characters as _ */
+export const MCP_TOOL_PREFIX_RE = /^mcp__[A-Za-z0-9_-]{1,120}$/
+export const MAX_DISABLED_MCPS = 64
+
 export const MODEL_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/
 
 export interface CWProject {
@@ -43,6 +47,8 @@ export interface CWSession {
   closed?: string
   sessionDir?: string
   skipPermissions?: boolean
+  // Forge's own: MCP tool prefixes (mcp__<server>) a Claude Code session starts without, kept in forge.json beside session.json
+  disabledMcps?: string[]
 }
 
 export interface CWConfig {

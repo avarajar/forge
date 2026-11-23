@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sessionFolder, type CWReader } from './cw-reader.js'
-import { HARNESS_NAME_RE, ACCOUNT_NAME_RE, type CWSession } from './cw-types.js'
+import { HARNESS_NAME_RE, ACCOUNT_NAME_RE, MAX_DISABLED_MCPS, MCP_TOOL_PREFIX_RE, type CWSession } from './cw-types.js'
 import type { PTYManager, PTYSession } from './pty-manager.js'
 import type { GeneralSessions } from './general-sessions.js'
 
@@ -28,6 +28,27 @@ export interface StartInput {
   loopInterval?: string
   name?: string
   harness?: string
+  disabledMcps?: string[]
+}
+
+export const SESSION_MCPS_FILE = 'forge.json'
+
+// what a session keeps of Forge's own choices, beside CW's session.json; an empty choice removes the file
+export function saveSessionMcps(dir: string, disabledMcps: string[]): void {
+  const file = join(dir, SESSION_MCPS_FILE)
+  if (disabledMcps.length === 0) {
+    rmSync(file, { force: true })
+    return
+  }
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(file, JSON.stringify({ disabledMcps }, null, 2))
+}
+
+function checkDisabledMcps(value: unknown): string[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > MAX_DISABLED_MCPS) return null
+  if (!value.every((v): v is string => typeof v === 'string' && MCP_TOOL_PREFIX_RE.test(v))) return null
+  return [...new Set(value)]
 }
 
 export type StartResult =
@@ -41,6 +62,10 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
   if (harness !== undefined && !HARNESS_NAME_RE.test(harness)) {
     return { ok: false, status: 400, error: 'Invalid harness' }
   }
+  const checked = checkDisabledMcps(input.disabledMcps)
+  if (!checked) return { ok: false, status: 400, error: 'disabledMcps takes up to 64 MCP tool prefixes like mcp__linear' }
+  // other harnesses load MCPs their own way
+  const disabledMcps = (harness ?? 'claude') === 'claude' && checked.length > 0 ? checked : undefined
 
   if (type === 'login') {
     if (!account || !ACCOUNT_NAME_RE.test(account) || !reader.getAccounts().includes(account)) {
@@ -89,6 +114,7 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
       opens: 0,
       sessionDir: sessionDirName,
       skipPermissions: skipPermissions ?? false,
+      disabledMcps,
     }
     pendingSessions.set(`${projectName}::${sessionDirName}`, sessionData)
     return { ok: true, session: sessionData, command: `cw launch ${acct}` }
@@ -172,7 +198,10 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
       opens: 0,
       sessionDir: sessionDirName,
       skipPermissions: skipPermissions ?? false,
+      disabledMcps,
     }
+    const loopDir = sessionFolder(reader.cwHome, project, sessionDirName)
+    if (loopDir) saveSessionMcps(loopDir, disabledMcps ?? [])
     pendingSessions.set(`${project}::${sessionDirName}`, sessionData)
     return { ok: true, session: sessionData }
   }
@@ -293,7 +322,9 @@ export async function prepareStart(input: StartInput, deps: { reader: CWReader }
     opens: 0,
     sessionDir: sessionDirName,
     skipPermissions: skipPermissions ?? false,
+    disabledMcps,
   }
+  saveSessionMcps(sessionDir, disabledMcps ?? [])
 
   // Store so pty-routes can find it before CW creates session.json on disk
   pendingSessions.set(`${project}::${sessionDirName}`, sessionData)
