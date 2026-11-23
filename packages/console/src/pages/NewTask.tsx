@@ -7,6 +7,7 @@ import { effectiveType, inferTask, slugOf } from '../config/inference.js'
 import { startInput, setStartInput, startAccount, startProject, typeOverride } from '../state/startTask.js'
 import { harnesses, loadHarnesses, missingTicketToken, supportsIn, ticketSourceOf } from '../hooks/useHarnesses.js'
 import { HarnessPicker, harnessUnavailableReason } from '../components/HarnessPicker.js'
+import { ClaudeTools } from '../components/ClaudeTools.js'
 import { InferenceLine, TypeSegmented, type ProjectMap } from '../components/StartCard.js'
 import { Field, labelStyle } from '../components/Field.js'
 import { Combobox, projectOptions } from '../components/Combobox.js'
@@ -269,6 +270,8 @@ export const NewTask: FunctionComponent<NewTaskProps> = ({
           onOpenAccounts={onOpenAccounts}
         />
       )}
+
+      {harness === 'claude' && selectedAccount && <ClaudeTools project={project} account={selectedAccount} />}
 
       {showModel && (
         <div class="grid" style={{ gridTemplateColumns: type === 'dev' ? '1fr 1fr' : '1fr', gap: '10px' }}>

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- MCPs and plugins are read from the CW account's own Claude config (`.claude.json`, plugins), not `~/.claude`, so the project banner and a session's context panel list the ones Claude Code really loads; a project's `.claude/settings.json` no longer shows its other keys as MCPs.
+
+### Added
+
+- New Task shows the MCPs and plugins Claude Code will load for the chosen account and project before the session starts.
+
 ## 0.1.34 (2026-11-20)
 
 ### Changed

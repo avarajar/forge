@@ -2,7 +2,7 @@ import { type FunctionComponent } from 'preact'
 import { useState, useEffect } from 'preact/hooks'
 import { ActionButton, showToast } from '@forge-dev/ui'
 
-interface ProjectMcps { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] }
+interface ProjectMcps { account: string | null; global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] }
 
 export const ProjectBanner: FunctionComponent<{
   project: string
@@ -22,12 +22,13 @@ export const ProjectBanner: FunctionComponent<{
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/cw/mcps?project=${encodeURIComponent(project)}`)
+    const q = new URLSearchParams({ project, ...(account ? { account } : {}) })
+    fetch(`/api/cw/mcps?${q.toString()}`)
       .then(r => r.json() as Promise<ProjectMcps>)
       .catch(() => null)
       .then((result) => { if (!cancelled) setMcps(result) })
     return () => { cancelled = true }
-  }, [project])
+  }, [project, account])
 
   const globalMcps = mcps ? Object.keys(mcps.global) : []
   const projectMcps = mcps?.project ?? []

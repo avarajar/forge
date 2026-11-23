@@ -187,7 +187,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 - `POST /accounts/:name/api-key` — Import an API key over stdin (codex)
 - `GET /harnesses` — `cw doctor --json`, per-harness capabilities, Linear/Notion token presence
 - `GET /usage` — Usage limit windows per account and harness (45 s cache, `?fresh=1`); percentages only, never a credential
-- `GET /tools?project=X`, `GET /mcps` — MCPs + plugins for a project
+- `GET /tools?project=X&account=Y`, `GET /mcps` — MCPs + plugins Claude Code loads for a project under an account (the project's by default)
 - `GET /detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info
 - `POST /start` — Start a task, review, loop, general or create session (spawns cw command); a general session takes `directory` and `task` to run in any folder under a name
@@ -209,13 +209,14 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 
 ## MCP Reading
 
-`cw-reader.ts getTools()` reads MCPs from multiple sources:
-1. Global `~/.claude/settings.json` → `mcpServers`
-2. Global `~/.claude/settings.json` → `projects.<path>.mcpServers`
-3. Project `.mcp.json` (handles both `{ mcpServers: {...} }` and flat format)
-4. Project `.claude/settings.json`
-5. `~/.cw/mcps/` directory (CW-managed)
-6. `~/.claude/plugins/installed_plugins.json` (with plugin `.mcp.json`)
+`cw-reader.ts getTools(project, account)` reads what Claude Code loads for a project under a CW account (`?account=` on `/tools` and `/mcps`, the project's account by default). The config dir is `~/.cw/accounts/<account>` (or its `claude/` subdir, like CW's `_harness_dir`); with no known account it is `~/.claude` and `~/.claude.json`, as Claude Code without CW. The first source to name an MCP wins, in Claude Code's order:
+1. `local`: `<configDir>/.claude.json` → `projects.<path>.mcpServers` (and the legacy `settings.json` → `projects`)
+2. `project`: `<repo>/.mcp.json` (nested or flat), `<repo>/.claude/settings.json` → `mcpServers` only
+3. `account`: `<configDir>/.claude.json` → `mcpServers` (what `claude mcp add` writes), then `<configDir>/settings.json` → `mcpServers`
+4. `cw`: `~/.cw/mcps/*.json`
+5. Plugins: `<configDir>/plugins/installed_plugins.json`, enabled per `<configDir>/settings.json` → `enabledPlugins`, each with its `.mcp.json`
+
+New Task shows the result before a Claude Code session starts (`components/ClaudeTools.tsx`), and so do the project banner and TaskDetail's context panel.
 
 Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
 

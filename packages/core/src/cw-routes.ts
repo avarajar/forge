@@ -241,14 +241,13 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     return c.json(reader.detectStack(project))
   })
 
+  // ?account= picks whose config folder to read (defaults to the project's); an unknown one falls back
   app.get('/mcps', (c) => {
-    const project = c.req.query('project')
-    return c.json(reader.getMCPs(project))
+    return c.json(reader.getMCPs(c.req.query('project'), c.req.query('account')))
   })
 
   app.get('/tools', (c) => {
-    const project = c.req.query('project')
-    return c.json(reader.getTools(project))
+    return c.json(reader.getTools(c.req.query('project'), c.req.query('account')))
   })
 
   // Shared lookup for the git info routes below. Sessions read from disk
