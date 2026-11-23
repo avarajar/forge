@@ -12,10 +12,8 @@ import { recordOutput, metricsFor, formatCost, formatTokens } from '../hooks/use
 import { brainName, sumPages, useKiokuChain } from '../hooks/useKioku.js'
 import { useAutoFocus } from '../hooks/useAutoFocus.js'
 import { theme } from '../shell.js'
+import { mcpPrefix, toolsUrl, type ToolsInfo } from '../components/ClaudeTools.js'
 
-interface ToolsMcp { name: string; type: string; source: string; url?: string }
-interface ToolsPlugin { name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }
-interface ToolsInfo { mcps: ToolsMcp[]; plugins: ToolsPlugin[] }
 
 interface TaskDetailProps {
   session: CWSession
@@ -174,7 +172,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
     if (isLogin) return
     let cancelled = false
     Promise.all([
-      fetch(`/api/cw/tools?project=${projectEnc}`).then(r => r.json() as Promise<ToolsInfo>).catch(() => null),
+      fetch(toolsUrl(session.project, session.account)).then(r => r.json() as Promise<ToolsInfo>).catch(() => null),
       fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`).then(r => r.json() as Promise<{ branch: string }>).catch(() => null),
     ]).then(([toolsInfo, branchInfo]) => {
       if (cancelled) return
@@ -271,7 +269,10 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
               title={`MCP · ${mcpList.length}`}
               tone="--blue"
               empty="No MCP servers"
-              items={mcpList.map(m => ({ name: m.name, title: `${m.type} · ${m.source}` }))}
+              items={mcpList.map(m => {
+                const off = session.disabledMcps?.includes(mcpPrefix(m.name)) ?? false
+                return { name: m.name, muted: off, title: `${m.type} · ${m.source}${off ? ' · off for this session' : ''}` }
+              })}
             />
             <ChipCard
               title={`Plugins · ${pluginList.length}`}

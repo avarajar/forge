@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { buildLaunch } from './pty-manager.js'
 import type { CWSession } from './cw-types.js'
 
@@ -153,5 +155,47 @@ describe('buildLaunch', () => {
       expect(buildLaunch(session({}), false, { ...hook, settingsPath: '/x/claude-4000.json' }).env.CW_CLAUDE_FLAGS)
         .toBe('--dangerously-skip-permissions --settings /x/claude-4000.json')
     })
+  })
+})
+
+describe('disabled MCPs', () => {
+  const hook = { key: 'app::fix', token: 't0k', settingsPath: '/home/me/.forge/hooks/claude-3000.json', skipPermissionsDefault: false }
+  const saved = process.env.CW_CLAUDE_FLAGS
+  const CW_HOME = join(import.meta.dirname, '../.test-disabled-mcps')
+  afterEach(() => {
+    if (saved === undefined) delete process.env.CW_CLAUDE_FLAGS
+    else process.env.CW_CLAUDE_FLAGS = saved
+    rmSync(CW_HOME, { recursive: true, force: true })
+  })
+
+  it('takes their tools away in one = token, after the hook settings', () => {
+    delete process.env.CW_CLAUDE_FLAGS
+    const launch = buildLaunch(session({ disabledMcps: ['mcp__bitwarden', 'mcp__plugin_playwright_playwright'] }), false, hook)
+    expect(launch.env.CW_CLAUDE_FLAGS).toBe('--settings /home/me/.forge/hooks/claude-3000.json --disallowedTools=mcp__bitwarden,mcp__plugin_playwright_playwright')
+  })
+
+  it('works without hooks and keeps config.yaml skip_permissions', () => {
+    delete process.env.CW_CLAUDE_FLAGS
+    mkdirSync(CW_HOME, { recursive: true })
+    writeFileSync(join(CW_HOME, 'config.yaml'), 'skip_permissions: true\n')
+    const launch = buildLaunch(session({ disabledMcps: ['mcp__linear'] }), true, undefined, CW_HOME)
+    expect(launch.env.CW_CLAUDE_FLAGS).toBe('--dangerously-skip-permissions --disallowedTools=mcp__linear')
+    expect(launch.env.FORGE_HOOK_TOKEN).toBeUndefined()
+  })
+
+  it('leaves CW_CLAUDE_FLAGS alone without hooks or disabled MCPs', () => {
+    delete process.env.CW_CLAUDE_FLAGS
+    expect(buildLaunch(session({}), true).env.CW_CLAUDE_FLAGS).toBeUndefined()
+  })
+
+  it('adds the flag to the command line of a General session', () => {
+    const launch = buildLaunch(session({ type: 'general', harness: 'claude', disabledMcps: ['mcp__linear'] }), true)
+    expect(launch.command).toBe("cw launch 'work' '--disallowedTools=mcp__linear'")
+  })
+
+  it('drops prefixes that are not MCP tool prefixes and ignores other harnesses', () => {
+    delete process.env.CW_CLAUDE_FLAGS
+    expect(buildLaunch(session({ disabledMcps: ['Bash', 'mcp__a b'] }), true).env.CW_CLAUDE_FLAGS).toBeUndefined()
+    expect(buildLaunch(session({ harness: 'codex', disabledMcps: ['mcp__linear'] }), true, hook).env.CW_CLAUDE_FLAGS).toBeUndefined()
   })
 })

@@ -348,3 +348,82 @@ describe('sessionFolder', () => {
     }
   })
 })
+
+describe('getTools', () => {
+  const ROOT = join(import.meta.dirname, '../.test-tools')
+  const CW = join(ROOT, 'cw')
+  const HOME = join(ROOT, 'home')
+  const REPO = join(ROOT, 'repo')
+  const savedHome = process.env.HOME
+  const json = (path: string, data: unknown) => {
+    mkdirSync(join(path, '..'), { recursive: true })
+    writeFileSync(path, JSON.stringify(data))
+  }
+
+  beforeEach(() => {
+    rmSync(ROOT, { recursive: true, force: true })
+    process.env.HOME = HOME
+    json(join(CW, 'projects.json'), { app: { path: REPO, account: 'work', type: 'fullstack', registered: '2026-01-01T00:00:00Z' } })
+    json(join(CW, 'accounts/work/.claude.json'), {
+      mcpServers: { linear: { type: 'http', url: 'https://mcp.linear.app/mcp' }, notion: { command: 'npx' } },
+      projects: { [REPO]: { mcpServers: { supabase: { command: 'npx' } } } },
+    })
+    json(join(CW, 'accounts/work/settings.json'), { enabledPlugins: { 'playwright@official': true } })
+    json(join(CW, 'accounts/work/plugins/installed_plugins.json'), {
+      plugins: { 'playwright@official': [{ scope: 'user', installPath: join(ROOT, 'plugin') }], 'old@official': [{ scope: 'user', installPath: join(ROOT, 'none') }] },
+    })
+    json(join(ROOT, 'plugin/.mcp.json'), { playwright: { command: 'npx' } })
+    json(join(CW, 'accounts/home/.claude.json'), { mcpServers: { gmail: { url: 'https://gmail.example/mcp' } } })
+    json(join(REPO, '.mcp.json'), { mcpServers: { figma: { url: 'https://figma.example/mcp' }, linear: { command: 'local-linear' } } })
+    json(join(REPO, '.claude/settings.json'), { permissions: { allow: [] }, hooks: {} })
+    json(join(HOME, '.claude/settings.json'), { mcpServers: { global_only: { command: 'x' } } })
+  })
+
+  afterEach(() => {
+    process.env.HOME = savedHome
+    rmSync(ROOT, { recursive: true, force: true })
+  })
+
+  it("reads the project's account, not ~/.claude", () => {
+    const tools = new CWReader(CW).getTools('app')
+    expect(tools.account).toBe('work')
+    expect(tools.mcps.map(m => [m.name, m.source])).toEqual([
+      ['supabase', 'local'], ['figma', 'project'], ['linear', 'project'], ['notion', 'account'],
+    ])
+    expect(tools.mcps.some(m => m.name === 'global_only')).toBe(false)
+  })
+
+  it('counts only mcpServers in a settings.json, never its other keys', () => {
+    const names = new CWReader(CW).getTools('app').mcps.map(m => m.name)
+    expect(names).not.toContain('permissions')
+    expect(names).not.toContain('hooks')
+  })
+
+  it("lists the account's plugins with their MCP and enabled state", () => {
+    const { plugins } = new CWReader(CW).getTools('app')
+    expect(plugins).toEqual([
+      { name: 'playwright', marketplace: 'official', enabled: true, hasMcp: true, mcpName: 'playwright', mcpType: 'command' },
+      { name: 'old', marketplace: 'official', enabled: false, hasMcp: false, mcpName: undefined, mcpType: undefined },
+    ])
+  })
+
+  it('reads another account when asked', () => {
+    const tools = new CWReader(CW).getTools('app', 'home')
+    expect(tools.account).toBe('home')
+    expect(tools.mcps.map(m => m.name)).toEqual(['figma', 'linear', 'gmail'])
+    expect(tools.plugins).toEqual([])
+  })
+
+  it("prefers the account's claude/ subdir when CW created one", () => {
+    json(join(CW, 'accounts/home/claude/.claude.json'), { mcpServers: { slack: { command: 'x' } } })
+    expect(new CWReader(CW).getTools(undefined, 'home').mcps.map(m => m.name)).toEqual(['slack'])
+  })
+
+  it('falls back to ~/.claude for an unknown or invalid account', () => {
+    for (const account of ['ghost', '../work']) {
+      const tools = new CWReader(CW).getTools(undefined, account)
+      expect(tools.account).toBeNull()
+      expect(tools.mcps.map(m => m.name)).toEqual(['global_only'])
+    }
+  })
+})

@@ -1,6 +1,22 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
+import { ACCOUNT_NAME_RE, MCP_TOOL_PREFIX_RE } from './cw-types.js'
 import type { CWProject, CWSession, SkillEntry, SkillDetail, StackDetection } from './cw-types.js'
+
+export interface ToolMcp { name: string; type: string; source: 'local' | 'project' | 'account' | 'cw'; url?: string }
+export interface ToolPlugin { name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }
+
+type JsonObject = Record<string, unknown>
+const isObject = (v: unknown): v is JsonObject => typeof v === 'object' && v !== null && !Array.isArray(v)
+const mcpType = (cfg: JsonObject): string => cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
+function readJsonObject(path: string): JsonObject {
+  try {
+    const data: unknown = JSON.parse(readFileSync(path, 'utf-8'))
+    return isObject(data) ? data : {}
+  } catch {
+    return {}
+  }
+}
 
 // The project is one path segment and sessionDir may nest (task-task/form-header),
 // but neither may climb out of <cwDir>/sessions: route params are percent-decoded, so `..%2F` arrives as `../`
@@ -16,6 +32,13 @@ export function sessionFolder(cwDir: string, project: string, sessionDir = ''): 
 
 const withHarnessDefaults = (session: CWSession): CWSession =>
   ({ ...session, harness: session.harness ?? 'claude', provider: session.provider ?? 'native' })
+
+// Forge keeps the MCPs a session starts without in its own forge.json, which CW never writes
+function withForgeChoices(session: CWSession, dir: string): CWSession {
+  const saved = readJsonObject(join(dir, 'forge.json')).disabledMcps
+  const disabled = Array.isArray(saved) ? saved.filter((v): v is string => typeof v === 'string' && MCP_TOOL_PREFIX_RE.test(v)) : []
+  return disabled.length > 0 ? { ...session, disabledMcps: disabled } : session
+}
 
 export class CWReader {
   private cwDir: string
@@ -48,7 +71,7 @@ export class CWReader {
         try {
           const data = JSON.parse(readFileSync(absPath, 'utf-8')) as CWSession
           data.sessionDir = relPath
-          sessions.push(withHarnessDefaults(data))
+          sessions.push(withForgeChoices(withHarnessDefaults(data), dirname(absPath)))
         } catch {
           // skip corrupt session files
         }
@@ -68,7 +91,7 @@ export class CWReader {
     try {
       const data = JSON.parse(readFileSync(path, 'utf-8')) as CWSession
       data.sessionDir = sessionDir
-      return withHarnessDefaults(data)
+      return withForgeChoices(withHarnessDefaults(data), dir)
     } catch {
       return null
     }
@@ -101,139 +124,93 @@ export class CWReader {
       .map(e => e.name)
   }
 
-  getMCPs(project?: string): { global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } {
-    const tools = this.getTools(project)
+  getMCPs(project?: string, account?: string): { account: string | null; global: Record<string, unknown>; project: string[]; cw: string[]; plugins: string[] } {
+    const tools = this.getTools(project, account)
     return {
-      global: Object.fromEntries(tools.mcps.filter(m => m.source === 'global').map(m => [m.name, {}])),
-      project: tools.mcps.filter(m => m.source === 'project').map(m => m.name),
+      account: tools.account,
+      global: Object.fromEntries(tools.mcps.filter(m => m.source === 'account').map(m => [m.name, {}])),
+      project: tools.mcps.filter(m => m.source === 'local' || m.source === 'project').map(m => m.name),
       cw: tools.mcps.filter(m => m.source === 'cw').map(m => m.name),
       plugins: tools.plugins.map(p => p.name),
     }
   }
 
-  /** Rich tool/MCP/plugin info for the dashboard */
-  getTools(project?: string): {
-    mcps: Array<{ name: string; type: string; source: string; url?: string }>
-    plugins: Array<{ name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }>
-  } {
+  // the folder Claude Code runs with for an account: CW keeps the flat dir unless a claude/ subdir exists
+  accountConfigDir(account: string): string {
+    const root = join(this.cwDir, 'accounts', account)
+    return existsSync(join(root, 'claude')) ? join(root, 'claude') : root
+  }
+
+  /**
+   * What Claude Code will load for a project under an account: MCPs from the account's .claude.json
+   * (user and local scope), the repo's .mcp.json and .claude/settings.json, CW's mcps/, and the account's plugins.
+   * The account defaults to the project's; with neither, it reads ~/.claude as Claude Code does without CW.
+   */
+  getTools(project?: string, account?: string): { account: string | null; mcps: ToolMcp[]; plugins: ToolPlugin[] } {
     const home = process.env.HOME ?? ''
-    const mcps: Array<{ name: string; type: string; source: string; url?: string }> = []
-    const plugins: Array<{ name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }> = []
+    const projects = this.getProjects()
+    const projPath = project ? projects[project]?.path ?? '' : ''
+    const wanted = account ?? (project ? projects[project]?.account : undefined)
+    const acct = wanted && ACCOUNT_NAME_RE.test(wanted) && existsSync(join(this.cwDir, 'accounts', wanted)) ? wanted : null
+    const configDir = acct ? this.accountConfigDir(acct) : join(home, '.claude')
+    // `claude mcp add` writes .claude.json: inside CLAUDE_CONFIG_DIR, or ~/.claude.json without it
+    const state = readJsonObject(acct ? join(configDir, '.claude.json') : join(home, '.claude.json'))
+    const settings = readJsonObject(join(configDir, 'settings.json'))
 
-    // --- Global MCPs from ~/.claude/settings.json ---
-    const claudeSettings = join(home, '.claude', 'settings.json')
-    let enabledPlugins: Record<string, boolean> = {}
-    if (existsSync(claudeSettings)) {
-      try {
-        const data = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
-        if (data.mcpServers) {
-          for (const [name, cfg] of Object.entries(data.mcpServers as Record<string, Record<string, unknown>>)) {
-            const type = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
-            mcps.push({ name, type, source: 'global', url: cfg.url as string | undefined })
-          }
-        }
-        if (data.enabledPlugins) enabledPlugins = data.enabledPlugins as Record<string, boolean>
-      } catch {}
-    }
-
-    // --- Per-project MCPs from global settings.json `projects` key ---
-    if (project) {
-      const projects = this.getProjects()
-      const projPath = projects[project]?.path ?? ''
-
-      if (projPath) {
-        // Check global settings.json projects.<path>.mcpServers
-        if (existsSync(claudeSettings)) {
-          try {
-            const globalData = JSON.parse(readFileSync(claudeSettings, 'utf-8'))
-            const projSettings = globalData.projects?.[projPath]
-            if (projSettings?.mcpServers) {
-              for (const [name, cfg] of Object.entries(projSettings.mcpServers as Record<string, Record<string, unknown>>)) {
-                if (!mcps.some(m => m.name === name)) {
-                  const type = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
-                  mcps.push({ name, type, source: 'project', url: cfg.url as string | undefined })
-                }
-              }
-            }
-          } catch {}
-        }
-
-        // Check .mcp.json / .claude/settings.json inside the project directory
-        for (const configPath of [
-          join(projPath, '.mcp.json'),
-          join(projPath, '.claude', 'settings.json'),
-        ]) {
-          if (existsSync(configPath)) {
-            try {
-              const data = JSON.parse(readFileSync(configPath, 'utf-8'))
-              const servers = data.mcpServers ?? data
-              if (servers && typeof servers === 'object') {
-                for (const [name, cfg] of Object.entries(servers as Record<string, Record<string, unknown>>)) {
-                  if (name === 'mcpServers') continue // skip if still nested
-                  if (!mcps.some(m => m.name === name)) {
-                    const type = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
-                    mcps.push({ name, type, source: 'project', url: cfg.url as string | undefined })
-                  }
-                }
-              }
-            } catch {}
-          }
-        }
+    const mcps: ToolMcp[] = []
+    // the first source to name an MCP wins, in Claude Code's order: local, project, user
+    const add = (servers: unknown, source: ToolMcp['source']) => {
+      if (!isObject(servers)) return
+      for (const [name, cfg] of Object.entries(servers)) {
+        if (!isObject(cfg) || mcps.some(m => m.name === name)) continue
+        mcps.push({ name, type: mcpType(cfg), source, url: typeof cfg.url === 'string' ? cfg.url : undefined })
       }
     }
+    const projectEntry = (holder: JsonObject): unknown => {
+      const byPath = holder.projects
+      return isObject(byPath) && isObject(byPath[projPath]) ? byPath[projPath].mcpServers : undefined
+    }
 
-    // --- CW managed MCPs ---
+    if (projPath) {
+      add(projectEntry(state), 'local')
+      add(projectEntry(settings), 'local')
+      // .mcp.json may be flat; a settings.json only counts its mcpServers key
+      const mcpJson = readJsonObject(join(projPath, '.mcp.json'))
+      add(mcpJson.mcpServers ?? mcpJson, 'project')
+      add(readJsonObject(join(projPath, '.claude', 'settings.json')).mcpServers, 'project')
+    }
+    add(state.mcpServers, 'account')
+    add(settings.mcpServers, 'account')
+
     const mcpsDir = join(this.cwDir, 'mcps')
     if (existsSync(mcpsDir)) {
-      const files = readdirSync(mcpsDir).filter(f => f.endsWith('.json'))
-      for (const f of files) {
+      for (const f of readdirSync(mcpsDir).filter(f => f.endsWith('.json'))) {
         const name = f.replace('.json', '')
-        if (!mcps.some(m => m.name === name)) {
-          mcps.push({ name, type: 'cw', source: 'cw' })
-        }
+        if (!mcps.some(m => m.name === name)) mcps.push({ name, type: 'cw', source: 'cw' })
       }
     }
 
-    // --- Plugins from installed_plugins.json ---
-    const pluginsFile = join(home, '.claude', 'plugins', 'installed_plugins.json')
-    if (existsSync(pluginsFile)) {
-      try {
-        const data = JSON.parse(readFileSync(pluginsFile, 'utf-8'))
-        if (data.plugins) {
-          for (const key of Object.keys(data.plugins as Record<string, unknown>)) {
-            const name = key.split('@')[0]
-            const marketplace = key.includes('@') ? key.split('@').slice(1).join('@') : 'unknown'
-            const enabled = enabledPlugins[key] ?? false
-
-            // Check if plugin has its own MCP server (.mcp.json in plugin dir)
-            let hasMcp = false
-            let mcpName: string | undefined
-            let mcpType: string | undefined
-            const entries = (data.plugins as Record<string, Array<{ installPath: string }>>)[key]
-            if (entries?.[0]?.installPath) {
-              const pluginMcpFile = join(entries[0].installPath, '.mcp.json')
-              if (existsSync(pluginMcpFile)) {
-                try {
-                  const raw = JSON.parse(readFileSync(pluginMcpFile, 'utf-8')) as Record<string, Record<string, unknown>>
-                  const mcpData = raw.mcpServers ?? raw
-                  const mcpKeys = Object.keys(mcpData).filter(k => k !== 'mcpServers')
-                  if (mcpKeys.length > 0) {
-                    hasMcp = true
-                    mcpName = mcpKeys[0]
-                    const cfg = mcpData[mcpKeys[0]] as Record<string, unknown>
-                    mcpType = cfg.url ? 'url' : cfg.type === 'sse' ? 'sse' : 'command'
-                  }
-                } catch {}
-              }
-            }
-
-            plugins.push({ name, enabled, hasMcp, mcpName, mcpType, marketplace })
-          }
-        }
-      } catch {}
+    const plugins: ToolPlugin[] = []
+    const enabledPlugins = isObject(settings.enabledPlugins) ? settings.enabledPlugins : {}
+    const installed = readJsonObject(join(configDir, 'plugins', 'installed_plugins.json')).plugins
+    if (isObject(installed)) {
+      for (const [key, entries] of Object.entries(installed)) {
+        const name = key.split('@')[0]
+        const marketplace = key.includes('@') ? key.split('@').slice(1).join('@') : 'unknown'
+        const entry: unknown = Array.isArray(entries) ? entries[0] : undefined
+        const installPath = isObject(entry) && typeof entry.installPath === 'string' ? entry.installPath : ''
+        const raw = installPath ? readJsonObject(join(installPath, '.mcp.json')) : {}
+        const servers = isObject(raw.mcpServers) ? raw.mcpServers : raw
+        const first = Object.keys(servers).find(k => k !== 'mcpServers')
+        const cfg = first ? servers[first] : undefined
+        plugins.push({
+          name, marketplace, enabled: enabledPlugins[key] === true,
+          hasMcp: Boolean(first), mcpName: first, mcpType: isObject(cfg) ? mcpType(cfg) : undefined,
+        })
+      }
     }
 
-    return { mcps, plugins }
+    return { account: acct, mcps, plugins }
   }
 
   parseFrontmatter(content: string): { frontmatter: Record<string, unknown>; body: string } {
