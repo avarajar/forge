@@ -141,6 +141,12 @@ export class CWReader {
     return existsSync(join(root, 'claude')) ? join(root, 'claude') : root
   }
 
+  // the config dir Claude Code runs with (~/.claude without a CW account) and whether its settings turn claude.ai connectors off
+  claudeConfig(account: string | null): { configDir: string; connectorsOff: boolean } {
+    const configDir = account ? this.accountConfigDir(account) : join(process.env.HOME ?? '', '.claude')
+    return { configDir, connectorsOff: readJsonObject(join(configDir, 'settings.json')).disableClaudeAiConnectors === true }
+  }
+
   /**
    * What Claude Code will load for a project under an account: MCPs from the account's .claude.json
    * (user and local scope), the repo's .mcp.json and .claude/settings.json, CW's mcps/, and the account's plugins.

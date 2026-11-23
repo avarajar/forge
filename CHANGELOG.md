@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- New Task and a session's context panel list the account's claude.ai connectors (Slack, Linear, Gmail…), read from claude.ai with the account's sign-in (5 min cache). A click turns one off for the session like any other MCP; those that need a new sign-in in claude.ai say so.
+
 ## 0.1.35 (2026-11-23)
 
 ### Fixed
