@@ -10,6 +10,7 @@ import { homedir } from 'node:os'
 import { createDoctorClient, envWithoutHarness, readContextTokens } from './cw-doctor.js'
 import type { EventEmitter } from './module-events.js'
 import { createUsageClient, type UsageClientDeps } from './usage.js'
+import { createClaudeConnectorsClient, type ClaudeConnectorsDeps } from './claude-connectors.js'
 import { HARNESS_CAPABILITIES, supports } from './harness-capabilities.js'
 import { LoginManager } from './login-manager.js'
 import { importApiKey } from './api-key-login.js'
@@ -53,7 +54,7 @@ async function runCw(bin: string, args: string[], timeoutMs: number): Promise<Ru
   }
 }
 
-export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; events?: EventEmitter; general?: GeneralSessions; killSession?: (key: string) => void } = {}): Hono {
+export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManager; localOnly?: boolean; runner?: Runner; editors?: DetectedEditor[]; cwDoneTimeoutMs?: number; usage?: UsageClientDeps; connectors?: ClaudeConnectorsDeps; events?: EventEmitter; general?: GeneralSessions; killSession?: (key: string) => void } = {}): Hono {
   const app = new Hono()
   const cwBin = resolveCwBin(reader.cwHome)
   const logins = options.loginManager ?? new LoginManager(cwBin)
@@ -95,6 +96,7 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
   })
 
   const usage = createUsageClient(options.usage)
+  const connectors = createClaudeConnectorsClient(options.connectors)
 
   app.get('/usage', async (c) => {
     const result = await doctor.get()
@@ -246,8 +248,12 @@ export function cwRoutes(reader: CWReader, options: { loginManager?: LoginManage
     return c.json(reader.getMCPs(c.req.query('project'), c.req.query('account')))
   })
 
-  app.get('/tools', (c) => {
-    return c.json(reader.getTools(c.req.query('project'), c.req.query('account')))
+  // plus the account's claude.ai connectors, read from claude.ai with its token (5 min cache, ?fresh=1)
+  app.get('/tools', async (c) => {
+    const tools = reader.getTools(c.req.query('project'), c.req.query('account'))
+    const { configDir, connectorsOff } = reader.claudeConfig(tools.account)
+    const claudeAi = await connectors.get(configDir, { disabled: connectorsOff, fresh: c.req.query('fresh') === '1' })
+    return c.json({ ...tools, claudeAi })
   })
 
   // Shared lookup for the git info routes below. Sessions read from disk

@@ -95,6 +95,7 @@ App (app.tsx) → Shell (shell.tsx: theme, overlay sidebar signal)
 - `packages/core/src/cw-start.ts` — `prepareStart` and headless launch of a CW session, shared by `/api/cw/start` and modules' `ctx.cw.start`
 - `packages/core/src/module-cw.ts` — The `cw` permission's context: `ctx.cw.start` and `ctx.sessions.send`
 - `packages/core/src/agent-runner.ts` — `ctx.agent.run`: a headless agent run with the prompt on stdin and MCP tools only
+- `packages/core/src/claude-connectors.ts` — An account's claude.ai connectors: `GET https://api.anthropic.com/v1/mcp_servers` with the account's OAuth token (read like `usage-claude.ts`), beta `mcp-servers-2025-12-04`, the endpoint Claude Code itself calls (undocumented); eligible rows only, `connected_with_error` as `needs_auth`, 5 min cache per config dir, last good list kept on failure, `disableClaudeAiConnectors` in the account's settings turns it off
 - `packages/core/src/cw-doctor.ts` — Shared `cw doctor --json` client, `CW_HARNESS` stripping, context tokens
 - `packages/core/src/usage.ts` — Usage limit windows per account and harness: normalisation, severity, 45 s cache, stale fallback (`usage-claude.ts` reads the keychain and Claude's OAuth usage endpoint, `usage-codex.ts` asks the Codex app server over JSON-RPC)
 - `packages/core/src/harness-capabilities.ts` — Capability table (CW does not expose it)
@@ -187,7 +188,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 - `POST /accounts/:name/api-key` — Import an API key over stdin (codex)
 - `GET /harnesses` — `cw doctor --json`, per-harness capabilities, Linear/Notion token presence
 - `GET /usage` — Usage limit windows per account and harness (45 s cache, `?fresh=1`); percentages only, never a credential
-- `GET /tools?project=X&account=Y`, `GET /mcps` — MCPs + plugins Claude Code loads for a project under an account (the project's by default)
+- `GET /tools?project=X&account=Y`, `GET /mcps` — MCPs + plugins Claude Code loads for a project under an account (the project's by default); `/tools` adds `claudeAi` (`{ state, detail, connectors: [{ name, status, tools }] }`, `?fresh=1`)
 - `GET /detect/:project` — Stack detection (framework, test runner, tools)
 - `GET /git/{status,log,branch,diff}/:project/:sessionDir` — Git info
 - `POST /start` — Start a task, review, loop, general or create session (spawns cw command); a general session takes `directory` and `task` to run in any folder under a name; `disabledMcps` (Claude Code only) starts it without those MCPs' tools
@@ -218,7 +219,7 @@ pnpm test             # Run all tests (packages/core, and modules/mod-qa: tsc + 
 
 New Task shows the result before a Claude Code session starts (`components/ClaudeTools.tsx`), and so do the project banner and TaskDetail's context panel. A click on an MCP there starts the session without it: `/start` takes `disabledMcps` (tool prefixes `mcp__<server>`, a plugin's `mcp__plugin_<plugin>_<server>`, up to 64), kept on the session and in `forge.json` beside CW's `session.json` (read back by `getSession` and `getSpaces`, so a resume keeps it), and `buildLaunch` passes `--disallowedTools=<prefixes>` in `CW_CLAUDE_FLAGS` (on the command line for General). The server still starts; Claude gets none of its tools.
 
-Cloud MCPs (claude.ai Linear, Gmail, etc.) are not locally discoverable.
+claude.ai connectors (Linear, Gmail, etc.) are not in any local file: `/tools` asks claude.ai for them with the account's token (`claude-connectors.ts`). Their tool prefix is `mcp__claude_ai_<name>` (other characters as `_`), so `disabledMcps` turns them off the same way; the console draws them purple.
 
 ## Conventions
 

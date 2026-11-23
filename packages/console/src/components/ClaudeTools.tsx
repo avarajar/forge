@@ -5,7 +5,13 @@ import { labelStyle } from './Field.js'
 
 export interface ToolsMcp { name: string; type: string; source: string; url?: string }
 export interface ToolsPlugin { name: string; enabled: boolean; hasMcp: boolean; mcpName?: string; mcpType?: string; marketplace: string }
-export interface ToolsInfo { account: string | null; mcps: ToolsMcp[]; plugins: ToolsPlugin[] }
+export interface ToolsConnector { name: string; status: 'connected' | 'needs_auth'; tools: number }
+export interface ToolsClaudeAi {
+  state: 'ok' | 'not_connected' | 'expired' | 'missing_scope' | 'disabled' | 'error'
+  detail: string | null
+  connectors: ToolsConnector[]
+}
+export interface ToolsInfo { account: string | null; mcps: ToolsMcp[]; plugins: ToolsPlugin[]; claudeAi?: ToolsClaudeAi }
 
 export const toolsUrl = (project: string, account: string): string => {
   const q = new URLSearchParams()
@@ -14,21 +20,35 @@ export const toolsUrl = (project: string, account: string): string => {
   return `/api/cw/tools?${q.toString()}`
 }
 
-// Claude Code names a server's tools mcp__<server>__<tool>, with any other character as _, and a plugin's server
-// plugin_<plugin>_<server>; the prefix alone matches all of them in --disallowedTools
+// Claude Code names a server's tools mcp__<server>__<tool>, with any other character as _, a plugin's server
+// plugin_<plugin>_<server> and a claude.ai connector claude_ai_<name>; the prefix alone matches all of them in --disallowedTools
 const toolName = (name: string): string => name.replace(/[^A-Za-z0-9_-]/g, '_')
 export const mcpPrefix = (server: string, plugin?: string): string =>
   plugin ? `mcp__plugin_${toolName(plugin)}_${toolName(server)}` : `mcp__${toolName(server)}`
+export const connectorPrefix = (name: string): string => `mcp__claude_ai_${toolName(name)}`
 
-export interface LoadedMcp { name: string; title: string; prefix: string }
+export interface LoadedMcp { name: string; title: string; prefix: string; claudeAi?: boolean }
 
-// MCP servers Claude Code will load: the configured ones plus those of enabled plugins
+const connectorTitle = (c: ToolsConnector): string =>
+  c.status === 'needs_auth' ? 'claude.ai connector · needs sign-in again in claude.ai' : `claude.ai connector · ${c.tools} tool${c.tools === 1 ? '' : 's'}`
+
+// MCP servers Claude Code will load: the configured ones, those of enabled plugins and the account's claude.ai connectors
 export function loadedMcps(tools: ToolsInfo): LoadedMcp[] {
   const own = tools.mcps.map(m => ({ name: m.name, title: `${m.type} · ${m.source}`, prefix: mcpPrefix(m.name) }))
   const fromPlugins = tools.plugins
     .filter(p => p.enabled && p.hasMcp && p.mcpName)
     .map(p => ({ name: p.mcpName ?? p.name, title: `plugin ${p.name}`, prefix: mcpPrefix(p.mcpName ?? p.name, p.name) }))
-  return [...own, ...fromPlugins]
+  const connectors = (tools.claudeAi?.connectors ?? [])
+    .map(c => ({ name: c.name, title: connectorTitle(c), prefix: connectorPrefix(c.name), claudeAi: true }))
+  return [...own, ...fromPlugins, ...connectors]
+}
+
+// why the claude.ai connectors are missing, when they are
+export function connectorsNote(claudeAi: ToolsClaudeAi | undefined): string | null {
+  if (!claudeAi || claudeAi.state === 'ok') return null
+  if (claudeAi.state === 'not_connected') return 'claude.ai connectors: this account is not signed in to claude.ai.'
+  if (claudeAi.state === 'disabled') return 'claude.ai connectors are off in this account\'s settings.'
+  return `claude.ai connectors could not be read: ${claudeAi.detail ?? claudeAi.state}.`
 }
 
 const chip = (color: string, off: boolean) => ({
@@ -69,6 +89,7 @@ export const ClaudeTools: FunctionComponent<{
   const mcps = loadedMcps(tools)
   const plugins = tools.plugins.filter(p => p.enabled)
   const off = mcps.filter(m => disabled.includes(m.prefix)).length
+  const note = connectorsNote(tools.claudeAi)
 
   return (
     <div class="flex flex-col" style={{ gap: '6px' }}>
@@ -85,7 +106,7 @@ export const ClaudeTools: FunctionComponent<{
               aria-pressed={!isOff}
               title={`${m.title} · ${isOff ? 'click to load it' : 'click to start without it'}`}
               onClick={() => onToggle(m.prefix)}
-              style={chip('--teal', isOff)}
+              style={chip(m.claudeAi ? '--purple' : '--teal', isOff)}
             >
               {m.name}
             </button>
@@ -100,8 +121,9 @@ export const ClaudeTools: FunctionComponent<{
       <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>
         {off > 0
           ? `${off} MCP off: the server still starts, Claude gets none of its tools. Kept when the task reopens.`
-          : 'Click an MCP to start without it. claude.ai connectors are not listed.'}
+          : 'Click an MCP to start without it. Purple ones are the account\'s claude.ai connectors.'}
       </span>
+      {note && <span style={{ fontSize: '11.5px', color: 'var(--ink-3)' }}>{note}</span>}
     </div>
   )
 }

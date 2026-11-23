@@ -69,21 +69,22 @@ export interface ClaudeUsageDeps {
   now?: () => number
 }
 
-interface Credentials { accessToken: string; expiresAt: number | null }
+export interface Credentials { accessToken: string; expiresAt: number | null; scopes: string[] | null }
 
 function parseCredentials(raw: string | null): Credentials | null {
   if (!raw) return null
   try {
-    const oauth = (JSON.parse(raw) as { claudeAiOauth?: { accessToken?: unknown; expiresAt?: unknown } }).claudeAiOauth
+    const oauth = (JSON.parse(raw) as { claudeAiOauth?: { accessToken?: unknown; expiresAt?: unknown; scopes?: unknown } }).claudeAiOauth
     const accessToken = typeof oauth?.accessToken === 'string' ? oauth.accessToken : null
     if (!accessToken) return null
-    return { accessToken, expiresAt: typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : null }
+    const scopes = Array.isArray(oauth?.scopes) ? oauth.scopes.filter((s): s is string => typeof s === 'string') : null
+    return { accessToken, expiresAt: typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : null, scopes }
   } catch {
     return null
   }
 }
 
-async function readCredentials(configDir: string, deps: ClaudeUsageDeps): Promise<Credentials | null> {
+export async function readCredentials(configDir: string, deps: Pick<ClaudeUsageDeps, 'readKeychain'>): Promise<Credentials | null> {
   const readKeychain = deps.readKeychain ?? (process.platform === 'darwin' ? readFromKeychain : () => null)
   const fromKeychain = parseCredentials(await readKeychain(claudeKeychainService(configDir)))
   if (fromKeychain) return fromKeychain
