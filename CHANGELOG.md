@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.37 (2026-11-24)
+
 ### Fixed
 
 - The task list no longer holds every other request behind its rows' review states: they go three at a time (an opened task's first), so module banners, a task's MCPs and Kioku load at once instead of after 15–20 s with many tasks. New Task and a task's context panel say they are reading MCPs while they do.

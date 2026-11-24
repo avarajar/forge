@@ -1,6 +1,6 @@
 {
   "name": "forge-cw",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "description": "A visual dashboard for your coding agents on Claude Code, Codex, Pi or OpenCode. Installs CW for you.",
   "license": "MIT",
   "type": "module",
