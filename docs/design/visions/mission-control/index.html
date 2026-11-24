@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Mission Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ───────────── tokens ───────────── */
+:root{
+  --page:#030405;
+  --bg:#06080b; --deck:#0a0d12; --panel:#0e1218; --panel-2:#121821; --well:#080a0e;
+  --line:#1a212b; --line-2:#252e3a; --grid:rgba(120,160,200,.045);
+  --ink:#dde4ec; --ink-2:#8d99a7; --ink-3:#596473; --ink-4:#38414d;
+  --accent:#58b4ff;
+  --s-work:#2fe6a6; --s-wait:#ffcc33; --s-perm:#ff8a1f; --s-err:#ff4d61; --s-idle:#4b5563; --s-done:#6c7a8a;
+  --t-dev:#ff9a5c; --t-rev:#82a8ff; --t-loop:#c592ff; --t-gen:#a7b1bd;
+  --glow:1;
+  --term-bg:#05070a; --term-ink:#cfd8e2;
+  --label: 'Archivo', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+[data-theme="light"]{
+  --bg:#e9ecef; --deck:#f3f5f7; --panel:#ffffff; --panel-2:#f6f8fa; --well:#eef1f4;
+  --line:#d6dce2; --line-2:#c3cbd4; --grid:rgba(20,40,70,.05);
+  --ink:#0d141c; --ink-2:#4d5a68; --ink-3:#7d8895; --ink-4:#aeb7c1;
+  --accent:#0a6fd6;
+  --s-work:#0a9e6c; --s-wait:#b58300; --s-perm:#d4600a; --s-err:#d6243b; --s-idle:#98a2ae; --s-done:#7d8895;
+  --t-dev:#c9561a; --t-rev:#3d63d6; --t-loop:#8a45d6; --t-gen:#5d6976;
+  --glow:0;
+  --term-bg:#0b0f14; --term-ink:#cfd8e2;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page)}
+body{color:var(--ink);font-family:var(--label);font-stretch:100%;-webkit-font-smoothing:antialiased;padding:48px 0 96px;min-width:1520px}
+.wrap{width:100%;max-width:1440px;margin:0 auto;box-sizing:border-box}
+.intro{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:40px;color:#dde4ec}
+.intro h1{font-size:44px;font-weight:800;font-stretch:72%;letter-spacing:.01em;text-transform:uppercase;line-height:.9}
+.intro h1 span{color:#ff8a1f}
+.intro p{max-width:560px;color:#8d99a7;font-size:14px;line-height:1.55}
+.cap{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#596473;margin:0 0 10px;display:flex;gap:14px;align-items:center}
+.cap b{color:#dde4ec;font-weight:600}
+.cap i{flex:1;height:1px;background:#1a212b}
+.screen{width:1440px;height:900px;overflow:hidden;position:relative;background:var(--bg);color:var(--ink);border:1px solid #1a212b;border-radius:6px;margin-bottom:72px;
+  display:grid;grid-template-columns:60px 1fr;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.screen[data-theme="light"]{border-color:#2a323d}
+.mono{font-family:var(--mono)}
+.lbl{font-family:var(--label);font-stretch:68%;font-weight:600;text-transform:uppercase;letter-spacing:.12em;font-size:10.5px;color:var(--ink-3)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ───────────── rail ───────────── */
+.rail{background:var(--deck);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px}
+.mark{width:34px;height:34px;display:grid;place-items:center;margin-bottom:12px}
+.rb{width:42px;height:40px;border-radius:6px;display:grid;place-items:center;position:relative;color:var(--ink-3);font-family:var(--label);font-stretch:62%;font-weight:700;font-size:10px;letter-spacing:.08em;flex-direction:column;gap:2px;cursor:pointer}
+.rb svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.6}
+.rb small{font-size:8.5px;letter-spacing:.1em}
+.rb.on{color:var(--ink);background:var(--panel-2)}
+.rb.on::before{content:"";position:absolute;left:-9px;top:9px;bottom:9px;width:2px;background:var(--accent);border-radius:2px}
+.rb .badge{position:absolute;top:3px;right:3px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--s-err);color:#fff;font:700 9px/14px var(--mono);text-align:center}
+.rb .badge.g{background:var(--ink-4);color:var(--ink)}
+.rsep{width:26px;height:1px;background:var(--line);margin:8px 0}
+.rail .grow{flex:1}
+
+/* ───────────── main A ───────────── */
+.main{display:grid;grid-template-columns:288px 1fr 232px;grid-template-rows:48px 58px 376px 1fr;min-width:0;min-height:0;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px}
+.top{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--deck)}
+.brand{font-stretch:66%;font-weight:800;font-size:16px;letter-spacing:.16em;text-transform:uppercase}
+.brand em{font-style:normal;color:var(--ink-3);font-weight:500;margin-left:8px;letter-spacing:.1em;font-size:12px}
+.counters{display:flex;gap:2px;margin-left:12px}
+.ctr{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;background:var(--panel);border:1px solid var(--line)}
+.ctr:first-child{border-radius:4px 0 0 4px}.ctr:last-child{border-radius:0 4px 4px 0}
+.ctr .num{font-size:15px;font-weight:600}
+.ctr.alert{border-color:color-mix(in srgb,var(--s-perm) 50%,var(--line))}
+.ctr.alert .num{color:var(--s-perm)}
+.scope{display:flex;gap:6px;align-items:center;margin-left:auto}
+.search{display:flex;align-items:center;gap:10px;height:30px;width:280px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;background:var(--well);color:var(--ink-3);font-size:12.5px}
+.search kbd{margin-left:auto;font:500 10.5px var(--mono);border:1px solid var(--line-2);border-radius:3px;padding:1px 5px;color:var(--ink-2)}
+.clock{font:500 13px var(--mono);color:var(--ink-2);display:flex;gap:10px;align-items:center}
+.clock b{color:var(--ink);font-weight:600}
+.syncdot{width:6px;height:6px;border-radius:50%;background:var(--s-work);box-shadow:0 0 calc(var(--glow)*8px) var(--s-work)}
+
+/* lights */
+.light{width:9px;height:9px;border-radius:50%;flex:none;background:var(--c);box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 18%,transparent),0 0 calc(var(--glow)*10px) color-mix(in srgb,var(--c) 70%,transparent)}
+.light.idle,.light.done{box-shadow:none}
+.light.work{--c:var(--s-work);animation:breathe 2.4s ease-in-out infinite}
+.light.wait{--c:var(--s-wait);animation:blink 1.6s steps(1) infinite}
+.light.perm{--c:var(--s-perm);animation:blink .9s steps(1) infinite}
+.light.err{--c:var(--s-err)}
+.light.idle{--c:var(--s-idle)}
+.light.done{--c:transparent;border:1.5px solid var(--s-done)}
+@keyframes breathe{50%{opacity:.45}}
+@keyframes blink{50%{opacity:.25}}
+
+/* alerts lane */
+.lane{grid-row:2/-1;grid-column:1;border-right:1px solid var(--line);background:color-mix(in srgb,var(--deck) 88%,transparent);display:flex;flex-direction:column;min-height:0}
+.lanehead{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px}
+.lanehead .ttl{font-stretch:66%;font-weight:800;font-size:15px;letter-spacing:.14em;text-transform:uppercase;display:flex;gap:9px;align-items:center}
+.lanehead .ttl .n{font:700 12px var(--mono);background:var(--s-perm);color:#140800;padding:1px 6px;border-radius:3px}
+.alert{margin:0 10px 8px;border:1px solid var(--line-2);border-left:3px solid var(--c);background:var(--panel);border-radius:4px;padding:10px 11px 11px;position:relative}
+.alert.perm{--c:var(--s-perm);background:linear-gradient(90deg,color-mix(in srgb,var(--s-perm) 9%,var(--panel)),var(--panel) 70%)}
+.alert.wait{--c:var(--s-wait)}
+.alert.err{--c:var(--s-err)}
+.ahead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ahead .kind{font-stretch:66%;font-weight:700;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--c)}
+.ahead .ago{margin-left:auto;font:500 10.5px var(--mono);color:var(--ink-3)}
+.atitle{font-size:13.5px;font-weight:600;line-height:1.3;margin-bottom:3px}
+.ameta{font:400 10.5px var(--mono);color:var(--ink-3);margin-bottom:8px}
+.aq{font:400 11.5px/1.45 var(--mono);color:var(--ink);background:var(--well);border:1px solid var(--line);border-radius:3px;padding:7px 8px;margin-bottom:9px}
+.aq .k{color:var(--c)}
+.acts{display:flex;gap:5px}
+.btn{height:26px;padding:0 10px;border-radius:3px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);font:600 11px var(--label);font-stretch:80%;letter-spacing:.04em;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn.pri{background:var(--c,var(--accent));border-color:transparent;color:#0b0f14}
+.btn kbd{font:500 9.5px var(--mono);opacity:.65}
+.feed{border-top:1px solid var(--line);margin-top:6px;padding:12px 14px;flex:1;min-height:0;overflow:hidden;position:relative}
+.feed::after{content:"";position:absolute;left:0;right:0;bottom:0;height:60px;background:linear-gradient(transparent,var(--deck))}
+.ev{display:grid;grid-template-columns:40px 9px 1fr;gap:8px;align-items:baseline;font:400 11px/1.4 var(--mono);color:var(--ink-2);padding:4px 0}
+.ev .t{color:var(--ink-3)}
+.ev .d{width:5px;height:5px;border-radius:50%;background:var(--c);transform:translateY(-1px)}
+.ev b{color:var(--ink);font-weight:500}
+
+/* launch */
+.launch{grid-column:2/-1;grid-row:2;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--line)}
+.prompt{flex:1;display:flex;align-items:center;gap:10px;height:36px;border:1px solid var(--line-2);border-radius:4px;background:var(--well);padding:0 4px 0 12px;min-width:0}
+.prompt .caret{color:var(--accent);font:700 13px var(--mono)}
+.prompt .ph{font:400 12.5px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.prompt .ph b{color:var(--ink-2);font-weight:500}
+.seg{display:flex;border:1px solid var(--line-2);border-radius:3px;overflow:hidden;height:28px}
+.seg span{padding:0 9px;display:flex;align-items:center;gap:5px;font:700 10.5px var(--label);font-stretch:66%;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);border-right:1px solid var(--line)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--panel-2);color:var(--ink)}
+.seg span i{width:6px;height:6px;border-radius:1px;background:var(--tc)}
+.sel{height:36px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--line-2);border-radius:4px;background:var(--panel);font:500 12px var(--mono);color:var(--ink)}
+.sel .lbl{font-size:9.5px}
+.go{height:36px;padding:0 16px;border-radius:4px;background:var(--accent);color:#04121f;font:800 12px var(--label);font-stretch:72%;letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:8px;border:0}
+.go kbd{font:500 10px var(--mono);opacity:.7;letter-spacing:0}
+
+/* tiles */
+.board{grid-column:2;grid-row:3;padding:12px 12px 10px 14px;display:flex;flex-direction:column;min-width:0}
+.sechead{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+.sechead .ttl{font-stretch:66%;font-weight:800;font-size:13px;letter-spacing:.16em;text-transform:uppercase}
+.sechead .sub{font:400 11px var(--mono);color:var(--ink-3)}
+.sechead .r{margin-left:auto;display:flex;gap:6px;align-items:center}
+.legend{display:flex;gap:12px;font:500 10px var(--mono);color:var(--ink-3)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 1fr;gap:8px;flex:1;min-height:0}
+.tile{--c:var(--s-idle);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:9px 10px 8px;display:flex;flex-direction:column;min-width:0;position:relative;overflow:hidden}
+.tile::before{content:"";position:absolute;left:0;top:0;right:0;height:2px;background:var(--c);opacity:.85}
+.tile.work{--c:var(--s-work)} .tile.wait{--c:var(--s-wait)} .tile.perm{--c:var(--s-perm)} .tile.err{--c:var(--s-err)}
+.tile.perm,.tile.wait,.tile.err{border-color:color-mix(in srgb,var(--c) 45%,var(--line))}
+.tile.perm{animation:edge 1.8s ease-in-out infinite}
+@keyframes edge{50%{border-color:var(--line)}}
+.t1{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.st{font:700 10px var(--label);font-stretch:66%;letter-spacing:.13em;text-transform:uppercase;color:var(--c)}
+.tile.idle .st{color:var(--ink-3)}
+.t1 .h{margin-left:auto;font:500 10px var(--mono);color:var(--ink-3)}
+.ttitle{font-size:12.5px;font-weight:600;line-height:1.25;height:31px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tmeta{font:400 10px var(--mono);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;display:flex;gap:6px;align-items:center}
+.tg{font:700 9px var(--mono);padding:0 4px;border-radius:2px;color:var(--tc);border:1px solid color-mix(in srgb,var(--tc) 45%,transparent);line-height:13px}
+.spark{margin:6px -2px 4px;height:34px;flex:none}
+.spark svg{width:100%;height:100%;display:block;overflow:visible}
+.tlast{font:400 10px/1.3 var(--mono);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px}
+.tlast b{color:var(--c);font-weight:500}
+.tfoot{margin-top:auto;display:flex;align-items:center;gap:6px;font:500 9.5px var(--mono);color:var(--ink-3)}
+.ctx{flex:1;height:3px;background:var(--well);border-radius:2px;overflow:hidden}
+.ctx i{display:block;height:100%;background:var(--ink-3)}
+.ctx i.hi{background:var(--s-wait)}
+
+/* limits */
+.limits{grid-column:3;grid-row:3;border-left:1px solid var(--line);padding:12px 12px 10px;display:flex;flex-direction:column;background:color-mix(in srgb,var(--deck) 70%,transparent)}
+.acct{border-top:1px solid var(--line);padding:9px 0 8px}
+.acct:first-of-type{border-top:0;padding-top:0}
+.acct .who{display:flex;align-items:center;gap:7px;font:600 11.5px var(--mono);margin-bottom:6px}
+.acct .who .h{margin-left:auto;font-family:var(--label);font-stretch:66%;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.gauges{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.gauge{position:relative;text-align:center}
+.gauge svg{width:100%;height:54px;display:block}
+.gauge .v{position:absolute;left:0;right:0;top:20px;font:600 14px var(--mono)}
+.gauge .v small{font-size:9px;color:var(--ink-3)}
+.gauge .w{font:700 9px var(--label);font-stretch:66%;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin-top:-4px}
+.gauge .rs{font:400 9.5px var(--mono);color:var(--ink-3)}
+.gauge.crit .v{color:var(--s-err)}
+.gauge.warn .v{color:var(--s-wait)}
+
+/* manifest */
+.manifest{grid-column:2/-1;grid-row:4;border-top:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:color-mix(in srgb,var(--deck) 80%,transparent)}
+.mhead{display:flex;align-items:center;gap:10px;padding:10px 14px 8px}
+.chips{display:flex;gap:4px;align-items:center}
+.chip{height:22px;padding:0 8px;border:1px solid var(--line-2);border-radius:3px;display:flex;gap:5px;align-items:center;font:500 10.5px var(--mono);color:var(--ink-2)}
+.chip.on{background:var(--panel-2);color:var(--ink);border-color:var(--ink-4)}
+.chip i{width:6px;height:6px;border-radius:1px;background:var(--tc)}
+.chip .c{color:var(--ink-3)}
+.vsep{width:1px;height:16px;background:var(--line-2);margin:0 4px}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th{font:700 9.5px var(--label);font-stretch:66%;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);background:var(--deck)}
+td{padding:0 8px;height:29px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);font:400 11.5px var(--mono);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.title{font:500 12.5px var(--label);color:var(--ink)}
+tr.need td{background:color-mix(in srgb,var(--c) 7%,transparent)}
+tr.need td:first-child{box-shadow:inset 3px 0 0 var(--c)}
+tr.perm{--c:var(--s-perm)} tr.wait{--c:var(--s-wait)} tr.err{--c:var(--s-err)}
+tr.donerow td{color:var(--ink-3)} tr.donerow td.title{color:var(--ink-3)}
+.git{display:inline-flex;gap:6px;align-items:center}
+.pr{font:600 10px var(--mono);padding:1px 5px;border-radius:2px;border:1px solid}
+.pr.open{color:var(--s-work);border-color:color-mix(in srgb,var(--s-work) 45%,transparent)}
+.pr.merged{color:var(--t-loop);border-color:color-mix(in srgb,var(--t-loop) 45%,transparent)}
+.pr.draft{color:var(--ink-3);border-color:var(--line-2)}
+.dirty{color:var(--s-wait)}
+.add{color:var(--s-work)} .del{color:var(--s-err)}
+.act{font:700 10px var(--label);font-stretch:72%;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.act.hot{color:var(--c)}
+.mfoot{margin-top:auto;display:flex;justify-content:space-between;padding:7px 14px;border-top:1px solid var(--line);font:400 10.5px var(--mono);color:var(--ink-3)}
+
+/* ───────────── detail B ───────────── */
+.dmain{display:grid;grid-template-columns:1fr 300px;grid-template-rows:48px 92px 96px 1fr;min-width:0;min-height:0;background:var(--bg)}
+.dtop{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--deck)}
+.crumb{font:500 12px var(--mono);color:var(--ink-3);display:flex;gap:8px;align-items:center}
+.crumb b{color:var(--ink);font-weight:500}
+.strip{display:flex;gap:4px;margin-left:16px}
+.mini{display:flex;align-items:center;gap:6px;height:28px;padding:0 9px;border:1px solid var(--line);border-radius:3px;background:var(--panel);font:500 10.5px var(--mono);color:var(--ink-2)}
+.mini.on{border-color:var(--ink-4);color:var(--ink);background:var(--panel-2)}
+.ident{grid-column:1/-1;display:flex;align-items:center;gap:18px;padding:0 20px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,color-mix(in srgb,var(--s-perm) 10%,var(--bg)),var(--bg) 45%)}
+.ident .big{width:52px;height:52px;border:1px solid color-mix(in srgb,var(--t-dev) 50%,transparent);border-radius:4px;display:grid;place-items:center;font:800 22px var(--label);font-stretch:66%;color:var(--t-dev);position:relative}
+.ident h2{font-size:24px;font-weight:700;font-stretch:88%;letter-spacing:-.005em;line-height:1.1}
+.ident .row{display:flex;gap:8px;align-items:center;margin-top:7px;font:400 11.5px var(--mono);color:var(--ink-2)}
+.tagl{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border:1px solid var(--line-2);border-radius:3px;background:var(--panel);font:500 11px var(--mono);color:var(--ink)}
+.tagl svg{width:11px;height:11px;stroke:var(--ink-3);fill:none;stroke-width:2}
+.ident .state{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.bigstate{display:flex;align-items:center;gap:10px;font:800 15px var(--label);font-stretch:66%;letter-spacing:.16em;text-transform:uppercase;color:var(--s-perm)}
+.bigstate .light{width:12px;height:12px}
+.metrics{grid-column:1;grid-row:3;display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr 1.4fr;border-bottom:1px solid var(--line)}
+.m{padding:12px 18px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;position:relative}
+.m .val{font:600 28px var(--mono);letter-spacing:-.02em;line-height:1;margin-top:6px}
+.m .val small{font-size:13px;color:var(--ink-3);margin-left:3px;font-weight:500}
+.m .ds{font:400 10.5px var(--mono);color:var(--ink-3);margin-top:5px}
+.m.ctxm{flex-direction:row;align-items:center;gap:14px;justify-content:flex-start}
+.m .msp{position:absolute;right:14px;bottom:12px;width:70px;height:26px}
+.term{grid-column:1;grid-row:4;display:flex;flex-direction:column;min-height:0;padding:12px 14px 14px 14px}
+.tframe{flex:1;min-height:0;background:var(--term-bg);border:1px solid var(--line-2);border-radius:5px;display:flex;flex-direction:column;overflow:hidden}
+.tbar{height:30px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid #1a212b;font:500 10.5px var(--mono);color:#596473;background:#080b0f}
+.tbar .live{display:flex;gap:6px;align-items:center;color:#2fe6a6}
+.tbody{flex:1;padding:12px 16px;font:400 12px/1.52 var(--mono);color:var(--term-ink);overflow:hidden;white-space:pre;position:relative}
+.tbody .dim{color:#5d6876}.tbody .g{color:#2fe6a6}.tbody .y{color:#ffcc33}.tbody .o{color:#ff9a5c}.tbody .b{color:#82a8ff}.tbody .r{color:#ff6b7c}.tbody .w{color:#fff;font-weight:600}.tbody .p{color:#c592ff}
+.tbody .ask{display:inline-block;border:1px solid #ff8a1f;border-radius:4px;padding:8px 14px 8px 12px;margin-top:2px;background:rgba(255,138,31,.05)}
+.cursor{display:inline-block;width:8px;height:15px;background:#dde4ec;vertical-align:-2px;animation:blink 1s steps(1) infinite}
+.tstat{height:26px;display:flex;align-items:center;gap:16px;padding:0 14px;border-top:1px solid #1a212b;font:500 10.5px var(--mono);color:#596473;background:#080b0f}
+.tstat b{color:#cfd8e2;font-weight:500}
+.side{grid-column:2;grid-row:3/-1;border-left:1px solid var(--line);background:var(--deck);display:flex;flex-direction:column;min-height:0}
+.sblock{padding:14px 16px;border-bottom:1px solid var(--line)}
+.sblock .sechead{margin-bottom:10px}
+.tl{position:relative;padding-left:14px}
+.tl::before{content:"";position:absolute;left:3px;top:4px;bottom:4px;width:1px;background:var(--line-2)}
+.tli{position:relative;font:400 11px/1.35 var(--mono);color:var(--ink-2);padding:3px 0}
+.tli::before{content:"";position:absolute;left:-14px;top:8px;width:7px;height:7px;border-radius:50%;background:var(--deck);border:1.5px solid var(--c,var(--ink-3))}
+.tli.now::before{background:var(--s-perm);border-color:var(--s-perm);box-shadow:0 0 calc(var(--glow)*8px) var(--s-perm)}
+.tli .t{color:var(--ink-3);margin-right:6px}
+.tli b{color:var(--ink);font-weight:500}
+.files div{display:flex;justify-content:space-between;font:400 11px/1.9 var(--mono);color:var(--ink-2)}
+.files .st2{width:14px;color:var(--s-work)} .files .st2.m{color:var(--s-wait)}
+.wing{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.wt{border:1px solid var(--line);border-top:2px solid var(--c);background:var(--panel);border-radius:3px;padding:6px 7px;font:400 10px var(--mono);color:var(--ink-3)}
+.wt b{display:block;color:var(--ink);font:600 11px var(--label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.wt .s{display:flex;align-items:center;gap:5px;color:var(--c);font:700 9px var(--label);font-stretch:66%;letter-spacing:.12em;text-transform:uppercase}
+.wt .light{width:6px;height:6px}
+.wt.work{--c:var(--s-work)}.wt.wait{--c:var(--s-wait)}.wt.err{--c:var(--s-err)}.wt.idle{--c:var(--s-idle)}
+
+.sweep{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--s-work) 10%,transparent) 50%,transparent);width:30%;animation:sweep 5s linear infinite;opacity:.0}
+.tile.work .sweep{opacity:1}
+@keyframes sweep{from{transform:translateX(-120%)}to{transform:translateX(420%)}}
+.spark .tip{animation:tip 1.4s ease-in-out infinite}
+@keyframes tip{50%{r:1.5}}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important}
+  .sweep{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="intro">
+    <h1>Forge <span>/</span><br>Mission Control</h1>
+    <p>A cockpit for supervising many agents at once. Every live session is a tile with a state light and an activity trace, limits read as gauges, and anything that needs a human lands in one lane on the left, where peripheral vision catches it. Built for a big screen that stays open all day.</p>
+  </div>
+
+  <div class="cap"><b>A</b> Overview · dark (native) <i></i> 1440 × 900</div>
+  <div class="screen" id="A" data-theme="dark"></div>
+
+  <div class="cap"><b>B</b> Task detail · ENG-412 needs permission <i></i> 1440 × 900</div>
+  <div class="screen" id="B" data-theme="dark"></div>
+
+  <div class="cap"><b>C</b> Overview · day shift (light) <i></i> 1440 × 900</div>
+  <div class="screen" id="C" data-theme="light"></div>
+</div>
+
+<script>
+/* ── made-up data ── */
+const T = { dev:['D','var(--t-dev)','Dev'], rev:['R','var(--t-rev)','Review'], loop:['L','var(--t-loop)','Loop'], gen:['G','var(--t-gen)','General'] };
+const STATE = { work:'Working', wait:'Waiting', perm:'Permission', err:'Error', idle:'Idle', done:'Done' };
+const live = [
+  { id:1, s:'perm', t:'dev', title:'Move invoice writes to the event store', tk:'ENG-412', p:'atlas', br:'eng-412-invoice-events', h:'claude', a:'work', ctx:62, last:'<b>?</b> Bash(pnpm prisma migrate dev)', age:'2m', git:['dirty','+214 −38'], seed:3, act:'hi' },
+  { id:2, s:'wait', t:'rev', title:'Review: tenant-scoped webhook signatures', tk:'PR #388', p:'billing-api', br:'review/pr-388', h:'codex', a:'work', ctx:41, last:'<b>?</b> Keep v1 signature header for a release?', age:'6m', git:['pr','open','#388'], seed:7, act:'mid' },
+  { id:3, s:'err', t:'loop', title:'Loop: stabilise checkout e2e suite', tk:'ENG-419', p:'atlas', br:'loop/checkout-e2e', h:'claude', a:'personal', ctx:77, last:'<b>✗</b> 3 runs failed · loop paused', age:'11m', git:['dirty','+52 −9'], seed:11, act:'err' },
+  { id:4, s:'work', t:'dev', title:'Dark mode tokens for the marketing site', tk:'ENG-398', p:'lumen-web', br:'eng-398-dark-tokens', h:'claude', a:'personal', ctx:34, last:'Update(src/styles/tokens.css)', age:'24m', git:['pr','draft','#122'], seed:5, act:'hi' },
+  { id:5, s:'work', t:'dev', title:'Per-tenant rate limiting on public API', tk:'ENG-405', p:'billing-api', br:'eng-405-rate-limit', h:'pi', a:'work', ctx:48, last:'Bash(pnpm vitest run limiter)', age:'38m', git:['dirty','+141 −12'], seed:9, act:'hi' },
+  { id:6, s:'work', t:'gen', title:'Explore the plugin loader API', tk:'—', p:'orbit-cli', br:'main', h:'opencode', a:'work', ctx:19, last:'Read(src/plugins/loader.ts)', age:'52m', git:['clean','clean'], seed:2, act:'mid' },
+  { id:7, s:'work', t:'rev', title:'Review: image pipeline caching', tk:'PR #121', p:'lumen-web', br:'review/pr-121', h:'claude', a:'work', ctx:27, last:'Search("cacheKey")', age:'1h', git:['pr','open','#121'], seed:13, act:'mid' },
+  { id:8, s:'idle', t:'dev', title:'Rebuild search index nightly', tk:'ENG-377', p:'atlas', br:'eng-377-reindex', h:'codex', a:'work', ctx:55, last:'Done. PR #391 opened.', age:'2h', git:['pr','open','#391'], seed:17, act:'flat' },
+];
+const done = [
+  { s:'done', t:'dev', title:'Invoice PDF footer locale', tk:'ENG-401', p:'atlas', br:'eng-401-pdf-locale', h:'claude', a:'work', age:'yday', git:['pr','merged','#386'] },
+  { s:'done', t:'rev', title:'Review: ledger export pagination', tk:'PR #379', p:'billing-api', br:'review/pr-379', h:'codex', a:'work', age:'yday', git:['pr','merged','#379'] },
+];
+const H = { claude:'CLAUDE', codex:'CODEX', pi:'PI', opencode:'OPENCODE' };
+
+/* deterministic noise */
+function rng(seed){ let x = seed*9301+49297; return ()=>{ x=(x*9301+49297)%233280; return x/233280; }; }
+function series(seed, kind, n=48){
+  const r = rng(seed); const out=[];
+  for(let i=0;i<n;i++){
+    let v;
+    if(kind==='flat') v = i<14 ? .25+r()*.5 : .03+r()*.03;
+    else if(kind==='err') v = i<30 ? .3+r()*.5 : i<36 ? .7+r()*.3 : .02;
+    else if(kind==='hi') v = .25+r()*.55+Math.sin(i/4)*.12;
+    else v = .12+r()*.45;
+    if(kind==='hi' && seed===3 && i>42) v=.02;
+    out.push(Math.max(0,Math.min(1,v)));
+  }
+  return out;
+}
+function spark(vals, color, w=180, h=34, bars=false){
+  const step = w/(vals.length-1);
+  if(bars){
+    const bw = w/vals.length - 1;
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${vals.map((v,i)=>`<rect x="${(i*(bw+1)).toFixed(1)}" y="${(h-v*h).toFixed(1)}" width="${bw.toFixed(1)}" height="${(v*h).toFixed(1)}" fill="${color}" opacity="${(.35+.65*i/vals.length).toFixed(2)}"/>`).join('')}</svg>`;
+  }
+  const pts = vals.map((v,i)=>[i*step, h-2-v*(h-6)]);
+  const d = pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const last = pts[pts.length-1];
+  const gid = 'g'+Math.random().toString(36).slice(2,8);
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <line x1="0" y1="${h-1}" x2="${w}" y2="${h-1}" stroke="var(--line)" stroke-width="1"/>
+    <path d="${d} L ${w} ${h} L 0 ${h} Z" fill="url(#${gid})"/>
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <circle class="tip" cx="${last[0]}" cy="${last[1]}" r="2.4" fill="${color}"/>
+  </svg>`;
+}
+function gauge(pct, win, reset){
+  const r=26, cx=40, cy=34, a0=Math.PI*0.85, a1=Math.PI*2.15, span=a1-a0;
+  const pt=a=>[cx+r*Math.cos(a), cy+r*Math.sin(a)];
+  const arc=(from,to)=>{ const [x1,y1]=pt(from),[x2,y2]=pt(to); return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${to-from>Math.PI?1:0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`; };
+  const cls = pct>=90?'crit':pct>=70?'warn':'';
+  const col = pct>=90?'var(--s-err)':pct>=70?'var(--s-wait)':'var(--accent)';
+  const ticks = [...Array(11)].map((_,i)=>{ const a=a0+span*i/10; const [x1,y1]=[cx+(r+5)*Math.cos(a),cy+(r+5)*Math.sin(a)]; const [x2,y2]=[cx+(r+7.5)*Math.cos(a),cy+(r+7.5)*Math.sin(a)]; return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--ink-4)" stroke-width="1"/>`; }).join('');
+  return `<div class="gauge ${cls}"><svg viewBox="0 0 80 58">${ticks}
+    <path d="${arc(a0,a1)}" stroke="var(--well)" stroke-width="5" fill="none" stroke-linecap="butt"/>
+    <path d="${arc(a0,a0+span*0.9)}" stroke="color-mix(in srgb,var(--s-err) 30%,transparent)" stroke-width="5" fill="none" stroke-dasharray="0 ${(span*0.9*r).toFixed(1)} 100" />
+    <path d="${arc(a0,a0+span*Math.max(.01,pct/100))}" stroke="${col}" stroke-width="5" fill="none"/>
+  </svg><div class="v">${pct}<small>%</small></div><div class="w">${win}</div><div class="rs">↻ ${reset}</div></div>`;
+}
+const icon = {
+  tasks:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  acct:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>',
+  skills:'<svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  proto:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="1"/><path d="M8 21h8"/></svg>',
+  qa:'<svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>',
+  mem:'<svg viewBox="0 0 24 24"><path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-2 5 3 3 0 0 0 3 5 3 3 0 0 0 5 1V5a3 3 0 0 0-3-1zM15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 2 5 3 3 0 0 1-3 5 3 3 0 0 1-5 1"/></svg>',
+  today:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5"/></svg>',
+  os:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>',
+  proj:'<svg viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v11H3z"/></svg>',
+  add:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  link:'<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>',
+  branch:'<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/></svg>',
+  pr:'<svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17V9a3 3 0 0 0-3-3h-4"/></svg>',
+};
+const mark = `<svg width="26" height="26" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="3" fill="none" stroke="var(--ink-4)"/><path d="M7 19V7h12M7 13h8" stroke="var(--s-perm)" stroke-width="2.4" fill="none"/></svg>`;
+
+function rail(active){
+  const b=(k,lab,ic,extra='')=>`<div class="rb ${active===k?'on':''}" title="${lab}">${ic}<small>${lab}</small>${extra}</div>`;
+  return `<aside class="rail" aria-label="Navigation">
+    <div class="mark">${mark}</div>
+    ${b('tasks','Tasks',icon.tasks,'<span class="badge">3</span>')}
+    ${b('acct','Accts',icon.acct)}
+    ${b('skills','Skills',icon.skills)}
+    ${b('proto','Proto',icon.proto)}
+    ${b('qa','QA',icon.qa,'<span class="badge g">2</span>')}
+    ${b('mem','Memory',icon.mem)}
+    <div class="rsep"></div>
+    ${b('today','Today',icon.today,'<span class="badge g">4</span>')}
+    ${b('os','M·OS',icon.os,'<span class="badge">2</span>')}
+    ${b('addm','Module',icon.add)}
+    <div class="grow"></div>
+    ${b('proj','Projs',icon.proj)}
+  </aside>`;
+}
+function topbar(){
+  return `<header class="top">
+    <div class="brand">Forge<em>mission control</em></div>
+    <div class="counters">
+      <div class="ctr"><span class="light work"></span><span class="num">4</span><span class="lbl">working</span></div>
+      <div class="ctr alert"><span class="light perm"></span><span class="num">2</span><span class="lbl">need you</span></div>
+      <div class="ctr"><span class="light err"></span><span class="num" style="color:var(--s-err)">1</span><span class="lbl">error</span></div>
+      <div class="ctr"><span class="light idle"></span><span class="num">1</span><span class="lbl">idle</span></div>
+    </div>
+    <div class="scope">
+      <span class="lbl">Projects</span>
+      <span class="chip on">all <span class="c">4</span></span><span class="chip">atlas <span class="c">3</span></span><span class="chip">billing-api <span class="c">2</span></span><span class="chip">lumen-web <span class="c">2</span></span><span class="chip">orbit-cli <span class="c">1</span></span>
+    </div>
+    <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Jump to session, ticket, command<kbd>⌘K</kbd></div>
+    <div class="clock"><span class="syncdot"></span><b>14:32:08</b></div>
+  </header>`;
+}
+function lane(){
+  return `<section class="lane" aria-label="Needs you">
+    <div class="lanehead"><div class="ttl">Needs you <span class="n">3</span></div><span class="lbl">oldest first</span></div>
+    <div class="alert perm">
+      <div class="ahead"><span class="light perm"></span><span class="kind">Permission</span><span class="ago">2m 14s</span></div>
+      <div class="atitle">Move invoice writes to the event store</div>
+      <div class="ameta">atlas · ENG-412 · claude</div>
+      <div class="aq"><span class="k">Bash</span> pnpm prisma migrate dev --name invoice_events</div>
+      <div class="acts"><span class="btn pri">Allow <kbd>1</kbd></span><span class="btn">Always <kbd>2</kbd></span><span class="btn">Deny <kbd>3</kbd></span><span class="btn" style="margin-left:auto">Open ↗</span></div>
+    </div>
+    <div class="alert wait">
+      <div class="ahead"><span class="light wait"></span><span class="kind">Waiting for input</span><span class="ago">6m 02s</span></div>
+      <div class="atitle">Review: tenant-scoped webhook signatures</div>
+      <div class="ameta">billing-api · PR #388 · codex</div>
+      <div class="aq">Keep the v1 <span class="k">X-Signature</span> header for one release, or drop it in this PR?</div>
+      <div class="acts"><span class="btn pri">Reply…</span><span class="btn" style="margin-left:auto">Open ↗</span></div>
+    </div>
+    <div class="alert err">
+      <div class="ahead"><span class="light err"></span><span class="kind">Error</span><span class="ago">11m</span></div>
+      <div class="atitle">Loop: stabilise checkout e2e suite</div>
+      <div class="ameta">atlas · ENG-419 · claude</div>
+      <div class="aq"><span class="k">✗</span> checkout.spec.ts › applies coupon — 3 of 3 runs failed. Loop paused.</div>
+      <div class="acts"><span class="btn pri">Open terminal</span><span class="btn">Retry loop</span></div>
+    </div>
+    <div class="feed">
+      <div class="lbl" style="margin-bottom:8px">Event log</div>
+      ${[
+        ['14:31','var(--s-perm)','<b>ENG-412</b> asks to run a migration'],
+        ['14:29','var(--s-work)','<b>ENG-405</b> 23 tests passed'],
+        ['14:26','var(--s-wait)','<b>PR #388</b> asked a question'],
+        ['14:24','var(--s-work)','<b>ENG-398</b> edited tokens.css (+86)'],
+        ['14:21','var(--s-err)','<b>ENG-419</b> loop paused after 3 failures'],
+        ['14:12','var(--accent)','<b>ENG-377</b> opened PR #391'],
+        ['14:05','var(--s-work)','<b>orbit-cli</b> general session started'],
+        ['13:58','var(--t-loop)','<b>PR #386</b> merged into main'],
+      ].map(([t,c,x])=>`<div class="ev" style="--c:${c}"><span class="t">${t}</span><span class="d"></span><span>${x}</span></div>`).join('')}
+    </div>
+  </section>`;
+}
+function launch(){
+  return `<div class="launch">
+    <div class="prompt"><span class="caret">▸</span><span class="ph">Paste a <b>Linear ticket</b>, a <b>PR link</b> or name a task — e.g. ENG-430, github.com/acme/atlas/pull/402</span></div>
+    <div class="seg"><span class="on" style="--tc:var(--t-dev)"><i></i>Dev</span><span style="--tc:var(--t-rev)"><i></i>Review</span><span style="--tc:var(--t-loop)"><i></i>Loop</span><span style="--tc:var(--t-gen)"><i></i>General</span></div>
+    <div class="sel"><span class="lbl">Proj</span>atlas ▾</div>
+    <div class="sel"><span class="lbl">Via</span>claude · work ▾</div>
+    <button class="go">Launch <kbd>⌘↵</kbd></button>
+  </div>`;
+}
+function tile(x){
+  const col = {work:'var(--s-work)',wait:'var(--s-wait)',perm:'var(--s-perm)',err:'var(--s-err)',idle:'var(--s-idle)'}[x.s];
+  const [g,tc] = T[x.t];
+  return `<article class="tile ${x.s}">
+    <div class="sweep"></div>
+    <div class="t1"><span class="light ${x.s}"></span><span class="st">${STATE[x.s]}</span><span class="h">${x.age}</span></div>
+    <div class="ttitle">${x.title}</div>
+    <div class="tmeta"><span class="tg" style="--tc:${tc}">${g}</span>${x.p} · ${x.tk}</div>
+    <div class="spark">${spark(series(x.seed,x.act),col)}</div>
+    <div class="tlast">${x.last}</div>
+    <div class="tfoot"><span>${H[x.h]}</span><span class="ctx"><i class="${x.ctx>70?'hi':''}" style="width:${x.ctx}%"></i></span><span>${x.ctx}%</span></div>
+  </article>`;
+}
+function board(){
+  return `<section class="board">
+    <div class="sechead"><span class="ttl">Live sessions</span><span class="sub">8 on 3 harnesses · activity, last 12 min</span>
+      <div class="r legend"><span style="--c:var(--s-work)"><i></i>working</span><span style="--c:var(--s-wait)"><i></i>waiting</span><span style="--c:var(--s-perm)"><i></i>permission</span><span style="--c:var(--s-err)"><i></i>error</span><span style="--c:var(--s-idle)"><i></i>idle</span></div></div>
+    <div class="tiles">${live.map(tile).join('')}</div>
+  </section>`;
+}
+function limits(){
+  const rows=[
+    ['work','claude',[72,'5 h','1h 12m'],[41,'7 d','Tue']],
+    ['work','codex',[18,'5 h','3h 40m'],[9,'7 d','Mon']],
+    ['personal','claude',[93,'5 h','0h 26m'],[66,'7 d','Thu']],
+  ];
+  return `<section class="limits">
+    <div class="sechead"><span class="ttl">Fuel</span><span class="sub">usage limits</span></div>
+    ${rows.map(([a,h,g1,g2])=>`<div class="acct"><div class="who"><span class="light ${g1[0]>=90?'err':'idle'}" style="width:6px;height:6px"></span>${a}<span class="h">${h}</span></div><div class="gauges">${gauge(...g1)}${gauge(...g2)}</div></div>`).join('')}
+  </section>`;
+}
+function gitCell(g){
+  if(g[0]==='pr') return `<span class="git"><span class="pr ${g[1]}">${g[1]==='merged'?'merged':g[1]==='draft'?'draft':'PR open'} ${g[2]}</span></span>`;
+  if(g[0]==='dirty'){ const [a,d]=g[1].split(' '); return `<span class="git"><span class="dirty">● uncommitted</span><span class="add">${a}</span><span class="del">${d}</span></span>`; }
+  return `<span class="git" style="color:var(--ink-3)">clean</span>`;
+}
+function manifest(){
+  const rows=[...live,...done];
+  return `<section class="manifest">
+    <div class="mhead">
+      <span class="sechead" style="margin:0"><span class="ttl">Manifest</span></span>
+      <div class="chips" style="margin-left:8px"><span class="chip on">Recent</span><span class="chip">By project</span></div>
+      <span class="vsep"></span>
+      <div class="chips"><span class="chip on">All <span class="c">10</span></span><span class="chip" style="--tc:var(--t-dev)"><i></i>Dev <span class="c">5</span></span><span class="chip" style="--tc:var(--t-rev)"><i></i>Review <span class="c">3</span></span><span class="chip" style="--tc:var(--t-loop)"><i></i>Loop <span class="c">1</span></span><span class="chip" style="--tc:var(--t-gen)"><i></i>General <span class="c">1</span></span></div>
+      <span class="vsep"></span>
+      <div class="chips"><span class="chip on">any harness</span><span class="chip">claude</span><span class="chip">codex</span><span class="chip">pi</span><span class="chip">opencode</span></div>
+      <span class="chip" style="margin-left:auto">Show done <span class="c">14</span></span>
+    </div>
+    <table>
+      <colgroup><col style="width:34px"><col style="width:40px"><col><col style="width:78px"><col style="width:92px"><col style="width:178px"><col style="width:178px"><col style="width:76px"><col style="width:52px"><col style="width:70px"></colgroup>
+      <thead><tr><th></th><th>Type</th><th>Task</th><th>Ticket</th><th>Project</th><th>Branch</th><th>Git</th><th>Harness</th><th>Age</th><th style="text-align:right">Action</th></tr></thead>
+      <tbody>
+      ${rows.map(x=>{ const need=['perm','wait','err'].includes(x.s); const [g,tc]=T[x.t];
+        const act = x.s==='done'?'Open':x.s==='idle'?'Resume':need?(x.s==='perm'?'Approve':x.s==='wait'?'Reply':'Fix'):'Open';
+        return `<tr class="${need?'need '+x.s:''} ${x.s==='done'?'donerow':''}">
+          <td><span class="light ${x.s}" style="width:7px;height:7px"></span></td>
+          <td><span class="tg" style="--tc:${tc}">${g}</span></td>
+          <td class="title">${x.title}</td><td>${x.tk}</td><td>${x.p}</td><td>${x.br}</td><td>${gitCell(x.git)}</td><td>${x.h}</td><td>${x.age}</td>
+          <td style="text-align:right"><span class="act ${need?'hot':''}">${act} →</span></td></tr>`; }).join('')}
+      </tbody>
+    </table>
+    <div class="mfoot"><span>10 shown · 14 done this week · 3 PRs open · 2 merged today</span><span>J/K move · ↵ open · A approve · R reply</span></div>
+  </section>`;
+}
+function overview(){ return rail('tasks') + `<div class="main">${topbar()}${lane()}${launch()}${board()}${limits()}${manifest()}</div>`; }
+
+/* ── detail ── */
+function detail(){
+  const ctxRing = (()=>{ const r=24,c=2*Math.PI*r,p=.62; return `<svg width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="${r}" stroke="var(--well)" stroke-width="6" fill="none"/><circle cx="32" cy="32" r="${r}" stroke="var(--accent)" stroke-width="6" fill="none" stroke-dasharray="${(c*p).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 32 32)"/><circle cx="32" cy="32" r="${r}" stroke="var(--s-wait)" stroke-width="6" fill="none" stroke-dasharray="1.5 ${(c-1.5).toFixed(1)}" stroke-dashoffset="${(-c*.8).toFixed(1)}" transform="rotate(-90 32 32)"/></svg>`; })();
+  const tok = series(21,'hi',24), cost=series(23,'mid',24), chg=series(29,'hi',24);
+  return rail('tasks') + `<div class="dmain">
+    <header class="dtop">
+      <span class="crumb">Tasks <span>/</span> atlas <span>/</span> <b>ENG-412</b></span>
+      <div class="strip">
+        <span class="mini on"><span class="light perm" style="width:6px;height:6px"></span>ENG-412</span>
+        <span class="mini"><span class="light wait" style="width:6px;height:6px"></span>PR #388</span>
+        <span class="mini"><span class="light err" style="width:6px;height:6px"></span>ENG-419</span>
+        <span class="mini"><span class="light work" style="width:6px;height:6px"></span>ENG-398</span>
+        <span class="mini"><span class="light work" style="width:6px;height:6px"></span>ENG-405</span>
+        <span class="mini">+3</span>
+      </div>
+      <div class="search" style="margin-left:auto;width:240px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>Jump to…<kbd>⌘K</kbd></div>
+      <div class="clock"><span class="syncdot"></span><b>14:32:08</b></div>
+    </header>
+    <section class="ident">
+      <div class="big">D</div>
+      <div style="min-width:0">
+        <h2>Move invoice writes to the event store</h2>
+        <div class="row">
+          <span class="tagl">${icon.link}ENG-412</span>
+          <span class="tagl">${icon.branch}eng-412-invoice-events</span>
+          <span class="tagl" style="color:var(--ink-3)">${icon.pr}no PR yet</span>
+          <span>atlas</span><span style="color:var(--ink-4)">·</span><span>claude · opus</span><span style="color:var(--ink-4)">·</span><span>account work</span><span style="color:var(--ink-4)">·</span><span>started 41m ago</span>
+        </div>
+      </div>
+      <div class="state">
+        <div class="bigstate"><span class="light perm"></span>Needs permission · 2m 14s</div>
+        <div class="acts" style="--c:var(--s-perm)"><span class="btn">Editor</span><span class="btn">GitHub</span><span class="btn">Remember…</span><span class="btn">Close task</span></div>
+      </div>
+    </section>
+    <section class="side" style="grid-row:3/-1">
+      <div class="sblock">
+        <div class="sechead"><span class="ttl">Flight log</span><span class="sub">tool calls</span></div>
+        <div class="tl">
+          <div class="tli" style="--c:var(--s-work)"><span class="t">13:51</span>Read <b>repository.ts</b></div>
+          <div class="tli" style="--c:var(--s-work)"><span class="t">13:53</span>Search InvoiceRepository · 11 files</div>
+          <div class="tli" style="--c:var(--s-wait)"><span class="t">14:02</span>Update <b>events.ts</b> +48</div>
+          <div class="tli" style="--c:var(--s-wait)"><span class="t">14:11</span>Update <b>projector.ts</b> +96 −22</div>
+          <div class="tli" style="--c:var(--s-work)"><span class="t">14:24</span>vitest invoices · <b style="color:var(--s-work)">23 passed</b></div>
+          <div class="tli" style="--c:var(--s-wait)"><span class="t">14:28</span>Write <b>migration.sql</b></div>
+          <div class="tli now"><span class="t">14:30</span><b style="color:var(--s-perm)">Awaiting</b> prisma migrate</div>
+        </div>
+      </div>
+      <div class="sblock">
+        <div class="sechead"><span class="ttl">Changes</span><span class="sub">uncommitted · 6 files</span></div>
+        <div class="files">
+          <div><span><span class="st2 m">M</span> src/invoices/repository.ts</span><span><span class="add">+31</span> <span class="del">−18</span></span></div>
+          <div><span><span class="st2">A</span> src/invoices/events.ts</span><span class="add">+48</span></div>
+          <div><span><span class="st2 m">M</span> src/invoices/projector.ts</span><span><span class="add">+96</span> <span class="del">−22</span></span></div>
+          <div><span><span class="st2">A</span> prisma/…/migration.sql</span><span class="add">+27</span></div>
+          <div><span><span class="st2 m">M</span> src/invoices/service.ts</span><span><span class="add">+12</span> <span class="del">−4</span></span></div>
+        </div>
+      </div>
+      <div class="sblock" style="border-bottom:0">
+        <div class="sechead"><span class="ttl">Wingmen</span><span class="sub">other live sessions</span></div>
+        <div class="wing">
+          <div class="wt wait"><span class="s"><span class="light wait"></span>waiting</span><b>PR #388 webhooks</b>billing-api</div>
+          <div class="wt err"><span class="s"><span class="light err"></span>error</span><b>ENG-419 e2e loop</b>atlas</div>
+          <div class="wt work"><span class="s"><span class="light work"></span>working</span><b>ENG-398 dark tokens</b>lumen-web</div>
+          <div class="wt work"><span class="s"><span class="light work"></span>working</span><b>ENG-405 rate limit</b>billing-api</div>
+        </div>
+      </div>
+    </section>
+    <section class="metrics">
+      <div class="m ctxm">${ctxRing}<div><div class="lbl">Context</div><div class="val">62<small>%</small></div><div class="ds">compacts at 80%</div></div></div>
+      <div class="m"><div class="lbl">Tokens</div><div class="val">184<small>k</small></div><div class="ds">+12k / 5 min</div><div class="msp">${spark(tok,'var(--accent)',70,26,true)}</div></div>
+      <div class="m"><div class="lbl">Cost</div><div class="val">$3.42</div><div class="ds">$0.08 / min</div><div class="msp">${spark(cost,'var(--ink-3)',70,26,true)}</div></div>
+      <div class="m"><div class="lbl">Changes</div><div class="val"><span class="add">+214</span> <small class="del" style="font-size:16px">−38</small></div><div class="ds">6 files · 0 commits</div></div>
+      <div class="m" style="border-right:0"><div class="lbl">Activity · last 40 min</div><div style="height:38px;margin-top:8px">${spark(series(3,'hi',60),'var(--s-perm)',260,38)}</div></div>
+    </section>
+    <section class="term">
+      <div class="tframe">
+        <div class="tbar"><span class="live"><span class="light work" style="width:6px;height:6px"></span>attached</span><span>pty · claude · ~/.cw/worktrees/atlas/eng-412-invoice-events</span><span style="margin-left:auto">132×38</span></div>
+<div class="tbody"><span class="o">✻</span> <span class="w">Claude Code</span> <span class="dim">· opus · atlas/eng-412-invoice-events · resumed 41m ago</span>
+
+<span class="dim">></span> Implement ENG-412: invoice writes go through the event store, keep the read model in sync
+
+<span class="g">⏺</span> <span class="w">Update</span>(src/invoices/projector.ts)
+  <span class="dim">⎿  Updated with</span> <span class="g">96 additions</span> <span class="dim">and</span> <span class="r">22 removals</span>
+     <span class="dim">41</span> <span class="g">+   case 'InvoiceIssued':</span>
+     <span class="dim">42</span> <span class="g">+     await tx.invoice.upsert({ where: { id: e.invoiceId }, ...toRow(e) })</span>
+
+<span class="g">⏺</span> <span class="w">Bash</span>(pnpm vitest run src/invoices)
+  <span class="dim">⎿</span>  <span class="g">✓</span> src/invoices/events.test.ts <span class="dim">(9)</span>
+     <span class="g">✓</span> src/invoices/projector.test.ts <span class="dim">(14)</span>
+     <span class="w">Test Files</span>  <span class="g">2 passed</span> <span class="dim">(2)</span>     <span class="w">Tests</span>  <span class="g">23 passed</span> <span class="dim">(23)</span>   <span class="dim">1.84s</span>
+
+<span class="g">⏺</span> The projector needs an <span class="b">invoice_events</span> table. Writing the migration, then applying it locally.
+
+<span class="g">⏺</span> <span class="w">Write</span>(prisma/migrations/20261120_invoice_events/migration.sql)
+  <span class="dim">⎿  Wrote 27 lines</span>
+
+<span class="o">⏺</span> <span class="w">Bash</span>(pnpm prisma migrate dev --name invoice_events)
+<span class="ask"><span class="w">Bash command</span>
+  <span class="y">pnpm prisma migrate dev --name invoice_events</span>
+  <span class="dim">Apply the invoice_events migration to the local database</span>
+
+<span class="w">Do you want to proceed?</span>
+<span class="o">❯ 1. Yes</span>
+  2. Yes, and don't ask again for <span class="b">pnpm prisma migrate</span> commands in this project
+  3. No, and tell Claude what to do differently <span class="dim">(esc)</span></span>
+<span class="cursor"></span></div>
+        <div class="tstat"><span>model <b>opus</b></span><span>ctx <b>62%</b></span><span>tokens <b>184k</b></span><span>cost <b>$3.42</b></span><span style="margin-left:auto">⌘. interrupt · ⌘⇧A allow · ⌘⇧D deny</span></div>
+      </div>
+    </section>
+  </div>`;
+}
+document.getElementById('A').innerHTML = overview();
+document.getElementById('B').innerHTML = detail();
+document.getElementById('C').innerHTML = overview();
+</script>
+</body>
+</html>

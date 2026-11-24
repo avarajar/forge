@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Terminal-native</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0b09; --bg-2:#10120e; --bg-3:#171a14;
+  --line:#2a2f24; --line-2:#3c4433;
+  --ink:#d9dccd; --ink-2:#9ea38e; --ink-3:#5f6554;
+  --amber:#ffb23e; --amber-dim:#7a5520;
+  --green:#8bff7a; --green-dim:#2f5a2a;
+  --cyan:#6fd6e8; --red:#ff5f56; --violet:#c49bff;
+  --sel:#1d2117; --glow:0 0 6px rgba(255,178,62,.35);
+  --page:#050604; --label:#5f6554;
+}
+.paper{
+  --bg:#f1ede2; --bg-2:#e9e4d6; --bg-3:#e0dac9;
+  --line:#c9c1ab; --line-2:#a89f86;
+  --ink:#1f1d17; --ink-2:#575244; --ink-3:#8c8572;
+  --amber:#a65800; --amber-dim:#e6c999;
+  --green:#1d7a2e; --green-dim:#bfdcb9;
+  --cyan:#0b6f84; --red:#c0281f; --violet:#6a3fb8;
+  --sel:#e3dcc7; --glow:none;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--page)}
+body{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;color:var(--ink);padding:40px 0 80px;overflow-x:auto}
+.stage{width:1440px;margin:0 auto}
+.cap{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--label);margin:0 0 10px 4px;display:flex;gap:14px;align-items:baseline}
+.cap b{color:#ffb23e;font-weight:700}
+.cap span{letter-spacing:0;text-transform:none;color:#7b8170}
+.screen{width:1440px;height:900px;background:var(--bg);color:var(--ink);font-size:12.5px;line-height:18px;position:relative;overflow:hidden;margin-bottom:56px;display:grid;grid-template-rows:24px 1fr 24px;border:1px solid #1a1d16}
+.screen.paper{border-color:#d8d1bd}
+.screen:not(.paper)::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px);mix-blend-mode:screen}
+
+/* tmux bar */
+.bar{display:flex;align-items:stretch;background:var(--bg-3);border-bottom:1px solid var(--line);white-space:nowrap}
+.bar .seg{padding:3px 10px;color:var(--ink-2)}
+.bar .brand{background:var(--amber);color:var(--bg);font-weight:800;letter-spacing:.06em}
+.bar .tab{padding:3px 10px;color:var(--ink-2)}
+.bar .tab i{font-style:normal;color:var(--ink-3)}
+.bar .tab.on{color:var(--amber);background:var(--bg);text-shadow:var(--glow)}
+.bar .tab.on i{color:var(--amber)}
+.bar .sp{flex:1}
+.bar .r{color:var(--ink-3)}
+.bar .r b{color:var(--ink);font-weight:500}
+
+/* hint bar */
+.keys{display:flex;gap:0;background:var(--bg-2);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden}
+.keys span{padding:3px 10px 3px 0;color:var(--ink-2)}
+.keys kbd{font:inherit;background:var(--ink-2);color:var(--bg);padding:0 5px;margin:0 6px 0 10px;font-weight:700}
+.keys .mode{background:var(--green);color:var(--bg);font-weight:800;padding:3px 10px}
+
+/* panes */
+.body{display:grid;gap:10px;padding:14px 12px 10px;min-height:0}
+.pane{border:1px solid var(--line-2);position:relative;padding:14px 12px 10px;min-height:0;overflow:hidden}
+.pane.focus{border:3px double var(--amber);padding:12px 10px 8px;box-shadow:inset 0 0 0 1px transparent}
+.pane>.t{position:absolute;top:-10px;left:10px;background:var(--bg);padding:0 6px;color:var(--ink-2);font-weight:500;line-height:18px;white-space:nowrap}
+.pane.focus>.t{color:var(--amber);font-weight:700;text-shadow:var(--glow);top:-11px}
+.pane>.k{position:absolute;top:-10px;right:10px;background:var(--bg);padding:0 6px;color:var(--ink-3);line-height:18px;white-space:nowrap}
+.pane.focus>.k{top:-11px}
+.k kbd,.kb{font:inherit;color:var(--amber)}
+.dim{color:var(--ink-3)} .mid{color:var(--ink-2)}
+.am{color:var(--amber)} .gr{color:var(--green)} .cy{color:var(--cyan)} .rd{color:var(--red)} .vi{color:var(--violet)}
+.b{font-weight:700}
+.row{white-space:pre;overflow:hidden;text-overflow:clip}
+.hr{color:var(--line-2);white-space:pre;overflow:hidden}
+
+/* nav */
+.nav .it{display:flex;white-space:pre}
+.nav .it .key{color:var(--ink-3);width:4ch}
+.nav .it.on{background:var(--amber);color:var(--bg);font-weight:700}
+.nav .it.on .key{color:var(--bg)}
+.nav .it .n{margin-left:auto;color:var(--ink-3)}
+.nav .it.on .n{color:var(--bg)}
+.nav .grp{color:var(--ink-3);margin-top:8px}
+
+/* meters */
+.meter{white-space:pre}
+.meter .fill{color:var(--green)}
+.meter.warn .fill{color:var(--amber)}
+.meter.hot .fill{color:var(--red)}
+.meter .rest{color:var(--line-2)}
+
+/* start prompt */
+.prompt{display:flex;align-items:center;gap:0;font-size:15px;line-height:24px;padding:4px 0 6px}
+.prompt .ps{color:var(--green);font-weight:700}
+.prompt .in{color:var(--ink)}
+.prompt .ph{color:var(--ink-3)}
+.cur{display:inline-block;width:.6em;height:1.05em;background:var(--amber);vertical-align:-2px;animation:blink 1.05s steps(1) infinite;box-shadow:var(--glow)}
+@keyframes blink{50%{opacity:0}}
+.chips{display:flex;gap:18px;white-space:pre;color:var(--ink-2)}
+.chip{color:var(--ink-2)}
+.chip.on{color:var(--bg);background:var(--amber);font-weight:700;padding:0 4px}
+.chip u{text-decoration:none;color:var(--amber);font-weight:700}
+.chip.on u{color:var(--bg)}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse;table-layout:fixed}
+.tbl td,.tbl th{padding:0 8px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:20px;text-align:left;font-weight:400}
+.tbl th{color:var(--ink-3);font-weight:500;border-bottom:1px solid var(--line)}
+.tbl tr.grp td{color:var(--ink-3);padding-top:6px;height:24px}
+.tbl tr.grp td b{color:var(--ink-2);font-weight:700}
+.tbl tr.sel td{background:var(--sel)}
+.tbl tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+.tbl tr.att td{background:color-mix(in srgb,var(--red) 9%,transparent)}
+.tbl tr.att.w td{background:color-mix(in srgb,var(--amber) 9%,transparent)}
+.tbl tr.done td{color:var(--ink-3)}
+.ty{font-weight:700}
+.ty.dev{color:var(--cyan)} .ty.rev{color:var(--violet)} .ty.loop{color:var(--amber)} .ty.gen{color:var(--ink-2)}
+.st{display:inline-block;width:2ch;text-align:center;font-weight:800}
+.st.work{color:var(--green)} .st.wait{color:var(--amber)} .st.perm{color:var(--bg);background:var(--red)} .st.err{color:var(--red)} .st.idle{color:var(--ink-3)} .st.exit{color:var(--ink-3)}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
+.act{color:var(--ink-3)} .act b{color:var(--amber);font-weight:700}
+.tag{padding:0 4px;border:1px solid var(--line-2);color:var(--ink-2)}
+.tag.ok{border-color:var(--green-dim);color:var(--green)}
+.tag.mg{border-color:color-mix(in srgb,var(--violet) 45%,transparent);color:var(--violet)}
+.tag.ci{border-color:color-mix(in srgb,var(--red) 50%,transparent);color:var(--red)}
+
+/* live */
+.live .s{margin-bottom:9px}
+.live .s .l1{display:flex;white-space:pre}
+.live .s .l1 .ag{margin-left:auto;color:var(--ink-3)}
+.live .s .l2{white-space:pre;color:var(--ink-3)}
+.spark{color:var(--green);letter-spacing:-1px}
+.spark.a{color:var(--amber)} .spark.r{color:var(--red)} .spark.d{color:var(--ink-3)}
+.spin::before{content:"⠋";animation:spin .8s steps(1) infinite}
+@keyframes spin{
+  0%{content:"⠋"}10%{content:"⠙"}20%{content:"⠹"}30%{content:"⠸"}40%{content:"⠼"}
+  50%{content:"⠴"}60%{content:"⠦"}70%{content:"⠧"}80%{content:"⠇"}90%{content:"⠏"}}
+
+/* log */
+.log .row{color:var(--ink-2)}
+.log .row .ts{color:var(--ink-3)}
+
+/* terminal (screen B) */
+.term{background:var(--bg);font-size:13px;line-height:19px}
+.term .row{white-space:pre}
+.diff-add{color:var(--green);background:color-mix(in srgb,var(--green) 8%,transparent)}
+.diff-del{color:var(--red);background:color-mix(in srgb,var(--red) 8%,transparent)}
+.inbox{border:1px solid var(--line-2);padding:4px 10px;margin-top:8px;color:var(--ink)}
+.typed{display:inline-block;overflow:hidden;white-space:pre;vertical-align:bottom;animation:type 3.2s steps(46) 1s both}
+@keyframes type{from{width:0}to{width:46ch}}
+.metric{display:flex;gap:0;white-space:pre;align-items:center;border:1px solid var(--line-2);margin-bottom:0}
+.metric>div{padding:6px 14px;border-right:1px solid var(--line)}
+.metric>div:last-child{border-right:0;margin-left:auto}
+.metric .lab{color:var(--ink-3);font-size:11px;line-height:14px;letter-spacing:.08em;text-transform:uppercase}
+.metric .val{font-size:17px;line-height:24px;font-weight:700}
+.metric .val small{font-size:12px;font-weight:400;color:var(--ink-2)}
+
+.big{font-size:20px;line-height:26px;font-weight:800;letter-spacing:-.01em}
+.kv{display:grid;grid-template-columns:10ch 1fr;row-gap:2px;white-space:nowrap}
+.kv dt{color:var(--ink-3)} .kv dd{overflow:hidden;text-overflow:ellipsis}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important}
+  .typed{width:46ch}
+}
+</style>
+</head>
+<body>
+<div class="stage">
+
+<!-- ═══════════════════════════ SCREEN A ═══════════════════════════ -->
+<p class="cap"><b>A</b> Overview <span>[0] tasks — one pane focused at a time, every action one key away</span></p>
+<section class="screen" id="scrA" aria-label="Overview screen">
+  <div class="bar">
+    <span class="seg brand">FORGE</span>
+    <span class="tab on"><i>0</i> tasks*</span>
+    <span class="tab"><i>1</i> accounts</span>
+    <span class="tab"><i>2</i> skills</span>
+    <span class="tab"><i>3</i> prototypes</span>
+    <span class="tab"><i>4</i> qa</span>
+    <span class="tab"><i>5</i> memory</span>
+    <span class="tab"><i>6</i> today</span>
+    <span class="tab"><i>7</i> monoku-os</span>
+    <span class="sp"></span>
+    <span class="seg r"><span class="rd b">! 1</span> <span class="am b">? 1</span>  <span class="gr">⠿ 3 working</span>  ·  cw 0.3.0  ·  <b>localhost:3000</b>  ·  <b>Fri 20 Nov 14:07</b></span>
+  </div>
+
+  <div class="body" style="grid-template-columns:272px 1fr 300px">
+    <!-- LEFT COLUMN -->
+    <div style="display:grid;grid-template-rows:auto 1fr auto;gap:14px;min-height:0">
+      <div class="pane nav">
+        <span class="t">nav</span><span class="k"><kbd>g</kbd>+key</span>
+        <div class="it on"><span class="key">gt</span>Tasks<span class="n">10</span></div>
+        <div class="it"><span class="key">ga</span>Accounts<span class="n">3</span></div>
+        <div class="it"><span class="key">gs</span>Skills<span class="n">24</span></div>
+        <div class="it"><span class="key">gp</span>Prototypes<span class="n">2</span></div>
+        <div class="it"><span class="key">gq</span>QA<span class="n rd">1</span></div>
+        <div class="it"><span class="key">gm</span>Memory<span class="n">4</span></div>
+        <div class="grp">── modules ─────────────</div>
+        <div class="it"><span class="key">g1</span>Today<span class="n am">7 new</span></div>
+        <div class="it"><span class="key">g2</span>Monoku OS<span class="n">3</span></div>
+      </div>
+
+      <div class="pane">
+        <span class="t">projects</span><span class="k"><kbd>p</kbd> filter</span>
+        <div class="row"><span class="am">▾</span> ~/code</div>
+        <div class="row dim">├── <span class="mid">atlas</span>           <span class="gr">⠿</span> 1  · 3</div>
+        <div class="row dim">├── <span class="mid">billing-api</span>     <span class="rd b">!</span> <span class="am b">?</span> · 3</div>
+        <div class="row dim">├── <span class="mid">nimbus-web</span>      <span class="gr">⠿</span> 1  · 2</div>
+        <div class="row dim">└── <span class="mid">ledger-cli</span>      <span class="gr">⠿</span> 1  · 2</div>
+        <div class="row" style="margin-top:6px"><span class="am">▸</span> <span class="dim">general (no project)</span></div>
+        <div class="row dim" style="margin-top:10px">+ <span class="kb">P</span> register project</div>
+      </div>
+
+      <div class="pane">
+        <span class="t">limits</span><span class="k">5h · 7d</span>
+        <div class="row"><span class="b">personal</span> <span class="dim">claude</span></div>
+        <div class="meter"><span class="dim">5h </span><span class="fill">██████████</span><span class="rest">░░░░░░</span> <span class="b">62%</span> <span class="dim">↺15:40</span></div>
+        <div class="meter"><span class="dim">7d </span><span class="fill">██████</span><span class="rest">░░░░░░░░░░</span> <span class="b">38%</span> <span class="dim">↺Mon</span></div>
+        <div class="row" style="margin-top:6px"><span class="b">work</span> <span class="dim">claude</span></div>
+        <div class="meter hot"><span class="dim">5h </span><span class="fill">██████████████▌</span><span class="rest">░</span> <span class="b rd">91%</span> <span class="dim">↺14:52</span></div>
+        <div class="meter warn"><span class="dim">7d </span><span class="fill">█████████</span><span class="rest">░░░░░░░</span> <span class="b">54%</span> <span class="dim">↺Tue</span></div>
+        <div class="row" style="margin-top:6px"><span class="b">work</span> <span class="dim">codex</span></div>
+        <div class="meter"><span class="dim">5h </span><span class="fill">██</span><span class="rest">░░░░░░░░░░░░░░</span> <span class="b">12%</span> <span class="dim">↺16:10</span></div>
+        <div class="meter"><span class="dim">7d </span><span class="fill">█████</span><span class="rest">░░░░░░░░░░░</span> <span class="b">29%</span> <span class="dim">↺Wed</span></div>
+      </div>
+    </div>
+
+    <!-- CENTER COLUMN -->
+    <div style="display:grid;grid-template-rows:auto 1fr;gap:14px;min-height:0">
+      <div class="pane focus">
+        <span class="t">start</span><span class="k"><kbd>n</kbd> focus · <kbd>⏎</kbd> start · <kbd>tab</kbd> next field</span>
+        <div class="prompt"><span class="ps">forge ❯&nbsp;</span><span class="in">https://linear.app/acme/issue/ENG-441</span><span class="cur"></span></div>
+        <div class="row dim" style="margin-bottom:8px">  ↳ <span class="mid">ENG-441</span> · "Paginate audit log export" · detected <span class="cy">dev</span> task in <span class="mid">billing-api</span> · branch <span class="mid">eng-441-paginate-export</span></div>
+        <div class="chips">
+          <span class="dim">type</span>
+          <span class="chip on">[<u>d</u>]ev</span><span class="chip">[<u>r</u>]eview</span><span class="chip">[<u>l</u>]oop</span><span class="chip">[<u>g</u>]eneral</span>
+          <span class="dim">│</span>
+          <span><span class="dim">project</span> billing-api <span class="dim">▾</span></span>
+          <span><span class="dim">account</span> personal <span class="dim">▾</span></span>
+          <span><span class="dim">harness</span> claude <span class="dim">▾</span></span>
+          <span style="margin-left:auto" class="am b">⏎ START</span>
+        </div>
+      </div>
+
+      <div class="pane" style="padding-top:12px">
+        <span class="t">tasks · grouped by project</span><span class="k"><kbd>j</kbd><kbd>k</kbd> move · <kbd>⏎</kbd> open · <kbd>x</kbd> done · <kbd>G</kbd> group</span>
+        <div class="row" style="margin-bottom:6px">
+          <span class="dim">type</span> <span class="chip on">all</span> <span class="ty dev">dev</span> <span class="ty rev">review</span> <span class="ty loop">loop</span> <span class="ty gen">general</span>
+          <span class="dim">   harness</span> <span class="chip on">all</span> <span class="mid">claude codex pi opencode</span>
+          <span class="dim">   group</span> <span class="am">project</span><span class="dim">/recent</span>
+          <span class="dim">   /</span><span class="mid">search…</span>
+        </div>
+        <table class="tbl">
+          <colgroup><col style="width:3ch"><col style="width:8ch"><col style="width:auto"><col style="width:13ch"><col style="width:24ch"><col style="width:20ch"><col style="width:9ch"><col style="width:5ch"><col style="width:9ch"></colgroup>
+          <thead><tr><th></th><th>TYPE</th><th>TITLE</th><th>PROJECT</th><th>BRANCH</th><th>GIT</th><th>HARNESS</th><th>AGE</th><th></th></tr></thead>
+          <tbody>
+            <tr class="grp"><td colspan="9"><span class="rd b">━━ needs you</span> <b>2</b> <span class="dim">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span></td></tr>
+            <tr class="att sel"><td><span class="st perm pulse">!</span></td><td class="ty dev">dev</td><td><span class="dim">ENG-412</span> Rate-limit webhook retries <span class="rd">— wants: pnpm db:migrate</span></td><td class="mid">billing-api</td><td class="dim">eng-412-rate-limit</td><td><span class="tag">~3 +41 uncommitted</span></td><td class="mid">claude</td><td class="dim">2m</td><td class="act"><b>⏎</b> open</td></tr>
+            <tr class="att w"><td><span class="st wait pulse">?</span></td><td class="ty rev">review</td><td><span class="dim">PR #88</span> Split invoice renderer <span class="am">— asks: keep legacy PDF path?</span></td><td class="mid">billing-api</td><td class="dim">review/pr-88</td><td><span class="tag ok">PR #88 open</span></td><td class="mid">codex</td><td class="dim">6m</td><td class="act"><b>⏎</b> open</td></tr>
+
+            <tr class="grp"><td colspan="9"><b>── atlas</b> <span class="dim">3 · 1 live ────────────────────────────────────────────────────────────────────────────────────</span></td></tr>
+            <tr><td><span class="st work spin"></span></td><td class="ty dev">dev</td><td><span class="dim">ENG-430</span> Search index backfill for archived docs</td><td class="mid">atlas</td><td class="dim">eng-430-backfill</td><td><span class="tag">+128 −12 uncommitted</span></td><td class="mid">claude</td><td class="dim">14m</td><td class="act"><b>⏎</b> open</td></tr>
+            <tr><td><span class="st idle">·</span></td><td class="ty rev">review</td><td><span class="dim">PR #79</span> Cache layer for quotes</td><td class="mid">atlas</td><td class="dim">review/pr-79</td><td><span class="tag mg">PR #79 merged</span></td><td class="mid">claude</td><td class="dim">1d</td><td class="act"><b>r</b> resume</td></tr>
+
+            <tr class="grp"><td colspan="9"><b>── billing-api</b> <span class="dim">3 · 2 need you ───────────────────────────────────────────────────────────────────────────</span></td></tr>
+            <tr><td><span class="st idle">·</span></td><td class="ty dev">dev</td><td><span class="dim">ENG-405</span> Retry budget per tenant</td><td class="mid">billing-api</td><td class="dim">eng-405-retry-budget</td><td><span class="tag ok">PR #91 open ✓</span></td><td class="mid">claude</td><td class="dim">5h</td><td class="act"><b>r</b> resume</td></tr>
+
+            <tr class="grp"><td colspan="9"><b>── nimbus-web</b> <span class="dim">2 · 1 live ──────────────────────────────────────────────────────────────────────────────</span></td></tr>
+            <tr><td><span class="st work spin"></span></td><td class="ty loop">loop</td><td>Fix flaky checkout e2e until green <span class="dim">· iter 4/10</span></td><td class="mid">nimbus-web</td><td class="dim">loop/flaky-e2e</td><td><span class="tag ci">CI ✗ 1 failing</span></td><td class="mid">pi</td><td class="dim">31m</td><td class="act"><b>⏎</b> open</td></tr>
+            <tr><td><span class="st idle">·</span></td><td class="ty dev">dev</td><td><span class="dim">ENG-398</span> Dark mode tokens for settings</td><td class="mid">nimbus-web</td><td class="dim">eng-398-dark-tokens</td><td><span class="tag ok">PR #212 open</span></td><td class="mid">opencode</td><td class="dim">2h</td><td class="act"><b>r</b> resume</td></tr>
+
+            <tr class="grp"><td colspan="9"><b>── ledger-cli</b> <span class="dim">2 · 1 live ──────────────────────────────────────────────────────────────────────────────</span></td></tr>
+            <tr><td><span class="st work spin"></span></td><td class="ty gen">general</td><td>Explore CSV import edge cases</td><td class="mid">ledger-cli</td><td class="dim">main</td><td><span class="tag">clean</span></td><td class="mid">codex</td><td class="dim">8m</td><td class="act"><b>⏎</b> open</td></tr>
+
+            <tr class="grp"><td colspan="9"><span class="am">▸</span> <b>done</b> <span class="dim">2 · press</span> <span class="am">D</span> <span class="dim">to expand ────────────────────────────────────────────────────────────────────────</span></td></tr>
+            <tr class="done"><td><span class="st exit">✓</span></td><td>dev</td><td>ENG-377 Remove v1 auth endpoints</td><td>atlas</td><td>eng-377-remove-v1</td><td><span class="tag mg">PR #74 merged</span></td><td>claude</td><td>2d</td><td></td></tr>
+            <tr class="done"><td><span class="st exit">✓</span></td><td>review</td><td>PR #71 Locale-aware amounts</td><td>ledger-cli</td><td>review/pr-71</td><td><span class="tag mg">PR #71 merged</span></td><td>codex</td><td>3d</td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div style="display:grid;grid-template-rows:auto 1fr;gap:14px;min-height:0">
+      <div class="pane live">
+        <span class="t">live · 5</span><span class="k"><kbd>1</kbd>–<kbd>5</kbd> jump</span>
+        <div class="s"><div class="l1"><span class="st perm pulse">!</span> <span class="b">ENG-412</span><span class="ag">billing-api</span></div>
+          <div class="l2"><span class="spark r">▁▂▅▇▆▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁</span> <span class="rd">permission</span> 2m</div></div>
+        <div class="s"><div class="l1"><span class="st wait pulse">?</span> <span class="b">PR #88</span><span class="ag">billing-api</span></div>
+          <div class="l2"><span class="spark a">▂▃▅▃▄▆▅▂▁▁▁▁▁▁▁▁▁▁▁▁</span> <span class="am">waiting</span>    6m</div></div>
+        <div class="s"><div class="l1"><span class="st work spin"></span> <span class="b">ENG-430</span><span class="ag">atlas</span></div>
+          <div class="l2"><span class="spark">▃▅▆▄▇█▅▆▇▅▃▆▇▆▅▇█▆▇▅</span> <span class="gr">working</span>   41s</div></div>
+        <div class="s"><div class="l1"><span class="st work spin"></span> <span class="b">flaky-e2e</span><span class="ag">nimbus-web</span></div>
+          <div class="l2"><span class="spark">▇▅▂▁▃▆▇▄▂▁▂▅▇█▆▃▂▄▆▇</span> <span class="gr">working</span>   iter 4</div></div>
+        <div class="s" style="margin-bottom:0"><div class="l1"><span class="st work spin"></span> <span class="b">csv-import</span><span class="ag">ledger-cli</span></div>
+          <div class="l2"><span class="spark">▁▂▂▃▂▄▃▂▅▄▃▂▃▄▅▃▂▃▄▃</span> <span class="gr">working</span>   8m</div></div>
+      </div>
+
+      <div class="pane log">
+        <span class="t">events</span><span class="k">tail -f</span>
+        <div class="row"><span class="ts">14:07:12</span> <span class="rd">!</span> ENG-412 asks to run</div>
+        <div class="row">         <span class="dim">pnpm db:migrate</span></div>
+        <div class="row"><span class="ts">14:06:58</span> <span class="gr">✓</span> ENG-430 6 tests pass</div>
+        <div class="row"><span class="ts">14:06:40</span> <span class="rd">✗</span> flaky-e2e iter 3 failed</div>
+        <div class="row"><span class="ts">14:05:31</span> <span class="am">?</span> PR #88 waiting on you</div>
+        <div class="row"><span class="ts">14:03:09</span> <span class="mid">↑</span> ENG-405 pushed 2 commits</div>
+        <div class="row"><span class="ts">14:01:47</span> <span class="vi">⇢</span> PR #79 merged upstream</div>
+        <div class="row"><span class="ts">13:59:02</span> <span class="gr">▶</span> csv-import started · codex</div>
+        <div class="row"><span class="ts">13:58:30</span> <span class="am">⚠</span> work/claude 5h at 91%</div>
+        <div class="row"><span class="ts">13:52:14</span> <span class="mid">•</span> Today: 7 new items</div>
+        <div class="row"><span class="ts">13:41:00</span> <span class="gr">✓</span> ENG-377 closed</div>
+        <div class="hr" style="margin-top:8px">────────────────────────────────</div>
+        <div class="row dim"><span class="gr b">⠿</span> working  <span class="am b">?</span> waiting  <span class="st perm" style="width:auto;padding:0 3px">!</span> permission</div>
+        <div class="row dim"><span class="rd b">✗</span> error    <span class="b">·</span> idle     <span class="b">✓</span> done</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="keys">
+    <span class="mode">NORMAL</span>
+    <span><kbd>⌘K</kbd>palette</span><span><kbd>/</kbd>search</span><span><kbd>n</kbd>new task</span><span><kbd>⏎</kbd>open</span><span><kbd>a</kbd>approve !</span><span><kbd>x</kbd>mark done</span><span><kbd>tab</kbd>next pane</span><span><kbd>g</kbd>go to…</span><span><kbd>?</kbd>help</span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ SCREEN B ═══════════════════════════ -->
+<p class="cap"><b>B</b> Task detail <span>the session tab — the agent terminal owns the screen, Forge only frames it</span></p>
+<section class="screen" id="scrB" aria-label="Task detail screen">
+  <div class="bar">
+    <span class="seg brand">FORGE</span>
+    <span class="tab"><i>0</i> tasks</span>
+    <span class="tab"><span class="rd b">!</span> billing-api/ENG-412</span>
+    <span class="tab"><span class="am b">?</span> billing-api/PR#88</span>
+    <span class="tab on"><span class="gr">⠿</span> atlas/ENG-430*</span>
+    <span class="tab"><span class="gr">⠿</span> nimbus-web/flaky-e2e</span>
+    <span class="tab"><i>+</i></span>
+    <span class="sp"></span>
+    <span class="seg r">personal · claude 5h <b>62%</b>  ·  <b>Fri 20 Nov 14:07</b></span>
+  </div>
+
+  <div class="body" style="grid-template-columns:1fr 330px;grid-template-rows:auto auto 1fr">
+    <!-- identity -->
+    <div style="grid-column:1/3;display:flex;align-items:flex-end;gap:24px;padding:2px 2px 0">
+      <div>
+        <div class="row dim"><span class="ty dev">DEV</span> · atlas · <span class="gr">⠿ working 41s</span> · <span class="mid">claude</span> on <span class="mid">personal</span></div>
+        <div class="big">ENG-430 <span class="dim">─</span> Search index backfill for archived docs</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:18px;white-space:nowrap;padding-bottom:3px">
+        <span><span class="dim">ticket</span> <span class="cy">ENG-430 ↗</span></span>
+        <span><span class="dim">branch</span> <span class="mid">eng-430-backfill</span> <span class="dim">← main</span></span>
+        <span><span class="dim">pr</span> <span class="dim">none yet</span> <span class="am">[c] create</span></span>
+        <span><span class="am">[e]</span> <span class="mid">editor</span></span>
+      </div>
+    </div>
+
+    <!-- metric strip -->
+    <div class="metric" style="grid-column:1/3">
+      <div><div class="lab">context</div><div class="val"><span class="am">████████████▉</span><span style="color:var(--line-2)">░░░░░░░</span> 64<small>%</small></div></div>
+      <div><div class="lab">tokens</div><div class="val">182.4<small>k</small></div></div>
+      <div><div class="lab">cost</div><div class="val">$3.41</div></div>
+      <div><div class="lab">changes</div><div class="val"><span class="gr">+128</span> <span class="rd">−12</span> <small>6 files · uncommitted</small></div></div>
+      <div><div class="lab">tests</div><div class="val"><span class="gr">6✓</span> <span class="rd">1✗</span></div></div>
+      <div><div class="lab">state</div><div class="val gr"><span class="spin"></span> working</div></div>
+    </div>
+
+    <!-- terminal -->
+    <div class="pane focus term" style="padding:14px 16px 10px">
+      <span class="t">claude · ~/.cw/worktrees/atlas/eng-430-backfill</span><span class="k"><kbd>⌃b</kbd> leave pane · <kbd>⌃b z</kbd> zoom</span>
+      <div class="row"><span class="dim">&gt;</span> Implement ENG-430: backfill the search index for archived docs. Resume-safe, batches of 500.</div>
+      <div class="row"> </div>
+      <div class="row"><span class="gr">●</span> <span class="b">Read</span>(src/search/indexer.ts)</div>
+      <div class="row dim">  ⎿  Read 214 lines</div>
+      <div class="row"><span class="gr">●</span> <span class="b">Grep</span>("enqueueBatch", path: "src/")</div>
+      <div class="row dim">  ⎿  Found 6 matches across 3 files</div>
+      <div class="row"><span class="ink">●</span> I'll add a cursor table so the job resumes where it stopped, then wire it into the scheduler.</div>
+      <div class="row"><span class="gr">●</span> <span class="b">Update Todos</span></div>
+      <div class="row">  ⎿  <span class="dim">☒ <s>Add backfill_cursor migration</s></span></div>
+      <div class="row">     <span class="dim">☒ <s>Write backfill job, batch size 500</s></span></div>
+      <div class="row">     <span class="am">☐ Wire job into scheduler</span></div>
+      <div class="row">     ☐ Test resume after crash</div>
+      <div class="row"><span class="gr">●</span> <span class="b">Update</span>(src/search/backfill.ts)</div>
+      <div class="row dim">  ⎿  Updated src/search/backfill.ts with 38 additions and 4 removals</div>
+      <div class="row dim">      39   export async function runBackfill(store: Store, idx: Index) {</div>
+      <div class="row diff-del">      40 -   const docs = await store.archived()</div>
+      <div class="row diff-add">      40 +   const cursor = await store.cursor('archived-docs')</div>
+      <div class="row diff-add">      41 +   for await (const batch of store.archivedAfter(cursor, 500)) {</div>
+      <div class="row diff-add">      42 +     await idx.enqueueBatch(batch)</div>
+      <div class="row diff-add">      43 +     await store.saveCursor('archived-docs', batch.at(-1)!.id)</div>
+      <div class="row diff-add">      44 +   }</div>
+      <div class="row"><span class="gr">●</span> <span class="b">Bash</span>(pnpm vitest run src/search)</div>
+      <div class="row">  ⎿  <span class="gr">✓</span> backfill.test.ts <span class="dim">(6 tests) 412ms</span></div>
+      <div class="row">     <span class="rd">✗</span> indexer.test.ts &gt; skips deleted docs <span class="dim">— expected 0 calls, got 2</span></div>
+      <div class="row"><span class="ink">●</span> The indexer still enqueues soft-deleted docs. Filtering on <span class="cy">deleted_at</span> in archivedAfter…</div>
+      <div class="row"> </div>
+      <div class="row"><span class="am">✻</span> <span class="am">Reticulating…</span> <span class="dim">(esc to interrupt · 41s · ↓ 2.1k tokens)</span></div>
+      <div class="inbox row"><span class="dim">&gt;</span> <span class="typed">also add a metric for docs indexed per minute</span><span class="cur"></span></div>
+      <div class="row dim" style="margin-top:4px">  ⏵⏵ accept edits on <span class="dim">(shift+tab to cycle)</span>                                          ctx 64% · $3.41</div>
+    </div>
+
+    <!-- side panes -->
+    <div style="display:grid;grid-template-rows:auto auto 1fr;gap:14px;min-height:0">
+      <div class="pane">
+        <span class="t">git · changes</span><span class="k"><kbd>d</kbd> diff</span>
+        <div class="row"><span class="gr">A</span>  src/search/backfill.ts      <span class="gr">+62</span></div>
+        <div class="row"><span class="gr">A</span>  migrations/0042_cursor.sql  <span class="gr">+18</span></div>
+        <div class="row"><span class="am">M</span>  src/search/store.ts         <span class="gr">+27</span> <span class="rd">−6</span></div>
+        <div class="row"><span class="am">M</span>  src/search/indexer.ts       <span class="gr">+4</span> <span class="rd">−4</span></div>
+        <div class="row"><span class="am">M</span>  src/jobs/schedule.ts        <span class="gr">+9</span> <span class="rd">−2</span></div>
+        <div class="row"><span class="gr">A</span>  test/backfill.test.ts       <span class="gr">+8</span></div>
+        <div class="row dim" style="margin-top:6px">0 commits ahead of main · not pushed</div>
+      </div>
+      <div class="pane">
+        <span class="t">context</span><span class="k">2 MCP · 3 plugins</span>
+        <dl class="kv">
+          <dt>worktree</dt><dd class="mid">~/.cw/worktrees/atlas/eng-430…</dd>
+          <dt>account</dt><dd>personal</dd>
+          <dt>harness</dt><dd>claude <span class="dim">opus</span></dd>
+          <dt>mcp</dt><dd>linear · postgres</dd>
+          <dt>plugins</dt><dd>kioku · superpowers · qa</dd>
+          <dt>memory</dt><dd><span class="vi">atlas</span> <span class="dim">→ studio</span></dd>
+        </dl>
+      </div>
+      <div class="pane">
+        <span class="t">state history</span><span class="k">hooks</span>
+        <div class="row"><span class="dim">14:06:26</span> <span class="gr">⠿</span> working</div>
+        <div class="row"><span class="dim">14:06:20</span> <span class="rd">✗</span> test failed <span class="dim">(tool)</span></div>
+        <div class="row"><span class="dim">14:04:02</span> <span class="gr">⠿</span> working</div>
+        <div class="row"><span class="dim">14:03:51</span> <span class="rd">!</span> permission <span class="dim">· Bash</span></div>
+        <div class="row"><span class="dim">     ↳</span> <span class="gr">granted</span> <span class="dim">after 11s</span></div>
+        <div class="row"><span class="dim">13:53:40</span> <span class="gr">▶</span> session start</div>
+        <div class="hr" style="margin-top:10px">───────────────────────────────────</div>
+        <div class="row"><span class="am">[x]</span> close task  <span class="am">[R]</span> remember…</div>
+        <div class="row"><span class="am">[/]</span> slash cmd   <span class="am">[k]</span> kill pty</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="keys">
+    <span class="mode" style="background:var(--amber)">INSERT</span>
+    <span><kbd>⌃b</kbd>prefix</span><span><kbd>⌃b n</kbd>next tab</span><span><kbd>⌃b 0</kbd>tasks</span><span><kbd>⌃b d</kbd>diff</span><span><kbd>⌃b c</kbd>create PR</span><span><kbd>⌃b x</kbd>close</span><span><kbd>⌃b z</kbd>zoom terminal</span><span style="margin-left:auto" class="dim">keys go to the agent until ⌃b</span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ SCREEN C ═══════════════════════════ -->
+<p class="cap"><b>C</b> Overview, paper theme <span>the same TUI on a daylight teletype: ink on cream, no glow, no scanlines</span></p>
+<div id="slotC"></div>
+
+</div>
+<script>
+(function(){
+  try{
+    var a=document.getElementById('scrA');
+    var c=a.cloneNode(true);
+    c.id='scrC';
+    c.classList.add('paper');
+    c.setAttribute('aria-label','Overview screen, paper theme');
+    document.getElementById('slotC').replaceWith(c);
+  }catch(e){}
+})();
+</script>
+</body>
+</html>

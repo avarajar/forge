@@ -1,0 +1,785 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge Foundry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=Barlow+Semi+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============ TOKENS — FOUNDRY (night shift) ============ */
+:root, .shift-night {
+  --soot: #0f0e0d;
+  --iron: #171513;
+  --plate: #1e1b18;
+  --plate-2: #26221e;
+  --seam: #352f29;
+  --seam-2: #4a423a;
+  --ash: #eee7db;
+  --ink-2: #a89e90;
+  --ink-3: #6f675d;
+  --ember: #ff6a1a;
+  --ember-deep: #c8440a;
+  --molten: #ffb22e;
+  --whitehot: #fff0c4;
+  --cherry: #e0391f;
+  --steel: #7d93a5;
+  --steel-deep: #4c5c69;
+  --patina: #6dbb93;
+  --violet: #b39cff;
+  --glow: 0 0 22px rgba(255,106,26,.45);
+  --bevel-hi: rgba(255,255,255,.06);
+  --bevel-lo: rgba(0,0,0,.55);
+  --term-bg: #0b0a09;
+  --page: #0a0908;
+  --noise-op: .07;
+}
+.shift-day {
+  --soot: #d8d2c6;
+  --iron: #e4dfd5;
+  --plate: #efebe3;
+  --plate-2: #f7f4ee;
+  --seam: #c9c1b3;
+  --seam-2: #aea493;
+  --ash: #1a1714;
+  --ink-2: #5b5349;
+  --ink-3: #8a8175;
+  --ember: #e2560c;
+  --ember-deep: #a63a04;
+  --molten: #c98100;
+  --whitehot: #7a3300;
+  --cherry: #c22a12;
+  --steel: #4f6779;
+  --steel-deep: #8ea2b1;
+  --patina: #2f8a60;
+  --violet: #6b4fd6;
+  --glow: 0 0 16px rgba(226,86,12,.28);
+  --bevel-hi: rgba(255,255,255,.7);
+  --bevel-lo: rgba(60,45,30,.18);
+  --term-bg: #1a1714;
+  --noise-op: .05;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --page: #1a1714; }
+}
+:root[data-theme="dark"] { --page: #0a0908; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--page); }
+body {
+  color: #eee7db;
+  font-family: "Barlow Semi Condensed", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 48px 0 96px;
+}
+.mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+.disp { font-family: "Big Shoulders Display", "Barlow Semi Condensed", sans-serif; }
+
+/* ============ PITCH CHROME ============ */
+.pitch-head { width: 1440px; margin: 0 auto 40px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 4px; }
+.pitch-head h1 { font-family: "Big Shoulders Display"; font-weight: 900; font-size: 64px; letter-spacing: .02em; line-height: .9; color: #eee7db; text-transform: uppercase; }
+.pitch-head h1 span { color: #ff6a1a; text-shadow: 0 0 30px rgba(255,106,26,.5); }
+.pitch-head p { font-size: 17px; color: #a89e90; max-width: 560px; line-height: 1.4; text-align: right; }
+.screen-label { width: 1440px; margin: 0 auto 12px; display: flex; gap: 14px; align-items: center; font-family: "JetBrains Mono"; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: #a89e90; }
+.screen-label b { color: #0a0908; background: #ff6a1a; padding: 3px 8px; font-weight: 700; }
+.screen-label i { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, #4a423a 0 6px, transparent 6px 10px); }
+.gap { height: 64px; }
+
+/* ============ FRAME ============ */
+.frame {
+  width: 1440px; height: 900px; margin: 0 auto; position: relative; overflow: hidden;
+  background: var(--soot); color: var(--ash);
+  display: grid; grid-template-columns: 236px 1fr;
+  border: 1px solid var(--seam);
+  box-shadow: 0 40px 120px rgba(0,0,0,.6);
+}
+.frame::after { /* soot grain */
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: var(--noise-op); mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ============ RAIL ============ */
+.rail {
+  background: var(--iron);
+  border-right: 1px solid var(--seam);
+  display: flex; flex-direction: column; padding: 18px 14px 14px; gap: 18px; min-height: 0;
+  box-shadow: inset -1px 0 0 var(--bevel-hi);
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 4px 14px; border-bottom: 2px solid var(--seam); }
+.brand svg { flex: none; }
+.brand .word { font-family: "Big Shoulders Display"; font-weight: 900; font-size: 30px; letter-spacing: .06em; line-height: .8; }
+.brand .sub { font-family: "JetBrains Mono"; font-size: 9px; letter-spacing: .2em; color: var(--ink-3); margin-top: 5px; }
+.search {
+  display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px;
+  background: var(--soot); border: 1px solid var(--seam); border-radius: 3px;
+  color: var(--ink-3); font-size: 14px; box-shadow: inset 0 2px 4px var(--bevel-lo);
+}
+.search kbd { margin-left: auto; font-family: "JetBrains Mono"; font-size: 10px; color: var(--ink-2); border: 1px solid var(--seam-2); padding: 1px 5px; border-radius: 2px; }
+.rail-sec { display: flex; flex-direction: column; gap: 2px; }
+.rail-h { font-family: "JetBrains Mono"; font-size: 10px; letter-spacing: .22em; color: var(--ink-3); text-transform: uppercase; padding: 0 8px 6px; display: flex; justify-content: space-between; }
+.nav {
+  display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 3px;
+  font-family: "Big Shoulders Display"; font-weight: 700; font-size: 17px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2);
+  position: relative;
+}
+.nav svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; flex: none; }
+.nav .ct { margin-left: auto; font-family: "JetBrains Mono"; font-size: 11px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.nav.on {
+  color: var(--ash); background: linear-gradient(180deg, var(--plate-2), var(--plate));
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 1px 0 var(--bevel-lo), inset 0 0 0 1px var(--seam);
+}
+.nav.on::before { content: ""; position: absolute; left: -14px; top: 7px; bottom: 7px; width: 4px; background: var(--ember); box-shadow: var(--glow); }
+.nav .hot { background: var(--cherry); color: #fff; padding: 0 6px; border-radius: 2px; font-weight: 700; }
+.proj { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 10px; font-size: 15px; color: var(--ink-2); font-weight: 500; }
+.proj .t { width: 8px; height: 8px; border-radius: 1px; flex: none; }
+.proj .ct { margin-left: auto; font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); }
+.rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 2px solid var(--seam); }
+.shift { display: grid; grid-template-columns: 1fr 1fr; background: var(--soot); border: 1px solid var(--seam); border-radius: 3px; padding: 3px; box-shadow: inset 0 2px 4px var(--bevel-lo); }
+.shift span { text-align: center; font-family: "JetBrains Mono"; font-size: 10px; letter-spacing: .14em; padding: 6px 0; color: var(--ink-3); border-radius: 2px; }
+.shift span.on { background: var(--plate-2); color: var(--ash); box-shadow: inset 0 1px 0 var(--bevel-hi), 0 1px 2px var(--bevel-lo); }
+.who { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.who .av { width: 24px; height: 24px; border-radius: 2px; background: var(--steel-deep); display: grid; place-items: center; font-family: "Big Shoulders Display"; font-weight: 800; color: var(--ash); font-size: 13px; }
+
+/* ============ STAMPS & PIECES ============ */
+.stamp {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  font-family: "JetBrains Mono"; font-weight: 700; font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  padding: 3px 6px 2px; border: 1.5px solid currentColor; border-radius: 2px; line-height: 1.2; white-space: nowrap;
+}
+.t-dev { color: var(--ember); }
+.t-rev { color: var(--steel); }
+.t-loop { color: var(--violet); }
+.t-gen { color: var(--patina); }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px;
+  font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-2);
+  background: var(--soot); border: 1px solid var(--seam); border-radius: 2px; white-space: nowrap;
+}
+.chip svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+.chip.pr-open { color: var(--patina); border-color: color-mix(in srgb, var(--patina) 40%, var(--seam)); }
+.chip.pr-merged { color: var(--violet); border-color: color-mix(in srgb, var(--violet) 40%, var(--seam)); }
+.chip.pr-draft { color: var(--ink-2); border-style: dashed; }
+.chip.dirty { color: var(--molten); border-color: color-mix(in srgb, var(--molten) 40%, var(--seam)); }
+.chip.clean { color: var(--ink-3); }
+
+/* temperature dots */
+.heat { width: 10px; height: 10px; border-radius: 50%; flex: none; position: relative; }
+.heat.working { background: radial-gradient(circle at 40% 35%, var(--whitehot), var(--molten) 35%, var(--ember) 70%); box-shadow: 0 0 10px var(--ember), 0 0 2px var(--molten); animation: flicker 2.4s infinite; }
+.heat.waiting { background: var(--molten); box-shadow: 0 0 0 3px color-mix(in srgb, var(--molten) 25%, transparent); animation: beacon 1.6s infinite; }
+.heat.permission { background: var(--molten); border-radius: 1px; transform: rotate(45deg); width: 9px; height: 9px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--molten) 25%, transparent); animation: beacon 1.2s infinite; }
+.heat.error { background: var(--cherry); box-shadow: 0 0 8px var(--cherry); }
+.heat.idle { background: var(--steel-deep); box-shadow: inset 0 0 0 1.5px var(--steel); }
+.heat.cold { background: transparent; box-shadow: inset 0 0 0 1.5px var(--seam-2); }
+
+/* chunky buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; padding: 0 14px;
+  font-family: "Big Shoulders Display"; font-weight: 800; font-size: 15px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ash); background: linear-gradient(180deg, var(--plate-2), var(--plate));
+  border: 1px solid var(--seam-2); border-radius: 3px; white-space: nowrap;
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 2px 0 var(--bevel-lo);
+}
+.btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.2; }
+.btn.hot {
+  color: #1a0b02; border-color: #7a2a06;
+  background: linear-gradient(180deg, #ff8a3d 0%, #ff6a1a 45%, #e2520c 100%);
+  box-shadow: inset 0 1px 0 rgba(255,240,200,.55), 0 3px 0 #7a2a06, 0 0 26px rgba(255,106,26,.35);
+}
+.btn.ghost { background: transparent; box-shadow: none; border-color: var(--seam); color: var(--ink-2); }
+.btn.sm { height: 28px; font-size: 13px; padding: 0 10px; }
+
+/* ============ MAIN (overview) ============ */
+.main { display: grid; grid-template-columns: 1fr 340px; min-width: 0; min-height: 0; }
+.floor { padding: 22px 26px 0; display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; overflow: hidden; }
+.floor-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
+.floor-head h2 { font-family: "Big Shoulders Display"; font-weight: 900; font-size: 52px; line-height: .82; letter-spacing: .02em; text-transform: uppercase; }
+.floor-head .tally { display: flex; gap: 18px; font-family: "JetBrains Mono"; font-size: 11px; letter-spacing: .12em; color: var(--ink-2); text-transform: uppercase; margin-top: 10px; }
+.floor-head .tally b { color: var(--ash); font-size: 14px; margin-right: 4px; letter-spacing: 0; }
+.floor-head .tally .warn b { color: var(--molten); }
+.heatbar { width: 300px; }
+.heatbar .lbl { display: flex; justify-content: space-between; font-family: "JetBrains Mono"; font-size: 10px; letter-spacing: .18em; color: var(--ink-3); margin-bottom: 6px; }
+.heatbar .bar { height: 14px; display: flex; gap: 2px; padding: 2px; background: var(--soot); border: 1px solid var(--seam); border-radius: 2px; box-shadow: inset 0 2px 4px var(--bevel-lo); }
+.heatbar .bar i { flex: 1; border-radius: 1px; }
+
+/* strike card */
+.strike {
+  position: relative; background: linear-gradient(180deg, var(--plate-2), var(--plate));
+  border: 1px solid var(--seam-2); border-radius: 4px; padding: 14px 16px 12px;
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 4px 0 var(--bevel-lo), 0 12px 30px rgba(0,0,0,.25);
+}
+.strike::before, .strike::after { /* rivets */
+  content: ""; position: absolute; top: 8px; width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--seam-2), var(--soot)); box-shadow: 0 1px 0 var(--bevel-hi);
+}
+.strike::before { left: 8px; } .strike::after { right: 8px; }
+.strike-top { display: flex; align-items: center; gap: 12px; }
+.strike-top .ttl { font-family: "Big Shoulders Display"; font-weight: 800; font-size: 14px; letter-spacing: .22em; color: var(--ink-2); text-transform: uppercase; padding-left: 10px; }
+.strike-input { display: flex; gap: 10px; margin-top: 10px; }
+.strike-input .field {
+  flex: 1; height: 50px; display: flex; align-items: center; gap: 12px; padding: 0 14px;
+  background: var(--soot); border: 1px solid var(--seam); border-radius: 3px; box-shadow: inset 0 3px 6px var(--bevel-lo);
+  font-size: 19px; color: var(--ash); font-weight: 500;
+}
+.strike-input .field .ph { color: var(--ink-3); }
+.strike-input .field .caret { width: 2px; height: 22px; background: var(--ember); animation: blink 1s steps(1) infinite; margin-left: -8px; }
+.strike-input .btn.hot { height: 50px; font-size: 20px; padding: 0 24px; }
+.strike-opts { display: flex; align-items: center; gap: 14px; margin-top: 10px; font-size: 13px; color: var(--ink-2); }
+.seg { display: inline-flex; background: var(--soot); border: 1px solid var(--seam); border-radius: 3px; padding: 2px; box-shadow: inset 0 2px 4px var(--bevel-lo); }
+.seg span { font-family: "Big Shoulders Display"; font-weight: 800; font-size: 13px; letter-spacing: .14em; padding: 4px 11px; color: var(--ink-3); border-radius: 2px; text-transform: uppercase; }
+.seg span.on { color: #1a0b02; background: var(--ember); box-shadow: inset 0 1px 0 rgba(255,240,200,.5); }
+.pick { display: inline-flex; align-items: center; gap: 6px; }
+.pick b { font-weight: 600; color: var(--ash); background: var(--soot); border: 1px solid var(--seam); padding: 3px 8px; border-radius: 2px; font-size: 13px; }
+.infer { margin-left: auto; font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); }
+.infer em { color: var(--molten); font-style: normal; }
+
+/* filters */
+.filters { display: flex; align-items: center; gap: 10px; }
+.filters .lbl { font-family: "JetBrains Mono"; font-size: 10px; letter-spacing: .18em; color: var(--ink-3); text-transform: uppercase; }
+.tog { display: inline-flex; gap: 4px; }
+.tog span { font-family: "JetBrains Mono"; font-size: 11px; padding: 4px 8px; border: 1px solid var(--seam); color: var(--ink-2); border-radius: 2px; }
+.tog span.on { color: var(--ash); border-color: var(--seam-2); background: var(--plate-2); box-shadow: inset 0 -2px 0 var(--ember); }
+.filters .sp { flex: 1; }
+
+/* ledger (task list) */
+.ledger { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.grp-h { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.grp-h .nm { font-family: "Big Shoulders Display"; font-weight: 900; font-size: 20px; letter-spacing: .06em; text-transform: uppercase; }
+.grp-h .meta { font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); }
+.grp-h .rule { flex: 1; height: 2px; background: repeating-linear-gradient(90deg, var(--seam) 0 2px, transparent 2px 5px); }
+.rows { border: 1px solid var(--seam); border-radius: 3px; overflow: hidden; background: var(--iron); }
+.row {
+  display: grid; grid-template-columns: 6px 62px minmax(0,1fr) 168px 84px 40px 76px; align-items: center; gap: 11px;
+  height: 44px; padding-right: 12px; border-top: 1px solid var(--seam); position: relative;
+}
+.row:first-child { border-top: 0; }
+.row .temp { align-self: stretch; }
+.row .temp.working { background: linear-gradient(180deg, var(--molten), var(--ember), var(--ember-deep)); background-size: 100% 300%; animation: shimmer 3s ease-in-out infinite; box-shadow: 0 0 12px var(--ember); }
+.row .temp.waiting, .row .temp.permission { background: repeating-linear-gradient(-45deg, var(--molten) 0 4px, #1a1408 4px 8px); }
+.row .temp.error { background: var(--cherry); }
+.row .temp.idle { background: var(--steel-deep); }
+.row .temp.cold { background: var(--seam); }
+.row .title { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row .title .l1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.row .title .l1 .nm { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .title .l2 { display: flex; gap: 10px; font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); white-space: nowrap; overflow: hidden; }
+.row .title .l2 .tk { color: var(--ink-2); }
+.row .git { display: flex; gap: 6px; justify-content: flex-start; overflow: hidden; }
+.row .harn { font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.row .harn i { width: 14px; height: 14px; border-radius: 3px; display: grid; place-items: center; font-style: normal; font-size: 9px; font-weight: 700; color: #111; }
+.row .when { font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); text-align: right; }
+.row .act { display: flex; justify-content: flex-end; }
+.row.attn { background: linear-gradient(90deg, color-mix(in srgb, var(--molten) 10%, transparent), transparent 60%); }
+.row .flag { font-family: "JetBrains Mono"; font-weight: 700; font-size: 10px; letter-spacing: .12em; padding: 2px 6px; border-radius: 2px; white-space: nowrap; }
+.flag.need { background: var(--molten); color: #1a1006; }
+.flag.err { background: var(--cherry); color: #fff; }
+.flag.live { color: var(--ember); border: 1px solid color-mix(in srgb, var(--ember) 50%, transparent); }
+.done-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px dashed var(--seam-2); border-radius: 3px; font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); letter-spacing: .08em; }
+.done-row b { color: var(--ink-2); }
+
+/* ============ FURNACE (right column) ============ */
+.furnace { background: var(--iron); border-left: 1px solid var(--seam); padding: 22px 18px 16px; display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow: hidden; }
+.f-h { display: flex; align-items: baseline; justify-content: space-between; }
+.f-h h3 { font-family: "Big Shoulders Display"; font-weight: 900; font-size: 22px; letter-spacing: .1em; text-transform: uppercase; }
+.f-h span { font-family: "JetBrains Mono"; font-size: 10px; letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; }
+.crucibles { display: flex; flex-direction: column; gap: 8px; }
+.cru {
+  position: relative; padding: 10px 12px 10px 14px; border-radius: 3px; background: var(--plate);
+  border: 1px solid var(--seam); box-shadow: inset 0 1px 0 var(--bevel-hi);
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; overflow: hidden;
+}
+.cru::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.cru.working { border-color: color-mix(in srgb, var(--ember) 45%, var(--seam)); background: linear-gradient(90deg, color-mix(in srgb, var(--ember) 14%, var(--plate)), var(--plate) 70%); }
+.cru.working::before { background: var(--ember); box-shadow: 0 0 12px var(--ember); }
+.cru.waiting, .cru.permission { border-color: var(--molten); }
+.cru.waiting::before, .cru.permission::before { background: repeating-linear-gradient(-45deg, var(--molten) 0 4px, #1a1408 4px 8px); width: 6px; }
+.cru.error::before { background: var(--cherry); }
+.cru .n { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cru .s { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); }
+.cru .s .st { letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+.cru.working .st { color: var(--ember); }
+.cru.waiting .st, .cru.permission .st { color: var(--molten); }
+.cru.error .st { color: var(--cherry); }
+.cru .t { font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); }
+.cru .ask { grid-column: 1 / -1; margin-top: 4px; font-family: "JetBrains Mono"; font-size: 11px; color: var(--ash); background: var(--soot); border: 1px solid var(--seam); padding: 6px 8px; border-radius: 2px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cru .ask .k { display: flex; gap: 4px; }
+.cru .ask .k b { font-weight: 700; padding: 1px 6px; border-radius: 2px; background: var(--molten); color: #1a1006; }
+.cru .ask .k b.no { background: transparent; color: var(--ink-2); border: 1px solid var(--seam-2); }
+
+.gauges { display: flex; flex-direction: column; gap: 12px; }
+.acct { background: var(--plate); border: 1px solid var(--seam); border-radius: 3px; padding: 10px 12px 12px; box-shadow: inset 0 1px 0 var(--bevel-hi); }
+.acct-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.acct-h .nm { font-family: "Big Shoulders Display"; font-weight: 800; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; }
+.acct-h .hn { margin-left: auto; font-family: "JetBrains Mono"; font-size: 10px; color: var(--ink-3); }
+.gauge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.meter .top { display: flex; justify-content: space-between; align-items: baseline; font-family: "JetBrains Mono"; font-size: 10px; color: var(--ink-3); letter-spacing: .1em; margin-bottom: 4px; }
+.meter .top b { font-family: "Big Shoulders Display"; font-weight: 800; font-size: 20px; color: var(--ash); letter-spacing: 0; }
+.meter .cells { display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; height: 10px; }
+.meter .cells i { background: var(--soot); border-radius: 1px; box-shadow: inset 0 1px 1px var(--bevel-lo); }
+.meter .rs { font-family: "JetBrains Mono"; font-size: 10px; color: var(--ink-3); margin-top: 4px; }
+.meter.hot .top b { color: var(--molten); }
+.meter.crit .top b { color: var(--cherry); }
+
+/* ============ DETAIL ============ */
+.detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tabs { display: flex; align-items: center; gap: 4px; height: 46px; padding: 0 18px; border-bottom: 1px solid var(--seam); background: var(--iron); }
+.tab { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 3px 3px 0 0; font-size: 14px; color: var(--ink-2); font-weight: 500; position: relative; top: 7px; border: 1px solid transparent; border-bottom: 0; }
+.tab .x { color: var(--ink-3); font-size: 13px; margin-left: 4px; }
+.tab.on { background: var(--soot); border-color: var(--seam); color: var(--ash); height: 39px; }
+.tab.on::before { content: ""; position: absolute; left: -1px; right: -1px; top: -1px; height: 3px; background: var(--ember); box-shadow: var(--glow); }
+.tab .proj-tag { font-family: "JetBrains Mono"; font-size: 10px; color: var(--ink-3); }
+.tab-add { width: 30px; height: 30px; display: grid; place-items: center; color: var(--ink-3); border: 1px dashed var(--seam-2); border-radius: 3px; margin-left: 6px; font-size: 16px; }
+.ident { padding: 18px 24px 14px; display: flex; align-items: flex-start; gap: 20px; }
+.ident .left { flex: 1; min-width: 0; }
+.ident .kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ident h2 { font-family: "Big Shoulders Display"; font-weight: 900; font-size: 44px; line-height: .9; letter-spacing: .01em; text-transform: uppercase; }
+.ident .links { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.ident .acts { display: flex; gap: 8px; padding-top: 6px; }
+.working-badge { display: inline-flex; align-items: center; gap: 8px; font-family: "JetBrains Mono"; font-size: 11px; font-weight: 700; letter-spacing: .16em; color: var(--ember); text-transform: uppercase; }
+.metrics { display: grid; grid-template-columns: 210px repeat(4, 1fr); margin: 0 24px; border: 1px solid var(--seam-2); border-radius: 4px; background: linear-gradient(180deg, var(--plate-2), var(--plate)); box-shadow: inset 0 1px 0 var(--bevel-hi), 0 3px 0 var(--bevel-lo); }
+.metric { padding: 10px 16px; border-left: 1px solid var(--seam); display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.metric:first-child { border-left: 0; flex-direction: row; align-items: center; gap: 12px; }
+.metric .k { font-family: "JetBrains Mono"; font-size: 10px; letter-spacing: .18em; color: var(--ink-3); text-transform: uppercase; }
+.metric .v { font-family: "Big Shoulders Display"; font-weight: 800; font-size: 30px; line-height: 1; }
+.metric .v small { font-size: 16px; color: var(--ink-2); font-weight: 700; }
+.metric .d { font-family: "JetBrains Mono"; font-size: 11px; color: var(--ink-3); }
+.plus { color: var(--patina); } .minus { color: var(--cherry); }
+.workbench { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 290px; gap: 16px; padding: 14px 24px 18px; }
+.term-wrap {
+  position: relative; border-radius: 5px; padding: 3px;
+  background: linear-gradient(180deg, #ff8a3d, #c8440a 40%, #3a1a08);
+  box-shadow: 0 0 0 1px #000, 0 0 40px rgba(255,106,26,.25), 0 0 4px rgba(255,140,60,.5);
+  animation: forgeGlow 3.6s ease-in-out infinite;
+  display: flex; min-height: 0;
+}
+.term { flex: 1; background: var(--term-bg); border-radius: 3px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.term-bar { display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-bottom: 1px solid #241f1b; font-family: "JetBrains Mono"; font-size: 11px; color: #7a7064; background: #110f0d; }
+.term-bar .bolt { display: flex; gap: 5px; }
+.term-bar .bolt i { width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #5a5048, #1a1613); box-shadow: inset 0 0 0 1px #000; }
+.term-bar .sp { flex: 1; }
+.term-body { flex: 1; padding: 12px 16px; font-family: "JetBrains Mono"; font-size: 12.5px; line-height: 1.55; color: #d8d0c4; overflow: hidden; white-space: pre; }
+.term-body .dim { color: #6e665c; }
+.term-body .usr { color: #eee7db; background: #1d1a17; display: block; padding: 2px 8px; margin: 0 -8px; border-left: 2px solid #6e665c; }
+.term-body .tool { color: #ffb22e; }
+.term-body .ok { color: #6dbb93; }
+.term-body .bad { color: #e0391f; }
+.term-body .add { color: #6dbb93; background: rgba(109,187,147,.08); display: block; }
+.term-body .del { color: #e57a66; background: rgba(224,57,31,.08); display: block; }
+.term-body .em { color: #ff6a1a; }
+.term-body .blue { color: #8fb3cf; }
+.term-body .spin { color: #ff6a1a; display: inline-block; animation: spin 1.2s steps(4) infinite; }
+.term-body .cur { display: inline-block; width: 8px; height: 15px; background: #ff6a1a; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+.term-input { border-top: 1px solid #241f1b; padding: 8px 16px; font-family: "JetBrains Mono"; font-size: 12px; color: #6e665c; display: flex; justify-content: space-between; background: #0e0c0b; }
+.side { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: hidden; }
+.panel { background: var(--iron); border: 1px solid var(--seam); border-radius: 3px; padding: 12px; }
+.panel h4 { font-family: "Big Shoulders Display"; font-weight: 800; font-size: 14px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 8px; display: flex; justify-content: space-between; }
+.panel h4 span { font-family: "JetBrains Mono"; font-weight: 500; font-size: 10px; letter-spacing: .1em; color: var(--ink-3); }
+.files { display: flex; flex-direction: column; gap: 5px; font-family: "JetBrains Mono"; font-size: 11px; }
+.files div { display: flex; gap: 6px; align-items: center; }
+.files .p { color: var(--ink-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files .m { width: 14px; text-align: center; font-weight: 700; }
+.files .m.M { color: var(--molten); } .files .m.A { color: var(--patina); }
+.files .n { color: var(--ink-3); font-size: 10px; }
+.log { display: flex; flex-direction: column; gap: 0; font-family: "JetBrains Mono"; font-size: 11px; position: relative; }
+.log div { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--ink-2); }
+.log div span:last-child { margin-left: auto; color: var(--ink-3); }
+.tagrow { display: flex; flex-wrap: wrap; gap: 5px; }
+
+/* ============ MOTION ============ */
+@keyframes flicker { 0%,100% { opacity: 1; box-shadow: 0 0 10px var(--ember); } 40% { opacity: .85; box-shadow: 0 0 6px var(--ember); } 55% { opacity: 1; box-shadow: 0 0 14px var(--ember); } }
+@keyframes beacon { 0%,100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--molten) 35%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--molten) 0%, transparent); } }
+@keyframes shimmer { 0%,100% { background-position: 0 0; } 50% { background-position: 0 100%; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes spin { 0% { transform: rotate(0); } 100% { transform: rotate(360deg); } }
+@keyframes forgeGlow { 0%,100% { box-shadow: 0 0 0 1px #000, 0 0 40px rgba(255,106,26,.22), 0 0 4px rgba(255,140,60,.5); } 50% { box-shadow: 0 0 0 1px #000, 0 0 56px rgba(255,106,26,.34), 0 0 6px rgba(255,160,80,.6); } }
+@keyframes rise { 0% { transform: translateY(0) scale(1); opacity: 0; } 15% { opacity: .9; } 100% { transform: translateY(-60px) scale(.4); opacity: 0; } }
+.spark { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: var(--molten); box-shadow: 0 0 6px var(--ember); animation: rise 2.8s ease-out infinite; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .spark { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="pitch-head">
+  <h1>Forge<br><span>Foundry</span></h1>
+  <p>Your agents are furnaces. Heat means work: ember for a session that is running, hazard stripes for one waiting on you, cooled steel for one at rest. Read the floor at a glance, strike a new job in one move.</p>
+</header>
+
+<!-- SVG sprite -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-tasks" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-acct" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></symbol>
+    <symbol id="i-skill" viewBox="0 0 24 24"><path d="M14 4l6 6-10 10H4v-6z"/></symbol>
+    <symbol id="i-proto" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="1"/><path d="M8 21h8"/></symbol>
+    <symbol id="i-qa" viewBox="0 0 24 24"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></symbol>
+    <symbol id="i-mem" viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></symbol>
+    <symbol id="i-mod" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/></symbol>
+    <symbol id="i-pr" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v10M18 17V9a3 3 0 0 0-3-3h-4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></symbol>
+    <symbol id="i-anvil" viewBox="0 0 32 32"><path d="M3 9h20c0 3 3 5 7 5v2c-5 0-8 1-10 4v3h3v3H9v-3h3v-3c-2-3-6-4-9-5z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ================= SCREEN A ================= -->
+<div class="screen-label"><b>A</b> The Floor — overview, night shift <i></i> 1440 × 900</div>
+<section class="frame shift-night" id="screenA">
+  <aside class="rail">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="3" fill="var(--ember)"/><use href="#i-anvil" fill="#1a0b02" transform="translate(2 1) scale(.88)"/></svg>
+      <div><div class="word">FORGE</div><div class="sub">FOUNDRY · CW 0.3</div></div>
+    </div>
+    <div class="search"><svg width="14" height="14" stroke="currentColor" fill="none" stroke-width="2"><use href="#i-search"/></svg>Search, jump, run<kbd>⌘K</kbd></div>
+    <nav class="rail-sec">
+      <div class="nav on"><svg><use href="#i-tasks"/></svg>Tasks<span class="ct">9</span></div>
+      <div class="nav"><svg><use href="#i-acct"/></svg>Accounts<span class="ct">3</span></div>
+      <div class="nav"><svg><use href="#i-skill"/></svg>Skills</div>
+      <div class="nav"><svg><use href="#i-proto"/></svg>Prototypes</div>
+      <div class="nav"><svg><use href="#i-qa"/></svg>QA<span class="ct hot">2</span></div>
+      <div class="nav"><svg><use href="#i-mem"/></svg>Memory</div>
+    </nav>
+    <div class="rail-sec">
+      <div class="rail-h"><span>Modules</span><span>+</span></div>
+      <div class="nav"><svg><use href="#i-sun"/></svg>Today<span class="ct">4</span></div>
+      <div class="nav"><svg><use href="#i-mod"/></svg>Monoku OS<span class="ct">1</span></div>
+    </div>
+    <div class="rail-sec">
+      <div class="rail-h"><span>Projects</span><span>+</span></div>
+      <div class="proj"><i class="t" style="background:var(--ember)"></i>atlas<span class="ct">4</span></div>
+      <div class="proj"><i class="t" style="background:var(--molten)"></i>billing-api<span class="ct">3</span></div>
+      <div class="proj"><i class="t" style="background:var(--steel)"></i>ledger-ui<span class="ct">2</span></div>
+      <div class="proj"><i class="t" style="background:var(--seam-2)"></i>docs-site<span class="ct">0</span></div>
+    </div>
+    <div class="rail-foot">
+      <div class="shift"><span class="on">NIGHT</span><span>DAY</span></div>
+      <div class="who"><span class="av">JA</span>work · personal<span class="mono" style="margin-left:auto;font-size:10px;color:var(--ink-3)">:3000</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="floor">
+      <div class="floor-head">
+        <div>
+          <h2>The Floor</h2>
+          <div class="tally"><span><b>5</b>fires lit</span><span class="warn"><b>2</b>need a hand</span><span><b>1</b>cracked</span><span><b>12</b>done this week</span></div>
+        </div>
+        <div class="heatbar">
+          <div class="lbl"><span>FLOOR TEMPERATURE</span><span style="color:var(--ember)">1,240°</span></div>
+          <div class="bar" data-heat="w,w,p,q,w,e,i,i,c"></div>
+        </div>
+      </div>
+
+      <div class="strike">
+        <div class="strike-top"><span class="ttl">Strike a new job</span></div>
+        <div class="strike-input">
+          <div class="field"><span>ENG-431</span><span class="caret"></span><span class="ph">— paste a Linear ticket, a PR link, or name the job</span></div>
+          <button class="btn hot">Strike <svg><use href="#i-play"/></svg></button>
+        </div>
+        <div class="strike-opts">
+          <div class="seg"><span class="on">Dev</span><span>Review</span><span>Loop</span><span>General</span></div>
+          <span class="pick">Project <b>billing-api ▾</b></span>
+          <span class="pick">Account <b>work ▾</b></span>
+          <span class="pick">Harness <b>Claude Code ▾</b></span>
+          <span class="infer">Linear ticket → <em>Dev</em> in billing-api</span>
+        </div>
+      </div>
+
+      <div class="filters">
+        <span class="lbl">Group</span>
+        <div class="tog"><span class="on">Project</span><span>Recent</span></div>
+        <span class="lbl" style="margin-left:10px">Type</span>
+        <div class="tog"><span class="on">All 9</span><span>Dev 5</span><span>Review 2</span><span>Loop 1</span><span>General 1</span></div>
+        <span class="sp"></span>
+        <span class="lbl">Harness</span>
+        <div class="tog"><span class="on">All</span><span>Claude</span><span>Codex</span><span>Pi</span><span>OpenCode</span></div>
+      </div>
+
+      <div class="ledger">
+        <div>
+          <div class="grp-h"><span class="nm">atlas</span><span class="meta">next.js · 3 live</span><span class="rule"></span></div>
+          <div class="rows">
+            <div class="row"><i class="temp working"></i><span class="stamp t-dev">Dev</span>
+              <div class="title"><div class="l1"><span class="heat working"></span><span class="nm">Rate-limit the public search endpoint</span><span class="flag live">LIVE</span></div><div class="l2"><span class="tk">ENG-412</span><span>eng-412-rate-limit</span></div></div>
+              <div class="git"><span class="chip dirty">● 6 uncommitted</span></div>
+              <div class="harn"><i style="background:#ff8a3d">C</i>Claude</div><div class="when">12m</div><div class="act"><button class="btn sm">Open</button></div></div>
+            <div class="row attn"><i class="temp permission"></i><span class="stamp t-rev">Review</span>
+              <div class="title"><div class="l1"><span class="heat permission"></span><span class="nm">Migrate auth middleware to Hono</span><span class="flag need">PERMISSION</span></div><div class="l2"><span class="tk">PR #318</span><span>review/pr-318</span></div></div>
+              <div class="git"><span class="chip pr-open"><svg><use href="#i-pr"/></svg>#318 open</span></div>
+              <div class="harn"><i style="background:#cfd8de">X</i>Codex</div><div class="when">4m</div><div class="act"><button class="btn sm hot">Answer</button></div></div>
+            <div class="row"><i class="temp idle"></i><span class="stamp t-loop">Loop</span>
+              <div class="title"><div class="l1"><span class="heat idle"></span><span class="nm">Checkout e2e until green</span></div><div class="l2"><span class="tk">ENG-409</span><span>loop/checkout-e2e · 7 rounds</span></div></div>
+              <div class="git"><span class="chip pr-draft"><svg><use href="#i-pr"/></svg>#322 draft</span></div>
+              <div class="harn"><i style="background:#ff8a3d">C</i>Claude</div><div class="when">2h</div><div class="act"><button class="btn sm ghost">Resume</button></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="grp-h"><span class="nm">billing-api</span><span class="meta">hono · postgres · 2 live</span><span class="rule"></span></div>
+          <div class="rows">
+            <div class="row attn"><i class="temp waiting"></i><span class="stamp t-dev">Dev</span>
+              <div class="title"><div class="l1"><span class="heat waiting"></span><span class="nm">Prorate plan upgrades mid-cycle</span><span class="flag need">YOUR TURN</span></div><div class="l2"><span class="tk">ENG-398</span><span>eng-398-proration</span></div></div>
+              <div class="git"><span class="chip pr-open"><svg><use href="#i-pr"/></svg>#91 open</span><span class="chip dirty">● 2</span></div>
+              <div class="harn"><i style="background:#ff8a3d">C</i>Claude</div><div class="when">31m</div><div class="act"><button class="btn sm hot">Reply</button></div></div>
+            <div class="row"><i class="temp working"></i><span class="stamp t-gen">General</span>
+              <div class="title"><div class="l1"><span class="heat working"></span><span class="nm">Spike: compare queue libraries</span><span class="flag live">LIVE</span></div><div class="l2"><span class="tk">—</span><span>~/scratch/queues</span></div></div>
+              <div class="git"><span class="chip clean">no repo</span></div>
+              <div class="harn"><i style="background:#9fd3b8">O</i>OpenCode</div><div class="when">8m</div><div class="act"><button class="btn sm">Open</button></div></div>
+            <div class="row"><i class="temp cold"></i><span class="stamp t-dev">Dev</span>
+              <div class="title"><div class="l1"><span class="heat cold"></span><span class="nm">Webhook retries with backoff</span></div><div class="l2"><span class="tk">ENG-405</span><span>eng-405-webhook-retry</span></div></div>
+              <div class="git"><span class="chip pr-merged"><svg><use href="#i-pr"/></svg>#88 merged</span></div>
+              <div class="harn"><i style="background:#c7b6ff">π</i>Pi</div><div class="when">1d</div><div class="act"><button class="btn sm ghost">Resume</button></div></div>
+          </div>
+        </div>
+        <div>
+          <div class="grp-h"><span class="nm">ledger-ui</span><span class="meta">vite · preact</span><span class="rule"></span></div>
+          <div class="rows">
+            <div class="row"><i class="temp error"></i><span class="stamp t-dev">Dev</span>
+              <div class="title"><div class="l1"><span class="heat error"></span><span class="nm">Dark mode tokens for the invoice table</span><span class="flag err">CRACKED</span></div><div class="l2"><span class="tk">ENG-377</span><span>eng-377-invoice-tokens · exit 1</span></div></div>
+              <div class="git"><span class="chip dirty">● 1 uncommitted</span></div>
+              <div class="harn"><i style="background:#cfd8de">X</i>Codex</div><div class="when">44m</div><div class="act"><button class="btn sm">Open</button></div></div>
+            <div class="row"><i class="temp idle"></i><span class="stamp t-rev">Review</span>
+              <div class="title"><div class="l1"><span class="heat idle"></span><span class="nm">Stream the CSV export</span></div><div class="l2"><span class="tk">PR #57</span><span>review/pr-57</span></div></div>
+              <div class="git"><span class="chip pr-open"><svg><use href="#i-pr"/></svg>#57 open</span></div>
+              <div class="harn"><i style="background:#ff8a3d">C</i>Claude</div><div class="when">3h</div><div class="act"><button class="btn sm ghost">Resume</button></div></div>
+            <div class="row"><i class="temp cold"></i><span class="stamp t-dev">Dev</span>
+              <div class="title"><div class="l1"><span class="heat cold"></span><span class="nm">Empty state for reports</span></div><div class="l2"><span class="tk">ENG-420</span><span>eng-420-empty-reports</span></div></div>
+              <div class="git"><span class="chip clean">clean</span></div>
+              <div class="harn"><i style="background:#ff8a3d">C</i>Claude</div><div class="when">5h</div><div class="act"><button class="btn sm ghost">Resume</button></div></div>
+          </div>
+        </div>
+        <div class="done-row"><span class="heat cold"></span><b>DONE · 12 quenched this week</b><span>ENG-401 Invoice PDF fonts · PR #85 Retry jitter · ENG-396 Seed script…</span><span style="margin-left:auto">show ▾</span></div>
+      </div>
+    </div>
+
+    <aside class="furnace">
+      <div class="f-h"><h3>Furnace</h3><span>5 live · hottest first</span></div>
+      <div class="crucibles">
+        <div class="cru permission"><span class="n">Migrate auth middleware to Hono</span><span class="t">4m</span>
+          <div class="s"><span class="heat permission"></span><span class="st">Permission</span>atlas · Codex</div>
+          <div class="ask"><span>run <span style="color:var(--molten)">pnpm db:migrate</span>?</span><span class="k"><b>Allow</b><b class="no">Deny</b></span></div></div>
+        <div class="cru waiting"><span class="n">Prorate plan upgrades mid-cycle</span><span class="t">31m</span>
+          <div class="s"><span class="heat waiting"></span><span class="st">Waiting</span>billing-api · Claude</div>
+          <div class="ask"><span>“Round to the cent or to the day?”</span><span class="k"><b>Reply</b></span></div></div>
+        <div class="cru working" style="position:relative"><span class="n">Rate-limit the public search endpoint</span><span class="t">12m</span>
+          <div class="s"><span class="heat working"></span><span class="st">Working</span>atlas · Claude · ctx 38%</div>
+          <i class="spark" style="left:30%;bottom:6px;animation-delay:.2s"></i><i class="spark" style="left:62%;bottom:4px;animation-delay:1.3s"></i></div>
+        <div class="cru working"><span class="n">Spike: compare queue libraries</span><span class="t">8m</span>
+          <div class="s"><span class="heat working"></span><span class="st">Working</span>billing-api · OpenCode</div></div>
+        <div class="cru error"><span class="n">Dark mode tokens for the invoice table</span><span class="t">44m</span>
+          <div class="s"><span class="heat error"></span><span class="st">Error</span>ledger-ui · Codex · exit 1</div></div>
+      </div>
+
+      <div class="f-h" style="margin-top:2px"><h3>Pressure</h3><span>usage limits</span></div>
+      <div class="gauges">
+        <div class="acct"><div class="acct-h"><span class="heat working" style="width:8px;height:8px"></span><span class="nm">work</span><span class="hn">Claude Code</span></div>
+          <div class="gauge-pair">
+            <div class="meter hot" data-pct="78"><div class="top"><span>5 H</span><b>78%</b></div><div class="cells"></div><div class="rs">resets 1h 40m</div></div>
+            <div class="meter" data-pct="41"><div class="top"><span>7 D</span><b>41%</b></div><div class="cells"></div><div class="rs">resets Tue</div></div>
+          </div></div>
+        <div class="acct"><div class="acct-h"><span class="heat idle" style="width:8px;height:8px"></span><span class="nm">personal</span><span class="hn">Claude Code</span></div>
+          <div class="gauge-pair">
+            <div class="meter" data-pct="18"><div class="top"><span>5 H</span><b>18%</b></div><div class="cells"></div><div class="rs">resets 3h 05m</div></div>
+            <div class="meter crit" data-pct="92"><div class="top"><span>7 D</span><b>92%</b></div><div class="cells"></div><div class="rs">resets Sat</div></div>
+          </div></div>
+        <div class="acct"><div class="acct-h"><span class="heat working" style="width:8px;height:8px"></span><span class="nm">work</span><span class="hn">Codex</span></div>
+          <div class="gauge-pair">
+            <div class="meter" data-pct="9"><div class="top"><span>5 H</span><b>9%</b></div><div class="cells"></div><div class="rs">resets 4h 12m</div></div>
+            <div class="meter" data-pct="22"><div class="top"><span>7 D</span><b>22%</b></div><div class="cells"></div><div class="rs">resets Mon</div></div>
+          </div></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<div class="gap"></div>
+
+<!-- ================= SCREEN B ================= -->
+<div class="screen-label"><b>B</b> At the anvil — task detail <i></i> 1440 × 900</div>
+<section class="frame shift-night">
+  <aside class="rail" id="railB"></aside>
+  <div class="detail">
+    <div class="tabs">
+      <div class="tab on"><span class="heat working" style="width:8px;height:8px"></span>Rate-limit search<span class="proj-tag">atlas</span><span class="x">×</span></div>
+      <div class="tab"><span class="heat waiting" style="width:8px;height:8px"></span>Prorate upgrades<span class="proj-tag">billing-api</span><span class="x">×</span></div>
+      <div class="tab"><span class="heat permission" style="width:8px;height:8px"></span>Auth → Hono<span class="proj-tag">atlas</span><span class="x">×</span></div>
+      <div class="tab"><span class="heat error" style="width:8px;height:8px"></span>Invoice tokens<span class="proj-tag">ledger-ui</span><span class="x">×</span></div>
+      <span class="tab-add">+</span>
+      <span style="margin-left:auto" class="mono"><span style="font-size:11px;color:var(--ink-3)">⌘1–9 switch · ⌘W close</span></span>
+    </div>
+
+    <div class="ident">
+      <div class="left">
+        <div class="kicker"><span class="stamp t-dev">Dev</span><span class="working-badge"><span class="heat working"></span>Working · 2m 14s this turn</span><span class="mono" style="font-size:11px;color:var(--ink-3)">atlas · work · Claude Code · opus · started 12m ago</span></div>
+        <h2>Rate-limit the public search endpoint</h2>
+        <div class="links">
+          <span class="chip" style="color:var(--ash)"><svg><use href="#i-ext"/></svg>ENG-412 · In progress</span>
+          <span class="chip"><svg><use href="#i-branch"/></svg>eng-412-rate-limit ← main</span>
+          <span class="chip pr-draft"><svg><use href="#i-pr"/></svg>No PR yet</span>
+          <span class="chip dirty">● 6 uncommitted</span>
+          <span class="chip" style="color:var(--violet)">kioku · atlas → studio</span>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn sm">Editor</button>
+        <button class="btn sm">GitHub</button>
+        <button class="btn sm ghost">Quench</button>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <svg width="62" height="62" viewBox="0 0 62 62" class="dial" data-pct="38"></svg>
+        <div><div class="k">Context</div><div class="v">38<small>%</small></div><div class="d">76k / 200k</div></div>
+      </div>
+      <div class="metric"><div class="k">Tokens</div><div class="v">84.2<small>k</small></div><div class="d">↑ 61.0k · ↓ 23.2k</div></div>
+      <div class="metric"><div class="k">Cost</div><div class="v">$1.36</div><div class="d">this session</div></div>
+      <div class="metric"><div class="k">Changes</div><div class="v"><span class="plus">+142</span> <span class="minus" style="font-size:22px">−31</span></div><div class="d">6 files</div></div>
+      <div class="metric"><div class="k">Temperature</div><div class="v" style="color:var(--ember);text-shadow:0 0 18px rgba(255,106,26,.5)">1,180°</div><div class="d">working · 14 tool calls</div></div>
+    </div>
+
+    <div class="workbench">
+      <div class="term-wrap">
+        <div class="term">
+          <div class="term-bar"><span class="bolt"><i></i><i></i><i></i></span><span>~/.cw/worktrees/atlas/eng-412-rate-limit</span><span class="sp"></span><span>claude · opus</span><span style="color:#ff6a1a">● pty 41203</span></div>
+<div class="term-body"><span class="usr">&gt; Add a sliding-window rate limit to GET /api/search. 60 req/min per API key, 429 with Retry-After.</span>
+<span class="em">●</span> I'll look at how middleware is wired and whether there's a Redis client already.
+
+<span class="tool">● Read</span>(src/server/app.ts)
+  <span class="dim">⎿  Read 84 lines</span>
+<span class="tool">● Grep</span>(<span class="blue">"createRedis"</span>, path: src/)
+  <span class="dim">⎿  Found 2 files: src/lib/redis.ts, src/jobs/queue.ts</span>
+
+<span class="em">●</span> There's a shared Redis client. I'll add a middleware with a sorted-set window.
+
+<span class="tool">● Write</span>(src/server/middleware/rate-limit.ts)
+  <span class="dim">⎿  Wrote 58 lines</span>
+<span class="tool">● Update</span>(src/server/routes/search.ts)
+  <span class="dim">⎿  Updated with 3 additions and 1 removal</span>
+<span class="dim">     12  import { Hono } from 'hono'</span>
+<span class="add">     13 +import { rateLimit } from '../middleware/rate-limit'</span>
+<span class="dim">     14</span>
+<span class="del">     15 -search.get('/', handler)</span>
+<span class="add">     15 +search.get('/', rateLimit({ window: 60_000, max: 60, key: apiKey }), handler)</span>
+
+<span class="tool">● Bash</span>(pnpm vitest run src/server/middleware)
+  <span class="dim">⎿</span>  <span class="ok">✓</span> rate-limit.test.ts <span class="dim">(5 tests)</span> 212ms
+     <span class="ok">✓</span> allows 60 requests inside the window
+     <span class="ok">✓</span> answers 429 with Retry-After on the 61st
+     <span class="bad">✗</span> resets after the window slides <span class="dim">— expected 200, got 429</span>
+
+<span class="em">●</span> The window key never expires in the fake clock. Adding PEXPIRE after ZADD.
+
+<span class="spin">✻</span> <span class="em">Tempering…</span> <span class="dim">(2m 14s · ↓ 3.1k tokens · esc to interrupt)</span>
+</div>
+          <div class="term-input"><span>&gt; <span class="cur"></span></span><span>⏵⏵ accept edits on · ctx 38% · $1.36</span></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="panel"><h4>Worktree<span>6 files</span></h4>
+          <div class="files">
+            <div><span class="m A">A</span><span class="p">server/middleware/rate-limit.ts</span><span class="n plus">+58</span></div>
+            <div><span class="m A">A</span><span class="p">server/middleware/rate-limit.test.ts</span><span class="n plus">+64</span></div>
+            <div><span class="m M">M</span><span class="p">server/routes/search.ts</span><span class="n"><span class="plus">+3</span> <span class="minus">−1</span></span></div>
+            <div><span class="m M">M</span><span class="p">lib/redis.ts</span><span class="n"><span class="plus">+9</span> <span class="minus">−2</span></span></div>
+            <div><span class="m M">M</span><span class="p">server/app.ts</span><span class="n"><span class="plus">+4</span> <span class="minus">−4</span></span></div>
+            <div><span class="m M">M</span><span class="p">docs/api.md</span><span class="n"><span class="plus">+4</span> <span class="minus">−24</span></span></div>
+          </div>
+        </div>
+        <div class="panel"><h4>Heat log<span>today</span></h4>
+          <div class="log">
+            <div><span class="heat working" style="width:8px;height:8px"></span>Working<span>14:32</span></div>
+            <div><span class="heat waiting" style="width:8px;height:8px"></span>Waited on you · 40s<span>14:29</span></div>
+            <div><span class="heat permission" style="width:8px;height:8px"></span>Allowed Bash(pnpm vitest)<span>14:26</span></div>
+            <div><span class="heat working" style="width:8px;height:8px"></span>Working<span>14:21</span></div>
+            <div><span class="heat cold" style="width:8px;height:8px"></span>Struck<span>14:20</span></div>
+          </div>
+        </div>
+        <div class="panel"><h4>Tools<span>MCP · plugins</span></h4>
+          <div class="tagrow">
+            <span class="chip">linear</span><span class="chip">github</span><span class="chip">postgres</span><span class="chip">kioku</span><span class="chip">playwright</span>
+          </div>
+        </div>
+        <div class="panel"><h4>Remember<span>kioku</span></h4>
+          <div class="mono" style="font-size:11px;color:var(--ink-2);line-height:1.5">Search rate limits live in <span style="color:var(--ash)">middleware/rate-limit.ts</span>, keyed by API key.</div>
+          <div style="margin-top:8px"><button class="btn sm" style="width:100%">Remember…</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="gap"></div>
+
+<!-- ================= SCREEN C ================= -->
+<div class="screen-label"><b>C</b> The Floor — day shift <i></i> 1440 × 900</div>
+<div id="screenC-slot"></div>
+
+<script>
+(function () {
+  // heat bar on floor head
+  var map = { w: 'var(--ember)', p: 'var(--molten)', q: 'var(--molten)', e: 'var(--cherry)', i: 'var(--steel-deep)', c: 'var(--seam-2)' };
+  function heat(root) {
+    root.querySelectorAll('.heatbar .bar').forEach(function (bar) {
+      bar.innerHTML = '';
+      bar.dataset.heat.split(',').forEach(function (k) {
+        var i = document.createElement('i');
+        i.style.background = map[k];
+        if (k === 'w') i.style.boxShadow = '0 0 8px var(--ember)';
+        if (k === 'p' || k === 'q') i.style.background = 'repeating-linear-gradient(-45deg, var(--molten) 0 3px, transparent 3px 6px)';
+        bar.appendChild(i);
+      });
+    });
+    // segmented meters: color by heat
+    root.querySelectorAll('.meter').forEach(function (m) {
+      var pct = +m.dataset.pct, cells = m.querySelector('.cells'), n = 14, lit = Math.round(pct / 100 * n);
+      cells.innerHTML = '';
+      for (var k = 0; k < n; k++) {
+        var i = document.createElement('i');
+        if (k < lit) {
+          var f = k / (n - 1);
+          i.style.background = f < .5 ? 'var(--steel)' : f < .75 ? 'var(--molten)' : f < .9 ? 'var(--ember)' : 'var(--cherry)';
+          i.style.boxShadow = 'none';
+        }
+        cells.appendChild(i);
+      }
+    });
+  }
+  heat(document);
+
+  // context dial
+  document.querySelectorAll('.dial').forEach(function (s) {
+    var p = +s.dataset.pct / 100, r = 25, c = 31, a0 = Math.PI * .75, span = Math.PI * 1.5;
+    function pt(a) { return [c + r * Math.cos(a), c + r * Math.sin(a)]; }
+    function arc(a1, a2) { var s1 = pt(a1), s2 = pt(a2), large = a2 - a1 > Math.PI ? 1 : 0; return 'M' + s1[0] + ' ' + s1[1] + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + s2[0] + ' ' + s2[1]; }
+    var ticks = '';
+    for (var t = 0; t <= 10; t++) { var a = a0 + span * t / 10, i1 = [c + 29 * Math.cos(a), c + 29 * Math.sin(a)], i2 = [c + 31 * Math.cos(a), c + 31 * Math.sin(a)]; ticks += '<line x1="' + i1[0] + '" y1="' + i1[1] + '" x2="' + i2[0] + '" y2="' + i2[1] + '" stroke="var(--seam-2)" stroke-width="1.5"/>'; }
+    var na = a0 + span * p, np = [c + 18 * Math.cos(na), c + 18 * Math.sin(na)];
+    s.innerHTML = ticks +
+      '<path d="' + arc(a0, a0 + span) + '" stroke="var(--soot)" stroke-width="6" fill="none" stroke-linecap="butt"/>' +
+      '<path d="' + arc(a0, na) + '" stroke="var(--molten)" stroke-width="6" fill="none"/>' +
+      '<line x1="' + c + '" y1="' + c + '" x2="' + np[0] + '" y2="' + np[1] + '" stroke="var(--ember)" stroke-width="2.5" stroke-linecap="round"/>' +
+      '<circle cx="' + c + '" cy="' + c + '" r="4" fill="var(--seam-2)"/>';
+  });
+
+  // reuse rail for screen B, set to tasks with "atlas" focus
+  var railA = document.querySelector('#screenA .rail');
+  document.getElementById('railB').innerHTML = railA.innerHTML;
+
+  // screen C: day shift copy of A
+  var clone = document.getElementById('screenA').cloneNode(true);
+  clone.removeAttribute('id');
+  clone.classList.remove('shift-night');
+  clone.classList.add('shift-day');
+  var sh = clone.querySelectorAll('.shift span'); sh[0].classList.remove('on'); sh[1].classList.add('on');
+  document.getElementById('screenC-slot').replaceWith(clone);
+  heat(clone);
+})();
+</script>
+</body>
+</html>
