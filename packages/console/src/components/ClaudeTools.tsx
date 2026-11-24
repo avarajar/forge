@@ -74,17 +74,35 @@ export const ClaudeTools: FunctionComponent<{
   onToggle: (prefix: string) => void
 }> = ({ project, account, disabled, onToggle }) => {
   const [tools, setTools] = useState<ToolsInfo | null>(null)
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (!account) return
     let cancelled = false
+    setLoading(true)
     fetch(toolsUrl(project, account))
       .then(r => r.json() as Promise<ToolsInfo>)
       .catch(() => null)
-      .then((result) => { if (!cancelled) setTools(result) })
+      .then((result) => {
+        if (cancelled) return
+        setTools(result)
+        setLoading(false)
+      })
     return () => { cancelled = true }
   }, [project, account])
 
+  // the claude.ai connectors come from claude.ai, so a cold read takes a moment
+  if (loading && !tools) {
+    return (
+      <div class="flex flex-col" style={{ gap: '6px' }} aria-busy="true">
+        <span style={labelStyle}>Claude Code will load</span>
+        <span class="flex items-center" style={{ gap: '7px', fontSize: '12px', color: 'var(--ink-3)' }}>
+          <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--ink-3)', animation: 'breathe 1.2s var(--ease) infinite' }} />
+          Reading MCPs and claude.ai connectors…
+        </span>
+      </div>
+    )
+  }
   if (!tools) return null
   const mcps = loadedMcps(tools)
   const plugins = tools.plugins.filter(p => p.enabled)
@@ -92,7 +110,7 @@ export const ClaudeTools: FunctionComponent<{
   const note = connectorsNote(tools.claudeAi)
 
   return (
-    <div class="flex flex-col" style={{ gap: '6px' }}>
+    <div class="flex flex-col" style={{ gap: '6px', opacity: loading ? 0.55 : 1, transition: 'opacity .15s var(--ease)' }} aria-busy={loading}>
       <span style={labelStyle}>Claude Code will load</span>
       <div class="flex flex-wrap items-center" style={{ gap: '5px' }}>
         <span style={{ fontSize: '12px', color: 'var(--ink-3)', marginRight: '2px' }}>MCP</span>
