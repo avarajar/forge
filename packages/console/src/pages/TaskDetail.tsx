@@ -150,12 +150,13 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   const [connected, setConnected] = useState(false)
   const [wsKey, setWsKey] = useState(0)
   const [tools, setTools] = useState<ToolsInfo | null>(null)
+  const [toolsLoading, setToolsLoading] = useState(true)
   const [contextOpen, setContextOpen] = useState(false)
 
   const key = sessionKey(session)
   const sessionDir = sessionDirOf(session)
   const reviewed = session.type === 'task' || session.type === 'review'
-  const review = useTaskReview(session, { poll: active && session.type === 'task' })
+  const review = useTaskReview(session, { poll: active && session.type === 'task', first: active })
   const style = getTypeStyle(session.type)
   const isLogin = session.type === 'login'
   const stack = stackParts(useProjectStack(isLogin ? '' : projectOf(session)))
@@ -171,14 +172,21 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
   useEffect(() => {
     if (isLogin) return
     let cancelled = false
-    Promise.all([
-      fetch(toolsUrl(session.project, session.account)).then(r => r.json() as Promise<ToolsInfo>).catch(() => null),
-      fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`).then(r => r.json() as Promise<{ branch: string }>).catch(() => null),
-    ]).then(([toolsInfo, branchInfo]) => {
-      if (cancelled) return
-      if (toolsInfo) setTools(toolsInfo)
-      setBranch(branchInfo?.branch || session.task || session.pr || '')
-    })
+    setToolsLoading(true)
+    fetch(toolsUrl(session.project, session.account))
+      .then(r => r.json() as Promise<ToolsInfo>)
+      .catch(() => null)
+      .then((toolsInfo) => {
+        if (cancelled) return
+        setTools(toolsInfo)
+        setToolsLoading(false)
+      })
+    fetch(`/api/cw/git/branch/${projectEnc}/${sessionDirEnc}`)
+      .then(r => r.json() as Promise<{ branch: string }>)
+      .catch(() => null)
+      .then((branchInfo) => {
+        if (!cancelled) setBranch(branchInfo?.branch || session.task || session.pr || '')
+      })
     return () => { cancelled = true }
   }, [key])
 
@@ -219,7 +227,7 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
           <div class="flex flex-wrap items-center" style={{ gap: '7px' }}>
             {!isLogin && (
               <button type="button" class={secondaryClass} style={secondaryButton} aria-expanded={contextOpen} onClick={() => setContextOpen(o => !o)}>
-                {contextOpen ? 'Hide context' : `Context · ${mcpList.length} MCP, ${pluginList.length} plugins`}
+                {contextOpen ? 'Hide context' : toolsLoading ? 'Context · reading MCPs…' : `Context · ${mcpList.length} MCP, ${pluginList.length} plugins`}
               </button>
             )}
             {!isLogin && <TicketButton session={session} />}
@@ -266,18 +274,18 @@ export const TaskDetail: FunctionComponent<TaskDetailProps> = ({ session, active
         {contextOpen && (
           <div class="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '9px', animation: 'riseIn .3s var(--ease) both' }}>
             <ChipCard
-              title={`MCP · ${mcpList.length}`}
+              title={toolsLoading ? 'MCP' : `MCP · ${mcpList.length}`}
               tone="--blue"
-              empty="No MCP servers"
+              empty={toolsLoading ? 'Reading what Claude Code loads…' : 'No MCP servers'}
               items={mcpList.map(m => {
                 const off = session.disabledMcps?.includes(m.prefix) ?? false
                 return { name: m.name, muted: off, title: `${m.title}${off ? ' · off for this session' : ''}` }
               })}
             />
             <ChipCard
-              title={`Plugins · ${pluginList.length}`}
+              title={toolsLoading ? 'Plugins' : `Plugins · ${pluginList.length}`}
               tone="--green"
-              empty="No plugins"
+              empty={toolsLoading ? 'Reading…' : 'No plugins'}
               items={pluginList.map(p => ({ name: p.name, muted: !p.enabled, title: `${p.enabled ? 'enabled' : 'disabled'} · ${p.marketplace}${p.hasMcp ? ` · MCP ${p.mcpName ?? ''}` : ''}` }))}
             />
             <ChipCard title="Stack" tone={null} empty="Nothing detected" items={stack.map(name => ({ name }))} />
